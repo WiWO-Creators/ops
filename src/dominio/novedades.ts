@@ -53,6 +53,69 @@ export const ROTULO_TIPO: Record<TipoNovedad, string> = {
  */
 export const NOVEDADES: Novedad[] = [
   {
+    fecha: '2026-09-30',
+    tipo: 'nuevo',
+    titulo: 'Adjuntar archivos al crear una Tarea',
+    detalle: 'Al crear una Tarea ahora puedes adjuntar archivos en el mismo formulario y se guardan en el Drive de la Tarea, sin tener que abrirla después.',
+    commits: ['ops-v2@fb5ecb3']
+  },
+  {
+    fecha: '2026-09-30',
+    tipo: 'mejora',
+    titulo: 'Tablero del proyecto: elige un mes ya cerrado',
+    detalle: 'En el tablero del proyecto puedes escoger un mes cerrado y verlo tal como quedó al cierre, con sus cifras y gráficos.',
+    commits: ['ops-v2@e04108a', 'board@ec75ec3']
+  },
+  {
+    fecha: '2026-09-30',
+    tipo: 'mejora',
+    titulo: '«Ver como cliente» a la vista en los contactos',
+    detalle: 'En la ficha del cliente, cada contacto tiene un botón visible para ver el portal tal como lo ve esa persona.',
+    commits: ['ops-v2@54be877']
+  },
+  {
+    fecha: '2026-09-29',
+    tipo: 'nuevo',
+    titulo: 'Reporte mensual en el portal del cliente',
+    detalle: 'El portal del cliente tiene un reporte mensual de cada proyecto con lo que ya puede ver: tareas, entregables y, si están visibles, el Meeting Paper y las horas. En cada tarea se marca si hay entregable y se puede dejar un enlace.',
+    commits: ['ops-v2@ec4540c', 'board@608f921']
+  },
+  {
+    fecha: '2026-09-29',
+    tipo: 'nuevo',
+    titulo: 'Ver el portal como un contacto del cliente',
+    detalle: 'En la ficha del cliente, el menú de cada contacto tiene «Ver como cliente»: entras al portal tal como lo ve esa persona, con una franja arriba para terminar. Cualquiera que pueda ver al cliente puede usarlo, y queda registrado quién entró.',
+    commits: ['ops-v2@d16599a', 'board@a678b9c']
+  },
+  {
+    fecha: '2026-09-29',
+    tipo: 'nuevo',
+    titulo: 'Contratos para Finanzas y Comercial',
+    detalle: 'Hay una sección Contratos donde las áreas autorizadas ven, crean y editan contratos. El superadmin define con el botón «Acceso» qué áreas entran.',
+    commits: ['ops-v2@d061f03', 'board@03a2bb6']
+  },
+  {
+    fecha: '2026-09-29',
+    tipo: 'mejora',
+    titulo: 'Seguidores predeterminados por proyecto y plantilla',
+    detalle: 'Quien configura un proyecto o una plantilla puede dejar seguidores predeterminados: se suman solos a las tareas nuevas y reciben las notificaciones normales. Las tareas que ya existen no cambian.',
+    commits: ['ops-v2@9bb9bfe', 'board@fce67c1']
+  },
+  {
+    fecha: '2026-09-29',
+    tipo: 'mejora',
+    titulo: 'Una licitación puede tener varias áreas',
+    detalle: 'En el asistente de licitación ahora se eligen varias áreas, y el filtro por área encuentra la licitación en cualquiera de ellas.',
+    commits: ['ops-v2@f2b96cf', 'board@5e148db']
+  },
+  {
+    fecha: '2026-09-29',
+    tipo: 'mejora',
+    titulo: 'Las escenas de actualización cuentan qué cambió en Ops',
+    detalle: 'Al entrar tras una actualización, las escenas de bienvenida muestran el contexto de Ops, y en Administración hay un laboratorio para ensayarlas.',
+    commits: ['ops-v2@f930375', 'ops-v2@b56c9cd']
+  },
+  {
     fecha: '2026-09-29',
     tipo: 'mejora',
     titulo: 'Jerarquías ahora se llama Organización',
