@@ -109,7 +109,7 @@ export function FormularioEntrarPortal ({ aviso = null }: { aviso?: string | nul
           <Logo />
         </div>
 
-        <PanelVidrio className="w-full max-w-sm p-6 sm:p-8">
+        <PanelVidrio className="animate-entrar-abajo w-full max-w-sm p-6 sm:p-8">
           <header className="mb-8">
             <h1 className="font-titular text-texto text-xl font-semibold">Portal de clientes</h1>
             <p className="text-texto-tenue mt-1 text-sm">

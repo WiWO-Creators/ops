@@ -1,7 +1,7 @@
 'use client'
 
-import { useEffect, useRef, useState, type ReactElement } from 'react'
-import { ChevronDown, ChevronRight, Pencil, Sparkles, Trash2 } from 'lucide-react'
+import { useEffect, useId, useRef, useState, type ReactElement } from 'react'
+import { ChevronDown, Pencil, Sparkles, Trash2 } from 'lucide-react'
 import { useLenis } from 'lenis/react'
 import { Boton } from '@/componentes/formularios/Boton'
 import { Campo } from '@/componentes/formularios/Campo'
@@ -13,6 +13,7 @@ import {
   Selector
 } from '@/componentes/formularios/Selector'
 import { SelectorPersonas } from '@/componentes/formularios/SelectorPersonas'
+import { Plegable } from '@/componentes/estructura/Plegable'
 import { EnlacePersona } from '@/componentes/presentadores/EnlacePersona'
 import { Fecha } from '@/componentes/presentadores/Fecha'
 import { Insignia } from '@/componentes/presentadores/Insignia'
@@ -114,6 +115,7 @@ export function TareasPropuestas ({
   destacar = false
 }: PropsTareasPropuestas): ReactElement {
   const seccion = useRef<HTMLElement>(null)
+  const idPanel = useId()
   const lenis = useLenis()
   const [carga, setCarga] = useState<Carga>({ fase: 'cargando' })
   const [intento, setIntento] = useState(0)
@@ -453,8 +455,6 @@ export function TareasPropuestas ({
     void ejecutarProponer()
   }
 
-  const Chevron = abierta ? ChevronDown : ChevronRight
-
   return (
     <section ref={seccion} className="flex scroll-mt-6 flex-col gap-3">
       <div className="flex flex-wrap items-center justify-between gap-2">
@@ -462,9 +462,15 @@ export function TareasPropuestas ({
           type="button"
           onClick={() => { setDesplegada(!abierta) }}
           aria-expanded={abierta}
-          className="text-texto rounded-control hover:bg-hover -ml-1.5 flex cursor-pointer items-center gap-2 p-1.5 text-sm font-semibold transition-colors duration-150"
+          aria-controls={carga.fase === 'listo' ? idPanel : undefined}
+          className="text-texto rounded-control hover:bg-hover ease-neo -ml-1.5 flex cursor-pointer items-center gap-2 p-1.5 text-sm font-semibold transition-colors duration-rapida"
         >
-          <Chevron size={16} strokeWidth={2} aria-hidden="true" className="text-texto-sutil shrink-0" />
+          <ChevronDown
+            size={16}
+            strokeWidth={2}
+            aria-hidden="true"
+            className={cn('text-texto-sutil ease-neo shrink-0 transition-transform duration-rapida', !abierta && '-rotate-90')}
+          />
           Tareas propuestas
           {hayPendientes && (
             <Insignia tono="acento" tamano="chico">
@@ -527,8 +533,10 @@ export function TareasPropuestas ({
         </div>
       )}
 
-      {carga.fase === 'listo' && abierta && (
-        <>
+      {/* `-mt-3` devuelve el `gap-3` de la seccion y `pt-3` lo repone adentro: plegado, el panel
+          queda con alto cero y no deja hueco al pie. */}
+      {carga.fase === 'listo' && (
+        <Plegable id={idPanel} abierto={abierta} className="-mt-3" claseContenido="flex flex-col gap-3 pt-3">
           {sinAnalizar && (
             <p className="text-texto-tenue text-sm">
               Este Meeting Paper todavía no se analizó en busca de tareas.
@@ -612,7 +620,7 @@ export function TareasPropuestas ({
           )}
 
           {creadas.length > 0 && <YaCreadas propuestas={creadas} proyectoId={proyectoId} />}
-        </>
+        </Plegable>
       )}
 
       {editando !== null && (
@@ -799,7 +807,14 @@ function FilaPropuesta ({
 
         {propuesta.descripcion !== null && (
           <div className="flex flex-col items-start gap-1">
-            <p className={cn('text-texto-tenue whitespace-pre-line text-sm', !descripcionAbierta && 'line-clamp-4')}>
+            {/* Desplegar anima el alto desde las cuatro lineas hasta el contenido (`interpolate-size`, donde
+                el navegador lo tiene; donde no, salta como antes). Replegar es inmediato. */}
+            <p
+              className={cn(
+                'text-texto-tenue ease-neo overflow-hidden whitespace-pre-line text-sm transition-[max-height] duration-rapida [interpolate-size:allow-keywords]',
+                descripcionAbierta ? 'max-h-max' : 'line-clamp-4 max-h-[4lh]'
+              )}
+            >
               {propuesta.descripcion}
             </p>
             {esDescripcionLarga(propuesta.descripcion) && (

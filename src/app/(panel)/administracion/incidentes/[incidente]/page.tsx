@@ -148,8 +148,8 @@ export default async function IncidentePage (props: PageProps<'/administracion/i
 function Tecnico ({ incidente, estado }: { incidente: IncidenteConTraza, estado: string | null }) {
   return (
     <details className="border-linea rounded-tarjeta group border">
-      <summary className="text-texto-tenue hover:text-texto cursor-pointer list-none p-4 text-sm font-medium transition-colors">
-        <span className="inline-block transition-transform group-open:rotate-90">›</span>
+      <summary className="text-texto-tenue hover:text-texto cursor-pointer list-none p-4 text-sm font-medium transition-colors duration-rapida ease-neo">
+        <span className="ease-neo inline-block transition-transform duration-rapida group-open:rotate-90">›</span>
         {' '}
         Detalle técnico
       </summary>

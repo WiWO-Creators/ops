@@ -5,6 +5,7 @@ import { createPortal } from 'react-dom'
 import { useCallback, useEffect, useRef, useState, type ReactElement } from 'react'
 import { Avatar, type TamanoAvatar } from '@/componentes/presentadores/Avatar'
 import { cn } from '@/lib/clases'
+import { usePresencia } from '@/lib/usePresencia'
 import type { FichaPersona } from '@/datos/recursos'
 
 /** Cuanto tarda en desaparecer la tarjeta tras salir del disparador o de la tarjeta con el mouse. */
@@ -80,6 +81,7 @@ export function TarjetaFlotantePersona ({
   const disparadorRef = useRef<HTMLAnchorElement>(null)
   const cierrePendiente = useRef<ReturnType<typeof setTimeout> | null>(null)
   const [abierto, setAbierto] = useState(false)
+  const { montado, saliendo, alTerminarAnimacion } = usePresencia(abierto)
   const [posicion, setPosicion] = useState({ top: 0, left: 0 })
   const [ficha, setFicha] = useState<FichaPersona | null | undefined>(undefined)
 
@@ -153,17 +155,21 @@ export function TarjetaFlotantePersona ({
         {mostrarNombre && <span className="truncate">{nombre}</span>}
       </Link>
 
-      {/* `abierto` solo se enciende desde un evento del navegador (mouse, foco): para cuando esto es
+      {/* `montado` solo se enciende desde un evento del navegador (mouse, foco): para cuando esto es
           `true`, `document` ya existe. El chequeo evita el error del render en el servidor, que sí
           lo ejecuta con `abierto` siempre en `false`. */}
-      {abierto && typeof document !== 'undefined' && createPortal(
+      {montado && typeof document !== 'undefined' && createPortal(
         <div
           role="group"
           aria-label={`Ficha de ${nombre}`}
           onMouseEnter={cancelarCierre}
           onMouseLeave={programarCierre}
+          onAnimationEnd={alTerminarAnimacion}
           style={{ position: 'fixed', top: posicion.top, left: posicion.left }}
-          className="border-linea bg-superficie-flotante rounded-tarjeta shadow-flotante z-50 w-72 border p-4"
+          className={cn(
+            saliendo ? 'animate-salir-escala pointer-events-none' : 'animate-entrar-escala',
+            'border-linea bg-superficie-flotante rounded-tarjeta shadow-flotante z-50 w-72 origin-top-left border p-4'
+          )}
         >
           <ContenidoDeFicha nombre={nombre} imagen={imagen} ficha={ficha} />
         </div>,

@@ -179,6 +179,19 @@ La entrada escalonada de listas, tablas y grillas tiene un solo mecanismo: `Entr
 para filas y tarjetas, y `clave` repite la entrada al cambiar página, filtro u orden sin reanimar en
 un refresco de los mismos datos. No se escriben retrasos por índice a mano.
 
+Lo que se abre y se cierra también tiene un mecanismo por caso, todos con `--wiwo-motion-fast`:
+
+- **Flotante que no es de Radix** (`OrbeChatIA`, `TarjetaFlotantePersona`): `usePresencia`
+  (`lib/`) lo sostiene montado hasta el `animationend` de su clase `animate-salir-*`. Sale por donde
+  entró: `entrar-abajo`/`salir-abajo`, `entrar-escala`/`salir-escala`.
+- **Acordeón con estado**: `Plegable` (`componentes/estructura/`) anima el alto con
+  `grid-template-rows: 0fr → 1fr` y deja el panel `inert` al plegar. Se creó con tres usos reales
+  (`acta/Paso`, `acta/TareasPropuestas`, `HistorialDeAprobaciones`).
+- **`<details>` nativo**: una regla global sobre `::details-content` en `globals.css`, mejora
+  progresiva; donde el navegador no la entiende abre de golpe como siempre.
+- **Filas que se agregan, quitan o reordenan**: `<ViewTransition enter="fila-entrar"
+  exit="fila-salir" update="auto">` por fila y el cambio dentro de `startTransition`.
+
 ## Breakpoints
 
 `480 / 680 / 760 / 1024 / 1208`, en dos lugares: el `@theme` de `globals.css` y
@@ -218,6 +231,10 @@ estéticas: colgaban el panel en pantallas Retina.
    el Proyecto está vivo o recién cerrado, y es una decisión de producto, no un descuido. Se acota a
    una insignia chica, anima solo opacidad (`animate-pulse`) y va siempre con `motion-safe:`, así que
    con `prefers-reduced-motion` queda quieta. No se extiende a otras insignias ni a otros módulos.
+
+   El punto verde de la llamada en curso (`teletrabajo/MiniLlamada.tsx`) pulsa con el mismo criterio
+   (decidido junto con la píldora: se corrigió para que vaya con `motion-safe:`), y no es armazón:
+   la ventanita existe solo mientras dura la llamada.
 3. Preferir `transform` y `opacity` sobre `filter` y `box-shadow` animados.
 
 Se hacen cumplir con lint, no con buena voluntad:
@@ -226,6 +243,9 @@ Se hacen cumplir con lint, no con buena voluntad:
   `src/componentes/{estructura,navegacion,superposiciones,datos}/`.
 - Regla que prohíbe `animation-iteration-count: infinite` fuera de `src/componentes/estado/`
   (donde vive lo que se desmonta: indicadores de carga puntual).
+- Regla de ESLint (`no-restricted-syntax` en `eslint.config.mjs`) que prohíbe las clases
+  `animate-pulse` y `animate-ping` en `src/` fuera de `src/componentes/estado/`, salvo en los tres
+  archivos de las excepciones de arriba y en `/pantalla`, que es cartelería.
 
 > El login actual del panel (`views/authentication/login_admin.php:25`) viola la regla 1 a propósito,
 > por ser una pantalla transitoria. Ese permiso **no** se hereda: en `ops-v2` la pantalla de acceso
@@ -235,7 +255,7 @@ Se hacen cumplir con lint, no con buena voluntad:
 
 | Grupo | Componentes |
 |---|---|
-| **Estructura** | Marco, BarraLateral, BarraSuperior, PanelDetalle, Seccion, Cabecera |
+| **Estructura** | Marco, BarraLateral, BarraSuperior, PanelDetalle, Seccion, Cabecera, Plegable |
 | **Navegación** | Menu, Migas, Pestañas, Paginacion, Buscador (⌘K), SelectorEspacio |
 | **Datos** | Tabla, Tablero, Lista, Calendario, LineaDeTiempo, Grafico |
 | **Presentadores** | Insignia, Avatar, GrupoAvatares, Etiqueta, Dinero, Fecha, Progreso, EnlaceEntidad |

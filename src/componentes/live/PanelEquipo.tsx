@@ -228,7 +228,7 @@ function SinJornada ({ filas }: { filas: FilaDeLive[] }) {
           size={14}
           strokeWidth={2}
           aria-hidden="true"
-          className="shrink-0 transition-transform duration-150 group-open:rotate-90"
+          className="ease-neo shrink-0 transition-transform duration-rapida group-open:rotate-90"
         />
         Sin jornada abierta
         <span className="text-texto-sutil tabular-nums">({filas.length})</span>

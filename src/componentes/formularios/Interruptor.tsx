@@ -29,7 +29,7 @@ export function Interruptor ({
       disabled={deshabilitado}
       onClick={onPulsar}
       className={cn(
-        'rounded-control relative inline-flex h-6 w-11 shrink-0 items-center border transition-colors duration-150',
+        'rounded-control relative inline-flex h-6 w-11 shrink-0 items-center border transition-colors duration-rapida ease-neo',
         'disabled:cursor-not-allowed',
         encendido ? 'bg-acento border-acento' : 'bg-control border-control-borde'
       )}
@@ -37,7 +37,7 @@ export function Interruptor ({
       <span
         aria-hidden="true"
         className={cn(
-          'rounded-control size-4 transition-transform duration-150',
+          'rounded-control size-4 transition-transform duration-rapida ease-neo',
           encendido ? 'bg-acento-contenido translate-x-6' : 'bg-texto-tenue translate-x-1'
         )}
       />

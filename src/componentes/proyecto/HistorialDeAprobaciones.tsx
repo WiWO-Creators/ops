@@ -1,9 +1,12 @@
 'use client'
 
-import { useEffect, useRef, useState, type ReactElement } from 'react'
+import { useEffect, useId, useRef, useState, type ReactElement } from 'react'
+import { ChevronDown } from 'lucide-react'
+import { Plegable } from '@/componentes/estructura/Plegable'
 import { Boton } from '@/componentes/formularios/Boton'
 import { Fecha } from '@/componentes/presentadores/Fecha'
 import { Insignia } from '@/componentes/presentadores/Insignia'
+import { cn } from '@/lib/clases'
 import { pedirRespuesta } from '@/datos/cliente'
 import { ESTADO_DE_APROBACION } from '@/dominio/estados-aprobacion'
 import type { RondaDeAprobacion } from '@/datos/recursos'
@@ -44,6 +47,7 @@ interface Props {
 
 export function HistorialDeAprobaciones ({ tareaId, rondas }: Props): ReactElement | null {
   const [abierto, setAbierto] = useState(false)
+  const idPanel = useId()
   const [filas, setFilas] = useState<RondaDeAprobacion[] | null>(null)
   const [cargando, setCargando] = useState(false)
   const [fallo, setFallo] = useState<string | null>(null)
@@ -104,22 +108,32 @@ export function HistorialDeAprobaciones ({ tareaId, rondas }: Props): ReactEleme
         tamano="chico"
         className="self-start"
         aria-expanded={abierto}
+        aria-controls={idPanel}
         onClick={alternar}
       >
         {abierto ? 'Ocultar las rondas' : `Ver las ${rondas} rondas de aprobación`}
+        <ChevronDown
+          size={14}
+          aria-hidden="true"
+          className={cn('ease-neo transition-transform duration-rapida', abierto && 'rotate-180')}
+        />
       </Boton>
 
-      {abierto && cargando && <p className="text-texto-sutil text-sm">Cargando…</p>}
+      {/* `-mt-2` devuelve el `gap-2` del contenedor y `pt-2` lo repone adentro: plegado, el panel
+          queda con alto cero y no deja hueco al pie. */}
+      <Plegable id={idPanel} abierto={abierto} className="-mt-2" claseContenido="flex flex-col gap-2 pt-2">
+        {cargando && <p className="text-texto-sutil text-sm">Cargando…</p>}
 
-      {abierto && fallo !== null && (
-        <p role="alert" className="text-texto-peligro text-sm">{fallo}</p>
-      )}
+        {fallo !== null && (
+          <p role="alert" className="text-texto-peligro text-sm">{fallo}</p>
+        )}
 
-      {abierto && !cargando && fallo === null && filas !== null && (
-        filas.length === 0
-          ? <p className="text-texto-sutil text-sm">Todavía no se pidió ninguna aprobación.</p>
-          : <ol className="flex flex-col gap-3">{filas.map(unaRonda)}</ol>
-      )}
+        {!cargando && fallo === null && filas !== null && (
+          filas.length === 0
+            ? <p className="text-texto-sutil text-sm">Todavía no se pidió ninguna aprobación.</p>
+            : <ol className="flex flex-col gap-3">{filas.map(unaRonda)}</ol>
+        )}
+      </Plegable>
     </div>
   )
 }

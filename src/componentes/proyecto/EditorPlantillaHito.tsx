@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { startTransition, useState, ViewTransition } from 'react'
 import { ArrowDown, ArrowUp, Trash2 } from 'lucide-react'
 import { Boton } from '@/componentes/formularios/Boton'
 import { Campo } from '@/componentes/formularios/Campo'
@@ -156,17 +156,20 @@ function Formulario ({ plantilla, tiposDeProceso, onGuardado }: PropsFormulario)
   function mover (indice: number, salto: -1 | 1) {
     const destino = indice + salto
 
-    setFilas((previas) => {
-      if (destino < 0 || destino >= previas.length) return previas
+    // En una transicion para que el `<ViewTransition>` de cada fila anime el cambio de lugar.
+    startTransition(() => {
+      setFilas((previas) => {
+        if (destino < 0 || destino >= previas.length) return previas
 
-      const siguientes = [...previas]
-      const [movida] = siguientes.splice(indice, 1)
+        const siguientes = [...previas]
+        const [movida] = siguientes.splice(indice, 1)
 
-      if (movida === undefined) return previas
+        if (movida === undefined) return previas
 
-      siguientes.splice(destino, 0, movida)
+        siguientes.splice(destino, 0, movida)
 
-      return siguientes
+        return siguientes
+      })
     })
   }
 
@@ -273,8 +276,8 @@ function Formulario ({ plantilla, tiposDeProceso, onGuardado }: PropsFormulario)
         errores={erroresPorFila}
         onCambiar={cambiarFila}
         onMover={mover}
-        onQuitar={(indice) => { setFilas((previas) => previas.filter((_, i) => i !== indice)) }}
-        onAgregar={() => { setFilas((previas) => [...previas, filaNueva()]) }}
+        onQuitar={(indice) => { startTransition(() => { setFilas((previas) => previas.filter((_, i) => i !== indice)) }) }}
+        onAgregar={() => { startTransition(() => { setFilas((previas) => [...previas, filaNueva()]) }) }}
       />
 
       {fallo !== null && <p role="alert" className="text-texto-peligro text-sm">{fallo}</p>}
@@ -335,17 +338,18 @@ function ListaDeTareas ({ filas, tiposDeProceso, errores, onCambiar, onMover, on
         : (
           <ol className="divide-linea-suave border-linea rounded-tarjeta divide-y border">
             {filas.map((fila, indice) => (
-              <FilaDeTarea
-                key={fila.clave}
-                fila={fila}
-                indice={indice}
-                tiposDeProceso={tiposDeProceso}
-                errores={errores[indice] ?? {}}
-                ultima={indice === filas.length - 1}
-                onCambiar={onCambiar}
-                onMover={onMover}
-                onQuitar={onQuitar}
-              />
+              <ViewTransition key={fila.clave} name={`plantilla-hito-${fila.clave}`} enter="fila-entrar" exit="fila-salir" update="auto" default="none">
+                <FilaDeTarea
+                  fila={fila}
+                  indice={indice}
+                  tiposDeProceso={tiposDeProceso}
+                  errores={errores[indice] ?? {}}
+                  ultima={indice === filas.length - 1}
+                  onCambiar={onCambiar}
+                  onMover={onMover}
+                  onQuitar={onQuitar}
+                />
+              </ViewTransition>
             ))}
           </ol>
           )}
