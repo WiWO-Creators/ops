@@ -57,7 +57,7 @@ Todas las rutas son relativas a `ops-v2/`.
 - **Propuesta**: Extraer una primitiva transversal `SelectorBuscableMultiple<T>` o `SelectorRelacion<T>` en `src/componentes/formularios/`, documentada como tal en el sistema de diseño, dejando a los selectores concretos como simples configuraciones de adaptador.
 - **Prioridad**: Alta · **Esfuerzo**: M
 
-### P2-08 Duplicación de tokens entre `tokens.css`, `neo-tokens.css`, `neo.css` y `globals.css`
+### P2-08 Duplicación de tokens entre `tokens.css`, `neo-tokens.css`, `neo.css` y `globals.css` (parcial en 5438715: falta eliminar `tokens.css`, que no se hace porque es la capa de marca cruda que leen `neo.css` y `pruebas/marca.test.js`; se quitaron sus restos muertos y se documentó el dueño de cada valor)
 - **Dónde**: `src/estilos/tokens.css`, `src/estilos/neo-tokens.css`, `src/estilos/neo.css` y `src/app/globals.css:1-150`
 - **Qué pasa**: Se conservan remanentes de tokens heredados de Huly (`tokens.css` define `--spacing-1` a `--spacing-24`, `--font-sans`, escalas fijas en píxeles), variables en `neo-tokens.css` y la declaración `@theme inline` en `globals.css`. Esta redundancia produce ambigüedad sobre cuál es la fuente de verdad de espaciado y radios.
 - **Propuesta**: Eliminar `tokens.css` y consolidar las variables de color, elevación y timing exclusivamente en `globals.css` bajo la directiva unificada `@theme` de Tailwind v4.
@@ -90,7 +90,7 @@ Todas las rutas son relativas a `ops-v2/`.
 - **Propuesta**: Incorporar `animate-aparecer` (o `animate-entrar-escala` rápido de 120ms) y encapsular su salida o cierre suave respetando `prefers-reduced-motion`.
 - **Prioridad**: Media · **Esfuerzo**: S
 
-### P2-12 El catálogo `/taller` no cubre la totalidad de componentes y estados del sistema
+### P2-12 El catálogo `/taller` no cubre la totalidad de componentes y estados del sistema (resuelto en 21ebfd3)
 - **Dónde**: `src/app/taller/page.tsx:1-260`
 - **Qué pasa**: `/taller` se diseñó como el showroom y catálogo de diseño interno, pero solo muestra Insignias, Avatares, Botones básicos, un Diálogo simple y una Tabla fija. No expone:
   - Estados de formulario: deshabilitado, validación con error (`aria-invalid`), guardando/cargando.
@@ -148,13 +148,13 @@ Todas las rutas son relativas a `ops-v2/`.
 
 ## Deuda técnica
 
-### P2-19 Dispersión de valores arbitrarios de `z-index` sin escala centralizada
+### P2-19 Dispersión de valores arbitrarios de `z-index` sin escala centralizada (resuelto en 5438715)
 - **Dónde**: `src/componentes/estructura/RecorridoDeNovedades.tsx:112` (`z-[70]`), `src/componentes/estructura/CapaDeBienvenida.tsx:76` (`z-[70]`), `src/componentes/avisos/AvisosDeError.tsx:248` (`z-[55]`), `src/componentes/avisos/aviso-de-error.ts:16`
 - **Qué pasa**: En lugar de respetar una escala semántica (`z-base`, `z-fijo`, `z-desplegable`, `z-dialogo`, `z-toast`, `z-tooltip`), se introducen valores literales como `z-[55]` y `z-[70]` para superponer elementos a ciegas.
 - **Propuesta**: Tipar e incorporar las capas en Tailwind/CSS (`--z-toast: 50`, `--z-modal: 60`, `--z-onboarding: 70`) y prohibir clases arbitrarias `z-[*]` mediante regla de linting.
 - **Prioridad**: Media · **Esfuerzo**: S
 
-### P2-20 Uso residual de tamaños de texto arbitrarios `text-[...px]` rompiendo la escala tipográfica
+### P2-20 Uso residual de tamaños de texto arbitrarios `text-[...px]` rompiendo la escala tipográfica (resuelto en 5438715)
 - **Dónde**: `src/componentes/presentadores/Avatar.tsx:8-12` (`text-[0.6875rem]`, `text-[0.8125rem]`), `src/componentes/presentadores/Insignia.tsx:24` (`text-[0.625rem]`), `src/componentes/proyecto/LineaDeActividad.tsx:52` (`text-[0.6875rem]`)
 - **Qué pasa**: Existen 37 apariciones de tamaños de fuente arbitrarios en corchetes (`text-[Npx]`/`text-[Nrem]`) que eluden las clases semánticas de Tailwind y los tokens `--step-*` del sistema fluido.
 - **Propuesta**: Remplazar las clases arbitrarias por los tokens semánticos oficiales `text-xs`, `text-texto-sutil` o las utilidades de escala fluida correspondientes.

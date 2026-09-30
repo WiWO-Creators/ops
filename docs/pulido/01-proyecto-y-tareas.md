@@ -169,7 +169,7 @@ Las rutas son relativas a `ops-v2/`.
 - **Propuesta**: `loading.tsx` con `Cargando` y envolver el `<main>` en `TransicionDePagina` (o un `template.tsx` en `src/app/tarea/`), igual que `portal/(dentro)/template.tsx`.
 - **Prioridad**: Media · **Esfuerzo**: S
 
-### P1-24 Tamaños tipográficos arbitrarios que equivalen a un token
+### P1-24 Tamaños tipográficos arbitrarios que equivalen a un token (resuelto en 5438715)
 - **Dónde**: `text-[0.6875rem]` en `RejillaEntregas.tsx:101,176,198,256,439,447`, `PanelActividad.tsx:169`, `LineaDeActividad.tsx:52`; `text-[0.625rem]` en `GraficoHoras.tsx:92`
 - **Qué pasa**: 11 px fijos a mano, cuando `--text-xs` (`globals.css:150`) ya es 11 px y fluido; los arbitrarios no siguen la escala.
 - **Propuesta**: `text-xs` (o `text-menor`) en todos; si 10 px hace falta de verdad, un token nuevo en la escala.
@@ -226,7 +226,7 @@ Las rutas son relativas a `ops-v2/`.
 - **Propuesta**: En `DetalleActa`, extraer la barra de acciones/exportación, `AdjuntosDelActa` (`:952-1071`) y `DialogoDeRenombre` (`:829`) a archivos propios en `proyecto/acta/`; en `TareasPropuestas`, sacar `DialogoDePropuesta` (`:876`) y `FilaPropuesta` (`:642`).
 - **Prioridad**: Baja · **Esfuerzo**: M
 
-### P1-32 Comentario desactualizado en el taller de tareas
+### P1-32 Comentario desactualizado en el taller de tareas (resuelto en 21ebfd3)
 - **Dónde**: `src/app/taller/tareas/page.tsx:9-10`
 - **Qué pasa**: Dice que "la página del detalle de un espacio la escribe otro frente" y que el taller existe "mientras tanto", pero `(panel)/proyectos/[id]/page.tsx` ya está hecha. Además fija `PROYECTO_DE_PRUEBA = 93`, un id de datos reales.
 - **Propuesta**: Actualizar el comentario (o retirar el taller si ya no se usa) y leer el id de prueba de configuración.
