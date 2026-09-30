@@ -8,6 +8,7 @@ import type { Escena, Frescura, Orientacion, ParametrosDePantalla } from '@/domi
 import { ANCHO_MAYUSCULA_EM, ANCHO_SOBRIO_EM, cupoDeFichas } from '@/dominio/solari'
 import { TextoSolari } from './escenas/Solari'
 import { Ficha } from './escenas/piezas'
+import { TransicionDeFuego } from './TransicionDeFuego'
 
 interface Props {
   area: string | null
@@ -149,6 +150,12 @@ export function MarcoDePantalla (props: Props): ReactNode {
       >
         {esperando ? <Esperando /> : children}
       </section>
+
+      {/* Solo estalla al llegar al aviso de reporteria; el resto de las vistas cambia con el fundido de siempre. */}
+      <TransicionDeFuego
+        clave={continuidad ?? escenaId ?? 'vacio'}
+        activa={transicion !== 'ninguna' && (escenaId ?? '').startsWith('reporteria')}
+      />
 
       <footer className="pantalla-deriva flex flex-col gap-[1.1vmin] px-[3vmin] pb-[2.4vmin] portrait:pb-[4vmin]">
         <div className="flex items-center justify-between">

@@ -1,6 +1,8 @@
 import { useRouter } from 'next/navigation'
 import { useRef, useState, type RefObject } from 'react'
+import { subirAdjuntosATarea } from '@/componentes/archivos/subir-adjuntos-tarea'
 import { escribirEnBff } from '@/componentes/datos/mutaciones'
+import { mensajeDeAdjuntosFallidos } from '@/dominio/adjuntos-alta'
 import {
   cuerpoDeCamposPersonalizados, esquemaDeCamposPersonalizados, valoresPorDefecto,
   type ErroresDeCampos, type ValoresDeCampos
@@ -12,6 +14,10 @@ import { RUTA_MULTI, type ParteMulti, type ResumenParcial } from './modelo'
 interface OpcionesEnvio {
   definiciones: DefinicionCampoPersonalizado[]
   personalizados: ValoresDeCampos
+  /** Archivos a subir a la carpeta de Drive de cada tarea creada. */
+  adjuntos: File[]
+  /** Vacía la selección de archivos cuando ya se subieron (o se intentaron) a una tarea creada. */
+  vaciarAdjuntos: () => void
   cargando: boolean
   errorCarga: string | null
   /** El nombre del Espacio para el parte del alta múltiple. */
@@ -120,6 +126,23 @@ export function useEnvioAlta (opciones: OpcionesEnvio): EnvioDelAlta {
   }
 
   /**
+   * Sube los archivos elegidos a la carpeta de Drive de una tarea recién creada.
+   *
+   * Vacía la selección aunque algo falle: la tarea ya existe y reintentar el alta no debe volver a
+   * subir lo que sí quedó. Lo que no subió se reporta con su motivo para resubirlo desde la tarea.
+   *
+   * @param id id de la tarea creada
+   * @returns `null` si subió todo o no había nada; el mensaje del fallo si no.
+   */
+  async function guardarAdjuntos (id: number): Promise<string | null> {
+    const { fallidos } = await subirAdjuntosATarea(id, opciones.adjuntos)
+
+    opciones.vaciarAdjuntos()
+
+    return mensajeDeAdjuntosFallidos(`#${id}`, fallidos)
+  }
+
+  /**
    * Corre un envío marcando el formulario como ocupado mientras dura.
    *
    * @param tarea el envío propiamente dicho
@@ -162,6 +185,11 @@ export function useEnvioAlta (opciones: OpcionesEnvio): EnvioDelAlta {
         setError(`La tarea #${id} ya está creada. Reintenta guardar sus campos personalizados: ${falloDeCampos}`)
         return
       }
+      const falloDeAdjuntos = await guardarAdjuntos(id)
+      if (falloDeAdjuntos !== null) {
+        setError(`${falloDeAdjuntos}. Súbelos desde la pestaña Archivos de la tarea; pulsa Crear de nuevo para cerrar.`)
+        return
+      }
       opciones.alCrear(`«${String(cuerpo.name)}» se creó.`)
     })
   }
@@ -178,16 +206,21 @@ export function useEnvioAlta (opciones: OpcionesEnvio): EnvioDelAlta {
 
     for (const creado of parte.creados) {
       const falloDeCampos = await guardarPersonalizados(creado.task_id)
+      const { fallidos } = await subirAdjuntosATarea(creado.task_id, opciones.adjuntos)
+      const falloDeAdjuntos = mensajeDeAdjuntosFallidos(`#${creado.task_id}`, fallidos)
 
       hechos.push({
         espacioId: creado.espacio_id,
         nombre: opciones.nombreDeEspacio(creado.espacio_id),
-        detalle: falloDeCampos === null
-          ? `Tarea #${creado.task_id} creada.`
-          : `Tarea #${creado.task_id} creada, pero sus campos personalizados no se guardaron: ${falloDeCampos}`,
-        ok: falloDeCampos === null
+        detalle: falloDeCampos !== null
+          ? `Tarea #${creado.task_id} creada, pero sus campos personalizados no se guardaron: ${falloDeCampos}`
+          : falloDeAdjuntos ?? `Tarea #${creado.task_id} creada.`,
+        ok: falloDeCampos === null && falloDeAdjuntos === null
       })
     }
+
+    // Ya se subieron a cada tarea creada: si queda algo por reintentar, no se vuelven a mandar.
+    if (parte.creados.length > 0) opciones.vaciarAdjuntos()
 
     for (const fallido of parte.fallidos) {
       hechos.push({

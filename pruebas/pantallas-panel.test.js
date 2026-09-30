@@ -52,7 +52,7 @@ test('mover cambia el orden sin perder ni duplicar nada', () => {
 
   assert.deepEqual(
     movida.map((e) => e.clase),
-    ['portada', 'trabajando', 'cronometros', 'espacios', 'procesos', 'momento', 'anuncios']
+    ['portada', 'trabajando', 'cronometros', 'espacios', 'procesos', 'momento', 'anuncios', 'reporteria']
   )
   assert.equal(movida.length, CUANTAS, 'ni se pierde ni se duplica')
 })
@@ -108,12 +108,12 @@ test('la vuelta entera suma lo que dura cada escena', () => {
 // ordenan y se les pone duracion desde el mismo editor. Lo que las distingue —que pueden estar
 // encendidas y no mostrarse— lo decide el televisor, y aca no se replica.
 
-test('las siete clases de la API son configurables, y ninguna sobra', () => {
+test('las ocho clases de la API son configurables, y ninguna sobra', () => {
   // Es la lista blanca de `Escritura\\Pantallas::ESCENAS`. Mandar una clase que no este ahi es un 422,
   // y que falte una significa que no hay forma de encenderla desde el panel.
   assert.deepEqual(
     [...CLASES_CONFIGURABLES].sort(),
-    ['anuncios', 'cronometros', 'espacios', 'momento', 'portada', 'procesos', 'trabajando']
+    ['anuncios', 'cronometros', 'espacios', 'momento', 'portada', 'procesos', 'reporteria', 'trabajando']
   )
 })
 

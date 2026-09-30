@@ -107,6 +107,8 @@ export interface BorradorAlta {
   cierre: string
   etiquetasEscritas: string[]
   descripcion: string
+  /** Archivos elegidos junto a la descripcion: se suben a la carpeta de Drive cuando la tarea ya existe. */
+  adjuntos: File[]
   // Se pide en el alta y no solo en la ficha: la estimacion se define al solicitar la tarea, y lo
   // que no se anota en ese momento no se anota nunca.
   horasEstimadas: string
@@ -162,6 +164,7 @@ export function borradorInicial (contexto: ContextoDelBorrador): BorradorAlta {
     cierre: '',
     etiquetasEscritas: [],
     descripcion: '',
+    adjuntos: [],
     horasEstimadas: '',
     tarifa: '',
     facturable: true,

@@ -253,21 +253,27 @@ export function PanelContactos ({ clienteId, contactos, capacidades }: PropsPane
               </CeldaTabla>
 
               <CeldaTabla>
+                <span className="flex items-center gap-2">
+                  {/* Para todo el que ve la ficha, no solo para quien edita: mirar el portal
+                      no cambia nada del contacto, y la API ya exige que el cliente sea visible. */}
+                  <Boton
+                    variante="sutil"
+                    tamano="chico"
+                    type="button"
+                    disabled={!contacto.active || ocupado !== null}
+                    cargando={ocupado === contacto.id}
+                    title={contacto.active ? undefined : 'El contacto está de baja'}
+                    onClick={() => { void verComoCliente(contacto) }}
+                  >
+                    <Eye size={14} aria-hidden="true" />
+                    Ver como cliente
+                  </Boton>
                   <MenuAccionesFila
                     ariaLabel={`Acciones de ${contacto.full_name}`}
                     deshabilitado={ocupado !== null}
                     cargando={ocupado === contacto.id}
                     onEditar={puedeEditar ? () => setEditando(contacto) : undefined}
                     acciones={[
-                      // Para todo el que ve la ficha, no solo para quien edita: mirar el portal
-                      // no cambia nada del contacto, y la API ya exige que el cliente sea visible.
-                      {
-                        clave: 'ver-como',
-                        etiqueta: 'Ver como cliente',
-                        icono: Eye,
-                        deshabilitado: !contacto.active,
-                        onSeleccionar: () => { void verComoCliente(contacto) }
-                      },
                       ...(puedeEditar
                         ? [
                           {
@@ -304,7 +310,8 @@ export function PanelContactos ({ clienteId, contactos, capacidades }: PropsPane
                         }
                       : undefined}
                   />
-                </CeldaTabla>
+                </span>
+              </CeldaTabla>
             </FilaTabla>
           ))}
         </CuerpoTabla>

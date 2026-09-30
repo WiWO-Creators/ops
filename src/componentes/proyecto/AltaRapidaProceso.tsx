@@ -116,6 +116,8 @@ export function AltaRapidaProceso ({
   const envio = useEnvioAlta({
     definiciones,
     personalizados: borrador.personalizados,
+    adjuntos: borrador.adjuntos,
+    vaciarAdjuntos: () => { cambiar('adjuntos', []) },
     cargando,
     errorCarga,
     nombreDeEspacio: (id) => nombreDeEspacio(id, catalogos.espacios),
@@ -379,6 +381,9 @@ export function AltaRapidaProceso ({
           descripcion={borrador.descripcion}
           onDescripcion={cambiarDescripcion}
           error={envio.errorDescripcion}
+          adjuntos={borrador.adjuntos}
+          onAdjuntos={(archivos) => { cambiar('adjuntos', archivos) }}
+          onAdjuntosRechazados={(motivos) => { envio.mostrarError(motivos.length === 0 ? null : motivos.join(' · ')) }}
           conIa={conIa}
           proyectoId={vaAEspacio && espacio !== NINGUNO ? Number(espacio) : null}
           deshabilitado={enCurso}

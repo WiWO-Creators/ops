@@ -13,6 +13,7 @@ import {
   TOPE_DE_ANUNCIOS, TOPE_DE_PAGINAS, construirGuion, faseDeDato, firmaDelGuion, frescuraDe,
   intervaloConBackoff, leerParametrosDePantalla, proximaEscenaViva, proximoRecargado, tablaDeEscena
 } from '../src/dominio/pantalla-area.ts'
+import { cierreDeMes, cuentaRegresiva } from '../src/dominio/reporteria.ts'
 import { FRANJAS_DEL_DIA, franjaDelMomento } from '../src/dominio/momento-del-dia.ts'
 
 /** La zona del negocio, la misma que manda la API en `meta.timezone`. */
@@ -773,4 +774,47 @@ test('la fase es la MISMA para toda la pared: no la decide cada escena', () => {
   const instante = Date.parse('2026-09-15T09:00:03-03:00')
 
   assert.equal(faseDeDato(instante), faseDeDato(instante))
+})
+
+test('el aviso de reporteria se intercala antes de cada visual, una vez por tablero', () => {
+  const base = paquete({ trabajando: gente(3), cronometros: [{ staff_id: 1, name: 'Ana', started_at: null }] })
+  base.scenes.push({ kind: 'reporteria', seconds: 8 })
+
+  const guion = construirGuion(base, PARAMETROS)
+  const clases = guion.map((escena) => escena.clase)
+
+  assert.deepEqual(clases, ['reporteria', 'portada', 'reporteria', 'trabajando', 'reporteria', 'cronometros'])
+  assert.equal(new Set(guion.map((escena) => escena.id)).size, guion.length, 'ids repetidos')
+  assert.equal(guion[0].duracionMs, 8000)
+})
+
+test('sin la escena reporteria el guion no lleva aviso', () => {
+  const guion = construirGuion(paquete({ trabajando: gente(3) }), PARAMETROS)
+
+  assert.ok(guion.every((escena) => escena.clase !== 'reporteria'))
+})
+
+test('reporteria sola no deja el guion vacio', () => {
+  const base = paquete()
+  base.scenes = [{ kind: 'reporteria', seconds: 8 }]
+
+  assert.deepEqual(construirGuion(base, PARAMETROS).map((escena) => escena.clase), ['reporteria', 'portada'])
+})
+
+test('el cierre de mes se cuenta en la zona del negocio', () => {
+  const cierre = cierreDeMes(enSantiago(12), ZONA)
+
+  assert.equal(cierre.dia, 30)
+  assert.equal(cierre.mes, 'septiembre')
+  // Santiago en octubre ya es UTC-3 (horario de verano desde el 6/sep).
+  assert.equal(cierre.finMs, Date.parse('2026-10-01T00:00:00-03:00'))
+  assert.equal(cierreDeMes(enSantiago(12), 'Zona/Invalida').mes, 'septiembre')
+  assert.equal(cierreDeMes(enSantiago(12), null).dia, 30)
+})
+
+test('la cuenta regresiva da DD:HH:MM:SS y nunca es negativa', () => {
+  assert.equal(cuentaRegresiva(((14 * 60 + 35) * 60 + 42) * 1000), '00:14:35:42')
+  assert.equal(cuentaRegresiva(2 * 86400000 + 1000), '02:00:00:01')
+  assert.equal(cuentaRegresiva(-5), '00:00:00:00')
+  assert.equal(cuentaRegresiva(Number.NaN), '00:00:00:00')
 })

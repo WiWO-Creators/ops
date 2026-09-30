@@ -1,6 +1,7 @@
 import type { ReactElement, RefObject } from 'react'
 import { Campo } from '@/componentes/formularios/Campo'
 import { AreaTexto } from '@/componentes/formularios/Entrada'
+import { AdjuntosDeAlta } from '../AdjuntosDeAlta'
 import { AsistenteDescripcion } from '../AsistenteDescripcion'
 
 interface PropsCampoDescripcion {
@@ -17,15 +18,20 @@ interface PropsCampoDescripcion {
   descripcion: string
   onDescripcion: (texto: string) => void
   error: string | null
+  /** Archivos elegidos para subir a Drive cuando la tarea exista. */
+  adjuntos: File[]
+  onAdjuntos: (archivos: File[]) => void
+  /** Motivos de los archivos que no se aceptaron; vacío cuando ya no hay ninguno. */
+  onAdjuntosRechazados: (motivos: string[]) => void
   conIa: boolean
   proyectoId: number | null
   deshabilitado: boolean
 }
 
-/** La descripción obligatoria, con el asistente que la redacta cuando la IA está encendida. */
-export function CampoDescripcion (
-  { caja, titulo, descripcion, onDescripcion, error, conIa, proyectoId, deshabilitado }: PropsCampoDescripcion
-): ReactElement {
+/** La descripción obligatoria con sus adjuntos, y el asistente que la redacta cuando la IA está encendida. */
+export function CampoDescripcion ({
+  caja, titulo, descripcion, onDescripcion, error, adjuntos, onAdjuntos, onAdjuntosRechazados, conIa, proyectoId, deshabilitado
+}: PropsCampoDescripcion): ReactElement {
   return (
     <div ref={caja} className="flex flex-col gap-2">
       <Campo
@@ -43,6 +49,13 @@ export function CampoDescripcion (
           />
         )}
       </Campo>
+
+      <AdjuntosDeAlta
+        archivos={adjuntos}
+        onCambiar={onAdjuntos}
+        onRechazados={onAdjuntosRechazados}
+        deshabilitado={deshabilitado}
+      />
 
       {/* Con la capa de IA apagada el asistente no existe y el campo se escribe a mano.
           `conIa` evita hasta la sonda; el propio componente se oculta igual si la API
