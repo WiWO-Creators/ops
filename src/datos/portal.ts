@@ -881,6 +881,8 @@ export interface EspacioDeGestion {
  * comprometida original contra la que medirlo.
  */
 export interface TableroDelProyecto {
+  /** El mes que se mira: vivo (`cerrado: false`) o la foto al último día de un mes cerrado. */
+  foto?: FotoDelTablero
   avance: AvanceDelProyecto
   /** Solo con la pestaña de {procesos}. */
   tareas?: TareasDelTablero
@@ -890,6 +892,19 @@ export interface TableroDelProyecto {
   hitos?: HitosDelTablero
   /** Solo con la pestaña de Actividad. */
   actividad?: LineaDeActividadDelPortal[]
+}
+
+/**
+ * De qué momento es el tablero.
+ *
+ * Con `cerrado` es la foto al último día (`hasta`, `YYYY-MM-DD`) de `mes`. `aproximado` avisa que
+ * el reparto entre estados abiertos no se puede reconstruir: no hay historial de estados.
+ */
+export interface FotoDelTablero {
+  mes: string
+  cerrado: boolean
+  hasta: string | null
+  aproximado: boolean
 }
 
 /**

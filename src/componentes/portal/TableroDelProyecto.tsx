@@ -1,4 +1,5 @@
 import type { CatalogoDeEstados } from '@/dominio/estados-tarea'
+import { rotularMes } from '@/dominio/gestion'
 import { cn } from '@/lib/clases'
 import {
   BarraDePrioridades,
@@ -63,15 +64,90 @@ import type { ProximaEntrega, TableroDelProyecto as Tablero } from '@/datos/port
  * Server Component: no hay estado que guardar, ni una línea de JavaScript. Los tooltips son
  * `group-hover`, lo que se despliega son `<details>`, y el tema lo resuelve `light-dark()`.
  *
+ * === EL MES ===
+ *
+ * Arriba va un selector de mes: «Mes en curso» es el tablero vivo y cada mes ya cerrado es la foto
+ * del proyecto a su último día. El mes vive en la URL (`?mes=`), así que se comparte por enlace.
+ *
  * @param tablero el tablero tal como llegó de la API
  * @param estados `task_statuses` del portal: nombre y color de cada estado, los de Perfex
+ * @param mes el mes cerrado que se mira (`YYYY-MM`), o `null` si es el tablero vivo
+ * @param mesesCerrados los meses cerrados que se ofrecen, del más nuevo al más viejo
  */
 export function TableroDelProyecto (
-  { tablero, estados }: { tablero: Tablero, estados: CatalogoDeEstados }
+  { tablero, estados, mes, mesesCerrados }:
+  { tablero: Tablero, estados: CatalogoDeEstados, mes: string | null, mesesCerrados: string[] }
 ) {
   const columnas = repartirEnColumnas(bloquesDelTablero(tablero, estados))
   const soloUna = columnas.estrecha.length === 0
 
+  return (
+    <div className="flex flex-col gap-3">
+      <SelectorDeMesDelTablero mes={mes} meses={mesesCerrados} foto={tablero.foto} />
+      <Rejilla columnas={columnas} soloUna={soloUna} tablero={tablero} estados={estados} />
+    </div>
+  )
+}
+
+/**
+ * El selector de mes del tablero, más el aviso de que se mira una foto.
+ *
+ * `<form method="get">` sin JavaScript, igual que `SelectorDeMes`: cambiar el mes cambia `?mes=` y
+ * el servidor vuelve a pedir. Sin meses cerrados que ofrecer no se dibuja.
+ *
+ * @param mes el mes cerrado elegido, o `null` para el tablero vivo
+ * @param meses los meses cerrados ofrecidos
+ * @param foto lo que la API dijo del momento del tablero
+ */
+function SelectorDeMesDelTablero (
+  { mes, meses, foto }: { mes: string | null, meses: string[], foto: Tablero['foto'] }
+) {
+  if (meses.length === 0) return null
+
+  return (
+    <div className="flex flex-wrap items-end justify-between gap-3">
+      <form method="get" className="flex flex-wrap items-end gap-3">
+        <label className="flex flex-col gap-1">
+          <span className="text-texto-tenue text-xs font-medium">Mes</span>
+          <select
+            name="mes"
+            defaultValue={mes ?? ''}
+            className="border-linea rounded-medio bg-superficie text-texto h-9 border px-2 text-sm"
+          >
+            <option value="">Mes en curso</option>
+            {meses.map((opcion) => (
+              <option key={opcion} value={opcion}>{rotularMes(opcion)}</option>
+            ))}
+          </select>
+        </label>
+        <button
+          type="submit"
+          className="border-linea rounded-medio bg-superficie-elevada text-texto hover:bg-hover h-9 cursor-pointer border px-4 text-sm font-medium"
+        >
+          Ver mes
+        </button>
+      </form>
+
+      {foto?.cerrado === true && (
+        <p className="text-texto-tenue max-w-prose text-xs">
+          Así estaba el proyecto al cierre de {rotularMes(foto.mes)}.
+          {foto.aproximado && ' El reparto entre estados abiertos es aproximado: no guardamos el historial de estados.'}
+        </p>
+      )}
+    </div>
+  )
+}
+
+/** Las dos pilas del tablero, ya repartidas. */
+function Rejilla (
+  { columnas, soloUna, tablero, estados }:
+  {
+    columnas: ReturnType<typeof repartirEnColumnas>
+    soloUna: boolean
+    tablero: Tablero
+    estados: CatalogoDeEstados
+  }
+) {
   return (
     <div className="flex flex-col gap-3 lg:grid lg:grid-cols-12 lg:items-stretch">
       {columnas.estrecha.length > 0 && (
