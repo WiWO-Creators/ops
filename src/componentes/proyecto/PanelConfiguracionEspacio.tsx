@@ -251,7 +251,7 @@ function gruposDelPortal (): GrupoDeInterruptores[] {
       interruptores: [
         { clave: 'wiwo_portal_campo_responsables', etiqueta: 'Asignados', ayuda: 'Quién del equipo tiene asignada cada ' + proceso + '. Se llama igual que la columna del panel a propósito: el cliente y quien lo atiende tienen que poder nombrar lo mismo por teléfono.' },
         { clave: 'wiwo_portal_campo_seguidores', etiqueta: 'Seguidores' },
-        { clave: 'wiwo_portal_campo_etiquetas', etiqueta: 'Etiquetas', ayuda: 'Nace apagado: las etiquetas son vocabulario interno de gestión y suelen decir más de lo que parece («esperando-plata»). Revisá las que usa este ' + espacio + ' antes de encenderlo.' },
+        { clave: 'wiwo_portal_campo_etiquetas', etiqueta: 'Etiquetas', ayuda: 'Nace apagado: las etiquetas son vocabulario interno de gestión y suelen decir más de lo que parece («esperando-plata»). Revisa las que usa este ' + espacio + ' antes de encenderlo.' },
         { clave: 'wiwo_portal_campo_iteraciones', etiqueta: 'Número de iteraciones' },
         { clave: 'wiwo_portal_campo_eta', etiqueta: 'Fecha comprometida (ETA)', ayuda: `Nace apagado. Las cuatro de acá abajo miden al equipo contra su propio compromiso: mostrarlas es decidir que este cliente ve cuándo nos atrasamos y por qué.` },
         { clave: 'wiwo_portal_campo_desviacion', etiqueta: 'Días de desviación' },

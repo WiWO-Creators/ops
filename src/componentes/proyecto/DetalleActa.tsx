@@ -169,6 +169,7 @@ export function DetalleActa ({
   const [borrando, setBorrando] = useState(false)
   const [confirmando, setConfirmando] = useState(false)
   const [confirmandoRetraduccion, setConfirmandoRetraduccion] = useState(false)
+  const [confirmandoSalida, setConfirmandoSalida] = useState(false)
   const [renombrando, setRenombrando] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [exportando, setExportando] = useState<'pdf' | 'docx' | null>(null)
@@ -517,7 +518,11 @@ export function DetalleActa ({
 
   /** Salir sin guardar pierde las correcciones, así que se pregunta antes. */
   function volver (): void {
-    if (sucio && !confirm('Tienes cambios sin guardar en este Meeting Paper. ¿Salir igual?')) return
+    if (sucio) {
+      setConfirmandoSalida(true)
+
+      return
+    }
 
     onVolver()
   }
@@ -795,6 +800,21 @@ export function DetalleActa ({
               onClick={() => { setConfirmandoRetraduccion(false); void traducir(idioma) }}
             >
               Volver a traducir
+            </Boton>
+          </div>
+        </ContenidoDialogo>
+      </Dialogo>
+
+      <Dialogo open={confirmandoSalida} onOpenChange={setConfirmandoSalida}>
+        <ContenidoDialogo
+          titulo="Salir sin guardar"
+          descripcion="Tienes cambios sin guardar en este Meeting Paper. Si sales ahora, se pierden."
+          ancho="chico"
+        >
+          <div className="flex justify-end gap-2">
+            <Boton variante="sutil" onClick={() => { setConfirmandoSalida(false) }}>Seguir editando</Boton>
+            <Boton variante="peligro" onClick={() => { setConfirmandoSalida(false); onVolver() }}>
+              Salir sin guardar
             </Boton>
           </div>
         </ContenidoDialogo>

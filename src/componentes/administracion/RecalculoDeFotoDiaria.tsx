@@ -141,10 +141,10 @@ const COLUMNAS_SIN_HISTORIAL = new Set(['aprobacion_pendiente', 'calidad_promedi
  * @returns el encabezado del bloque de error
  */
 function tituloDeFallo (estadoHttp: number): string {
-  if (estadoHttp === 403) return 'No tenés permiso para recalcular'
+  if (estadoHttp === 403) return 'No tienes permiso para recalcular'
   if (estadoHttp === 404) return `Ese ${GLOSARIO.espacio.singular} no está disponible`
   if (estadoHttp === 409) return 'Esta instalación no guarda la foto diaria'
-  if (estadoHttp === 422) return 'Revisá lo que pediste'
+  if (estadoHttp === 422) return 'Revisa lo que pediste'
 
   return 'No se pudo recalcular'
 }
@@ -209,7 +209,7 @@ async function recalcular (
       ok: false,
       fallo: {
         titulo: 'El recálculo corrió, pero no se pudo leer el detalle',
-        mensaje: 'El servidor respondió algo que no se pudo interpretar. Volvé a pedir el mismo rango para ver en qué quedó.'
+        mensaje: 'El servidor respondió algo que no se pudo interpretar. Vuelve a pedir el mismo rango para ver en qué quedó.'
       }
     }
   }
@@ -235,7 +235,7 @@ function motivoParaNoRecalcular (
   hasta: string,
   hoy: string
 ): string | null {
-  if (espacio === '') return `Elegí el ${GLOSARIO.espacio.singular.toLowerCase()} a recalcular.`
+  if (espacio === '') return `Elige el ${GLOSARIO.espacio.singular.toLowerCase()} a recalcular.`
   if (desde === '' || hasta === '') return 'Hacen falta las dos fechas del rango.'
   if (desde > hasta) return 'La fecha de inicio no puede ser posterior a la de fin.'
   if (hasta > hoy) return 'No se puede recalcular una foto que todavía no se tomó.'
@@ -305,7 +305,7 @@ export function RecalculoDeFotoDiaria ({ espacios, errorCatalogo }: PropsRecalcu
     setFallo(null)
 
     if (motivo !== null) {
-      setFallo({ titulo: 'Revisá lo que pediste', mensaje: motivo })
+      setFallo({ titulo: 'Revisa lo que pediste', mensaje: motivo })
       return
     }
 
@@ -365,7 +365,7 @@ export function RecalculoDeFotoDiaria ({ espacios, errorCatalogo }: PropsRecalcu
               valor={espacio}
               onElegir={setEspacio}
               opciones={espacios}
-              marcador={`Elegí un ${GLOSARIO.espacio.singular.toLowerCase()}`}
+              marcador={`Elige un ${GLOSARIO.espacio.singular.toLowerCase()}`}
               nombre={GLOSARIO.espacio.singular.toLowerCase()}
             />
           )}
@@ -520,7 +520,7 @@ function Resultado (
         ? (
           <Vacio
             titulo="No había ninguna foto en ese rango"
-            descripcion={`Un día sin foto es un día que nadie fotografió, y no se inventa. Revisá las fechas o elegí otro ${GLOSARIO.espacio.singular.toLowerCase()}.`}
+            descripcion={`Un día sin foto es un día que nadie fotografió, y no se inventa. Revisa las fechas o elige otro ${GLOSARIO.espacio.singular.toLowerCase()}.`}
           />
           )
         : conCambios === 0

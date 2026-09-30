@@ -207,8 +207,37 @@
   color: #ffb3ae;
 }
 
+.pn__confirmar {
+  margin-top: .8rem;
+  padding: .7rem .85rem;
+  border: 1px solid rgb(242 183 5 / .5);
+  background: rgb(242 183 5 / .09);
+  font-size: .78rem;
+  color: #e6d9b3;
+}
+
+.pn__confirmar-botones { display: flex; justify-content: flex-end; gap: .5rem; margin-top: .7rem }
+
+.pn__boton {
+  padding: .4rem .8rem;
+  border: 1px solid var(--linea);
+  background: var(--acero);
+  color: var(--hueso);
+  font: inherit;
+  font-size: .74rem;
+  letter-spacing: .08em;
+  text-transform: uppercase;
+  cursor: pointer;
+  transition: background-color 160ms ease, border-color 160ms ease;
+}
+
+.pn__boton:hover { background: var(--acero-alto) }
+.pn__boton:focus-visible { outline: 2px solid var(--verde); outline-offset: 1px }
+.pn__boton--peligro { border-color: rgb(242 183 5 / .6); color: var(--peligro) }
+.pn__boton--peligro:hover { background: rgb(242 183 5 / .12) }
+
 @media (prefers-reduced-motion: reduce) {
   .pn__titulo, .pn__pulso, .pn__bloque { animation: none }
   .pn__bloque { opacity: 1; transform: none }
-  .pn__int, .pn__llave::after { transition: none }
+  .pn__int, .pn__llave::after, .pn__boton { transition: none }
 }

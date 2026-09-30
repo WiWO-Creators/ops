@@ -300,7 +300,7 @@ function CorreccionDeCierre (
     const instante = instanteDeCierre(fecha)
 
     if (instante === null) {
-      setFallo('Elegí una fecha válida.')
+      setFallo('Elige una fecha válida.')
       return
     }
 

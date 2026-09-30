@@ -465,7 +465,7 @@ export function FormularioPerfil ({ yo, perfil }: PropsFormularioPerfil) {
               value={firma}
               maxLength={LARGO_MAXIMO_FIRMA}
               disabled={guardandoFirma}
-              placeholder="Todavía no tenés firma."
+              placeholder="Todavía no tienes firma."
               onChange={(evento) => { establecerFirma(evento.target.value) }}
             />
           )}

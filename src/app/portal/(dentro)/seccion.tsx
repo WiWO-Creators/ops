@@ -5,6 +5,7 @@ import { ErrorApi } from '@/datos/errores'
 import { cargarLookupsDelPortal, opcionesDeFiltros } from '@/datos/lookups'
 import { pedirPortal } from '@/datos/servidor'
 import type { DefinicionRecurso, ResultadoLista } from '@/definiciones/tipos'
+import { TituloModulo } from '@/componentes/estructura/TituloModulo'
 import { TablaPortal, type SeccionPortalListado } from './TablaPortal'
 
 /**
@@ -56,10 +57,7 @@ export async function SeccionDePortal<T extends { id: number }> ({
 
   return (
     <section className="flex flex-col gap-4">
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <h1 className="text-texto text-xl font-semibold">{definicion.titulo.plural}</h1>
-        {acciones}
-      </div>
+      <TituloModulo titulo={definicion.titulo.plural} acciones={acciones} />
       <Suspense
         fallback={<Cargando alto="min-h-36" mensaje={`Cargando ${definicion.titulo.plural.toLowerCase()}…`} />}
       >

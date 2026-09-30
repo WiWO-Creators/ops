@@ -82,8 +82,14 @@ async function sesion (email, password) {
 
   // Se vuelve a encender: el mock guarda el valor en memoria y sin reponerlo esta prueba solo pasa
   // la primera vez que se corre contra un mock recien arrancado.
-  pagina.once('dialog', (dialogo) => { void dialogo.accept() })
   await pagina.locator('.pn__int').filter({ hasText: 'Recordatorio de jornada' }).evaluate(e => e.click())
+  await pagina.waitForSelector('.pn__confirmar', { timeout: 3000 })
+  ok(true, 'encender uno peligroso pide confirmacion en el propio tablero')
+
+  const intacto = await pagina.locator('.pn__int').filter({ hasText: 'Recordatorio de jornada' }).locator('.pn__llave').getAttribute('class')
+  ok(!intacto.includes('pn__llave--on'), 'antes de confirmar no se escribe nada')
+
+  await pagina.locator('.pn__boton--peligro').click()
   await pagina.waitForTimeout(1500)
 
   const repuesto = await pagina.locator('.pn__int').filter({ hasText: 'Recordatorio de jornada' }).locator('.pn__llave').getAttribute('class')

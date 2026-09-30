@@ -11,7 +11,15 @@ interface PropsEntradaEscalonada {
    * fila que entra despues, de a una.
    */
   children: ReactNode
+  /**
+   * La cabecera la anima `entrada-pagina.css` (titulo y firma de `TituloModulo`) y no este
+   * componente: los items esperan a que arranque el ultimo grupo de esa entrada en vez de salir ya.
+   */
+  trasEntradaDePagina?: boolean
 }
+
+/** Cuando arranca el ultimo grupo de `entrada-pagina.css`. */
+const INICIO_TRAS_ENTRADA_DE_PAGINA = 180
 
 /**
  * Envoltorio cliente, minimo, para hacer entrar una lista en dos tiempos: la cabecera primero y
@@ -25,7 +33,7 @@ interface PropsEntradaEscalonada {
  * es su estado final. Es tambien la garantia contra el destello sin animar: sin JavaScript, o antes
  * de que el efecto corra, se ve el contenido completo y no un hueco vacio.
  */
-export function EntradaEscalonada ({ children }: PropsEntradaEscalonada) {
+export function EntradaEscalonada ({ children, trasEntradaDePagina = false }: PropsEntradaEscalonada) {
   const raizRef = useRef<HTMLDivElement | null>(null)
 
   useLayoutEffect(() => {
@@ -41,15 +49,17 @@ export function EntradaEscalonada ({ children }: PropsEntradaEscalonada) {
     }
 
     if (items.length > 0) {
+      const inicio = cabecera.length > 0 ? 160 : (trasEntradaDePagina ? INICIO_TRAS_ENTRADA_DE_PAGINA : 0)
+
       animate(items, {
         opacity: [0, 1],
         translateY: [10, 0],
         duration: 360,
         ease: 'outQuad',
-        delay: stagger(45, { start: cabecera.length > 0 ? 160 : 0 })
+        delay: stagger(45, { start: inicio })
       })
     }
-  }, [])
+  }, [trasEntradaDePagina])
 
   return <div ref={raizRef}>{children}</div>
 }

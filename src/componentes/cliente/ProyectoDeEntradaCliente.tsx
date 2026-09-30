@@ -199,7 +199,7 @@ export function ProyectoDeEntradaCliente ({ clienteId, proyectos, capacidades }:
 
           {activo && elegido === SIN_ELEGIR && (
             <p className="text-texto-tenue text-xs">
-              Elegí primero el {GLOSARIO.espacio.singular.toLowerCase()} que se va a abrir.
+              Elige primero el {GLOSARIO.espacio.singular.toLowerCase()} que se va a abrir.
             </p>
           )}
         </fieldset>

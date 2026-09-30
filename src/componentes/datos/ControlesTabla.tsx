@@ -303,7 +303,7 @@ function FiltroEnEspera ({ filtro, esperaA }: { filtro: Filtro, esperaA: Filtro 
   // proposito: el disparador tiene ancho fijo y lo que no entra se recorta —de ahi el `title`—.
   const pista = esperaA === null
     ? `${filtro.etiqueta}: sin opciones`
-    : `${filtro.etiqueta}: elegí ${esperaA.etiqueta}`
+    : `${filtro.etiqueta}: elige ${esperaA.etiqueta}`
 
   return (
     <button

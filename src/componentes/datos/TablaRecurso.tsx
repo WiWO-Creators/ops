@@ -716,7 +716,7 @@ function MenuAcciones ({ acciones, id, onError, onListo, onEditar, borrado }: Pr
 
       onError(await leerError(respuesta))
     } catch {
-      aviso.error('No se pudo completar la acción: revisá tu conexión e intentá de nuevo.')
+      aviso.error('No se pudo completar la acción: revisa tu conexión e intenta de nuevo.')
     } finally {
       setEnCurso(false)
     }

@@ -101,17 +101,34 @@ function Interruptores ({ interruptores, peligrososEncendidos, escritura }: {
   const router = useRouter()
   const [enVuelo, setEnVuelo] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
+  const [porConfirmar, setPorConfirmar] = useState<Interruptor | null>(null)
+
+  /**
+   * Punto de entrada del clic: encender algo con efecto externo pide un segundo paso antes de escribir.
+   *
+   * @param int interruptor pulsado
+   */
+  function pulsar (int: Interruptor) {
+    if (int.peligro && !int.valor) {
+      setError(null)
+      setPorConfirmar(int)
+      return
+    }
+
+    void alternar(int)
+  }
+
+  /** Confirma el interruptor peligroso pendiente y lo escribe. */
+  function confirmar () {
+    if (porConfirmar === null) return
+
+    const int = porConfirmar
+    setPorConfirmar(null)
+    void alternar(int)
+  }
 
   async function alternar (int: Interruptor) {
     const siguiente = !int.valor
-
-    if (int.peligro && siguiente) {
-      const ok = window.confirm(
-        `"${int.etiqueta}" se nota fuera de esta instalación: manda correo, abre la puerta de entrada `
-        + 'o gasta con un proveedor externo. ¿Encenderlo igual?'
-      )
-      if (!ok) return
-    }
 
     setEnVuelo(int.clave)
     setError(null)
@@ -150,9 +167,9 @@ function Interruptores ({ interruptores, peligrososEncendidos, escritura }: {
             key={int.clave}
             type="button"
             className="pn__int"
-            disabled={enVuelo !== null}
+            disabled={enVuelo !== null || porConfirmar !== null}
             aria-pressed={int.valor}
-            onClick={() => { void alternar(int) }}
+            onClick={() => { pulsar(int) }}
           >
             <span>
               <span className="pn__int-nombre">
@@ -172,6 +189,30 @@ function Interruptores ({ interruptores, peligrososEncendidos, escritura }: {
           </button>
         ))}
       </div>
+
+      {porConfirmar !== null && (
+        <div
+          role="group"
+          aria-label="Confirmar encendido"
+          className="pn__confirmar"
+          onKeyDown={(evento) => {
+            if (evento.key === 'Escape') setPorConfirmar(null)
+          }}
+        >
+          <p>
+            &quot;{porConfirmar.etiqueta}&quot; se nota fuera de esta instalación: manda correo, abre la
+            puerta de entrada o gasta con un proveedor externo. ¿Encenderlo igual?
+          </p>
+          <div className="pn__confirmar-botones">
+            <button type="button" className="pn__boton" onClick={() => { setPorConfirmar(null) }}>
+              Cancelar
+            </button>
+            <button type="button" className="pn__boton pn__boton--peligro" autoFocus onClick={confirmar}>
+              Encender
+            </button>
+          </div>
+        </div>
+      )}
 
       {error !== null && <p className="pn__error">{error}</p>}
 

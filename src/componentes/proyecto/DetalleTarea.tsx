@@ -712,7 +712,7 @@ function CompletarTarea (
 
     if (instante === null) {
       setGuardando(false)
-      setFallo('Elegí una fecha válida.')
+      setFallo('Elige una fecha válida.')
       return
     }
 

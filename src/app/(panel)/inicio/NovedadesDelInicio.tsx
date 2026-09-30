@@ -61,28 +61,26 @@ export function NovedadesDelInicio ({ novedades, masReciente }: PropsNovedadesDe
   if (novedades.length === 0 || !hayNovedadesSinVer(ocultasHasta, masReciente)) return null
 
   return (
-    <EntradaEscalonada>
+    <EntradaEscalonada trasEntradaDePagina>
       <section className="flex flex-col gap-5">
-        <div data-entrada="cabecera">
-          <TituloModulo
-            nivel="h2"
-            titulo="Lo nuevo en Ops"
-            acciones={
-              <div className="flex items-center gap-1">
-                <Link
-                  href="/novedades"
-                  className="flex items-center gap-1.5 rounded-control px-3 py-2 text-base font-semibold text-acento transition-colors duration-150 ease-neo hover:bg-hover"
-                >
-                  Ver todas
-                  <ArrowRight size={18} strokeWidth={2.25} aria-hidden="true" />
-                </Link>
-                <Boton variante="sutil" soloIcono onClick={() => ocultarNovedadesEnInicio(masReciente)} aria-label="Ocultar novedades hasta que haya una nueva" title="Ocultar hasta que haya algo nuevo">
-                  <X size={18} aria-hidden="true" />
-                </Boton>
-              </div>
-            }
-          />
-        </div>
+        <TituloModulo
+          nivel="h2"
+          titulo="Lo nuevo en Ops"
+          acciones={
+            <div className="flex items-center gap-1">
+              <Link
+                href="/novedades"
+                className="flex items-center gap-1.5 rounded-control px-3 py-2 text-base font-semibold text-acento transition-colors duration-150 ease-neo hover:bg-hover"
+              >
+                Ver todas
+                <ArrowRight size={18} strokeWidth={2.25} aria-hidden="true" />
+              </Link>
+              <Boton variante="sutil" soloIcono onClick={() => ocultarNovedadesEnInicio(masReciente)} aria-label="Ocultar novedades hasta que haya una nueva" title="Ocultar hasta que haya algo nuevo">
+                <X size={18} aria-hidden="true" />
+              </Boton>
+            </div>
+          }
+        />
 
         <ul className="border-linea bg-superficie-elevada divide-linea-suave rounded-tarjeta flex flex-col divide-y border">
           {novedades.map(novedad => (

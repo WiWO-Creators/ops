@@ -116,7 +116,7 @@ function Formulario (
     // Se valida acá además de en el backend porque un 422 por un campo vacío es un viaje de ida y
     // vuelta para decir algo que ya se sabía al apretar el botón.
     if (limpio === '') {
-      setFallo('Escribí por qué se da por buena la desviación.')
+      setFallo('Escribe por qué se da por buena la desviación.')
       return
     }
 

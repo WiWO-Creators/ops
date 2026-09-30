@@ -18,6 +18,7 @@ import { Fecha } from '@/componentes/presentadores/Fecha'
 import { Insignia } from '@/componentes/presentadores/Insignia'
 import { Dialogo, ContenidoDialogo } from '@/componentes/superposiciones/Dialogo'
 import { ConfirmarBorrado, useConfirmarBorrado } from '@/componentes/datos/ConfirmarBorrado'
+import { ConfirmacionEnLinea } from '@/componentes/datos/ConfirmacionEnLinea'
 import { escribirEnBff, leerDelBff } from '@/componentes/datos/mutaciones'
 import { PARAMETRO_TAREA } from '@/componentes/datos/tabla'
 import { cargarAsignables } from '@/datos/asignables'
@@ -130,6 +131,7 @@ export function TareasPropuestas ({
   const [aviso, setAviso] = useState<string | null>(null)
   const [enCurso, setEnCurso] = useState<EnCurso>(null)
   const [editando, setEditando] = useState<PropuestaDeTarea | null>(null)
+  const [confirmandoTodas, setConfirmandoTodas] = useState(false)
   const [prioridades, setPrioridades] = useState<EstadoLookup[]>([])
   const [personas, setPersonas] = useState<StaffReferencia[]>([])
   const [errorEquipo, setErrorEquipo] = useState<string | null>(null)
@@ -405,11 +407,13 @@ export function TareasPropuestas ({
       return
     }
 
-    const todas = pendientes.map((propuesta) => propuesta.id)
-    const texto = todas.length === 1 ? '¿Crear 1 tarea en este proyecto?' : `¿Crear ${todas.length} tareas en este proyecto?`
-    if (!confirm(texto)) return
+    setConfirmandoTodas(true)
+  }
 
-    void crear(todas, null)
+  /** Segundo paso de "Crear todas": crea las pendientes que haya en ese momento. */
+  function crearTodas (): void {
+    setConfirmandoTodas(false)
+    void crear(pendientes.map((propuesta) => propuesta.id), null)
   }
 
   /**
@@ -579,7 +583,19 @@ export function TareasPropuestas ({
             </ul>
           )}
 
-          {puedeCrear && hayPendientes && (
+          {puedeCrear && hayPendientes && confirmandoTodas && (
+            <ConfirmacionEnLinea
+              advertencia={pendientes.length === 1
+                ? 'Se crea 1 tarea en el tablero de este proyecto. Deshacerlo es borrarla a mano.'
+                : `Se crean ${pendientes.length} tareas en el tablero de este proyecto. Deshacerlo es borrarlas una por una.`}
+              etiquetaConfirmar={pendientes.length === 1 ? 'Crear 1 tarea' : `Crear ${pendientes.length} tareas`}
+              varianteConfirmar="primario"
+              onConfirmar={crearTodas}
+              onCancelar={() => { setConfirmandoTodas(false) }}
+            />
+          )}
+
+          {puedeCrear && hayPendientes && !confirmandoTodas && (
             <div className="flex justify-end">
               <Boton
                 variante="primario"

@@ -129,15 +129,15 @@ test('el buscador de origen ignora mayúsculas y acentos', () => {
 test('no se deja disparar la importación con una elección incompleta', () => {
   const conHito = { modo: 'existente', hitoId: 77 }
 
-  assert.equal(validarImportacion(null, 200, conHito), 'Elegí de qué proyecto vas a traer las tareas.')
+  assert.equal(validarImportacion(null, 200, conHito), 'Elige de qué proyecto vas a traer las tareas.')
   assert.equal(validarImportacion(200, 200, conHito), 'El proyecto de origen no puede ser este mismo.')
-  assert.equal(validarImportacion(100, 200, { modo: 'existente', hitoId: null }), 'Elegí a qué hito van a entrar las tareas.')
+  assert.equal(validarImportacion(100, 200, { modo: 'existente', hitoId: null }), 'Elige a qué hito van a entrar las tareas.')
   assert.equal(validarImportacion(100, 200, conHito), null)
 })
 
 test('sin hito alcanza con el origen, y un hito nuevo exige un nombre razonable', () => {
   assert.equal(validarImportacion(100, 200, { modo: 'ninguno' }), null)
-  assert.equal(validarImportacion(100, 200, { modo: 'nuevo', nombre: '   ' }), 'Escribí el nombre del hito nuevo.')
+  assert.equal(validarImportacion(100, 200, { modo: 'nuevo', nombre: '   ' }), 'Escribe el nombre del hito nuevo.')
   assert.match(validarImportacion(100, 200, { modo: 'nuevo', nombre: 'x'.repeat(192) }), /no puede pasar de 191/)
   assert.equal(validarImportacion(100, 200, { modo: 'nuevo', nombre: 'Octubre' }), null)
 })

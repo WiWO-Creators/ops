@@ -205,6 +205,14 @@ estéticas: colgaban el panel en pantallas Retina.
    `animation` y la deriva no puede existir sin su `:has(.lienzo-vivo)`. Las dos cosas las verifica
    `pruebas/marca.test.js`. Si mañana una segunda pantalla quiere lo mismo, la conversación es si esa
    pantalla es una portada, no si el guardrail aguanta otra excepción.
+
+   La otra excepción, decidida el 30-09-2026, es **el pulso de la píldora de estado del Proyecto**
+   (`CabeceraProyecto.tsx` y `MenuEstadoProyecto.tsx`, estados de `ESTADOS_DESTACADOS` en
+   `estado-proyecto.ts`: En desarrollo y Finalizado). La cabecera del Proyecto está siempre visible
+   mientras se trabaja en el detalle, pero ese latido sí comunica un estado: marca de un vistazo que
+   el Proyecto está vivo o recién cerrado, y es una decisión de producto, no un descuido. Se acota a
+   una insignia chica, anima solo opacidad (`animate-pulse`) y va siempre con `motion-safe:`, así que
+   con `prefers-reduced-motion` queda quieta. No se extiende a otras insignias ni a otros módulos.
 3. Preferir `transform` y `opacity` sobre `filter` y `box-shadow` animados.
 
 Se hacen cumplir con lint, no con buena voluntad:

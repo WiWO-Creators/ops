@@ -40,11 +40,17 @@ export const boton = cva(
   }
 )
 
-interface PropsBoton
-  extends React.ButtonHTMLAttributes<HTMLButtonElement>,
-    VariantProps<typeof boton> {
+interface PropsBotonBase
+  extends Omit<React.ButtonHTMLAttributes<HTMLButtonElement>, 'aria-label'>,
+    Omit<VariantProps<typeof boton>, 'soloIcono'> {
   cargando?: boolean
 }
+
+/** Sin texto visible el boton no tiene nombre accesible propio: `aria-label` pasa a ser obligatorio. */
+type PropsBoton = PropsBotonBase & (
+  | { soloIcono: true, 'aria-label': string }
+  | { soloIcono?: false | null, 'aria-label'?: string }
+)
 
 /**
  * Boton del sistema.

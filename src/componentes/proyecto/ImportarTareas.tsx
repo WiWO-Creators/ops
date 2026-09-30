@@ -603,7 +603,7 @@ function DestinoDeLasTareas ({
                   onValueChange={(valor) => { onHito(Number(valor)) }}
                   disabled={enCurso}
                 >
-                  <DisparadorSelector marcador={`Elegí un ${GLOSARIO.hito.singular.toLowerCase()}`} id={props.id} />
+                  <DisparadorSelector marcador={`Elige un ${GLOSARIO.hito.singular.toLowerCase()}`} id={props.id} />
                   <ContenidoSelector>
                     {hitos.map((hito) => (
                       <Opcion key={hito.id} value={String(hito.id)}>{hito.name}</Opcion>

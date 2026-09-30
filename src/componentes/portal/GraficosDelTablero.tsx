@@ -425,7 +425,7 @@ export function GraficoDeTrabas ({ barras }: { barras: BarraDeTraba[] }) {
       icono={<OctagonAlert size={14} aria-hidden="true" className="shrink-0" />}
     >
       <div className="flex flex-wrap items-center gap-x-4 gap-y-1">
-        <Clave className="bg-acento">Depende de vos</Clave>
+        <Clave className="bg-acento">Depende de ti</Clave>
         <Clave className="bg-relleno-neutro">Depende de nosotros o de un tercero</Clave>
       </div>
 

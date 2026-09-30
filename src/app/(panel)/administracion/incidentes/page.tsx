@@ -92,7 +92,7 @@ export default async function IncidentesPage (props: PageProps<'/administracion/
     <section className="flex flex-col gap-6">
       <TituloModulo
         titulo="Incidentes"
-        descripcion="Cada error que le cortó el trabajo a alguien, con el código que esa persona vio en pantalla. Abrí uno para ver el detalle técnico y la traza."
+        descripcion="Cada error que le cortó el trabajo a alguien, con el código que esa persona vio en pantalla. Abre uno para ver el detalle técnico y la traza."
       />
 
       {incidentes.length === 0

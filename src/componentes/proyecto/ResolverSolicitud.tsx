@@ -101,7 +101,7 @@ export function ResolverSolicitud ({ solicitud }: { solicitud: SolicitudDeElimin
                 autoFocus
                 onChange={(evento) => { setRespuesta(evento.target.value) }}
                 placeholder={aprobando
-                  ? 'Si querés dejar dicho algo más…'
+                  ? 'Si quieres dejar dicho algo más…'
                   : 'El contrato sigue vigente, falta facturar, hablalo con el cliente…'}
               />
             </label>

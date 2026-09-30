@@ -106,7 +106,7 @@ export function validarFormulario (
       const elegidas = valor === undefined ? [] : valor
 
       if (!Array.isArray(elegidas) || elegidas.some((id) => !(campo.opciones ?? []).some((opcion) => opcion.valor === id))) {
-        errores[campo.clave] = 'Elegí opciones válidas.'
+        errores[campo.clave] = 'Elige opciones válidas.'
       } else if (campo.requerido === true && elegidas.length === 0) {
         errores[campo.clave] = 'Este campo es obligatorio.'
       }

@@ -21,17 +21,15 @@ export default function NovedadesPage () {
   const recorrido = novedadesDelRecorrido(NOVEDADES)
 
   return (
-    <EntradaEscalonada>
+    <EntradaEscalonada trasEntradaDePagina>
       <div className="mx-auto flex w-full max-w-3xl flex-col gap-8">
         {masReciente !== null && <MarcaNovedadesVistas fecha={masReciente} />}
 
-        <div data-entrada="cabecera">
-          <TituloModulo
-            titulo="Novedades"
-            descripcion="Lo que fue cambiando en Ops, contado en simple. Lo más reciente va arriba."
-            acciones={recorrido.length > 0 ? <AbrirRecorrido novedades={recorrido} /> : undefined}
-          />
-        </div>
+        <TituloModulo
+          titulo="Novedades"
+          descripcion="Lo que fue cambiando en Ops, contado en simple. Lo más reciente va arriba."
+          acciones={recorrido.length > 0 ? <AbrirRecorrido novedades={recorrido} /> : undefined}
+        />
 
         {dias.length === 0
           ? <p className="text-texto-tenue text-sm">Todavía no hay novedades publicadas.</p>

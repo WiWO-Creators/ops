@@ -440,7 +440,7 @@ export function MenuProyecto ({
       <Dialogo open={saliendo} onOpenChange={setSaliendo}>
         <ContenidoDialogo
           titulo={`Salir del ${GLOSARIO.espacio.singular.toLowerCase()}`}
-          descripcion={`Dejás de ser parte del equipo de "${proyecto.name}". Si no tenés permiso `
+          descripcion={`Dejas de ser parte del equipo de "${proyecto.name}". Si no tienes permiso `
             + `para ver todos los ${GLOSARIO.espacio.plural.toLowerCase()}, este va a dejar de `
             + 'aparecerte y vas a necesitar que alguien te vuelva a sumar.'}
           ancho="chico"

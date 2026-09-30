@@ -447,7 +447,7 @@ function Compositor ({ onListo }: { onListo: () => void }): ReactElement {
 
   async function encolar (): Promise<void> {
     if (contactoId === null) {
-      setErrorForm('Elegí a quién se le escribiría.')
+      setErrorForm('Elige a quién se le escribiría.')
       return
     }
 
@@ -486,7 +486,7 @@ function Compositor ({ onListo }: { onListo: () => void }): ReactElement {
         <div className="flex flex-col gap-4">
           <Campo
             etiqueta={`Buscar ${nombrar('cliente')}`}
-            ayuda={`Escribí al menos ${MINIMO_BUSQUEDA} letras del nombre.`}
+            ayuda={`Escribe al menos ${MINIMO_BUSQUEDA} letras del nombre.`}
           >
             {(props) => (
               <Entrada
@@ -519,7 +519,7 @@ function Compositor ({ onListo }: { onListo: () => void }): ReactElement {
                     setClienteId(evento.target.value === '' ? null : Number(evento.target.value))
                   }}
                 >
-                  <option value="">Elegí uno</option>
+                  <option value="">Elige uno</option>
                   {clientes.map((cliente) => (
                     <option key={cliente.id} value={cliente.id}>{cliente.company}</option>
                   ))}
@@ -544,7 +544,7 @@ function Compositor ({ onListo }: { onListo: () => void }): ReactElement {
                     setContactoId(evento.target.value === '' ? null : Number(evento.target.value))
                   }}
                 >
-                  <option value="">Elegí uno</option>
+                  <option value="">Elige uno</option>
                   {contactos.map((contacto) => (
                     // Sin correo no hay a dónde escribir: la API lo rechaza con 422, así que acá se
                     // muestra deshabilitado con el motivo en vez de dejar elegirlo y fallar después.
