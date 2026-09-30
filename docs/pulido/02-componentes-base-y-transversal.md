@@ -10,7 +10,7 @@ Todas las rutas son relativas a `ops-v2/`.
 
 ## Inconsistencias
 
-### P2-01 Diálogos nativos `window.confirm()` en lugar de primitivos de confirmación accesibles
+### P2-01 Diálogos nativos `window.confirm()` en lugar de primitivos de confirmación accesibles (resuelto en 6072d52)
 - **Dónde**: `src/componentes/proyecto/DetalleActa.tsx:520`, `src/componentes/proyecto/acta/TareasPropuestas.tsx:410`, `src/componentes/prospecto/FlujoLicitacion.tsx:127`, `src/componentes/prospecto/FlujoLicitacion.tsx:355`, `src/app/s/[clave]/Tablero.tsx:109`
 - **Qué pasa**: Existen 5 ejecuciones reales y verificadas de `window.confirm()` y `confirm()` en el navegador. Interrumpen el hilo de renderizado, carecen de estilos de diseño WiWO, no atrapan el foco conforme a WCAG y presentan un diálogo bloqueante del sistema operativo. Esto ocurre existiendo ya en la base `ConfirmarBorrado.tsx` y `ConfirmacionEnLinea.tsx`.
 - **Propuesta**: Sustituir cada llamada por `ConfirmacionEnLinea` (para acciones contextuales en filas/tableros) o por `ConfirmarBorrado` / `Dialogo` `ancho="chico"` con botones destructivos declarativos.
@@ -104,7 +104,7 @@ Todas las rutas son relativas a `ops-v2/`.
 
 ## Refinamiento
 
-### P2-13 Ausencia de `aria-label` estricto en botones con `soloIcono`
+### P2-13 Ausencia de `aria-label` estricto en botones con `soloIcono` (resuelto en 6072d52)
 - **Dónde**: `src/componentes/formularios/Boton.tsx:18-45`
 - **Qué pasa**: El componente `Boton` admite la propiedad `soloIcono?: boolean`, pero la interfaz TypeScript `PropsBoton` extiende libremente de `ButtonHTMLAttributes<HTMLButtonElement>` sin hacer obligatorio el atributo `aria-label` cuando no hay texto visible (`children` es un icono).
 - **Propuesta**: Utilizar tipos discriminados en TypeScript: si `soloIcono: true`, requerir obligatoriamente `aria-label: string`.

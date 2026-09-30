@@ -32,7 +32,7 @@ Solo hallazgos verificados en el código de `ops-v2`; no se modificó ningún ar
 
 ### Inconsistencias
 
-### P4-01 Discrepancia en títulos del portal: `TituloModulo` vs `h1` planos sin marca
+### P4-01 Discrepancia en títulos del portal: `TituloModulo` vs `h1` planos sin marca (resuelto en 6072d52)
 - **Dónde**: `src/app/portal/(dentro)/seccion.tsx:60`, `src/app/portal/(dentro)/archivos/page.tsx:40`, `src/app/portal/(dentro)/anuncios/page.tsx:41`, `src/app/portal/(dentro)/ayuda/page.tsx:34`, `src/app/portal/(dentro)/perfil/page.tsx:29` frente a `src/componentes/reporte/ReporteMensual.tsx:65`
 - **Qué pasa**: Mientras que el reporte mensual del cliente (`reporte/page.tsx` a través de `ReporteMensual.tsx`) utiliza `TituloModulo` con tipografía titular (`font-titular`), degradado dinámico de marca (`texto-gradiente-animado`) y la barra inferior de marca (`bg-gradiente-marca`), todas las demás pantallas del portal (Proyectos, Soporte, Archivos, Anuncios, Ayuda y Perfil) utilizan un `h1` plano con `text-texto text-xl font-semibold`. Esto rompe la identidad visual del portal cuando el cliente navega entre el reporte y el resto de sus secciones.
 - **Propuesta**: Reemplazar los `h1` planos en `seccion.tsx` y en las páginas de Archivos, Anuncios, Ayuda y Perfil por `TituloModulo`, unificando la jerarquía tipográfica y la firma de marca en todo el portal.
@@ -89,7 +89,7 @@ Solo hallazgos verificados en el código de `ops-v2`; no se modificó ningún ar
 - **Propuesta**: Crear un `loading.tsx` en `src/app/portal/(dentro)/loading.tsx` con un esqueleto base de página (título y tarjeta o tabla con `Hueso`), y un `loading.tsx` específico en `portal/(dentro)/proyectos/[id]/` que reserve el espacio de la cabecera y el tablero del proyecto.
 - **Prioridad**: Alta · **Esfuerzo**: M
 
-### P4-09 Rutas públicas sin pantallas de contingencia `error.tsx` dedicadas
+### P4-09 Rutas públicas sin pantallas de contingencia `error.tsx` dedicadas (resuelto en 6072d52; colab ya lo cubre `(acceso)/error.tsx`)
 - **Dónde**: `src/app/sala/[token]/`, `src/app/s/[clave]/`, `src/app/(acceso)/colab/`
 - **Qué pasa**:
   - En `src/app/sala/[token]/` (pantalla kiosco para tablets de puerta en oficinas) no existe `error.tsx` ni `not-found.tsx`. Si la API de salas responde un 500 o la red falla temporalmente, la tablet salta al `error.tsx` de la raíz del sistema, mostrando controles de colaborador que no corresponden a un dispositivo de pared desatendido.
@@ -110,7 +110,7 @@ Solo hallazgos verificados en el código de `ops-v2`; no se modificó ningún ar
 
 ### Refinamiento
 
-### P4-11 Uso de `window.confirm()` nativo en el tablero interno de mantenimiento
+### P4-11 Uso de `window.confirm()` nativo en el tablero interno de mantenimiento (resuelto en 6072d52)
 - **Dónde**: `src/app/s/[clave]/Tablero.tsx:109-114`
 - **Qué pasa**: Al alternar un interruptor catalogado como peligroso (que dispara correos, abre la puerta de entrada o genera costos con proveedores externos), la función `alternar` invoca `window.confirm(...)` nativo del navegador. Esto detiene el hilo de ejecución principal, muestra un modal gris del sistema operativo ajeno a la estética visual cyberpunk/CRT del tablero (`panel.css`) y carece de soporte accesible estructurado.
 - **Propuesta**: Reemplazar `window.confirm()` por un diálogo modal ligero acorde a la estética del tablero o por el componente `ConfirmacionEnLinea` del sistema.

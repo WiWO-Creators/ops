@@ -121,7 +121,7 @@ Auditoría exhaustiva de consistencia de interfaz, refinamiento visual, deuda t�
 - **Propuesta**: Unificar en una sola forma, idealmente la misma que usan las demás fichas del panel.
 - **Prioridad**: Baja · **Esfuerzo**: S
 
-### P3-12 Uso de diálogo nativo bloqueante `window.confirm` en FlujoLicitacion
+### P3-12 Uso de diálogo nativo bloqueante `window.confirm` en FlujoLicitacion (resuelto en 6072d52)
 - **Dónde**: `src/componentes/prospecto/FlujoLicitacion.tsx:127`, `src/componentes/prospecto/FlujoLicitacion.tsx:355`
 - **Qué pasa**: Al descartar o cerrar el borrador del flujo de creación de licitaciones se llama a `window.confirm()` nativo sincrónico del navegador, interrumpiendo el hilo de React, degradando la accesibilidad y rompiendo el sistema de diseño visual.
 - **Propuesta**: Reemplazar los dos `window.confirm` por el componente `Dialogo` o `ConfirmarBorrado` con un modal no bloqueante accesible.
@@ -143,7 +143,7 @@ Auditoría exhaustiva de consistencia de interfaz, refinamiento visual, deuda t�
 
 ### Refinamiento y consistencia de UI
 
-### P3-15 Inconsistencia gramatical de tratamiento: Voseo rioplatense vs Tuteo neutro
+### P3-15 Inconsistencia gramatical de tratamiento: Voseo rioplatense vs Tuteo neutro (resuelto en 6072d52)
 - **Dónde**: `src/app/(panel)/perfil/FormularioPerfil.tsx:468`, `src/componentes/equipo/campos.ts:65`, `src/componentes/administracion/RecalculoDeFotoDiaria.tsx:144`, `src/componentes/administracion/RecalculoDeFotoDiaria.tsx:147`
 - **Qué pasa**: El sistema utiliza tuteo neutro en la inmensa mayoría de pantallas (*"No tienes permiso"*, *"Si crees que deberías tener acceso"*). No obstante, en perfil aparece `"Todavía no tenés firma."`, en equipo `"Podés marcar varias áreas."`, y en recálculo `"No tenés permiso para recalcular"` y `"Revisá lo que pediste"`.
 - **Propuesta**: Normalizar todos los textos a tuteo neutro: *"Todavía no tienes firma"*, *"Puedes marcar varias áreas"*, *"No tienes permiso para recalcular"* y *"Revisa los datos ingresados"*.
@@ -177,7 +177,7 @@ Auditoría exhaustiva de consistencia de interfaz, refinamiento visual, deuda t�
 
 ### Animaciones faltantes
 
-### P3-20 Bloqueo estructural de `.entrada-pagina` en Novedades
+### P3-20 Bloqueo estructural de `.entrada-pagina` en Novedades (resuelto en 6072d52)
 - **Dónde**: `src/app/(panel)/novedades/page.tsx:23`
 - **Qué pasa**: La página envuelve su árbol en `<EntradaEscalonada><div className="...">...</div></EntradaEscalonada>`. En el DOM resultante, el hijo directo del selector `.entrada-pagina > :is(div, section)` es el `div` contenedor de `EntradaEscalonada`, el cual contiene un único hijo que aloja el `h1`. La regla `:not(:has(h1))` descarta ese hijo y ningún grupo de contenido recibe la animación CSS de entrada de página (`entrada-contenido`), dependiendo exclusivamente de JS.
 - **Verificación**: que los grupos no reciban la entrada CSS es coherente, porque la entrada JS la reemplaza. El problema real es el inverso: la cabecera (`novedades/page.tsx:28`, `inicio/NovedadesDelInicio.tsx:66`) lleva `data-entrada="cabecera"` **y** contiene el `h1` y la firma de `TituloModulo`, así que corren dos coreografías superpuestas (fundido JS desde −8 px más desenfoque CSS del `h1` y barrido de la firma) con curvas y tiempos distintos.
@@ -218,7 +218,7 @@ Auditoría exhaustiva de consistencia de interfaz, refinamiento visual, deuda t�
 
 ### Deuda técnica
 
-### P3-26 `loading.tsx` padre heredado erróneamente en fichas de detalle dinámicas
+### P3-26 `loading.tsx` padre heredado erróneamente en fichas de detalle dinámicas (resuelto en 6072d52)
 - **Dónde**: `src/app/(panel)/clientes/[id]/page.tsx`, `src/app/(panel)/prospectos/[id]/page.tsx`, `src/app/(panel)/contratos/[id]/page.tsx`, `src/app/(panel)/equipo/[id]/page.tsx`
 - **Qué pasa**: Al no existir un `loading.tsx` dedicado en los directorios `[id]`, Next.js recurre al `loading.tsx` del directorio padre. Esto provoca que mientras se carga la ficha individual de un cliente o contrato, la pantalla muestra fugazmente el esqueleto de la tabla y el título plural ("Clientes", "Contratos").
 - **Propuesta**: Crear archivos `loading.tsx` específicos en cada subdirectorio `[id]` que rendericen un esqueleto de cabecera con avatar, badges y pestañas con `Hueso`.

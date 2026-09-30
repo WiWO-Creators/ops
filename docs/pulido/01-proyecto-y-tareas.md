@@ -17,7 +17,7 @@ Las rutas son relativas a `ops-v2/`.
 
 ## Inconsistencias
 
-### P1-01 La píldora de estado del Proyecto late sin fin en la cabecera
+### P1-01 La píldora de estado del Proyecto late sin fin en la cabecera (resuelto en 6072d52)
 - **Dónde**: `src/componentes/proyecto/MenuEstadoProyecto.tsx:123` y `src/componentes/proyecto/CabeceraProyecto.tsx:172`
 - **Qué pasa**: Para los estados de `ESTADOS_DESTACADOS` (Finalizado, En desarrollo; `estado-proyecto.ts:15`) la `Insignia` lleva `motion-safe:animate-pulse`, que es `infinite`. La cabecera está siempre visible mientras se trabaja en el detalle del Proyecto (panel y portal), así que rompe la regla 2 de los guardrails (`docs/sistema-de-diseno.md` § Guardrails), y el lint no lo atrapa porque es una clase de Tailwind y no CSS.
 - **Nota de verificación**: el pulso es intencional (`estado-proyecto.ts:14` dice «pinta con la paleta del sistema y anima»), así que es una decisión de producto que choca con el guardrail, no un descuido. Otro caso fuera del frente: `componentes/teletrabajo/MiniLlamada.tsx:92` usa `animate-pulse` sin `motion-safe:`.
@@ -25,7 +25,7 @@ Las rutas son relativas a `ops-v2/`.
 - **Propuesta original**: Quitar el pulso y destacar con la paleta (ya lo hace `pildoraDeEstado`) o, si se quiere movimiento, un `animate-entrar-escala` de una sola vez al montar o al cambiar de estado. Añadir `animate-pulse`/`animate-ping`/`animate-spin` fuera de `componentes/estado/` a la regla de lint.
 - **Prioridad**: Alta · **Esfuerzo**: S
 
-### P1-02 `confirm()` nativo en el Meeting Paper y en Tareas propuestas
+### P1-02 `confirm()` nativo en el Meeting Paper y en Tareas propuestas (resuelto en 6072d52)
 - **Dónde**: `src/componentes/proyecto/DetalleActa.tsx:520` y `src/componentes/proyecto/acta/TareasPropuestas.tsx:410`
 - **Qué pasa**: Salir con cambios sin guardar y "crear todas las propuestas" usan el diálogo del navegador (sin marca, sin foco controlado, texto del sistema). El mismo `DetalleActa` confirma eliminar y retraducir con `Dialogo` (`:771`, `:784`) y `TareasPropuestas` ya importa `ConfirmarBorrado` (`:20`): la misma pantalla pregunta de dos maneras.
 - **Propuesta**: `ConfirmacionEnLinea` con `varianteConfirmar="primario"` junto al botón "Crear" y, para salir sin guardar, un `Dialogo` `ancho="chico"` como el de retraducir (o `ConfirmacionEnLinea` bajo el botón "Volver").
@@ -135,7 +135,7 @@ Las rutas son relativas a `ops-v2/`.
 
 ## Sin terminar
 
-### P1-19 Mis tareas no tiene `loading.tsx`
+### P1-19 Mis tareas no tiene `loading.tsx` (resuelto en 6072d52)
 - **Dónde**: `src/app/(panel)/mis-tareas/` (no hay `loading.tsx`; tampoco en `(panel)/`)
 - **Qué pasa**: `proyectos`, `tareas` y `tareas/recurrentes` muestran encabezado + `Cargando` al navegar; Mis tareas, que es la hoja diaria, deja la pantalla anterior congelada hasta que el servidor responde. Además `tareas/tablero` y `tareas/calendario` heredan el `loading.tsx` de `/tareas` ("Cargando tareas…" con el título de la lista), el mismo problema que `tareas/recurrentes/loading.tsx` ya corrigió para sí.
 - **Propuesta**: `loading.tsx` en `mis-tareas` (`TituloModulo` + `Cargando`) y en `tareas/tablero` y `tareas/calendario` con su título.
