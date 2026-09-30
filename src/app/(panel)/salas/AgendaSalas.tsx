@@ -167,7 +167,7 @@ export function AgendaSalas ({ dia, vista, salas, reservas, personas, yoId, esAd
                       <button
                         key={minuto}
                         type="button"
-                        className="border-linea hover:bg-hover block w-full border-b transition-colors duration-150"
+                        className="border-linea hover:bg-hover block w-full border-b transition-colors duration-rapida ease-neo"
                         style={{ height: ALTO_FRANJA }}
                         aria-label={`Reservar ${sala.name} a las ${formatearMinutos(minuto)}`}
                         onClick={() => reservarEn(sala.id, minuto)}
@@ -265,7 +265,7 @@ function BloqueReserva ({ reserva, dia, propia, onAbrir }: PropsBloque) {
       style={{ top: `${caja.arriba}%`, height: `${caja.alto}%` }}
       className={cn(
         'rounded-chico absolute inset-x-1 z-1 overflow-hidden px-2 py-1 text-left',
-        'transition-[filter] duration-150 hover:brightness-95',
+        'transition-[filter] duration-rapida ease-neo hover:brightness-95',
         // El verde de marca se reserva para la pantalla de puerta, donde "libre" u "ocupada" es TODO
         // el mensaje. En una grilla con veinte bloques grita y tapa la lectura del hueco, que es lo
         // que la gente viene a buscar. Aca la distincion propia/ajena alcanza con el acento.

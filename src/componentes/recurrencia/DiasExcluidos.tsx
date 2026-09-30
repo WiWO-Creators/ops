@@ -52,7 +52,7 @@ export function DiasExcluidos ({ valor, onCambiar, error, deshabilitado = false 
                 title={excluido ? `Los ${dia.nombre} no se generan copias` : `Los ${dia.nombre} sí se generan copias`}
                 onClick={() => { onCambiar(alternarDia(valor, dia.iso)) }}
                 className={cn(
-                  'rounded-control size-8 border text-xs font-semibold transition-colors duration-150',
+                  'rounded-control size-8 border text-xs font-semibold transition-colors duration-rapida ease-neo',
                   'disabled:cursor-not-allowed disabled:opacity-60',
                   excluido
                     ? 'bg-acento text-acento-contenido border-transparent'
@@ -70,7 +70,7 @@ export function DiasExcluidos ({ valor, onCambiar, error, deshabilitado = false 
           aria-pressed={finDeSemana}
           onClick={() => { onCambiar(alternarFinesDeSemana(valor)) }}
           className={cn(
-            'rounded-control h-8 border px-3 text-xs font-medium transition-colors duration-150',
+            'rounded-control h-8 border px-3 text-xs font-medium transition-colors duration-rapida ease-neo',
             'disabled:cursor-not-allowed disabled:opacity-60',
             finDeSemana
               ? 'border-acento text-acento bg-acento-suave'

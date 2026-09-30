@@ -7,6 +7,7 @@ import {
   StartAudio,
   useParticipants
 } from '@livekit/components-react'
+import '@/estilos/livekit.css'
 import { Boton } from '@/componentes/formularios/Boton'
 import { cn } from '@/lib/clases'
 import { BarraDeControles } from './BarraDeControles'

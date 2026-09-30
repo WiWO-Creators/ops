@@ -26,6 +26,21 @@ const ESCALAS_SIN_ARBITRARIOS = [
   }
 ]
 
+/**
+ * Las duraciones de transicion salen de la escala de movimiento (`tokens.css`, utilidades de
+ * `globals.css`). `/pantalla` queda fuera: es carteleria y lleva su propia coreografia.
+ */
+const DURACIONES_DEL_SISTEMA = [
+  {
+    selector: 'Literal[value=/(^|[\\s:"\'`])duration-\\d/]',
+    message: '`duration-N` no: usa `duration-rapida`, `duration-media` o `duration-lenta` (docs/sistema-de-diseno.md § Movimiento).'
+  },
+  {
+    selector: 'TemplateElement[value.raw=/(^|[\\s:"\'`])duration-\\d/]',
+    message: '`duration-N` no: usa `duration-rapida`, `duration-media` o `duration-lenta` (docs/sistema-de-diseno.md § Movimiento).'
+  }
+]
+
 const eslintConfig = defineConfig([
   ...nextVitals,
   ...nextTs,
@@ -56,6 +71,14 @@ const eslintConfig = defineConfig([
   },
 
   {
+    files: ['src/**/*.{ts,tsx}'],
+    ignores: ['src/app/pantalla/**'],
+    rules: {
+      'no-restricted-syntax': ['error', ...ESCALAS_SIN_ARBITRARIOS, ...DURACIONES_DEL_SISTEMA]
+    }
+  },
+
+  {
     // Guardrail de `docs/sistema-de-diseno.md`: el pulso que no para es de lo que se desmonta
     // (`componentes/estado/`) o de las excepciones decididas ahi: la pildora de estado del Proyecto y
     // el punto de la llamada en curso. `/pantalla` es carteleria y anima a proposito.
@@ -78,7 +101,8 @@ const eslintConfig = defineConfig([
           selector: 'TemplateElement[value.raw=/animate-(pulse|ping)/]',
           message: '`animate-pulse`/`animate-ping` solo en `src/componentes/estado/` o en las excepciones de docs/sistema-de-diseno.md § Guardrails.'
         },
-        ...ESCALAS_SIN_ARBITRARIOS
+        ...ESCALAS_SIN_ARBITRARIOS,
+        ...DURACIONES_DEL_SISTEMA
       ]
     }
   },

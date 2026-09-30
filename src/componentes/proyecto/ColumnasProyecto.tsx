@@ -101,7 +101,7 @@ function CeldaNombre ({ espacio, acciones }: { espacio: Espacio, acciones: Accio
       {acciones !== undefined && (
         <span
           className={cn(
-            'flex shrink-0 items-center gap-1 opacity-0 transition-opacity duration-150',
+            'flex shrink-0 items-center gap-1 opacity-0 transition-opacity duration-rapida ease-neo',
             'group-hover/fila:opacity-100 focus-within:opacity-100'
           )}
         >

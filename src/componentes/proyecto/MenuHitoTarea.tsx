@@ -169,7 +169,7 @@ export function MenuHitoTarea ({
             }
             className={cn(
               'rounded-control cursor-pointer text-left',
-              'transition-opacity duration-150',
+              'transition-opacity duration-rapida ease-neo',
               enCurso ? 'cursor-progress opacity-60' : 'hover:opacity-80'
             )}
           >

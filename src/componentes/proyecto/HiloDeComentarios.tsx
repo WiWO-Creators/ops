@@ -167,7 +167,7 @@ export function HiloDeComentarios (
         aria-label="Eliminar comentario"
         title="Eliminar comentario"
         className={cn(
-          'size-7 transition-opacity duration-150',
+          'size-7 transition-opacity duration-rapida ease-neo',
           'opacity-0 focus-visible:opacity-100 pointer-coarse:opacity-100',
           respuestas === null ? 'group-hover/respuesta:opacity-100' : 'group-hover/comentario:opacity-100'
         )}
@@ -256,7 +256,7 @@ export function HiloDeComentarios (
                 : (
                   <button
                     type="button"
-                    className="text-texto-tenue hover:text-texto focus-visible:text-texto mt-1 inline-flex w-fit items-center gap-1 rounded-chico text-xs font-medium transition-colors duration-150"
+                    className="text-texto-tenue hover:text-texto focus-visible:text-texto mt-1 inline-flex w-fit items-center gap-1 rounded-chico text-xs font-medium transition-colors duration-rapida ease-neo"
                     onClick={() => { setRespondiendoA(raiz.id) }}
                   >
                     <CornerDownRight aria-hidden className="size-3.5" strokeWidth={1.75} />
@@ -347,7 +347,7 @@ function CuadroDeComentario (
     <form
       onSubmit={(evento) => { void enviar(evento) }}
       className={cn(
-        'border-control-borde bg-control rounded-medio flex flex-col border transition-[border-color,box-shadow] duration-150',
+        'border-control-borde bg-control rounded-medio flex flex-col border transition-[border-color,box-shadow] duration-rapida ease-neo',
         'focus-within:border-foco focus-within:ring-foco/25 focus-within:ring-2',
         error !== null && 'border-relleno-peligro'
       )}

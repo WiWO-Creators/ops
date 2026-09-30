@@ -498,7 +498,7 @@ function ConversacionOrbe ({ desplazable = false, proyecto, configuracion }: Pro
 /** La burbuja de la persona: alineada a la derecha, sin citas y sin estados. */
 function BurbujaPersona ({ texto }: { texto: string }): ReactElement {
   return (
-    <li className="flex justify-end">
+    <li className="animate-aparecer flex justify-end">
       <p className="bg-relleno-neutro text-relleno-neutro-contenido rounded-tarjeta max-w-[85%] whitespace-pre-wrap px-3 py-2 text-sm">
         {texto}
       </p>
@@ -554,7 +554,7 @@ function BurbujaIA ({
     : { mensaje: configuracion.textos.buscando(conProyecto), estado: 'thinking' as const }
 
   return (
-    <li className="border-linea bg-superficie-hundida rounded-tarjeta flex flex-col gap-2 border p-3">
+    <li className="border-linea bg-superficie-hundida rounded-tarjeta animate-aparecer flex flex-col gap-2 border p-3">
       {esperando
         ? <CargandoConOrbe mensaje={indicador.mensaje} estado={indicador.estado} retardoMs={0} />
         : (
@@ -583,7 +583,7 @@ function BurbujaIA ({
       )}
 
       {mensaje.citas.length > 0 && (
-        <div className="flex flex-col gap-1">
+        <div className="animate-aparecer flex flex-col gap-1">
           <p className="text-texto-sutil text-xs font-medium">Fuentes</p>
           <ul className="flex flex-wrap gap-1.5">
             {mensaje.citas.map((cita, indice) => (
@@ -596,7 +596,7 @@ function BurbujaIA ({
       )}
 
       {configuracion.conPropuestas && mensaje.acciones.length > 0 && (
-        <ul aria-label="Acciones propuestas" className="flex flex-col gap-2">
+        <ul aria-label="Acciones propuestas" className="animate-aparecer flex flex-col gap-2">
           {mensaje.acciones.map((accion) => (
             <li key={accion.id}>
               <TarjetaPropuestaIA accion={accion} onResuelta={onAccionResuelta} proyectoId={proyectoId} />
@@ -606,7 +606,7 @@ function BurbujaIA ({
       )}
 
       {configuracion.conPropuestas && mensaje.preguntas.length > 0 && (
-        <ul aria-label={`Preguntas de ${ASISTENTE}`} className="flex flex-col gap-2">
+        <ul aria-label={`Preguntas de ${ASISTENTE}`} className="animate-aparecer flex flex-col gap-2">
           {mensaje.preguntas.map((pregunta, indice) => (
             <li key={indice}>
               <TarjetaPreguntaIA pregunta={pregunta} respuesta={respuesta} onResponder={onResponder} />

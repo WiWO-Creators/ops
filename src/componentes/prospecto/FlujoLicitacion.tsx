@@ -265,7 +265,7 @@ export function FlujoLicitacion ({ usuarioId, capacidades, paises, areas, staff,
         {hecho && !bloqueado
           ? (
             <button type="button" aria-label={`Volver al ${rotulo}`} onClick={() => { cambiarPaso(indice as 0 | 1 | 2) }}
-              className="rounded-control hover:bg-hover -mx-1 flex min-w-0 items-center gap-2 px-1 py-1 transition-colors duration-150">
+              className="rounded-control hover:bg-hover -mx-1 flex min-w-0 items-center gap-2 px-1 py-1 transition-colors duration-rapida ease-neo">
               {interior}
             </button>
             )

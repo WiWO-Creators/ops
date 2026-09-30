@@ -102,7 +102,7 @@ export function ContenidoDialogo ({
             aria-label="Cerrar"
             className={cn(
               'text-texto-sutil hover:text-texto hover:bg-hover absolute right-4 top-4',
-              'rounded-control inline-flex size-7 items-center justify-center transition-colors duration-150'
+              'rounded-control inline-flex size-7 items-center justify-center transition-colors duration-rapida ease-neo'
             )}
           >
             <X size={16} strokeWidth={2} aria-hidden="true" />

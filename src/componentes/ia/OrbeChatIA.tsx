@@ -1,6 +1,6 @@
 'use client'
 
-import { useCallback, useEffect, useId, useRef, useState, type PointerEvent as EventoPuntero, type KeyboardEvent as EventoTeclado, type ReactElement } from 'react'
+import { useCallback, useEffect, useId, useRef, useState, type PointerEvent as EventoPuntero, type KeyboardEvent as EventoTeclado, type CSSProperties, type ReactElement } from 'react'
 import { usePathname } from 'next/navigation'
 import { Orbe } from '@/componentes/estado/Orbe'
 import { cn } from '@/lib/clases'
@@ -257,10 +257,13 @@ export function OrbeChatIA ({ sujeto = 'staff' }: { sujeto?: SujetoOrbe } = {}):
           role="dialog"
           aria-label={ASISTENTE}
           onAnimationEnd={alTerminarAnimacion}
-          style={{ width: `${tamanoVisible.ancho}px`, height: `${tamanoVisible.alto}px` }}
+          // El tamaño va en variables y no en `width`/`height` en linea: el estilo en linea le
+          // ganaria a la clase que en movil lo lleva al ancho completo.
+          style={{ '--ancho-chat': `${tamanoVisible.ancho}px`, '--alto-chat': `${tamanoVisible.alto}px` } as CSSProperties}
           className={cn(
             saliendo ? 'animate-salir-abajo pointer-events-none' : 'animate-entrar-abajo',
-            'border-linea bg-superficie-flotante shadow-flotante rounded-tarjeta fixed bottom-[calc(6rem_+_var(--barra-inferior,0px))] right-4 z-superposicion flex max-h-[calc(100dvh_-_7rem_-_var(--barra-inferior,0px))] max-w-[calc(100vw-2rem)] flex-col gap-3 border p-3'
+            'border-linea bg-superficie-flotante shadow-flotante rounded-tarjeta fixed bottom-[calc(6rem_+_var(--barra-inferior,0px))] right-4 z-superposicion flex h-(--alto-chat) max-h-[calc(100dvh_-_7rem_-_var(--barra-inferior,0px))] w-(--ancho-chat) max-w-[calc(100vw-2rem)] flex-col gap-3 border p-3',
+            'max-md:inset-x-0 max-md:bottom-[var(--barra-inferior,0px)] max-md:max-h-[calc(100dvh_-_4rem_-_var(--barra-inferior,0px))] max-md:w-full max-md:max-w-full max-md:rounded-b-none max-md:border-x-0 max-md:border-b-0'
           )}
         >
           {/* El tirador va dentro del `padding` del panel y no encima del borde: pegado al canto
@@ -274,7 +277,7 @@ export function OrbeChatIA ({ sujeto = 'staff' }: { sujeto?: SujetoOrbe } = {}):
             onPointerCancel={alTerminarPuntero}
             onKeyDown={alTecladoDelTirador}
             aria-label={`Redimensionar el chat de ${ASISTENTE}. Flechas izquierda y arriba para agrandar, derecha y abajo para achicar`}
-            className="text-texto-tenue hover:bg-hover hover:text-texto focus-visible:outline-acento focus-visible:outline-2 focus-visible:outline-offset-2 rounded-chico absolute left-1 top-1 flex size-5 cursor-nwse-resize touch-none items-center justify-center"
+            className="text-texto-tenue hover:bg-hover hover:text-texto focus-visible:outline-acento focus-visible:outline-2 focus-visible:outline-offset-2 rounded-chico absolute left-1 top-1 flex size-5 cursor-nwse-resize touch-none items-center justify-center max-md:hidden"
           >
             {/* Dos trazos en diagonal, el gesto que ya usa cualquier esquina redimensionable.
                 `aria-hidden` porque lo que hay que anunciar es la etiqueta del boton, no el dibujo. */}
@@ -284,7 +287,7 @@ export function OrbeChatIA ({ sujeto = 'staff' }: { sujeto?: SujetoOrbe } = {}):
             </svg>
           </button>
 
-          <header className="flex items-center justify-between gap-2 pl-6">
+          <header className="flex items-center justify-between gap-2 md:pl-6">
             <div className="flex flex-col">
               <p className="text-texto text-sm font-semibold">{ASISTENTE}</p>
               <p className="text-texto-sutil text-xs">{configuracion.textos.subtitulo}</p>
@@ -316,7 +319,12 @@ export function OrbeChatIA ({ sujeto = 'staff' }: { sujeto?: SujetoOrbe } = {}):
         aria-expanded={abierto}
         aria-controls={abierto ? idPanel : undefined}
         aria-label={abierto ? `Cerrar ${ASISTENTE}` : `Preguntarle a ${ASISTENTE}`}
-        className="bg-gradiente-marca text-gradiente-marca-contenido shadow-flotante fixed bottom-[calc(1.5rem_+_var(--barra-inferior,0px))] right-4 z-superposicion inline-flex size-14 items-center justify-center rounded-full transition-[transform,filter] duration-rapida ease-neo hover:brightness-95 active:scale-[0.96]"
+        className={cn(
+          'bg-gradiente-marca text-gradiente-marca-contenido shadow-flotante fixed bottom-[calc(1.5rem_+_var(--barra-inferior,0px))] right-4 z-superposicion inline-flex size-14 items-center justify-center rounded-full transition-[transform,filter] duration-rapida ease-neo hover:brightness-95 active:scale-[0.96]',
+          // En movil el panel abierto ocupa el fondo de la pantalla y el boton le taparia el campo: se
+          // cierra con el «Cerrar» de su cabecera.
+          abierto && 'max-md:hidden'
+        )}
       >
         <Orbe tamano="medio" estado={abierto || encima ? 'thinking' : undefined} />
       </button>

@@ -127,7 +127,7 @@ export function ModoCorreoAlCliente ({ inicial }: PropsModoCorreoAlCliente): Rea
               aria-checked={modo === opcion}
               onClick={() => { setModo(opcion); setConfirmarReal(false); setConfirmado(false) }}
               className={
-                'rounded-tarjeta border p-3 text-left transition-colors duration-150 ' +
+                'rounded-tarjeta border p-3 text-left transition-colors duration-rapida ease-neo ' +
                 (modo === opcion
                   ? 'border-acento bg-acento-suave'
                   : 'border-control-borde bg-control hover:bg-hover')

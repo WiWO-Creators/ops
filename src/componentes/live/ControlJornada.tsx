@@ -792,7 +792,7 @@ export function ControlJornada ({
         aria-label="Jornada y medidor"
         className={cn(
           'rounded-control border-control-borde bg-control text-texto inline-flex h-8 max-w-44 items-center gap-2 border px-2.5 text-xs font-semibold',
-          'hover:bg-hover transition-colors duration-150',
+          'hover:bg-hover transition-colors duration-rapida ease-neo',
           className
         )}
       >

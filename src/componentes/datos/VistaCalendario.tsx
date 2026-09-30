@@ -408,7 +408,7 @@ function TarjetaDelDia (
         scroll={false}
         className={cn(
           'rounded-chico bg-superficie hover:bg-hover flex flex-col gap-1 border-l-2 p-2',
-          'transition-colors duration-150',
+          'transition-colors duration-rapida ease-neo',
           BORDE_VENCIMIENTO[estadoVencimiento(tarea.due_date)]
         )}
       >
@@ -458,7 +458,7 @@ function TiraSinVencimiento (
             <Link
               href={urlDeTarea(tarea.id)}
               scroll={false}
-              className="border-linea rounded-chico bg-superficie hover:bg-hover text-texto flex items-center gap-2 border px-2 py-1.5 text-xs transition-colors duration-150"
+              className="border-linea rounded-chico bg-superficie hover:bg-hover text-texto flex items-center gap-2 border px-2 py-1.5 text-xs transition-colors duration-rapida ease-neo"
             >
               {tarea.name}
               <EstadoDeTarea status={tarea.status} catalogo={estados} />

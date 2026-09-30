@@ -380,7 +380,7 @@ function FilaDeRegla ({ regla, posicion, puedeEditar, esAdmin, resaltada, onVerC
       data-entrada="item"
       data-resaltada={resaltada || undefined}
       className={cn(
-        'border-linea bg-superficie rounded-tarjeta hover:border-linea-fuerte grid grid-cols-1 items-center gap-x-4 gap-y-2 border px-4 py-3 transition-colors duration-150 md:grid-cols-[minmax(0,2.2fr)_minmax(0,1fr)_minmax(0,1fr)_auto]',
+        'border-linea bg-superficie rounded-tarjeta hover:border-linea-fuerte grid grid-cols-1 items-center gap-x-4 gap-y-2 border px-4 py-3 transition-colors duration-rapida ease-neo md:grid-cols-[minmax(0,2.2fr)_minmax(0,1fr)_minmax(0,1fr)_auto]',
         resaltada && 'border-acento ring-acento/30 ring-2'
       )}
     >
@@ -388,7 +388,7 @@ function FilaDeRegla ({ regla, posicion, puedeEditar, esAdmin, resaltada, onVerC
         <button
           type="button"
           onClick={() => { abrir(String(regla.id)) }}
-          className="text-texto hover:text-acento truncate text-left font-semibold transition-colors duration-150"
+          className="text-texto hover:text-acento truncate text-left font-semibold transition-colors duration-rapida ease-neo"
         >
           {regla.name}
         </button>
@@ -442,7 +442,7 @@ function FilaDeRegla ({ regla, posicion, puedeEditar, esAdmin, resaltada, onVerC
             <button
               type="button"
               onClick={() => { abrir(String(regla.last_copy?.id ?? regla.id)) }}
-              className="text-texto-sutil hover:text-acento self-start text-left text-xs underline-offset-2 transition-colors duration-150 hover:underline"
+              className="text-texto-sutil hover:text-acento self-start text-left text-xs underline-offset-2 transition-colors duration-rapida ease-neo hover:underline"
             >
               Última copia: {formatearFecha(regla.last_copy.start_date ?? regla.last_copy.created_at)}
             </button>

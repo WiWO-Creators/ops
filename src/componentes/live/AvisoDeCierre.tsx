@@ -41,6 +41,13 @@ import { sonarAviso } from '@/lib/sonido'
 /** Cada cuánto vuelve a sonar la pregunta mientras nadie contesta, en minutos. */
 export const MINUTOS_ENTRE_SONIDOS = 5
 
+/**
+ * Cada cuánto se recuenta el plazo, en milisegundos. La barra transiciona exactamente este tiempo y
+ * en línea recta: cada tramo empalma con el siguiente y se ve un avance continuo, no saltos. No es
+ * una duración de la escala de movimiento: la dicta el reloj.
+ */
+const PASO_DEL_RELOJ_MS = 1000
+
 interface PropsAvisoDeCierre {
   /** Cuándo apareció la pregunta, en ISO. */
   preguntaEn: string
@@ -123,7 +130,7 @@ export function AvisoDeCierre ({
 
       globalThis.clearInterval(id)
       vencido.current()
-    }, 1000)
+    }, PASO_DEL_RELOJ_MS)
 
     return () => { globalThis.clearInterval(id) }
   }, [plazo])
@@ -178,8 +185,11 @@ export function AvisoDeCierre ({
           accesibilidad en vez de anunciarse cada segundo. */}
       <div className="bg-control h-1 w-full overflow-hidden rounded-full" aria-hidden>
         <div
-          className="bg-acento h-full rounded-full transition-[width] duration-1000 ease-linear"
-          style={{ width: `${total === 0 ? 0 : Math.min(100, (restantes / total) * 100)}%` }}
+          className="bg-acento h-full rounded-full transition-[width] ease-linear"
+          style={{
+            width: `${total === 0 ? 0 : Math.min(100, (restantes / total) * 100)}%`,
+            transitionDuration: `${PASO_DEL_RELOJ_MS}ms`
+          }}
         />
       </div>
 

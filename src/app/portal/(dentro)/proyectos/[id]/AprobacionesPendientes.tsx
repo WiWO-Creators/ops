@@ -10,6 +10,7 @@ import { escribirEnBff } from '@/componentes/datos/mutaciones'
 import { EnlacePanelClasico } from '@/componentes/presentadores/EnlacePanelClasico'
 import { GLOSARIO } from '@/dominio/glosario'
 import { formatearFecha } from '@/lib/fechas'
+import { cn } from '@/lib/clases'
 import { EstadoDeTarea } from '@/componentes/proyecto/EstadoDeTarea'
 import type { AprobacionPortal, TareaPortal } from '@/datos/portal'
 import type { CatalogoDeEstados } from '@/dominio/estados-tarea'
@@ -147,9 +148,10 @@ function FilaAprobacion ({ tarea, estados }: {
           </p>
         </div>
 
+        {/* Solo el cambio de esta sesion aparece con movimiento: la lista recien cargada queda quieta. */}
         {respondida && !cambiando
           ? (
-            <div className="flex shrink-0 items-center gap-3">
+            <div className={cn('flex shrink-0 items-center gap-3', decidida !== null && 'animate-aparecer')}>
               <p className="text-texto-tenue text-sm">
                 {estado === 'aprobada' ? 'Aprobaste' : 'Pediste cambios'}
                 {resuelta !== null && ` el ${formatearFecha(resuelta)}`}
@@ -162,7 +164,7 @@ function FilaAprobacion ({ tarea, estados }: {
             </div>
             )
           : (
-        <div className="flex shrink-0 gap-2">
+        <div className={cn('flex shrink-0 gap-2', cambiando && 'animate-aparecer')}>
           {/* Aprobar es escritura directa: pedir un modal para decir que si es friccion sobre lo que
               queremos que pase. Rechazar exige motivo, asi que si abre dialogo. */}
           <Boton

@@ -7,7 +7,7 @@ export const boton = cva(
     'inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-control font-semibold',
     // Solo `transform`, `opacity` y color: animar `filter` o `box-shadow` en un control que aparece
     // cientos de veces por pantalla es lo que hacia pesado al panel actual.
-    'transition-[background-color,border-color,color,transform] duration-150 ease-neo',
+    'transition-[background-color,border-color,color,transform] duration-rapida ease-neo',
     'active:scale-[0.98]',
     /* Neo: "Disabled — no depende solo de opacidad; conserva lectura y cursor claro". Un boton al
        50% de opacidad se vuelve ilegible sobre superficies claras, asi que se apaga con superficie y

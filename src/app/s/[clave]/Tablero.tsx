@@ -173,7 +173,7 @@ function Interruptores ({ interruptores, peligrososEncendidos, escritura }: {
           >
             <span>
               <span className="pn__int-nombre">
-                {int.peligro && <TriangleAlert size={13} aria-hidden="true" color="#f2b705" />}
+                {int.peligro && <TriangleAlert size={13} aria-hidden="true" className="text-texto-aviso" />}
                 {int.etiqueta}
               </span>
               <span className="pn__int-grupo">{int.grupo} · {int.clave}</span>

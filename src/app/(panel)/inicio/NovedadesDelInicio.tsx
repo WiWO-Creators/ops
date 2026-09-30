@@ -70,7 +70,7 @@ export function NovedadesDelInicio ({ novedades, masReciente }: PropsNovedadesDe
             <div className="flex items-center gap-1">
               <Link
                 href="/novedades"
-                className="flex items-center gap-1.5 rounded-control px-3 py-2 text-base font-semibold text-acento transition-colors duration-150 ease-neo hover:bg-hover"
+                className="flex items-center gap-1.5 rounded-control px-3 py-2 text-base font-semibold text-acento transition-colors duration-rapida ease-neo hover:bg-hover"
               >
                 Ver todas
                 <ArrowRight size={18} strokeWidth={2.25} aria-hidden="true" />

@@ -109,7 +109,7 @@ export function CalendarioSalas ({ dia, salas, reservas }: PropsCalendarioSalas)
                       title={etiqueta}
                       onClick={() => router.push(`/salas?dia=${fecha}`)}
                       className={cn(
-                        'rounded-chico relative h-10 text-left transition-[background-color,color,transform] duration-150 active:scale-[0.98]',
+                        'rounded-chico relative h-10 text-left transition-[background-color,color,transform] duration-rapida ease-neo active:scale-[0.98]',
                         'focus-visible:shadow-[0_0_0_3px_var(--foco-halo)]',
                         cantidad === 0 && 'bg-superficie-hundida text-texto-tenue hover:bg-hover',
                         cantidad === 1 && 'bg-acento/10 text-acento hover:bg-acento/20',

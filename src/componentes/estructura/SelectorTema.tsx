@@ -24,7 +24,7 @@ export function SelectorTema ({ className }: { className?: string }) {
       aria-label="Cambiar tema"
       className={cn(
         'border-linea bg-superficie-hundida text-texto-tenue hover:text-texto hover:bg-superficie-elevada',
-        'relative grid size-9 place-items-center rounded-control border transition-colors duration-150',
+        'relative grid size-9 place-items-center rounded-control border transition-colors duration-rapida ease-neo',
         'focus-visible:outline-acento focus-visible:outline-2 focus-visible:outline-offset-2',
         className
       )}
@@ -33,11 +33,11 @@ export function SelectorTema ({ className }: { className?: string }) {
           mientras el que entra hace el camino inverso. Apilarlos evita que el boton salte de tamaño. */}
       <Sun
         aria-hidden
-        className="col-start-1 row-start-1 size-4 rotate-0 scale-100 transition-transform duration-300 oscuro:-rotate-90 oscuro:scale-0"
+        className="col-start-1 row-start-1 size-4 rotate-0 scale-100 transition-transform duration-media ease-neo oscuro:-rotate-90 oscuro:scale-0"
       />
       <Moon
         aria-hidden
-        className="col-start-1 row-start-1 size-4 rotate-90 scale-0 transition-transform duration-300 oscuro:rotate-0 oscuro:scale-100"
+        className="col-start-1 row-start-1 size-4 rotate-90 scale-0 transition-transform duration-media ease-neo oscuro:rotate-0 oscuro:scale-100"
       />
     </button>
   )

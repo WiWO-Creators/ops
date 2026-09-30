@@ -107,7 +107,7 @@ function BotonMenu ({ props, className }: { props: PropsElementoDrive, className
       }}
       className={cn(
         'text-texto-tenue hover:bg-hover hover:text-texto rounded-control grid size-8 shrink-0 place-items-center',
-        'transition-colors duration-150',
+        'transition-colors duration-rapida ease-neo',
         className
       )}
     >
@@ -156,7 +156,7 @@ function InsigniaTarea () {
 /** Clases de fondo según el estado, compartidas por fila y tarjeta. */
 function clasesDeEstado (props: PropsElementoDrive): string {
   return cn(
-    'outline-none transition-[background-color,opacity] duration-150 ease-neo',
+    'outline-none transition-[background-color,opacity] duration-rapida ease-neo',
     'focus-visible:outline-[3px] focus-visible:outline-offset-[-3px] focus-visible:outline-[var(--foco)]',
     props.seleccionado ? 'bg-seleccionado' : 'hover:bg-hover',
     props.ocupado && 'pointer-events-none opacity-50',

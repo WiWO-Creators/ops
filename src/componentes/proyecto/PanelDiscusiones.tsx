@@ -171,7 +171,7 @@ export function PanelDiscusiones ({ proyectoId, fuente, capacidadesTareas }: Pro
               <ol
                 aria-busy={recargando || undefined}
                 className={cn(
-                  'flex max-h-[70dvh] flex-col gap-0.5 overflow-y-auto overscroll-contain p-1.5 transition-opacity duration-150',
+                  'flex max-h-[70dvh] flex-col gap-0.5 overflow-y-auto overscroll-contain p-1.5 transition-opacity duration-rapida ease-neo',
                   recargando && 'opacity-70'
                 )}
                 data-lenis-prevent
@@ -289,7 +289,7 @@ function FilaDeConversacion ({ conversacion, activa, onAbrir }: PropsFilaDeConve
       onClick={onAbrir}
       aria-current={activa ? 'true' : undefined}
       className={cn(
-        'rounded-medio relative flex w-full flex-col gap-1.5 px-3 py-2.5 text-left transition-colors duration-150',
+        'rounded-medio relative flex w-full flex-col gap-1.5 px-3 py-2.5 text-left transition-colors duration-rapida ease-neo',
         'hover:bg-hover focus-visible:outline-foco focus-visible:outline-2 focus-visible:-outline-offset-2',
         activa && 'bg-seleccionado hover:bg-seleccionado',
         // La barra marca la elegida sin depender solo del fondo, que en oscuro se distingue poco.

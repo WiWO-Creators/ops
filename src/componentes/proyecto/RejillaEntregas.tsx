@@ -171,7 +171,7 @@ function CeldaDeMes ({
           <Link
             href={urlDelDia(dia)}
             scroll={false}
-            className="bg-relleno-neutro text-relleno-neutro-contenido rounded-control hover:bg-hover px-1.5 text-menor tabular-nums transition-colors duration-150 sm:hidden"
+            className="bg-relleno-neutro text-relleno-neutro-contenido rounded-control hover:bg-hover px-1.5 text-menor tabular-nums transition-colors duration-rapida ease-neo sm:hidden"
           >
             {tareas.length}
             <span className="sr-only">
@@ -420,7 +420,7 @@ export function TarjetaEntrega ({
         href={href}
         scroll={false}
         className={cn(
-          'rounded-chico bg-superficie hover:bg-hover flex flex-col gap-1 border-l-2 transition-colors duration-150',
+          'rounded-chico bg-superficie hover:bg-hover flex flex-col gap-1 border-l-2 transition-colors duration-rapida ease-neo',
           compacta ? 'px-1.5 py-1' : 'p-2',
           BORDE[tono]
         )}

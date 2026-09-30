@@ -1,10 +1,14 @@
 .pn {
-  --verde: #3bff00;
+  /* El panel es siempre oscuro, sea cual sea el tema: `color-scheme` fija la rama oscura de los
+   * tokens `light-dark()`. Acero, linea y hueso son la piel de terminal de esta ruta y no tienen
+   * equivalente en el sistema. */
+  color-scheme: dark;
+  --verde: var(--wiwo-green);
   --verde-mudo: #2ba300;
   --acero: #1b1f25;
   --acero-alto: #23282f;
   --linea: #2c333b;
-  --peligro: #f2b705;
+  --peligro: var(--texto-aviso);
   --hueso: #b9c4b4;
 
   /* El body no scrollea (globals.css) y esta ruta vive fuera de ScrollSuave: el scroll es propio. */
@@ -186,14 +190,14 @@
 
 .pn__llave--on { border-color: rgb(59 255 0 / .5) }
 .pn__llave--on::after { transform: translateX(22px); background: var(--verde) }
-.pn__llave--peligro.pn__llave--on { border-color: rgb(242 183 5 / .6) }
+.pn__llave--peligro.pn__llave--on { border-color: color-mix(in oklab, var(--peligro) 60%, transparent) }
 .pn__llave--peligro.pn__llave--on::after { background: var(--peligro) }
 
 .pn__aviso {
   margin-top: 1rem;
   padding: .7rem .85rem;
-  border: 1px solid rgb(242 183 5 / .35);
-  background: rgb(242 183 5 / .07);
+  border: 1px solid color-mix(in oklab, var(--peligro) 35%, transparent);
+  background: color-mix(in oklab, var(--peligro) 7%, transparent);
   font-size: .74rem;
   color: #d8c9a0;
 }
@@ -210,8 +214,8 @@
 .pn__confirmar {
   margin-top: .8rem;
   padding: .7rem .85rem;
-  border: 1px solid rgb(242 183 5 / .5);
-  background: rgb(242 183 5 / .09);
+  border: 1px solid color-mix(in oklab, var(--peligro) 50%, transparent);
+  background: color-mix(in oklab, var(--peligro) 9%, transparent);
   font-size: .78rem;
   color: #e6d9b3;
 }
@@ -233,8 +237,8 @@
 
 .pn__boton:hover { background: var(--acero-alto) }
 .pn__boton:focus-visible { outline: 2px solid var(--verde); outline-offset: 1px }
-.pn__boton--peligro { border-color: rgb(242 183 5 / .6); color: var(--peligro) }
-.pn__boton--peligro:hover { background: rgb(242 183 5 / .12) }
+.pn__boton--peligro { border-color: color-mix(in oklab, var(--peligro) 60%, transparent); color: var(--peligro) }
+.pn__boton--peligro:hover { background: color-mix(in oklab, var(--peligro) 12%, transparent) }
 
 @media (prefers-reduced-motion: reduce) {
   .pn__titulo, .pn__pulso, .pn__bloque { animation: none }

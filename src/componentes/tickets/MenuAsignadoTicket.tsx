@@ -122,7 +122,7 @@ export function MenuAsignadoTicket ({
             aria-label={`Asignado: ${nombre}. Cambiar asignado.`}
             className={cn(
               'rounded-control hover:bg-hover -mx-1.5 inline-flex max-w-full cursor-pointer items-center gap-1.5 px-1.5 py-0.5',
-              'transition-colors duration-150',
+              'transition-colors duration-rapida ease-neo',
               enCurso && 'cursor-progress opacity-60'
             )}
           >

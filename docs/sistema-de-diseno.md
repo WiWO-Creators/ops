@@ -256,6 +256,8 @@ Se hacen cumplir con lint, no con buena voluntad:
 - Regla de ESLint (`no-restricted-syntax` en `eslint.config.mjs`) que prohíbe las clases
   `animate-pulse` y `animate-ping` en `src/` fuera de `src/componentes/estado/`, salvo en los tres
   archivos de las excepciones de arriba y en `/pantalla`, que es cartelería.
+- La misma regla prohíbe los `duration-N` literales en `src/` fuera de `/pantalla`: las transiciones
+  usan `duration-rapida`, `duration-media` o `duration-lenta`.
 
 > El login actual del panel (`views/authentication/login_admin.php:25`) viola la regla 1 a propósito,
 > por ser una pantalla transitoria. Ese permiso **no** se hereda: en `ops-v2` la pantalla de acceso

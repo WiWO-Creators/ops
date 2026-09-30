@@ -123,7 +123,7 @@ export function MenuEstadoTarea ({
             aria-label={`Estado de "${nombreTarea}": ${resuelto.etiqueta}. Cambiar estado.`}
             className={cn(
               'rounded-control cursor-pointer',
-              'transition-opacity duration-150',
+              'transition-opacity duration-rapida ease-neo',
               enCurso ? 'cursor-progress opacity-60' : 'hover:opacity-80'
             )}
           >

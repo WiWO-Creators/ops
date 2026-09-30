@@ -129,7 +129,7 @@ export function Tarjeta ({
   // El realce es chico a proposito: una grilla de tarjetas que saltan al pasar el mouse marea.
   const clasesEnlace = cn(
     clases,
-    'transition-[box-shadow,transform] duration-200 ease-neo',
+    'transition-[box-shadow,transform] duration-rapida ease-neo',
     'hover:-translate-y-0.5 hover:shadow-2 active:translate-y-0'
   )
 

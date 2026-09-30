@@ -10,6 +10,7 @@ import { AvisoEnLinea } from '@/componentes/estado/Estados'
 import { Boton } from '@/componentes/formularios/Boton'
 import { escribirEnBff } from '@/componentes/datos/mutaciones'
 import { cn } from '@/lib/clases'
+import '@/estilos/acta.css'
 import type { LucideIcon } from 'lucide-react'
 import { claseDeMarca, cssDeMarcas } from '@/dominio/marcas-acta'
 

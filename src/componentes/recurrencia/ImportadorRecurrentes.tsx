@@ -154,7 +154,7 @@ export function ImportadorRecurrentes ({ proyectos, personas, onTerminar }: {
           <Boton variante="sutil" tamano="chico" onClick={() => { descargar(new Blob(['\uFEFF', plantillaCsv()], { type: 'text/csv;charset=utf-8' }), 'plantilla-tareas-recurrentes.csv') }}>
             <Download size={14} aria-hidden="true" /> Plantilla CSV
           </Boton>
-          <label className="bg-control text-texto border-control-borde hover:bg-hover rounded-control inline-flex h-8 cursor-pointer items-center gap-2 border px-3 text-xs font-semibold transition-colors duration-150 has-[:focus-visible]:outline-2">
+          <label className="bg-control text-texto border-control-borde hover:bg-hover rounded-control inline-flex h-8 cursor-pointer items-center gap-2 border px-3 text-xs font-semibold transition-colors duration-rapida ease-neo has-[:focus-visible]:outline-2">
             <FileUp size={14} aria-hidden="true" /> Subir CSV
             <input type="file" accept={TIPOS_DE_ARCHIVO} className="sr-only" onChange={(evento) => { void subir(evento) }} />
           </label>

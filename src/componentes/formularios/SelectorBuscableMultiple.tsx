@@ -139,7 +139,7 @@ export function SelectorBuscableMultiple ({
                 aria-label={etiquetaSacar(opcion.nombre)}
                 className={cn(
                   'rounded-control flex items-center gap-1.5 py-0.5 pr-2 text-xs',
-                  'transition-[filter] duration-150 hover:brightness-95 disabled:cursor-not-allowed disabled:opacity-50',
+                  'transition-[filter] duration-rapida ease-neo hover:brightness-95 disabled:cursor-not-allowed disabled:opacity-50',
                   opcion.imagen === undefined ? 'pl-2' : 'pl-0.5',
                   conFallo.includes(opcion.id)
                     ? 'bg-superficie-peligro text-texto-peligro'

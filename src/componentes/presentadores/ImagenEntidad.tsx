@@ -163,7 +163,7 @@ export function ImagenEntidad ({
               aria-hidden="true"
               className={cn(
                 'absolute inset-0 flex items-center justify-center bg-black/45 text-white',
-                'transition-opacity duration-150',
+                'transition-opacity duration-rapida ease-neo',
                 cargando
                   ? 'opacity-100'
                   : 'opacity-0 group-hover:opacity-100 group-focus-visible:opacity-100 group-data-[state=open]:opacity-100'

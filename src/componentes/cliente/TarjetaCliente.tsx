@@ -36,7 +36,7 @@ export function TarjetaCliente ({ cliente, className }: { cliente: Cliente, clas
     <article
       className={cn(
         'border-linea bg-superficie-elevada rounded-tarjeta shadow-1 flex h-full flex-col gap-3 border p-4',
-        'ease-neo transition-[transform,box-shadow] duration-150',
+        'ease-neo transition-[transform,box-shadow] duration-rapida',
         'hover:shadow-2 hover:scale-[1.01] focus-within:shadow-2 active:scale-[0.99]',
         className
       )}

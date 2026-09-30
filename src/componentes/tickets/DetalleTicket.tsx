@@ -424,7 +424,7 @@ function Adjuntos ({ adjuntos }: { adjuntos: MensajeDeTicket['adjuntos'] }): Rea
                 href={adjunto.ruta}
                 download={adjunto.nombre}
                 aria-label={`Descargar ${adjunto.nombre}`}
-                className="border-linea rounded-control text-texto hover:bg-hover hover:text-acento inline-flex max-w-64 items-center gap-1.5 border px-2 py-1 text-xs transition-colors duration-150"
+                className="border-linea rounded-control text-texto hover:bg-hover hover:text-acento inline-flex max-w-64 items-center gap-1.5 border px-2 py-1 text-xs transition-colors duration-rapida ease-neo"
               >
                 <Paperclip size={12} strokeWidth={2} aria-hidden="true" className="shrink-0" />
                 <span className="truncate">{adjunto.nombre}</span>

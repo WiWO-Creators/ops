@@ -180,7 +180,7 @@ export function AvisoJornada ({ inicial }: { inicial: EstadoDeJornada | null }) 
 
       <Link
         href={enlaceDe(falta, destino)}
-        className="border-texto-aviso/40 text-texto-aviso rounded-control ease-neo flex items-center gap-1.5 border px-4 py-2.5 text-base font-bold transition-colors duration-150 hover:bg-hover"
+        className="border-texto-aviso/40 text-texto-aviso rounded-control ease-neo flex items-center gap-1.5 border px-4 py-2.5 text-base font-bold transition-colors duration-rapida hover:bg-hover"
       >
         {ACCIONES[falta]}
         <ArrowRight size={18} strokeWidth={2.5} aria-hidden="true" />
