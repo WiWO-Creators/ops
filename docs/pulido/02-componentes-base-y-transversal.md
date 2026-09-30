@@ -16,7 +16,7 @@ Todas las rutas son relativas a `ops-v2/`.
 - **Propuesta**: Sustituir cada llamada por `ConfirmacionEnLinea` (para acciones contextuales en filas/tableros) o por `ConfirmarBorrado` / `Dialogo` `ancho="chico"` con botones destructivos declarativos.
 - **Prioridad**: Alta · **Esfuerzo**: S
 
-### P2-02 Divergencia de animación de entrada en filas entre `TablaRecurso` y tablas base
+### P2-02 Divergencia de animación de entrada en filas entre `TablaRecurso` y tablas base (parcial en fe61c2c: que las tablas base de `Tabla.tsx` adopten `EntradaEscalonada` es del encargo 2B, con P1-27)
 - **Dónde**: `src/componentes/datos/TablaRecurso.tsx:492-511` vs. `src/componentes/datos/Tabla.tsx:102-120` (y usos directos en `src/app/(panel)/papelera/page.tsx:288`, `src/componentes/proyecto/PanelContactos.tsx:162`, `src/componentes/proyecto/PanelArchivos.tsx:142`)
 - **Qué pasa**: `TablaRecurso` dota a cada fila de animación de entrada escalonada (`animate-entrar-abajo` con `animationDelay: ${i * 20}ms`), mientras que `Tabla.tsx` y las pantallas que la instancian directamente montan las filas de golpe, sin delay ni animación unificada.
 - **Decisión (30-09-2026)**: la coreografía común es `EntradaEscalonada` (ver P1-26 en `01-proyecto-y-tareas.md`), no `animate-entrar-abajo` con retraso por fila.

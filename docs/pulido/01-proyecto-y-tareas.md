@@ -185,7 +185,7 @@ Las rutas son relativas a `ops-v2/`.
 
 ## Animaciones faltantes
 
-### P1-26 Tres sistemas de escalonado distintos, y la mayoría de listas sin ninguno
+### P1-26 Tres sistemas de escalonado distintos, y la mayoría de listas sin ninguno (parcial en fe61c2c: aplicarlo a las listas citadas es del encargo 2B)
 - **Dónde**: `retrasoDeAparicion` + `animate-entrar-abajo` (`src/componentes/datos/TablaRecurso.tsx:227`, 20 ms por paso, lo usa `TarjetasProyectos.tsx:399`); `.rec-escalonada` (`src/componentes/recurrencia/recurrencia.css:18-20`, keyframes propios, 40 ms); `EntradaEscalonada` (anime.js, solo en Novedades e Inicio)
 - **Qué pasa**: Recurrencia inventó su propio `rec-entrar` en vez de usar los tokens, con otro paso, y el resto de listas hechas a mano del frente (`PanelDiscusiones.tsx:174`, `Cronometros.tsx:187`, `ListaIteraciones.tsx:158`, `RejillaEntregas.tsx`) aparece de golpe.
 - **Decisión (30-09-2026)**: el único mecanismo es **`EntradaEscalonada`**. Migrar a él `retrasoDeAparicion` y `.rec-escalonada`, borrar ambos, y aplicarlo a las listas citadas. Ojo: hoy anima solo al montar (`useLayoutEffect` con `[]`); para tablas que paginan, filtran u ordenan sin remontar hará falta extenderlo (p. ej. una prop de clave que repita la entrada al cambiar la página o el filtro), sin reanimar en cada refresco de datos.
