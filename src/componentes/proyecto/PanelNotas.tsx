@@ -48,8 +48,9 @@ export function PanelNotas ({ proyectoId }: { proyectoId: number }): ReactElemen
               puedeEditar
               puedeBorrar
               tituloBorrado="Eliminar nota"
-              advertencia={`"${nota.title}" se borra para siempre.`}
+              advertencia={`«${nota.title}» se borra para siempre.`}
               recargar={recargar}
+              nombre={nota.title}
             />
           )
         }

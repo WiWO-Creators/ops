@@ -11,6 +11,7 @@ import { pedirSobre } from '@/datos/cliente'
 import { descripcionDeCondicion, conflictosDePreset, leerPreset, TOPE_PRESET, type PresetPortable } from './presets'
 import type { Hito, PresetFiltro } from '@/datos/recursos'
 import type { DefinicionRecurso, OpcionFiltro } from '@/definiciones/tipos'
+import { useAviso } from '@/componentes/estado/useAviso'
 
 interface PropsPresetsFiltro<T> {
   board: PresetFiltro['board']
@@ -23,6 +24,7 @@ interface PropsPresetsFiltro<T> {
 
 /** Presets personales compartidos entre vistas, con importación validada y referencias revisables. */
 export function PresetsFiltro<T> ({ board, filtrosActuales, busqueda, definicion, opcionesDeFiltro, onAplicar }: PropsPresetsFiltro<T>) {
+  const aviso = useAviso()
   const [presets, setPresets] = useState<PresetFiltro[] | null>(null)
   const [revision, setRevision] = useState(0)
   const [menuAbierto, setMenuAbierto] = useState(false)
@@ -86,6 +88,7 @@ export function PresetsFiltro<T> ({ board, filtrosActuales, busqueda, definicion
     if (!resultado.ok) { setError(resultado.mensaje); return }
     if (resultado.datos === undefined) { setError('El servidor no devolvió el preset guardado. Reintenta cargar los presets.'); return }
     setPresets((actuales) => [resultado.datos, ...(actuales ?? [])])
+    aviso.exito(`Preset «${nombre.trim()}» guardado.`)
     aplicar(pendiente.filters)
   }
 

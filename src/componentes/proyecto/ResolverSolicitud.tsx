@@ -7,6 +7,7 @@ import { AreaTexto } from '@/componentes/formularios/Entrada'
 import { Dialogo, ContenidoDialogo } from '@/componentes/superposiciones/Dialogo'
 import { escribirEnBff } from '@/componentes/datos/mutaciones'
 import type { SolicitudDeEliminacion } from '@/datos/recursos'
+import { useAviso } from '@/componentes/estado/useAviso'
 
 /**
  * Aprobar o rechazar una solicitud de eliminación, desde la bandeja del administrador.
@@ -26,6 +27,7 @@ const RESPUESTA_MAXIMA = 1000
 
 export function ResolverSolicitud ({ solicitud }: { solicitud: SolicitudDeEliminacion }): ReactElement {
   const router = useRouter()
+  const aviso = useAviso()
   const [decision, setDecision] = useState<'approve' | 'reject' | null>(null)
   const [respuesta, setRespuesta] = useState('')
   const [enviando, setEnviando] = useState(false)
@@ -68,6 +70,7 @@ export function ResolverSolicitud ({ solicitud }: { solicitud: SolicitudDeElimin
       return
     }
 
+    aviso.exito(aprobando ? `Solicitud sobre «${nombre}» aprobada.` : `Solicitud sobre «${nombre}» rechazada.`)
     setDecision(null)
     router.refresh()
   }

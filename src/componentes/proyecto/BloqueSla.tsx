@@ -18,6 +18,7 @@ import { cn } from '@/lib/clases'
 import { GLOSARIO } from '@/dominio/glosario'
 import { ESTADO_COMPLETO, type ProcesoDeFicha } from './tareas'
 import type { AprobacionProceso, Proceso } from '@/datos/recursos'
+import { useAviso } from '@/componentes/estado/useAviso'
 
 /**
  * ETA, desviacion y aprobacion del cliente, en el detalle del Proceso.
@@ -84,6 +85,7 @@ function hayCierre (tarea: ProcesoDeFicha): boolean {
 }
 
 export function BloqueSla ({ tarea, puedeEditar, onCambiado }: PropsBloqueSla): ReactElement | null {
+  const aviso = useAviso()
   const [pidiendo, setPidiendo] = useState(false)
   const [fallo, setFallo] = useState<string | null>(null)
   const [corrigiendoCierre, setCorrigiendoCierre] = useState(false)
@@ -111,6 +113,7 @@ export function BloqueSla ({ tarea, puedeEditar, onCambiado }: PropsBloqueSla): 
       return
     }
 
+    aviso.exito(`Se pidió al ${GLOSARIO.cliente.singular.toLowerCase()} la aprobación de «${tarea.name}».`)
     onCambiado()
   }
 
@@ -291,6 +294,7 @@ function Aprobacion ({ aprobacion }: { aprobacion: AprobacionProceso | undefined
 function CorreccionDeCierre (
   { tarea, onCerrar, onGuardada }: { tarea: ProcesoDeFicha, onCerrar: () => void, onGuardada: () => void }
 ): ReactElement {
+  const aviso = useAviso()
   const [fecha, setFecha] = useState(() => fechaDeCierre(tarea.date_finished) || hoyLocal())
   const [guardando, setGuardando] = useState(false)
   const [fallo, setFallo] = useState<string | null>(null)
@@ -316,6 +320,7 @@ function CorreccionDeCierre (
       return
     }
 
+    aviso.exito(`Fecha de cierre de «${tarea.name}» corregida.`)
     onGuardada()
   }
 

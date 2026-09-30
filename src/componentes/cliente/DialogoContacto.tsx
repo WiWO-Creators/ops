@@ -11,6 +11,7 @@ import {
 } from '@/dominio/contactos'
 import { cn } from '@/lib/clases'
 import type { AvisosDeContacto, ContactoCompleto, PermisoPortal } from '@/datos/recursos'
+import { useAviso } from '@/componentes/estado/useAviso'
 
 interface PropsDialogoContacto {
   clienteId: number
@@ -36,6 +37,7 @@ interface PropsDialogoContacto {
  */
 export function DialogoContacto ({ clienteId, contacto, onCerrar, onGuardado }: PropsDialogoContacto) {
   const editando = contacto !== undefined
+  const aviso = useAviso()
 
   const [campos, setCampos] = useState({
     firstname: contacto?.firstname ?? '',
@@ -95,6 +97,8 @@ export function DialogoContacto ({ clienteId, contacto, onCerrar, onGuardado }: 
       return
     }
 
+    const nombre = `${campos.firstname} ${campos.lastname}`.trim()
+    aviso.exito(editando ? `Cambios de «${nombre}» guardados.` : `«${nombre}» se agregó a los contactos.`)
     onGuardado()
   }
 

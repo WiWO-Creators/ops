@@ -13,7 +13,7 @@ import {
   cuerpoDeLote, nodosDesdePersonas, omitidasDelLote, type AccionDeLote
 } from '@/dominio/organizacion'
 import { MensajeDeError, SIN_VALOR } from './piezas'
-import { SelectorDePersona } from './SelectorDePersona'
+import { SelectorDePersona } from '@/componentes/formularios/SelectorDePersona'
 import type { CatalogoDeAccesos, PersonaDeAccesos } from '@/datos/accesos'
 
 interface PropsBarraDeLote {

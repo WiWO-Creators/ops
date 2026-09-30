@@ -6,44 +6,13 @@ import { EquipoProyecto } from './EquipoProyecto'
 import { ImagenEntidad } from '@/componentes/presentadores/ImagenEntidad'
 import { FirmaDeMarca, TituloDeFicha } from '@/componentes/estructura/TituloModulo'
 import { Insignia } from '@/componentes/presentadores/Insignia'
+import { BarraProgreso } from '@/componentes/presentadores/BarraProgreso'
 import { MenuEstadoProyecto } from './MenuEstadoProyecto'
 import { ESTADOS_DESTACADOS, pildoraDeEstado } from './estado-proyecto'
-import { cn } from '@/lib/clases'
 import { GLOSARIO } from '@/dominio/glosario'
 import type { ProyectoVista } from '@/dominio/proyecto'
 import type { EstadoLookup } from '@/datos/recursos'
 import type { Capacidad } from '@/datos/tipos'
-
-interface PropsBarraProgreso {
-  /** Porcentaje ya calculado, 0-100. Se acota: la API puede mandar 103 en un hito sobrecumplido. */
-  porcentaje: number
-  className?: string
-}
-
-/**
- * Barra de avance del sistema.
- *
- * Vive aca y no en un archivo propio porque nace de la cabecera y el unico otro consumidor es
- * la tabla de Hitos, que dibuja exactamente la misma barra a menor escala.
- *
- * @param porcentaje avance en 0-100; se acota a ese rango antes de pintar
- * @returns la barra, anunciada como `progressbar` para lectores de pantalla
- */
-export function BarraProgreso ({ porcentaje, className }: PropsBarraProgreso) {
-  const valor = Math.max(0, Math.min(100, Math.round(porcentaje)))
-
-  return (
-    <span
-      role="progressbar"
-      aria-valuenow={valor}
-      aria-valuemin={0}
-      aria-valuemax={100}
-      className={cn('bg-relleno-neutro block h-2 w-full overflow-hidden rounded-full', className)}
-    >
-      <span className="bg-acento block h-full rounded-full" style={{ width: `${valor}%` }} />
-    </span>
-  )
-}
 
 interface PropsCabecera {
   /** El proyecto como vista. El panel y el portal la arman con `dominio/proyecto`. */

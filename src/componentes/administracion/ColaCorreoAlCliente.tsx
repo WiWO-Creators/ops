@@ -19,6 +19,7 @@ import { nombrar } from '@/dominio/glosario'
 import { cn } from '@/lib/clases'
 import type { Cliente, ContactoCompleto, EstadoCorreoCliente, FilaColaCorreoCliente } from '@/datos/recursos'
 import type { ResumenColaCorreoCliente } from '@/datos/tipos'
+import { useAviso } from '@/componentes/estado/useAviso'
 
 /** Rótulo y tono de cada estado de `tblwiwo_correo_cliente_cola`. */
 const ESTADOS: Record<EstadoCorreoCliente, { etiqueta: string, tono: TonoInsignia }> = {
@@ -206,6 +207,7 @@ interface PropsAcciones extends PropsDeFila {
  * de una fila fallida se corrige recién después de volverla a poner pendiente.
  */
 function AccionesDeFila ({ fila, onListo, onError }: PropsAcciones): ReactElement {
+  const aviso = useAviso()
   const [ocupado, setOcupado] = useState(false)
 
   async function reintentar (): Promise<void> {
@@ -218,6 +220,7 @@ function AccionesDeFila ({ fila, onListo, onError }: PropsAcciones): ReactElemen
       return
     }
 
+    aviso.exito('El correo volvió a la cola.')
     onListo()
   }
 
@@ -253,6 +256,7 @@ function AccionesDeFila ({ fila, onListo, onError }: PropsAcciones): ReactElemen
  * API reemplaza el campo completo y no lo parchea.
  */
 function EditorDeNota ({ fila, onListo }: PropsDeFila): ReactElement {
+  const aviso = useAviso()
   const [abierto, setAbierto] = useState(false)
   const [nota, setNota] = useState(() => notaDe(fila))
   const [guardando, setGuardando] = useState(false)
@@ -275,6 +279,7 @@ function EditorDeNota ({ fila, onListo }: PropsDeFila): ReactElement {
       return
     }
 
+    aviso.exito('Nota del correo guardada.')
     setAbierto(false)
     onListo()
   }
@@ -332,12 +337,14 @@ function EditorDeNota ({ fila, onListo }: PropsDeFila): ReactElement {
  */
 function ConfirmarDescarte ({ fila, onListo }: PropsDeFila): ReactElement {
   const confirmarDescarte = useConfirmarBorrado()
+  const aviso = useAviso()
 
   async function descartar (): Promise<void> {
     const resultado = await escribirEnBff(`${RUTA}/${fila.id}`, 'DELETE')
 
     if (!resultado.ok) throw new Error(resultado.mensaje)
 
+    aviso.exito('El correo se descartó.')
     onListo()
   }
 
@@ -380,6 +387,7 @@ function ConfirmarDescarte ({ fila, onListo }: PropsDeFila): ReactElement {
  * cualquier otra y acá directamente no se ofrece.
  */
 function Compositor ({ onListo }: { onListo: () => void }): ReactElement {
+  const aviso = useAviso()
   const [abierto, setAbierto] = useState(false)
   const [busqueda, setBusqueda] = useState('')
   const [clientes, setClientes] = useState<Cliente[]>([])
@@ -467,6 +475,7 @@ function Compositor ({ onListo }: { onListo: () => void }): ReactElement {
       return
     }
 
+    aviso.exito('Correo agregado a la cola.')
     setAbierto(false)
     limpiar()
     onListo()

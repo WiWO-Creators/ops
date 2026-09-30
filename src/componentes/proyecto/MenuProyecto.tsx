@@ -21,6 +21,7 @@ import { DistintivoSolicitud, SolicitarEliminacion } from './SolicitudDeEliminac
 import type { CampoFormulario } from './formulario'
 import type { Espacio } from '@/datos/recursos'
 import type { Capacidad } from '@/datos/tipos'
+import { useAviso } from '@/componentes/estado/useAviso'
 
 /**
  * Menu "Más" de la cabecera del Proyecto: editar, copiar, marcar como, exportar y eliminar.
@@ -95,6 +96,7 @@ export function MenuProyecto ({
   esAdmin = false
 }: PropsMenuProyecto): ReactElement {
   const router = useRouter()
+  const aviso = useAviso()
   const [editando, setEditando] = useState(false)
   const [copiando, setCopiando] = useState(false)
   const [borrando, setBorrando] = useState(false)
@@ -146,6 +148,7 @@ export function MenuProyecto ({
       }
 
       setArchivando(false)
+      aviso.exito(archivar ? `«${proyecto.name}» quedó archivado.` : `«${proyecto.name}» volvió a estar activo.`)
 
       if (archivar) {
         router.push('/proyectos')
@@ -185,6 +188,7 @@ export function MenuProyecto ({
       return
     }
 
+    aviso.exito(abrir ? `En «${proyecto.name}» ahora se ven todas las ${GLOSARIO.proceso.plural.toLowerCase()}.` : `En «${proyecto.name}» cada quien ve solo sus ${GLOSARIO.proceso.plural.toLowerCase()}.`)
     setCambiandoVisibilidad(false)
     router.refresh()
   }
@@ -212,6 +216,7 @@ export function MenuProyecto ({
       return
     }
 
+    aviso.exito(`Saliste del equipo de «${proyecto.name}».`)
     setSaliendo(false)
     router.push('/proyectos')
   }

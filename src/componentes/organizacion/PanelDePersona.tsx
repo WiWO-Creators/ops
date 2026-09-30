@@ -27,7 +27,7 @@ import { ROLES_DE_SISTEMA, type RolDeSistema } from '@/dominio/rol-sistema'
 import { Interruptor, MensajeDeError, SIN_VALOR } from './piezas'
 import { ListaDeCambios } from './ListaDeCambios'
 import { SeccionAlcance } from './SeccionAlcance'
-import { SelectorDePersona, type OpcionDePersona } from './SelectorDePersona'
+import { SelectorDePersona, type OpcionDePersona } from '@/componentes/formularios/SelectorDePersona'
 import type {
   CambioDelHistorial, CatalogoDeAccesos, PersonaDeAccesos
 } from '@/datos/accesos'

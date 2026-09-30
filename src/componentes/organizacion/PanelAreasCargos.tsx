@@ -24,7 +24,7 @@ import { descendenciaDe } from '@/dominio/jerarquia'
 import { motivoParaRechazarNombre } from '@/dominio/accesos'
 import { LOCALE } from '@/lib/fechas'
 import { CabeceraDePanel, MensajeDeError, SIN_VALOR } from './piezas'
-import { SelectorDePersona } from './SelectorDePersona'
+import { SelectorDePersona } from '@/componentes/formularios/SelectorDePersona'
 import type { AreaDeAccesos, CargoDeAccesos, CatalogoDeAccesos, UsoDeArea } from '@/datos/accesos'
 import type { PersonaAsignable } from '@/datos/recursos'
 

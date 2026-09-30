@@ -50,6 +50,7 @@ import { ResumenDeRecurrencia } from '@/componentes/recurrencia/ResumenDeRecurre
 import { PanelAdjuntos } from './PanelArchivos'
 import { mensajeDeRespuesta, pedirRespuesta } from '@/datos/cliente'
 import { segundosAHoraMinuto } from './formatos'
+import { useAviso } from '@/componentes/estado/useAviso'
 
 /**
  * Detalle de una Tarea, para el modal que lo muestra (`ModalTarea`).
@@ -132,6 +133,7 @@ export function DetalleTarea (
   const [confirmandoBorrado, setConfirmandoBorrado] = useState(false)
   const [borrando, setBorrando] = useState(false)
   const [errorBorrado, setErrorBorrado] = useState<string | null>(null)
+  const aviso = useAviso()
 
   /**
    * Borra la tarea.
@@ -164,6 +166,7 @@ export function DetalleTarea (
       return
     }
 
+    aviso.exito(carga.fase === 'listo' ? `«${carga.tarea.name}» se envió a la papelera.` : `${GLOSARIO.proceso.singular} enviada a la papelera.`)
     setConfirmandoBorrado(false)
     onBorrada?.()
   }
@@ -678,6 +681,7 @@ const SIN_DATO = '—'
 function CompletarTarea (
   { tarea, onCompletada }: { tarea: ProcesoDeFicha, onCompletada: () => void }
 ): ReactElement {
+  const aviso = useAviso()
   const [fecha, setFecha] = useState(() => hoyLocal())
   const [yaCompletada, setYaCompletada] = useState(false)
   const [guardando, setGuardando] = useState(false)
@@ -704,6 +708,7 @@ function CompletarTarea (
     // linea mas en el registro de actividad.
     if (fecha === hoyLocal()) {
       setGuardando(false)
+      aviso.exito(`«${tarea.name}» quedó completada.`)
       onCompletada()
       return
     }
@@ -725,6 +730,7 @@ function CompletarTarea (
       return
     }
 
+    aviso.exito(`«${tarea.name}» quedó completada.`)
     onCompletada()
   }
 

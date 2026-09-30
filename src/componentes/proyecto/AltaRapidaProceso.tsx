@@ -69,6 +69,7 @@ import type {
   TipoDeProcesoDelEspacio
 } from '@/datos/recursos'
 import type { StaffReferencia, Yo } from '@/datos/tipos'
+import { useAviso } from '@/componentes/estado/useAviso'
 
 /** Formulario único de creación, con entrada por campos o interpretación de una línea. */
 interface PropsAltaRapida {
@@ -186,6 +187,7 @@ export function AltaRapidaProceso ({
   proyectoId, hitoInicial, integrado = false, abrirInicialmente = false, onCreada, onCerrar, onOcupado
 }: PropsAltaRapida): ReactElement {
   const router = useRouter()
+  const aviso = useAviso()
   const [abierto, setAbierto] = useState(integrado || abrirInicialmente)
   const enviando = useRef(false)
   const [catalogosCargados, setCatalogosCargados] = useState<CatalogosAlta>(catalogosRecibidos ?? CATALOGOS_VACIOS)
@@ -701,8 +703,14 @@ export function AltaRapidaProceso ({
     return guardados.ok ? null : guardados.mensaje
   }
 
-  /** Cierra el diálogo como en un alta que salió bien. */
-  function cerrarTrasCrear (): void {
+  /**
+   * Cierra el diálogo como en un alta que salió bien.
+   *
+   * @param mensaje el aviso de éxito, que nombra la tarea creada; sin él no se avisa, porque el
+   *   parte de un alta a medias ya quedó a la vista
+   */
+  function cerrarTrasCrear (mensaje?: string): void {
+    if (mensaje !== undefined) aviso.exito(mensaje)
     limpiar()
     setAbierto(false)
     onCerrar?.()
@@ -738,7 +746,7 @@ export function AltaRapidaProceso ({
         setError(`La tarea #${id} ya está creada. Reintenta guardar sus campos personalizados: ${falloDeCampos}`)
         return
       }
-      cerrarTrasCrear()
+      cerrarTrasCrear(`«${String(cuerpo.name)}» se creó.`)
     } finally {
       enviando.current = false
       onOcupado?.(false)
@@ -812,7 +820,7 @@ export function AltaRapidaProceso ({
       }
 
       if (hechos.length > 0 && hechos.every((hecho) => hecho.ok)) {
-        cerrarTrasCrear()
+        cerrarTrasCrear(`«${String(cuerpo.name)}» se creó en ${hechos.length} ${GLOSARIO.espacio.plural.toLowerCase()}.`)
 
         return
       }
@@ -1361,7 +1369,7 @@ export function AltaRapidaProceso ({
                 "Crear", porque otro clic las duplicaria. */}
             {parcial !== null && parcial.pendientes.length === 0
               ? (
-                <Boton variante="primario" type="button" onClick={cerrarTrasCrear}>Entendido, cerrar</Boton>
+                <Boton variante="primario" type="button" onClick={() => { cerrarTrasCrear() }}>Entendido, cerrar</Boton>
                 )
               : (
                 <Boton type="submit" variante="primario" cargando={enCurso} disabled={enCurso || interpretando || cargando || errorCarga !== null}>

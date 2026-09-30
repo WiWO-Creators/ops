@@ -3,7 +3,7 @@ import { ArrowUpRight, CalendarClock, Hourglass, PackageCheck } from 'lucide-rea
 import { Bloque } from '@/app/portal/(dentro)/detalle'
 import { TituloModulo } from '@/componentes/estructura/TituloModulo'
 import { Insignia } from '@/componentes/presentadores/Insignia'
-import { BarraProgreso } from '@/componentes/proyecto/CabeceraProyecto'
+import { BarraProgreso } from '@/componentes/presentadores/BarraProgreso'
 import { PARAMETRO_TAREA } from '@/componentes/datos/tabla'
 import { Clave } from '@/componentes/portal/GraficosDelTablero'
 import { SelectorDelReporte } from './SelectorDelReporte'

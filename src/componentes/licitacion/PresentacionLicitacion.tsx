@@ -12,6 +12,7 @@ import {
   revisarEnlaceDePresentacion,
   servicioDelEnlace
 } from '@/dominio/presentacion-licitacion'
+import { useAviso } from '@/componentes/estado/useAviso'
 
 /**
  * La carpeta donde se arma la propuesta de una Licitacion, arriba de su ficha y a la vista.
@@ -124,6 +125,7 @@ interface PropsEditor {
  */
 function EditorDeEnlace ({ licitacionId, inicial, alTerminar, puedeCancelar }: PropsEditor): ReactElement {
   const router = useRouter()
+  const aviso = useAviso()
   const [texto, setTexto] = useState(inicial)
   const [guardando, setGuardando] = useState(false)
   const [errorDeCampo, setErrorDeCampo] = useState<string | undefined>(undefined)
@@ -156,6 +158,7 @@ function EditorDeEnlace ({ licitacionId, inicial, alTerminar, puedeCancelar }: P
         return
       }
 
+      aviso.exito('Enlace de la presentación guardado.')
       alTerminar()
       router.refresh()
     } catch {

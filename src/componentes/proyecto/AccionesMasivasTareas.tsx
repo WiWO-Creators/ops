@@ -24,7 +24,7 @@ import {
   ItemMenu,
   MenuContextual
 } from '@/componentes/superposiciones/MenuContextual'
-import { normalizar } from '@/dominio/salas'
+import { normalizar } from '@/dominio/busqueda'
 import { mensajeMasivoDeVencimiento } from '@/dominio/vencimiento-requerido'
 import { cargarAsignables } from '@/datos/asignables'
 import { pedirSobre } from '@/datos/cliente'

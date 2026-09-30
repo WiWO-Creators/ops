@@ -319,3 +319,51 @@ function nombresDeEtiquetasCrudas (crudo: unknown[]): string[] {
     return nombre.trim() === '' ? [] : [nombre]
   })
 }
+
+/** Claves donde un registro guarda el nombre con que la persona lo reconoce, en orden de preferencia. */
+const CLAVES_DE_NOMBRE = ['name', 'title', 'company', 'subject', 'full_name', 'nombre', 'empresa'] as const
+
+/**
+ * El nombre con que se reconoce un registro, buscado en lo enviado y, si no viajó, en el registro.
+ *
+ * @param fuentes el cuerpo enviado y el registro editado, en ese orden
+ * @returns el nombre, o `null` si ninguna fuente lo trae
+ */
+function nombreDelRegistro (fuentes: Array<Record<string, unknown> | null>): string | null {
+  for (const fuente of fuentes) {
+    if (fuente === null) continue
+
+    for (const clave of CLAVES_DE_NOMBRE) {
+      const valor = fuente[clave]
+      if (typeof valor === 'string' && valor.trim() !== '') return valor.trim()
+    }
+
+    const persona = [fuente.firstname, fuente.lastname].filter((parte) => typeof parte === 'string' && parte.trim() !== '')
+    if (persona.length > 0) return persona.join(' ').trim()
+  }
+
+  return null
+}
+
+/**
+ * El aviso de exito tras guardar un formulario, nombrando lo guardado con «».
+ *
+ * Toda mutacion que cierra un dialogo confirma: sin eso, el dialogo desaparece y quien guardo no sabe
+ * si entro. El nombre sale de lo enviado y, en una edicion que no lo toca, del registro.
+ *
+ * @param metodo `POST` para un alta, `PATCH` para una edicion
+ * @param cuerpo lo que se envio
+ * @param registro el registro editado, o `null` en un alta
+ * @returns el texto del aviso
+ */
+export function avisoDeGuardado (
+  metodo: 'POST' | 'PATCH',
+  cuerpo: Record<string, unknown>,
+  registro: Record<string, unknown> | null
+): string {
+  const nombre = nombreDelRegistro([cuerpo, registro])
+
+  if (nombre === null) return metodo === 'POST' ? 'Alta guardada.' : 'Cambios guardados.'
+
+  return metodo === 'POST' ? `«${nombre}» se creó.` : `Cambios de «${nombre}» guardados.`
+}

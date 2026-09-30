@@ -16,6 +16,7 @@ import { TIPOS_DE_FACTURACION } from '@/definiciones/espacios'
 import { GLOSARIO } from '@/dominio/glosario'
 import { hoyLocal } from '@/lib/fechas'
 import { enFormatoTitulo } from '@/lib/titulo'
+import { useAviso } from '@/componentes/estado/useAviso'
 
 /**
  * Alta y edicion de un Proyecto.
@@ -81,6 +82,7 @@ function Campos ({
 }) {
   const esAlta = espacio === null
 
+  const aviso = useAviso()
   const [nombre, setNombre] = useState(espacio?.name ?? '')
   const [cliente, setCliente] = useState(espacio?.client === null || espacio === null ? '' : String(espacio.client.id))
   const [estado, setEstado] = useState(String(espacio?.status ?? 2))
@@ -135,6 +137,7 @@ function Campos ({
     setEnviando(false)
 
     if (resultado.ok) {
+      aviso.exito(espacio === null ? `«${nombre.trim()}» se creó.` : `Cambios de «${nombre.trim()}» guardados.`)
       onGuardado()
       return
     }

@@ -12,6 +12,7 @@ import { formatearFecha } from '@/lib/fechas'
 import { EstadoDeTarea } from '@/componentes/proyecto/EstadoDeTarea'
 import type { AprobacionPortal, TareaPortal } from '@/datos/portal'
 import type { CatalogoDeEstados } from '@/dominio/estados-tarea'
+import { useAviso } from '@/componentes/estado/useAviso'
 
 /**
  * Las {procesos} que esperan el visto bueno del cliente, arriba de la lista de la pestaña Tareas.
@@ -78,6 +79,7 @@ function FilaAprobacion ({ tarea, estados }: {
   estados: CatalogoDeEstados | undefined
 }) {
   const router = useRouter()
+  const aviso = useAviso()
   const [enviando, setEnviando] = useState(false)
   const [fallo, setFallo] = useState<string | null>(null)
   const [rechazando, setRechazando] = useState(false)
@@ -112,6 +114,7 @@ function FilaAprobacion ({ tarea, estados }: {
       return
     }
 
+    aviso.exito(decision === 'aprobada' ? `Visto bueno registrado para «${tarea.name}».` : `Observación sobre «${tarea.name}» enviada al equipo.`)
     setRechazando(false)
     setCambiando(false)
     setDecidida(decision)

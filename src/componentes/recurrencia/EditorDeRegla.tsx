@@ -16,6 +16,7 @@ import {
 import { formatearFecha } from '@/lib/fechas'
 import { DiasExcluidos } from './DiasExcluidos'
 import { FinDeRecurrencia } from './FinDeRecurrencia'
+import { useAviso } from '@/componentes/estado/useAviso'
 
 /** La Tarea cuya regla se edita: lo guardado y lo minimo para nombrarla. */
 export type TareaConRegla = ReglaGuardada & { id: number, name: string, paused?: boolean }
@@ -145,6 +146,7 @@ function FormularioDeRegla ({ tarea, onCerrar, onGuardada }: {
   onCerrar: () => void
   onGuardada?: () => void
 }): ReactElement {
+  const aviso = useAviso()
   const inicial = useMemo(() => camposDeRegla(tarea), [tarea])
   const [campos, setCampos] = useState<CamposRegla>(inicial)
   const [intentado, setIntentado] = useState(false)
@@ -197,6 +199,7 @@ function FormularioDeRegla ({ tarea, onCerrar, onGuardada }: {
       return
     }
 
+    aviso.exito(`Recurrencia de «${tarea.name}» guardada.`)
     onGuardada?.()
     onCerrar()
   }

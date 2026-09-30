@@ -35,6 +35,8 @@ interface PropsAccionesFila {
   advertencia: string
   /** Se llama despues de escribir, para que la tabla vuelva a pedir la pagina. */
   recargar: () => void
+  /** Como se llama el registro, para nombrarlo en el aviso de exito. Ej: el nombre del hito. */
+  nombre: string
 }
 
 export function AccionesFila ({
@@ -46,7 +48,8 @@ export function AccionesFila ({
   puedeBorrar,
   tituloBorrado,
   advertencia,
-  recargar
+  recargar,
+  nombre
 }: PropsAccionesFila): ReactElement {
   const [editando, setEditando] = useState(false)
   const aviso = useAviso()
@@ -61,7 +64,7 @@ export function AccionesFila ({
     if (!respuesta.ok) throw new Error(await mensajeDeRespuesta(respuesta))
 
     recargar()
-    aviso.exito('Eliminado correctamente.')
+    aviso.exito(`«${nombre}» se eliminó.`)
   }
 
   return (
@@ -80,7 +83,7 @@ export function AccionesFila ({
           ruta={ruta}
           metodo="PATCH"
           registro={registro}
-          onGuardado={() => { recargar(); aviso.exito('Guardado correctamente.') }}
+          onGuardado={recargar}
         />
       )}
     </>

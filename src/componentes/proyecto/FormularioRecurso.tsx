@@ -17,12 +17,14 @@ import { cn } from '@/lib/clases'
 import { aFechaDelContrato, aFechaLocal, enmascararFechaLocal } from '@/lib/fechas'
 import { AsistenteDescripcion } from './AsistenteDescripcion'
 import {
+  avisoDeGuardado,
   cuerpoDelFormulario,
   validarFormulario,
   valoresIniciales,
   type CampoFormulario,
   type ValoresFormulario
 } from './formulario'
+import { useAviso } from '@/componentes/estado/useAviso'
 
 /**
  * Formulario de alta y edicion, generico y en dialogo.
@@ -74,6 +76,11 @@ interface PropsFormulario {
    * cuerpo ya armado y devuelve el mensaje de error a mostrar, o `null` si todo se guardo.
    */
   enviar?: (cuerpo: Record<string, unknown>) => Promise<string | null>
+  /**
+   * Texto del aviso de exito al guardar. Por defecto nombra el registro con «» (`avisoDeGuardado`);
+   * `null` lo apaga, para quien confirma de otra manera.
+   */
+  avisoExito?: string | null
 }
 
 export function FormularioRecurso ({
@@ -89,8 +96,10 @@ export function FormularioRecurso ({
   columnas = 1,
   ancho = 'medio',
   pie,
-  enviar: enviarPropio
+  enviar: enviarPropio,
+  avisoExito
 }: PropsFormulario): ReactElement {
+  const aviso = useAviso()
   const [valores, setValores] = useState<ValoresFormulario>(() => valoresIniciales(campos, registro))
   const [errores, setErrores] = useState<Record<string, string>>({})
   const [fallo, setFallo] = useState<string | null>(null)
@@ -150,6 +159,7 @@ export function FormularioRecurso ({
         }
       }
 
+      if (avisoExito !== null) aviso.exito(avisoExito ?? avisoDeGuardado(metodo, cuerpo, registro))
       onAbiertoCambia(false)
       onGuardado()
     } catch {

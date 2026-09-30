@@ -10,7 +10,7 @@ import { escribirEnBff } from '@/componentes/datos/mutaciones'
 import { useAviso } from '@/componentes/estado/useAviso'
 import { cargarAsignables } from '@/datos/asignables'
 import type { PersonaAsignable } from '@/datos/recursos'
-import { filtrarPersonas } from '@/dominio/salas'
+import { filtrarPersonas } from '@/dominio/busqueda'
 import { falloDeTicket, type PersonaDelTicket } from '@/dominio/ticket-vista'
 import { cn } from '@/lib/clases'
 

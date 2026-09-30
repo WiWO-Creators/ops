@@ -26,6 +26,7 @@ import { cuerpoMoverHito } from './hitos'
 import { AltaRapidaProceso } from './AltaRapidaProceso'
 import { CuerpoImportarTareas } from './ImportarTareas'
 import type { OpcionFiltro } from '@/definiciones/tipos'
+import { useAviso } from '@/componentes/estado/useAviso'
 
 /**
  * El "+" de la cabecera de una columna del kanban de Hitos.
@@ -77,6 +78,7 @@ export function AgregarAlHito ({
   hito,
   onListo
 }: PropsAgregarAlHito): ReactElement {
+  const aviso = useAviso()
   const [abierto, setAbierto] = useState(false)
   const [creando, setCreando] = useState(false)
   const [camino, setCamino] = useState<'nueva' | 'existente' | 'importar'>('nueva')
@@ -153,6 +155,8 @@ export function AgregarAlHito ({
       return
     }
 
+    const sumada = sueltas.fase === 'listo' ? sueltas.tareas.find((tarea) => tarea.id === idTarea) : undefined
+    aviso.exito(`«${sumada?.name ?? `#${idTarea}`}» se sumó a «${hito.name}».`)
     await terminar()
   }
 
@@ -179,7 +183,7 @@ export function AgregarAlHito ({
       </DisparadorDialogo>
 
       <ContenidoDialogo
-        titulo={`Agregar a "${hito.name}"`}
+        titulo={`Agregar a «${hito.name}»`}
         descripcion={`Crea una ${GLOSARIO.proceso.singular.toLowerCase()} nueva en este `
           + `${GLOSARIO.hito.singular.toLowerCase()}, suma una que hoy no tiene ninguno, o trae `
           + `todas las de otro ${GLOSARIO.espacio.singular.toLowerCase()}.`}

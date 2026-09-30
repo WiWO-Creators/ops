@@ -301,7 +301,7 @@ export function CuerpoImportarTareas ({
       return
     }
 
-    aviso.exito(`"${informe.origen.nombre}" quedó archivado.`)
+    aviso.exito(`«${informe.origen.nombre}» quedó archivado.`)
     onCerrar()
     onArchivado()
   }

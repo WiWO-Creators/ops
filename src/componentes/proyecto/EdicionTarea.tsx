@@ -65,6 +65,7 @@ import type {
   Proceso,
   ValorCampoPersonalizado
 } from '@/datos/recursos'
+import { useAviso } from '@/componentes/estado/useAviso'
 
 /** Lista vacia unica: un `[]` nuevo por render volveria a disparar el efecto de las definiciones. */
 const SIN_CAMPOS: ValorCampoPersonalizado[] = []
@@ -99,6 +100,7 @@ export function EdicionTarea (
   { tarea, lookups, descripcion, onCerrar, onGuardada }: PropsEdicionTarea
 ): ReactElement {
   useAccionPresencia('editando_tarea')
+  const aviso = useAviso()
 
   const [inicial, setInicial] = useState(() => camposDeTarea(tarea, descripcion))
   const [campos, setCampos] = useState<CamposEdicion>(inicial)
@@ -427,6 +429,7 @@ export function EdicionTarea (
     }
 
     setEnCurso(false)
+    aviso.exito(`Cambios de «${campos.nombre.trim()}» guardados.`)
     onCerrar()
     onGuardada()
   }

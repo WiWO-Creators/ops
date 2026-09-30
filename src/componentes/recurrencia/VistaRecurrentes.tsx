@@ -30,6 +30,7 @@ import { HistorialDeCopias } from './HistorialDeCopias'
 import { LimpiezaDeCopias, type ReglaALimpiar } from './LimpiezaDeCopias'
 import { ImportadorRecurrentes } from './ImportadorRecurrentes'
 import './recurrencia.css'
+import { useAviso } from '@/componentes/estado/useAviso'
 
 /**
  * Que parte de la lista se mira. "Atencion" junta lo atrasado, lo mal configurado y lo que nadie usa:
@@ -498,6 +499,7 @@ function FilaDeRegla ({ regla, posicion, puedeEditar, esAdmin, resaltada, onVerC
  * aviso de `escribirEnBff`.
  */
 function BotonReanudar ({ regla }: { regla: ReglaRecurrente }): ReactElement {
+  const aviso = useAviso()
   const [enCurso, setEnCurso] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
@@ -507,7 +509,11 @@ function BotonReanudar ({ regla }: { regla: ReglaRecurrente }): ReactElement {
     setError(null)
     const resultado = await escribirEnBff(`tasks/${regla.id}`, 'PATCH', { recurring_paused: false })
     setEnCurso(false)
-    if (!resultado.ok) setError(resultado.mensaje)
+    if (!resultado.ok) {
+      setError(resultado.mensaje)
+      return
+    }
+    aviso.exito(`«${regla.name}» se reanudó.`)
   }
 
   return (
@@ -560,6 +566,7 @@ function ConfirmarCambioDeRegla ({ pedido, abierto, onCerrar }: {
   abierto: boolean
   onCerrar: () => void
 }): ReactElement {
+  const aviso = useAviso()
   const [enCurso, setEnCurso] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const textos = CONFIRMACIONES[pedido?.accion ?? 'pausar']
@@ -583,6 +590,7 @@ function ConfirmarCambioDeRegla ({ pedido, abierto, onCerrar }: {
       return
     }
 
+    aviso.exito(pedido.accion === 'pausar' ? `«${pedido.regla.name}» quedó en pausa.` : `«${pedido.regla.name}» dejó de repetirse.`)
     cerrar()
   }
 

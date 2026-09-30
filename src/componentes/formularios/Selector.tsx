@@ -13,7 +13,7 @@ import {
   UMBRAL_BUSCADOR
 } from '@/componentes/superposiciones/MenuContextual'
 import type { OpcionFiltro } from '@/definiciones/tipos'
-import { normalizar } from '@/dominio/salas'
+import { normalizar } from '@/dominio/busqueda'
 import { cn } from '@/lib/clases'
 import { CLASES_CONTROL } from './Entrada'
 

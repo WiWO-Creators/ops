@@ -12,6 +12,7 @@ import { errorDeDescripcion } from '@/dominio/descripcion-tarea'
 import { GLOSARIO } from '@/dominio/glosario'
 import { SOLO_SIN_ESPACIO } from '@/dominio/mis-tareas'
 import type { EstadoLookup } from '@/datos/recursos'
+import { useAviso } from '@/componentes/estado/useAviso'
 
 interface PropsTareasPrivadas {
   /** Quien mira. Es a la vez el filtro de la lista y el dueño de lo que se cree. */
@@ -80,6 +81,7 @@ export function TareasPrivadas ({ personaId, estados, rutaDetalle, verCompletada
  * @param personaId A quien se le asigna. Es lo que la hace privada y no huerfana.
  */
 function DialogoTareaPrivada ({ personaId }: { personaId: number }) {
+  const aviso = useAviso()
   const [abierto, setAbierto] = useState(false)
   const [nombre, setNombre] = useState('')
   const [descripcion, setDescripcion] = useState('')
@@ -142,6 +144,7 @@ function DialogoTareaPrivada ({ personaId }: { personaId: number }) {
       return
     }
 
+    aviso.exito(`«${titulo}» se creó.`)
     limpiar()
     setAbierto(false)
   }

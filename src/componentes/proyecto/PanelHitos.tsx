@@ -297,8 +297,9 @@ function definicionDeTablaHitos (
           puedeEditar={puedeEditar}
           puedeBorrar={puedeBorrar}
           tituloBorrado={`Eliminar ${GLOSARIO.hito.singular.toLowerCase()}`}
-          advertencia={`Las ${GLOSARIO.proceso.plural.toLowerCase()} de "${h.name}" no se borran: pasan a "Sin categorizar".`}
+          advertencia={`Las ${GLOSARIO.proceso.plural.toLowerCase()} de «${h.name}» no se borran: pasan a «Sin categorizar».`}
           recargar={recargar}
+          nombre={h.name}
         />
       )
     })

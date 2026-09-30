@@ -13,6 +13,7 @@ import type { Espacio } from '@/datos/recursos'
 import type { OpcionFiltro } from '@/definiciones/tipos'
 import { GLOSARIO } from '@/dominio/glosario'
 import { hoyLocal } from '@/lib/fechas'
+import { useAviso } from '@/componentes/estado/useAviso'
 
 /**
  * Copia de un Proyecto, con las mismas opciones que el panel viejo.
@@ -106,6 +107,7 @@ function FormularioCopia ({
   estadosDeTarea: OpcionFiltro[]
   onCopiado: () => void
 }) {
+  const aviso = useAviso()
   const [nombre, setNombre] = useState(`${espacio.name} (copia)`)
   const [cliente, setCliente] = useState(espacio.client === null ? '' : String(espacio.client.id))
   const [inicio, setInicio] = useState(hoyLocal())
@@ -144,6 +146,7 @@ function FormularioCopia ({
     setEnviando(false)
 
     if (resultado.ok) {
+      aviso.exito(`«${nombre.trim()}» se creó como copia de «${espacio.name}».`)
       onCopiado()
       return
     }

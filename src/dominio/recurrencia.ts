@@ -1,5 +1,5 @@
 import { LOCALE } from '../lib/fechas.ts'
-import { normalizar } from './salas.ts'
+import { normalizar } from './busqueda.ts'
 import type { StaffReferencia } from '@/datos/tipos'
 import type { UsoDeRegla } from './copias-recurrencia.ts'
 

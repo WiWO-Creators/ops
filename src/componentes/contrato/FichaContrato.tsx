@@ -12,7 +12,6 @@ import { EnlaceCliente } from '@/componentes/presentadores/EnlaceCliente'
 import { EnlaceProyecto } from '@/componentes/presentadores/EnlaceProyecto'
 import { ContenidoHtml } from '@/componentes/presentadores/ContenidoHtml'
 import { Filas, Seccion, type Dato } from '@/componentes/presentadores/Ficha'
-import { useAviso } from '@/componentes/estado/useAviso'
 import type { Contrato } from '@/datos/recursos'
 import { formatearValorDeContrato } from '@/definiciones/contratos'
 import { GLOSARIO } from '@/dominio/glosario'
@@ -36,7 +35,6 @@ interface PropsFichaContrato {
  */
 export function FichaContrato ({ contrato, clientes, tipos }: PropsFichaContrato) {
   const router = useRouter()
-  const aviso = useAviso()
   const [editando, setEditando] = useState(false)
 
   const comercial = conValor([
@@ -136,10 +134,8 @@ export function FichaContrato ({ contrato, clientes, tipos }: PropsFichaContrato
           ruta={`contratos/${contrato.id}`}
           metodo="PATCH"
           registro={registroDeContrato(contrato)}
-          onGuardado={() => {
-            aviso.exito('Contrato actualizado.')
-            router.refresh()
-          }}
+          avisoExito="Contrato actualizado."
+          onGuardado={() => { router.refresh() }}
           columnas={2}
           ancho="grande"
         />

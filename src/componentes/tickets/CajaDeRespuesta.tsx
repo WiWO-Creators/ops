@@ -11,7 +11,7 @@ import {
 } from '@/componentes/superposiciones/MenuContextual'
 import { escribirEnBff } from '@/componentes/datos/mutaciones'
 import type { EstadoLookup, RespuestaPredefinida } from '@/datos/recursos'
-import { normalizar } from '@/dominio/salas'
+import { normalizar } from '@/dominio/busqueda'
 import {
   avisoSinRespuesta,
   claveDeBorrador,

@@ -253,15 +253,37 @@ Se hacen cumplir con lint, no con buena voluntad:
 
 ## Inventario de componentes
 
+Lo que existe hoy en `src/componentes/` (carpeta entre paréntesis cuando no es la del grupo):
+
 | Grupo | Componentes |
 |---|---|
-| **Estructura** | Marco, BarraLateral, BarraSuperior, PanelDetalle, Seccion, Cabecera, Plegable |
-| **Navegación** | Menu, Migas, Pestañas, Paginacion, Buscador (⌘K), SelectorEspacio |
-| **Datos** | Tabla, Tablero, Lista, Calendario, LineaDeTiempo, Grafico |
-| **Presentadores** | Insignia, Avatar, GrupoAvatares, Etiqueta, Dinero, Fecha, Progreso, EnlaceEntidad |
-| **Superposiciones** | Dialogo, Cajon, MenuContextual, Emergente, Tooltip, Confirmacion |
-| **Estado** | Cargando, Vacio, Error, SinPermiso, Avisos |
-| **Formularios** | Campo, Entrada, AreaTexto, Selector, SelectorMultiple, SelectorRelacion, SelectorFecha, Interruptor, Casilla, Editor, Adjuntos, CampoPersonalizado |
+| **Estructura** | BarraLateral, BarraInferiorMovil, TituloModulo (con `FirmaDeMarca` y `TituloDeFicha`), Tarjeta, Plegable, EntradaEscalonada (props `clave`, `densa`, `items`, `className`), TransicionDePagina, Muestra |
+| **Navegación** | PaletaDeComandos (⌘K, `paleta/`), Pestanas (`proyecto/`), SelectorEspacio (`live/`), PaginacionTabla (en `ControlesTabla`) |
+| **Datos** | Tabla (prop `entrada`), TablaRecurso, Tablero, VistaCalendario, ControlesTabla, MenuAccionesFila, ConfirmarBorrado, ConfirmacionEnLinea, BajaYBorrado, TotalDelListado |
+| **Presentadores** | Insignia, InsigniaDePrioridad, Avatar, GrupoAvatares, Etiquetas, Fecha, BarraProgreso, EstadoSla, Hito, EnlaceProyecto / EnlaceCliente / EnlacePersona, ImagenEntidad, Seccion y Filas (`Ficha`), CodigoCopiable, TarjetaFlotantePersona |
+| **Superposiciones** | Dialogo, Cajon, MenuContextual (con `BuscadorMenu` e `ItemMenuMarcable`), PanelVidrio |
+| **Estado** | Cargando, Vacio, ErrorEstado, SinPermiso, Hueso, EsqueletoFicha, AvisoEnLinea, Orbe, AvisosDeError + `useAviso`, LimiteDeError |
+| **Formularios** | Campo, Entrada, AreaTexto (en `Entrada`), Selector + SelectorBuscable, SelectorDePersona, SelectorBuscableMultiple (base de SelectorPersonas, SelectorClientes y SelectorEspacios de `proyecto/`), SelectorEtiquetas, Interruptor, Segmentado, Boton, CamposPersonalizados, MatrizAsignacion |
+| **Hooks** | `usePresencia` (`src/lib/`), `useAviso` |
+
+**Lo que no es un primitivo, a propósito.** Se probó contra el código si hacía falta (regla: se crea
+un primitivo cuando hay 3 o más usos reales hechos a mano) y no:
+
+- **Tooltip**: se usa el atributo `title` nativo; la única ayuda flotante dibujada a mano son dos
+  globos de `portal/GraficosDelProyecto`, por debajo del umbral.
+- **Casilla**: `<input type="checkbox">` con la clase `CLASES_CASILLA` (en `Entrada`); un componente no
+  agregaría comportamiento.
+- **Dinero**: es texto, no un control; se formatea con `formatearImporte` (`proyecto/formatos.ts`).
+- **PanelDetalle** y **Emergente**: el panel lateral es `Cajon`, y lo flotante es `MenuContextual` o
+  `TarjetaFlotantePersona`.
+- **Migas**: no hay migas de pan; la ubicación la dan el título y la barra lateral.
+- **Paginacion** como primitivo aparte: vive en `PaginacionTabla`, junto a los controles de la tabla.
+- **SelectorFecha** y **Adjuntos**: las fechas usan el `<input type="date">` nativo con `Entrada`, y los
+  adjuntos son propios de cada módulo (`PanelArchivos`, Drive).
+
+**Selector de persona**: una sola persona es `SelectorDePersona`; varias, `SelectorPersonas`. La
+búsqueda de todos los selectores es `filtrarPorPalabras` (`dominio/busqueda.ts`): sin acentos, sin
+mayúsculas y por palabras en cualquier orden.
 
 **Los presentadores son la pieza que sostiene la consistencia.** Son lo más repetido del sistema: una
 insignia de estado aparece en 47 tablas, 5 tableros y todos los detalles. Si cada pantalla la dibuja a
@@ -270,7 +292,7 @@ su manera, no hay sistema de diseño.
 **Superposiciones sobre Radix UI**: manejo de foco, `Escape`, `aria` y captura de clics no se
 reimplementan. Es exactamente el trabajo que no hay que hacer.
 
-**Mínimo de Fase 1** (~22): Marco, BarraLateral, BarraSuperior, Cabecera, Tabla, Tablero, Dialogo,
+**Mínimo de Fase 1** (plan original, ~22; los nombres que cambiaron están en la tabla): Marco, BarraLateral, BarraSuperior, Cabecera, Tabla, Tablero, Dialogo,
 Cajon, MenuContextual, Boton, Insignia, Avatar, Etiqueta, Fecha, Cargando, Vacio, Error, Avisos,
 Campo, Entrada, AreaTexto, Selector, SelectorRelacion.
 
