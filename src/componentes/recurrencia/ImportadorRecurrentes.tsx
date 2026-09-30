@@ -203,7 +203,7 @@ export function ImportadorRecurrentes ({ proyectos, personas, onTerminar }: {
 
 /** Cuantas filas hay y como salio la ultima revision, en una linea que se anuncia al cambiar. */
 function Resumen ({ filas, parte, desactualizado }: { filas: number, parte: ParteDeValidacion | null, desactualizado: boolean }): ReactElement {
-  let mensaje = filas === 0 ? 'Sin filas todavía.' : `${filas} ${filas === 1 ? 'fila leída' : 'filas leídas'}. Revísalas antes de crear.`
+  let mensaje = filas === 0 ? 'Todavía no hay filas.' : `${filas} ${filas === 1 ? 'fila leída' : 'filas leídas'}. Revísalas antes de crear.`
   if (desactualizado) mensaje = 'Cambiaste el texto: vuelve a revisar.'
   if (parte !== null) {
     mensaje = parte.invalidas === 0

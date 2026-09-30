@@ -37,7 +37,7 @@ export function SeccionSuperposicionesDeDatos () {
       <Muestra etiqueta="confirmar borrado">
         <div className="flex gap-2">
           <Boton variante="secundario" onClick={() => { setConfirmando('papelera') }}>A la papelera</Boton>
-          <Boton variante="peligro" onClick={() => { setConfirmando('definitivo') }}>Borrar para siempre</Boton>
+          <Boton variante="peligro" onClick={() => { setConfirmando('definitivo') }}>Eliminar para siempre</Boton>
         </div>
         <ConfirmarBorrado
           abierto={confirmando === 'papelera'}

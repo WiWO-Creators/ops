@@ -823,7 +823,7 @@ function CreadaPorRecurrencia ({ madre }: { madre: { id: number, name: string } 
 function Contadores ({ counts }: { counts: ProcesoDeFicha['counts'] }): ReactElement | null {
   if (counts === undefined) return null
   // Los dos en cero no informan nada: las secciones de Archivos y Comentarios, unas lineas mas
-  // abajo, ya dicen "Sin archivos adjuntos" y "Todavia no hay comentarios". Dos ceros arriba de esas
+  // abajo, ya dicen "Todavia no hay archivos adjuntos" y "Todavia no hay comentarios". Dos ceros arriba de esas
   // dos frases son la misma ausencia contada dos veces en la misma pantalla.
   if (counts.comments === 0 && counts.attachments === 0) return null
 

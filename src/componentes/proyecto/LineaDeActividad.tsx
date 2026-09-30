@@ -1,6 +1,7 @@
 import { Avatar } from '@/componentes/presentadores/Avatar'
 import { EnlacePersona } from '@/componentes/presentadores/EnlacePersona'
 import { Vacio } from '@/componentes/estado/Estados'
+import { GLOSARIO } from '@/dominio/glosario'
 import { agruparPorDia, autorDeEntrada, horaDeEntrada, type EntradaDeActividad } from './actividad'
 import { textoPlano } from './formatos'
 
@@ -31,7 +32,7 @@ export function LineaDeActividad<T extends EntradaDeActividad & { id: number }> 
   accion,
   vacio = {
     titulo: 'Todavía no hay actividad',
-    descripcion: 'Cuando alguien cree, edite o complete algo en este proyecto, queda registrado acá.'
+    descripcion: `Cuando alguien cree, edite o complete algo en este ${GLOSARIO.espacio.singular.toLowerCase()}, queda registrado acá.`
   }
 }: {
   entradas: T[]

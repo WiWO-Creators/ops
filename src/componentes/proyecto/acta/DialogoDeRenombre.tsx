@@ -6,6 +6,7 @@ import { Campo } from '@/componentes/formularios/Campo'
 import { Entrada } from '@/componentes/formularios/Entrada'
 import { CerrarDialogo, Dialogo, ContenidoDialogo } from '@/componentes/superposiciones/Dialogo'
 import { LARGO_MAXIMO_TITULO, motivoParaRechazarTitulo } from '@/dominio/actas'
+import { GLOSARIO } from '@/dominio/glosario'
 
 /**
  * Pide el nombre nuevo del Meeting Paper.
@@ -93,7 +94,7 @@ export function DialogoDeRenombre ({
         titulo={`Renombrar «${titulo}»`}
         descripcion={esTraduccion
           ? 'Cambia el nombre de esta traducción. El Meeting Paper original conserva el suyo.'
-          : 'Es el nombre con el que aparece en la lista de Meeting Papers del Proyecto.'}
+          : `Es el nombre con el que aparece en la lista de ${GLOSARIO.acta.plural} del ${GLOSARIO.espacio.singular.toLowerCase()}.`}
         ancho="chico"
       >
         <form

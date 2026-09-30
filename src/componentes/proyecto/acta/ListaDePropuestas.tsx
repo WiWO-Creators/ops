@@ -6,9 +6,14 @@ import { CLASES_CASILLA } from '@/componentes/formularios/Entrada'
 import { ConfirmacionEnLinea } from '@/componentes/datos/ConfirmacionEnLinea'
 import type { EstadoLookup } from '@/datos/recursos'
 import type { PropuestaDeTarea } from '@/definiciones/actas'
+import { GLOSARIO } from '@/dominio/glosario'
 import { FilaPropuesta } from './FilaPropuesta'
 import { YaCreadas } from './YaCreadas'
 import type { PropuestasDelActaEnPantalla } from './usePropuestasDelActa'
+
+const TAREA = GLOSARIO.proceso.singular.toLowerCase()
+const TAREAS = GLOSARIO.proceso.plural.toLowerCase()
+const PROYECTO = GLOSARIO.espacio.singular.toLowerCase()
 
 interface PropsLista {
   propuestas: PropuestasDelActaEnPantalla
@@ -46,7 +51,7 @@ export function ListaDePropuestas ({
     <>
       {sinAnalizar && (
         <p className="text-texto-tenue text-sm">
-          Este Meeting Paper todavía no se analizó en busca de tareas.
+          Este {GLOSARIO.acta.singular} todavía no se analizó en busca de {TAREAS}.
           {puedeProponer
             ? ' "Analizar buscando tareas" lo lee con IA y propone las que quedaron comprometidas; ninguna se crea sin que la confirmes.'
             : ''}
@@ -55,7 +60,7 @@ export function ListaDePropuestas ({
 
       {!sinAnalizar && !hayPendientes && creadas.length === 0 && (
         <p className="text-texto-tenue text-sm">
-          De este Meeting Paper no salieron tareas.
+          De este {GLOSARIO.acta.singular} no salieron {TAREAS}.
           {puedeProponer
             ? ' Si la reunión sí acordó algo, "Volver a analizar" le pide al modelo que lo vuelva a leer.'
             : ''}
@@ -101,9 +106,9 @@ export function ListaDePropuestas ({
       {puedeCrear && hayPendientes && confirmandoTodas && (
         <ConfirmacionEnLinea
           advertencia={pendientes.length === 1
-            ? 'Se crea 1 tarea en el tablero de este proyecto. Deshacerlo es borrarla a mano.'
-            : `Se crean ${pendientes.length} tareas en el tablero de este proyecto. Deshacerlo es borrarlas una por una.`}
-          etiquetaConfirmar={pendientes.length === 1 ? 'Crear 1 tarea' : `Crear ${pendientes.length} tareas`}
+            ? `Se crea 1 ${TAREA} en el tablero de este ${PROYECTO}. Deshacerlo es eliminarla a mano.`
+            : `Se crean ${pendientes.length} ${TAREAS} en el tablero de este ${PROYECTO}. Deshacerlo es eliminarlas una por una.`}
+          etiquetaConfirmar={pendientes.length === 1 ? `Crear 1 ${TAREA}` : `Crear ${pendientes.length} ${TAREAS}`}
           varianteConfirmar="primario"
           onConfirmar={onCrearTodas}
           onCancelar={onCancelarTodas}

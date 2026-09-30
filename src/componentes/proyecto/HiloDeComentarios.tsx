@@ -149,9 +149,9 @@ export function HiloDeComentarios (
         <ConfirmacionEnLinea
           disposicion="linea"
           advertencia={respuestas !== null && respuestas > 0
-            ? `¿Borrar con sus ${respuestas} ${respuestas === 1 ? 'respuesta' : 'respuestas'}?`
-            : '¿Borrar?'}
-          etiquetaConfirmar="Borrar"
+            ? `¿Eliminar con sus ${respuestas} ${respuestas === 1 ? 'respuesta' : 'respuestas'}?`
+            : '¿Eliminar?'}
+          etiquetaConfirmar="Eliminar"
           cargando={borrando === comentario.id}
           onCancelar={() => { setConfirmandoBorrado(null) }}
           onConfirmar={() => { void borrar(comentario.id) }}
@@ -164,8 +164,8 @@ export function HiloDeComentarios (
         variante="sutil"
         tamano="chico"
         soloIcono
-        aria-label="Borrar comentario"
-        title="Borrar comentario"
+        aria-label="Eliminar comentario"
+        title="Eliminar comentario"
         className={cn(
           'size-7 transition-opacity duration-150',
           'opacity-0 focus-visible:opacity-100 pointer-coarse:opacity-100',

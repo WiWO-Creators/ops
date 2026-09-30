@@ -134,7 +134,7 @@ export function PresetsFiltro<T> ({ board, filtrosActuales, busqueda, definicion
             <div key={preset.id} className="flex items-center gap-1">
               <Boton variante="sutil" className="min-w-0 flex-1 justify-start truncate" disabled={preparando} onClick={() => { void preparar(preset.filters, preset.name, false) }}>{preset.name}</Boton>
               <Boton variante="sutil" soloIcono aria-label={`Exportar ${preset.name}`} onClick={() => { exportar(preset.filters, preset.name) }}><Download size={16} aria-hidden="true" /></Boton>
-              <Boton variante="sutil" soloIcono aria-label={`Borrar ${preset.name}`} disabled={borrandoId === preset.id} onClick={() => { void borrar(preset.id) }}><Trash2 size={16} aria-hidden="true" /></Boton>
+              <Boton variante="sutil" soloIcono aria-label={`Eliminar ${preset.name}`} disabled={borrandoId === preset.id} onClick={() => { void borrar(preset.id) }}><Trash2 size={16} aria-hidden="true" /></Boton>
             </div>
           ))}
         </ContenidoMenu>

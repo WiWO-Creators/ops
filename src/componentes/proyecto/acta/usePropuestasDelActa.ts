@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react'
 import { escribirEnBff, leerDelBff } from '@/componentes/datos/mutaciones'
+import { useAviso } from '@/componentes/estado/useAviso'
 import type {
   ParcheDePropuesta,
   PropuestaDeTarea,
@@ -74,6 +75,7 @@ export function usePropuestasDelActa ({
   const [error, setError] = useState<string | null>(null)
   const [aviso, setAviso] = useState<string | null>(null)
   const [enCurso, setEnCurso] = useState<EnCurso>(null)
+  const avisos = useAviso()
 
   /**
    * Volver a "cargando" en el render y no en el efecto.
@@ -151,6 +153,7 @@ export function usePropuestasDelActa ({
     }
 
     setCarga((previo) => conPropuesta(previo, resultado.datos))
+    avisos.exito(`Cambios de «${resultado.datos.titulo}» guardados.`)
 
     return true
   }
@@ -172,6 +175,7 @@ export function usePropuestasDelActa ({
 
     setSeleccionadas((previas) => previas.filter((elegida) => elegida !== propuesta.id))
     setCarga((previo) => sinPropuesta(previo, propuesta.id))
+    avisos.exito(`«${propuesta.titulo}» se descartó.`)
   }
 
   /**

@@ -420,8 +420,8 @@ function ConversacionOrbe ({ desplazable = false, proyecto, configuracion }: Pro
           {confirmandoBorrado
             ? (
               <ConfirmacionEnLinea
-                advertencia={`Se borra la conversación entera, también la que ${ASISTENTE} recuerda.`}
-                etiquetaConfirmar="Borrar"
+                advertencia={`Se elimina la conversación entera, también la que ${ASISTENTE} recuerda.`}
+                etiquetaConfirmar="Eliminar"
                 cargando={borrando}
                 onCancelar={() => { setConfirmandoBorrado(false) }}
                 onConfirmar={() => { void borrar() }}
@@ -434,7 +434,7 @@ function ConversacionOrbe ({ desplazable = false, proyecto, configuracion }: Pro
                 disabled={enviando}
                 onClick={() => { setConfirmandoBorrado(true) }}
               >
-                Borrar chat
+                Eliminar chat
               </Boton>
               )}
         </div>

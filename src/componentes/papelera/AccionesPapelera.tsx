@@ -80,7 +80,7 @@ export function AccionesPapelera ({ elemento }: { elemento: ElementoEnPapelera }
     <>
       <span className="flex justify-end gap-2 whitespace-nowrap">
         <Boton variante="sutil" tamano="chico" onClick={() => { void abrirBorrado() }}>
-          Borrar definitivamente
+          Eliminar definitivamente
         </Boton>
         <Boton variante="primario" tamano="chico" cargando={restaurando} onClick={() => { void restaurar() }}>
           Restaurar
@@ -93,10 +93,10 @@ export function AccionesPapelera ({ elemento }: { elemento: ElementoEnPapelera }
         abierto={confirmarBorrado.abierto}
         onCerrar={confirmarBorrado.cerrar}
         tamano="chico"
-        titulo="Borrar definitivamente"
-        advertencia={`«${elemento.nombre}» (${nombreDeEntidad(elemento.entidad).toLowerCase()}) se borra para siempre, con todo lo que cuelga. Esto no se puede deshacer.`}
+        titulo="Eliminar definitivamente"
+        advertencia={`«${elemento.nombre}» (${nombreDeEntidad(elemento.entidad).toLowerCase()}) se elimina para siempre, con todo lo que cuelga. Esto no se puede deshacer.`}
         confirmacionEscrita={PALABRA}
-        etiquetaConfirmar="Borrar para siempre"
+        etiquetaConfirmar="Eliminar para siempre"
         deshabilitadoExtra={bloqueado}
         contenidoExtra={
           <>
@@ -109,7 +109,7 @@ export function AccionesPapelera ({ elemento }: { elemento: ElementoEnPapelera }
 
             {bloqueado && (
               <p role="alert" className="text-texto-peligro text-sm">
-                {previa?.motivo ?? 'No se puede borrar definitivamente.'}
+                {previa?.motivo ?? 'No se puede eliminar definitivamente.'}
               </p>
             )}
           </>

@@ -258,7 +258,7 @@ export function FormularioEntrar ({ google, aviso = null }: { google: AccesoGoog
 
         <PanelVidrio className="animate-entrar-abajo w-full max-w-sm p-6 sm:p-8">
           <header className="mb-6">
-            <h1 className="font-titular text-3xl font-extrabold tracking-tight text-texto">
+            <h1 className="font-titular text-texto text-2xl font-bold tracking-tight">
               {paso === 'clave' ? 'Entrar' : 'Verificar'}
             </h1>
             {paso !== 'clave' && (

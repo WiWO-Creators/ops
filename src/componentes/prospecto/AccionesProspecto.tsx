@@ -1,6 +1,7 @@
 'use client'
 
 import Link from 'next/link'
+import { Pencil } from 'lucide-react'
 import { useState, type ReactElement } from 'react'
 import { useRouter } from 'next/navigation'
 import { ConfirmarBorrado } from '@/componentes/datos/ConfirmarBorrado'
@@ -49,13 +50,14 @@ export function AccionesProspecto ({ prospecto, paises, capacidades }: PropsAcci
 
       {capacidades.includes('edit') && (
         <Boton variante="secundario" tamano="chico" onClick={() => { setEditando(true) }}>
+          <Pencil aria-hidden className="size-4" />
           Editar
         </Boton>
       )}
 
       {capacidades.includes('delete') && (
         <Boton variante="peligro" tamano="chico" onClick={() => { setBorrando(true) }}>
-          Borrar
+          Eliminar
         </Boton>
       )}
 
@@ -127,13 +129,12 @@ function DialogoBorrar ({
     <ConfirmarBorrado
       abierto={abierto}
       onCerrar={onCerrar}
-      titulo={`Borrar ${prospecto.empresa}`}
+      titulo={`Eliminar ${prospecto.empresa}`}
       advertencia={
         conLicitaciones
-          ? `Este prospecto tiene ${prospecto.licitaciones_total} licitación(es): hay que borrarlas primero, una por una, desde cada una. El borrado va a fallar.`
-          : 'Se borra el prospecto con sus personas de contacto. No se puede deshacer.'
+          ? `Este prospecto tiene ${prospecto.licitaciones_total} licitación(es): hay que eliminarlas primero, una por una, desde cada una. Eliminarlo va a fallar.`
+          : 'Se elimina el prospecto con sus personas de contacto. No se puede deshacer.'
       }
-      etiquetaConfirmar="Borrar"
       onConfirmar={confirmar}
     />
   )

@@ -1,5 +1,6 @@
 'use client'
 
+import { Pencil } from 'lucide-react'
 import { useState, type ReactElement } from 'react'
 import { useRouter } from 'next/navigation'
 import { BajaYBorrado } from '@/componentes/datos/BajaYBorrado'
@@ -53,7 +54,10 @@ export function AccionesCliente ({
       />
 
       {puedeEditar && (
-        <Boton variante="secundario" tamano="chico" onClick={() => { setEditando(true) }}>Editar</Boton>
+        <Boton variante="secundario" tamano="chico" onClick={() => { setEditando(true) }}>
+          <Pencil aria-hidden className="size-4" />
+          Editar
+        </Boton>
       )}
 
       <BajaYBorrado

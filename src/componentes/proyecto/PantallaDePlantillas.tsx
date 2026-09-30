@@ -107,7 +107,7 @@ export function PantallaDePlantillas<T extends PlantillaListable> ({
                 variante="sutil"
                 tamano="chico"
                 soloIcono
-                aria-label={`Borrar ${plantilla.name}`}
+                aria-label={`Eliminar ${plantilla.name}`}
                 onClick={() => { setABorrar(plantilla) }}
               >
                 <Trash2 size={14} aria-hidden />
@@ -176,9 +176,9 @@ function DialogoBorrarPlantilla<T extends PlantillaListable> ({
       abierto
       onCerrar={onCerrar}
       tamano="chico"
-      titulo="Borrar la plantilla"
+      titulo="Eliminar la plantilla"
       advertencia={advertencia(plantilla)}
-      etiquetaConfirmar="Borrar"
+      etiquetaConfirmar="Eliminar"
       onConfirmar={borrar}
     />
   )

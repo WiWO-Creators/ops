@@ -308,7 +308,7 @@ export function FormularioTimesheet ({
             <CerrarDialogo asChild>
               <Boton variante="sutil" type="button">Cancelar</Boton>
             </CerrarDialogo>
-            <Boton variante="primario" type="submit" cargando={enCurso}>Guardar</Boton>
+            <Boton variante="primario" type="submit" cargando={enCurso}>{registro === null ? 'Crear registro' : 'Guardar cambios'}</Boton>
           </div>
         </form>
       </ContenidoDialogo>

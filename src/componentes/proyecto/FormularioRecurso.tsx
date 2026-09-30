@@ -19,6 +19,7 @@ import { AsistenteDescripcion } from './AsistenteDescripcion'
 import {
   avisoDeGuardado,
   cuerpoDelFormulario,
+  etiquetaDeEnvio,
   validarFormulario,
   valoresIniciales,
   type CampoFormulario,
@@ -81,6 +82,8 @@ interface PropsFormulario {
    * `null` lo apaga, para quien confirma de otra manera.
    */
   avisoExito?: string | null
+  /** Texto del boton de envio. Por defecto `etiquetaDeEnvio`: «Crear X» en un alta, «Guardar cambios» en una edicion. */
+  etiquetaEnviar?: string
 }
 
 export function FormularioRecurso ({
@@ -97,7 +100,8 @@ export function FormularioRecurso ({
   ancho = 'medio',
   pie,
   enviar: enviarPropio,
-  avisoExito
+  avisoExito,
+  etiquetaEnviar
 }: PropsFormulario): ReactElement {
   const aviso = useAviso()
   const [valores, setValores] = useState<ValoresFormulario>(() => valoresIniciales(campos, registro))
@@ -203,7 +207,7 @@ export function FormularioRecurso ({
             <Boton type="button" variante="sutil" onClick={() => { onAbiertoCambia(false) }}>
               Cancelar
             </Boton>
-            <Boton type="submit" variante="primario" cargando={guardando}>Guardar</Boton>
+            <Boton type="submit" variante="primario" cargando={guardando}>{etiquetaEnviar ?? etiquetaDeEnvio(metodo, titulo)}</Boton>
           </div>
         </form>
       </ContenidoDialogo>

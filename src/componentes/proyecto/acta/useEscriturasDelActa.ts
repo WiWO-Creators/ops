@@ -2,7 +2,8 @@
 
 import { useState } from 'react'
 import { escribirEnBff } from '@/componentes/datos/mutaciones'
-import type { CodigoDeMarca } from '@/dominio/marcas-acta'
+import { useAviso } from '@/componentes/estado/useAviso'
+import { temaDeMarca, type CodigoDeMarca } from '@/dominio/marcas-acta'
 import type { Acta } from '@/datos/recursos'
 
 interface OpcionesDeEscrituras {
@@ -40,6 +41,7 @@ export function useEscriturasDelActa ({
 }: OpcionesDeEscrituras): EscriturasDelActa {
   const [cambiandoMarca, setCambiandoMarca] = useState(false)
   const [borrando, setBorrando] = useState(false)
+  const aviso = useAviso()
 
   /**
    * Cambia la marca que firma el acta.
@@ -66,6 +68,7 @@ export function useEscriturasDelActa ({
     }
 
     onCambiada(resultado.datos)
+    aviso.exito(`«${acta.title}» ahora lo firma ${temaDeMarca(codigo).nombre}.`)
   }
 
   /**
@@ -88,7 +91,11 @@ export function useEscriturasDelActa ({
   async function renombrar (titulo: string): Promise<string | null> {
     setError(null)
 
-    return await escribirEnLoVisible({ title: titulo })
+    const fallo = await escribirEnLoVisible({ title: titulo })
+
+    if (fallo === null) aviso.exito(`Se renombró a «${titulo}».`)
+
+    return fallo
   }
 
   /** Borra el acta y le avisa a quien la monta. */
@@ -105,6 +112,7 @@ export function useEscriturasDelActa ({
       return
     }
 
+    aviso.exito(`«${acta.title}» se eliminó.`)
     onBorrada()
   }
 

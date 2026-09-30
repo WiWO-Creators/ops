@@ -169,7 +169,7 @@ export function PanelAdjuntos (
 
       {carga.fase === 'listo' && (
         carga.archivos.length === 0
-          ? <p className="text-texto-tenue text-sm">Todavía no tiene adjuntos.</p>
+          ? <p className="text-texto-sutil text-sm">Todavía no hay archivos adjuntos.</p>
           : (
             <TablaAdjuntos
               ruta={ruta}

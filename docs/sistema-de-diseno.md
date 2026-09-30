@@ -309,6 +309,35 @@ con títulos, listas y negritas, y con `AreaTexto` habría que editar HTML a man
 (`componentes/proyecto/EditorDeActa.tsx`, TipTap cargado con `next/dynamic`), y el resto del panel
 sigue usando `AreaTexto`: la excepción es para documentos, no para cualquier campo largo.
 
+## Textos
+
+Convenciones de redacción de la interfaz. Mandan sobre la costumbre de cada pantalla.
+
+- **Tuteo** en todo texto visible («Elige», «Cierra y vuelve a abrir»), nunca voseo.
+- **Nombres del dominio desde `GLOSARIO`** (`src/dominio/glosario.ts`): «tarea», «proyecto», «hito»,
+  «Meeting Paper» se escriben con `GLOSARIO.proceso.singular.toLowerCase()` y parientes, no a mano.
+  Si el glosario cambia, la frase cambia con él.
+- **Acción destructiva: «Eliminar»**, nunca «Borrar». Vale para el botón, el título de la
+  confirmación, `etiquetaConfirmar`, el `aria-label` y el aviso posterior (««X» se eliminó.»).
+  `ConfirmarBorrado` ya trae «Eliminar» por defecto. «Enviar a la papelera» queda para la baja
+  recuperable, y «Descartar» para lo que nunca llegó a existir (un borrador, una propuesta).
+- **Botón de envío de un formulario:** en un alta, «Crear X» nombrando la entidad («Crear
+  contrato»); en una edición, «Guardar cambios». `FormularioRecurso` lo deriva solo del método y del
+  título (`etiquetaDeEnvio` en `proyecto/formulario.ts`); `etiquetaEnviar` lo pisa cuando la acción
+  tiene un verbo propio más preciso («Copiar proyecto», «Sumar iteración», «Reservar»). Excepción: una
+  pantalla con varios formularios independientes nombra lo que guarda cada uno («Guardar foto»,
+  «Guardar firma» en el perfil), porque tres «Guardar cambios» iguales no dicen cuál es cuál.
+- **Aviso tras guardar:** toda mutación exitosa que cierra una superposición confirma con
+  `useAviso().exito()` nombrando la entidad con comillas latinas («Cambios de «ACME» guardados.»).
+  `FormularioRecurso` lo hace por defecto (`avisoExito`).
+- **Vacíos en línea:** «Todavía no hay X.» en `text-texto-sutil` («Todavía no hay archivos
+  adjuntos.»). Los vacíos de bloque o de página usan `Vacio`, con título en la misma fórmula y sin
+  punto final.
+- **Volver al listado:** en la cabecera de una ficha, la miga «← Sección»; en su estado de
+  inexistente, la acción «Volver a Sección». Son dos lugares con dos papeles, no una incoherencia.
+- **Control deshabilitado:** dice por qué, en texto visible junto al control y enlazado con
+  `aria-describedby` (no hay primitivo `Tooltip`, y un `title` solo no llega al teclado ni al lector).
+
 ## El taller
 
 `/taller` cataloga cada componente en sus estados: normal, cargando, vacío, error, deshabilitado,

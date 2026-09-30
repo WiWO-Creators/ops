@@ -508,7 +508,7 @@ function CambiosRecientes ({ staffid, version }: { staffid: number, version: num
 
   if (error !== null) return <p className="text-texto-tenue text-sm">{error}</p>
   if (cambios === null) return <Cargando alto="min-h-16" mensaje="Leyendo el historial…" />
-  if (cambios.length === 0) return <p className="text-texto-tenue text-sm">Sin cambios registrados todavía.</p>
+  if (cambios.length === 0) return <p className="text-texto-sutil text-sm">Todavía no hay cambios registrados.</p>
 
   return <ListaDeCambios cambios={cambios} sinEntidad />
 }

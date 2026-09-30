@@ -6,6 +6,7 @@ import { Cargando, ErrorEstado, Vacio } from '@/componentes/estado/Estados'
 import { EntradaEscalonada } from '@/componentes/estructura/EntradaEscalonada'
 import { Insignia } from '@/componentes/presentadores/Insignia'
 import { avisarCambioDeMedidor } from '@/componentes/live/medidor'
+import { GLOSARIO } from '@/dominio/glosario'
 import { compararTiempo, type ComparacionTiempo } from '@/dominio/tiempo-estimado'
 import { formatearFecha } from '@/lib/fechas'
 import { cn } from '@/lib/clases'
@@ -182,7 +183,7 @@ export function Cronometros ({ procesoId, className }: PropsCronometros): ReactE
       )}
 
       {datos.timers.length === 0
-        ? <Vacio titulo="Todavía no hay marcajes" descripcion="El tiempo que registres en esta tarea aparece acá." />
+        ? <Vacio titulo="Todavía no hay marcajes" descripcion={`El tiempo que registres en esta ${GLOSARIO.proceso.singular.toLowerCase()} aparece acá.`} />
         : (
           <EntradaEscalonada densa className="contents">
             <ul className="flex flex-col">
@@ -300,10 +301,10 @@ function Marcaje ({
  * falla es peor que apagarlo diciendo el motivo.
  */
 function motivoParaNoArrancar (datos: Datos): string | null {
-  if (datos.tarea.billed) return 'La tarea ya está facturada: no admite tiempo nuevo.'
+  if (datos.tarea.billed) return `La ${GLOSARIO.proceso.singular.toLowerCase()} ya está facturada: no admite tiempo nuevo.`
 
   if (!datos.tarea.assignees.some((persona) => persona.id === datos.yoId)) {
-    return 'Solo quien está asignado a la tarea puede registrar tiempo.'
+    return `Solo quien está asignado a la ${GLOSARIO.proceso.singular.toLowerCase()} puede registrar tiempo.`
   }
 
   return null

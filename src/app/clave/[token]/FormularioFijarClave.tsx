@@ -128,9 +128,9 @@ export function FormularioFijarClave ({ token }: { token: string }) {
         </div>
 
         <PanelVidrio className="animate-entrar-abajo w-full max-w-sm p-6 sm:p-8">
-          <header className="mb-8">
-            <h1 className="font-titular text-texto text-xl font-semibold">Tu contraseña del portal</h1>
-            <p className="text-texto-tenue mt-1 text-sm">
+          <header className="mb-6">
+            <h1 className="font-titular text-texto text-2xl font-bold tracking-tight">Tu contraseña del portal</h1>
+            <p className="text-texto-tenue mt-2 text-sm">
               Este enlace sirve una sola vez. Al guardar, entras directo al portal.
             </p>
           </header>

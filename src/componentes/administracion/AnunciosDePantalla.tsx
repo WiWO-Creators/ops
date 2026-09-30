@@ -409,7 +409,7 @@ function FilaDeAnuncio ({
           ? (
             <ConfirmacionEnLinea
               disposicion="linea"
-              etiquetaConfirmar="Borrar de verdad"
+              etiquetaConfirmar="Eliminar de verdad"
               cargando={ocupado}
               onConfirmar={onBorrar}
               onCancelar={onCancelarBorrado}
@@ -440,7 +440,7 @@ function FilaDeAnuncio ({
               <Boton variante="sutil" tamano="chico" soloIcono aria-label="Editar este anuncio" onClick={onEditar}>
                 <Pencil className="size-4" aria-hidden />
               </Boton>
-              <Boton variante="sutil" tamano="chico" soloIcono aria-label="Borrar este anuncio" onClick={onBorrar}>
+              <Boton variante="sutil" tamano="chico" soloIcono aria-label="Eliminar este anuncio" onClick={onBorrar}>
                 <Trash2 className="size-4" aria-hidden />
               </Boton>
             </>

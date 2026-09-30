@@ -179,6 +179,7 @@ export function ListaIteraciones ({
         campos={campos}
         ruta={ruta}
         metodo="POST"
+        etiquetaEnviar="Sumar iteración"
         ancho="chico"
         onGuardado={recargar}
       />
@@ -296,7 +297,7 @@ function Iteracion ({
 
         <div className="flex shrink-0 items-center gap-1">
           <Boton variante="sutil" tamano="chico" onClick={onEditar}>Corregir</Boton>
-          <Boton variante="sutil" tamano="chico" onClick={onBorrar}>Borrar</Boton>
+          <Boton variante="sutil" tamano="chico" onClick={onBorrar}>Eliminar</Boton>
         </div>
       </div>
 

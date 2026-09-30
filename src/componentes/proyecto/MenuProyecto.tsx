@@ -355,10 +355,11 @@ export function MenuProyecto ({
         abierto={copiando}
         onAbiertoCambia={setCopiando}
         titulo={`Copiar ${GLOSARIO.espacio.singular.toLowerCase()}`}
-        descripcion="Se crea un proyecto nuevo con lo que elijas copiar."
+        descripcion={`Se crea un ${GLOSARIO.espacio.singular.toLowerCase()} nuevo con lo que elijas copiar.`}
         campos={camposDeCopia()}
         ruta={`projects/${proyecto.id}/actions/copy`}
         metodo="POST"
+        etiquetaEnviar={`Copiar ${GLOSARIO.espacio.singular.toLowerCase()}`}
         registro={{
           name: `${proyecto.name} (copia)`,
           clientid: proyecto.client?.id ?? '',

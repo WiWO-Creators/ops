@@ -5,6 +5,7 @@ import { Trash2 } from 'lucide-react'
 import { Boton } from '@/componentes/formularios/Boton'
 import { Insignia } from '@/componentes/presentadores/Insignia'
 import { Cargando, ErrorEstado } from '@/componentes/estado/Estados'
+import { useAviso } from '@/componentes/estado/useAviso'
 import { escribirEnBff } from '@/componentes/datos/mutaciones'
 import { IDIOMAS_TRANSCRIPCION, formatoDeVencimiento, type ResumenTranscripcion } from '@/dominio/transcripcion'
 import { useRecurso } from '../carga'
@@ -88,6 +89,7 @@ function FilaTranscripcion ({
   onBorrada: () => void
 }): ReactElement {
   const [borrando, setBorrando] = useState(false)
+  const aviso = useAviso()
   const [error, setError] = useState<string | null>(null)
 
   async function borrar (): Promise<void> {
@@ -105,6 +107,7 @@ function FilaTranscripcion ({
       return
     }
 
+    aviso.exito('Transcripción eliminada.')
     onBorrada()
   }
 
@@ -127,7 +130,7 @@ function FilaTranscripcion ({
             soloIcono
             cargando={borrando}
             onClick={() => { void borrar() }}
-            aria-label="Borrar esta transcripción"
+            aria-label="Eliminar esta transcripción"
           >
             <Trash2 size={14} strokeWidth={2} aria-hidden="true" />
           </Boton>

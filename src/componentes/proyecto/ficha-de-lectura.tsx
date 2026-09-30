@@ -118,7 +118,7 @@ export function SeccionDeAdjuntos (
   return (
     <SeccionDeLectura titulo="Archivos" nivel={nivel}>
       {adjuntos.length === 0
-        ? <p className="text-texto-sutil text-sm">Sin archivos adjuntos.</p>
+        ? <p className="text-texto-sutil text-sm">Todavía no hay archivos adjuntos.</p>
         : (
           <ul className="flex flex-col gap-2">
             {adjuntos.map((adjunto) => (

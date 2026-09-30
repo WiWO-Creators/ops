@@ -367,3 +367,21 @@ export function avisoDeGuardado (
 
   return metodo === 'POST' ? `«${nombre}» se creó.` : `Cambios de «${nombre}» guardados.`
 }
+
+/**
+ * El texto del boton que envia un formulario de alta o de edicion.
+ *
+ * Una edicion dice «Guardar cambios». Un alta nombra lo que crea: «Nuevo contrato» pasa a
+ * «Crear contrato»; si el titulo no empieza por «Nuevo»/«Nueva», queda «Crear».
+ *
+ * @param metodo `POST` para un alta, `PATCH` para una edicion
+ * @param titulo el titulo del dialogo
+ * @returns la etiqueta del boton de envio
+ */
+export function etiquetaDeEnvio (metodo: 'POST' | 'PATCH', titulo: string): string {
+  if (metodo === 'PATCH') return 'Guardar cambios'
+
+  const entidad = /^nuev[oa]s?\s+(.+)$/iu.exec(titulo.trim())?.[1]
+
+  return entidad === undefined ? 'Crear' : `Crear ${entidad}`
+}

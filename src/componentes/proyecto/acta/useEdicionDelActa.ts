@@ -1,6 +1,8 @@
 'use client'
 
 import { useState } from 'react'
+import { useAviso } from '@/componentes/estado/useAviso'
+import { GLOSARIO } from '@/dominio/glosario'
 
 interface OpcionesDeEdicion {
   /** Lo que se esta viendo: el editor arranca y se descarta siempre contra esto. */
@@ -33,6 +35,7 @@ export function useEdicionDelActa ({ htmlActivo, escribirEnLoVisible, setError }
   const [html, setHtml] = useState(htmlActivo)
   const [sucio, setSucio] = useState(false)
   const [guardando, setGuardando] = useState(false)
+  const aviso = useAviso()
 
   /**
    * Abre el editor con lo que se esta viendo. Sin esto, abrir "Corregir" sobre la traduccion al
@@ -77,6 +80,7 @@ export function useEdicionDelActa ({ htmlActivo, escribirEnLoVisible, setError }
 
     setSucio(false)
     setEditando(false)
+    aviso.exito(`Correcciones del ${GLOSARIO.acta.singular} guardadas.`)
   }
 
   return { editando, html, sucio, guardando, corregir, descartar, cambiar, guardar }

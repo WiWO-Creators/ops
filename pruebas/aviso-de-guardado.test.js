@@ -4,8 +4,15 @@
 
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
-import { avisoDeGuardado } from '../src/componentes/proyecto/formulario.ts'
+import { avisoDeGuardado, etiquetaDeEnvio } from '../src/componentes/proyecto/formulario.ts'
 import { filtrarPorPalabras } from '../src/dominio/busqueda.ts'
+
+test('etiquetaDeEnvio nombra lo que crea y dice «Guardar cambios» al editar', () => {
+  assert.equal(etiquetaDeEnvio('POST', 'Nuevo contrato'), 'Crear contrato')
+  assert.equal(etiquetaDeEnvio('POST', 'Nueva persona'), 'Crear persona')
+  assert.equal(etiquetaDeEnvio('POST', 'Sumar iteración'), 'Crear')
+  assert.equal(etiquetaDeEnvio('PATCH', 'Editar contrato'), 'Guardar cambios')
+})
 
 test('avisoDeGuardado nombra lo enviado con comillas latinas', () => {
   assert.equal(avisoDeGuardado('POST', { name: 'Hito 1' }, null), '«Hito 1» se creó.')
