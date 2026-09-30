@@ -793,3 +793,49 @@
   gap: 1.6vmin;
   min-height: 0;
 }
+
+/* === Aviso de reporteria: fondo rojo que arde ===
+ * Tres capas animadas solo con opacity/transform/background-position: no fuerzan layout. */
+.pantalla-quema {
+  background: linear-gradient(160deg, #d6452e 0%, #b3261e 45%, #6f1a1c 100%);
+  background-size: 200% 200%;
+  animation: pantalla-quema-respira 4s ease-in-out infinite;
+}
+
+.pantalla-quema-llama {
+  position: absolute;
+  inset: auto -10% -25% -10%;
+  height: 70%;
+  background:
+    radial-gradient(ellipse at 20% 100%, rgb(255 140 40 / 70%), transparent 55%),
+    radial-gradient(ellipse at 55% 100%, rgb(255 90 30 / 65%), transparent 50%),
+    radial-gradient(ellipse at 85% 100%, rgb(255 170 60 / 60%), transparent 55%);
+  transform-origin: 50% 100%;
+  animation: pantalla-quema-llama 1.6s ease-in-out infinite alternate;
+  pointer-events: none;
+}
+
+.pantalla-quema-icono {
+  animation: pantalla-quema-pulso 1.2s ease-in-out infinite;
+  filter: drop-shadow(0 0 2vmin rgb(255 200 120 / 70%));
+}
+
+@keyframes pantalla-quema-respira {
+  0%, 100% { background-position: 0% 0%; }
+  50% { background-position: 100% 100%; }
+}
+
+@keyframes pantalla-quema-llama {
+  0% { transform: scaleY(0.85) translateY(2%); opacity: 0.65; }
+  50% { transform: scaleY(1.05) translateY(-1%); opacity: 1; }
+  100% { transform: scaleY(0.95) translateY(1%) skewX(2deg); opacity: 0.8; }
+}
+
+@keyframes pantalla-quema-pulso {
+  0%, 100% { transform: scale(1); }
+  50% { transform: scale(1.12); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .pantalla-quema, .pantalla-quema-llama, .pantalla-quema-icono { animation: none; }
+}

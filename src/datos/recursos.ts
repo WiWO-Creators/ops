@@ -1360,7 +1360,7 @@ export interface EnlaceProcesoGenerado {
  * vigentes—, pero eso lo decide el televisor, no el panel: aca solo se enciende y se ordena.
  */
 export interface EscenaConfigurada {
-  clase: 'portada' | 'trabajando' | 'cronometros' | 'procesos' | 'espacios' | 'momento' | 'anuncios'
+  clase: 'portada' | 'trabajando' | 'cronometros' | 'procesos' | 'espacios' | 'momento' | 'anuncios' | 'reporteria'
   segundos: number
 }
 

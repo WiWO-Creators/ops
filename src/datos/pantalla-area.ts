@@ -211,6 +211,7 @@ export type EscenaDeApi = { seconds?: number } & (
   | { kind: 'procesos', items: TareaEnPantalla[], total: number }
   | { kind: 'espacios', items: ProyectoEnPantalla[] }
   | { kind: 'momento' }
+  | { kind: 'reporteria' }
   | { kind: 'anuncios', items: AnuncioEnPantalla[] }
 )
 
