@@ -31,7 +31,7 @@ Las rutas son relativas a `ops-v2/`.
 - **Propuesta**: `ConfirmacionEnLinea` con `varianteConfirmar="primario"` junto al botón "Crear" y, para salir sin guardar, un `Dialogo` `ancho="chico"` como el de retraducir (o `ConfirmacionEnLinea` bajo el botón "Volver").
 - **Prioridad**: Alta · **Esfuerzo**: S
 
-### P1-03 Tres acordeones, tres comportamientos
+### P1-03 Tres acordeones, tres comportamientos (resuelto en 4fe6376)
 - **Dónde**: `src/componentes/proyecto/acta/Paso.tsx:70-92`, `src/componentes/proyecto/acta/TareasPropuestas.tsx:452-462`, `src/componentes/proyecto/HistorialDeAprobaciones.tsx:101-125`
 - **Qué pasa**: `Paso` gira un único `ChevronDown` con `rotate-180 ease-neo duration-rapida`; `TareasPropuestas` intercambia `ChevronRight`/`ChevronDown` sin transición y con `duration-150`; `HistorialDeAprobaciones` cambia el texto del botón. Ninguno anima el panel que se abre: el contenido aparece de golpe.
 - **Propuesta**: Extraer un `Plegable` (o exportar el patrón de `Paso`) con chevron rotado por `duration-rapida` y el panel con `animate-entrar-abajo` al abrir (o `grid-template-rows: 0fr→1fr` con `--wiwo-motion-fast`), respetando `prefers-reduced-motion`.
@@ -163,7 +163,7 @@ Las rutas son relativas a `ops-v2/`.
 
 ## Refinamiento
 
-### P1-23 La ficha pública de Tarea no tiene carga ni entrada
+### P1-23 La ficha pública de Tarea no tiene carga ni entrada (resuelto en 4fe6376)
 - **Dónde**: `src/app/tarea/[token]/page.tsx:68` (sin `loading.tsx` en `src/app/tarea/[token]/`)
 - **Qué pasa**: Es lo que ve un cliente desde un enlace compartido y queda fuera de `(panel)/template.tsx`, así que no recibe `.entrada-pagina` ni tiene espera: pantalla en blanco y luego todo de golpe.
 - **Propuesta**: `loading.tsx` con `Cargando` y envolver el `<main>` en `TransicionDePagina` (o un `template.tsx` en `src/app/tarea/`), igual que `portal/(dentro)/template.tsx`.
@@ -198,13 +198,13 @@ Las rutas son relativas a `ops-v2/`.
 - **Propuesta**: Añadir una prop `escalonada` a `FilaTabla` (recibe `indice`) para que cualquier tabla tenga la misma entrada sin copiar el `style`.
 - **Prioridad**: Baja · **Esfuerzo**: S
 
-### P1-28 Reordenar ítems de plantilla salta sin transición
+### P1-28 Reordenar ítems de plantilla salta sin transición (resuelto en 4fe6376)
 - **Dónde**: `src/componentes/proyecto/EditorPlantilla.tsx:496-516`, `EditorPlantillaHito.tsx:383-404` (Subir/Bajar); agregar y quitar filas en los mismos editores y en `ListaChecklist.tsx`
 - **Qué pasa**: Al subir o bajar un ítem las filas cambian de lugar al instante y es fácil perder de vista cuál se movió; agregar y quitar tampoco animan.
 - **Propuesta**: Envolver cada fila en `<ViewTransition name={…id} update="auto">` como ya hace `recurrencia/VistaRecurrentes.tsx:331`, y usar `animate-entrar-abajo` al agregar.
 - **Prioridad**: Baja · **Esfuerzo**: S
 
-### P1-29 Paneles que se revelan sin `animate-*`
+### P1-29 Paneles que se revelan sin `animate-*` (resuelto en 4fe6376)
 - **Dónde**: `acta/Paso.tsx:92` (atributo `hidden`), `acta/TareasPropuestas.tsx:452`, `HistorialDeAprobaciones.tsx:114-125`, "Ver más" de `TareasPropuestas.tsx:786-797` (`line-clamp` que salta)
 - **Qué pasa**: Todo lo que se despliega en el asistente del acta aparece de golpe, mientras `FinDeRecurrencia.tsx:58,75` e `ImportarTareas.tsx:599,623` ya revelan sus campos con `animate-entrar-abajo`.
 - **Propuesta**: `animate-entrar-abajo` en el contenido desplegado (se resuelve junto con el `Plegable` de P1-03).

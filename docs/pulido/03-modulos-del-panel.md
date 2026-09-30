@@ -202,7 +202,7 @@ Auditoría exhaustiva de consistencia de interfaz, refinamiento visual, deuda t�
 - **Propuesta**: Aplicar `EntradaEscalonada` o el token de clase `animate-aparecer` con retrasos de animación secuenciales escalonados en las tarjetas de fijados, salas y administración.
 - **Prioridad**: Media · **Esfuerzo**: M
 
-### P3-24 Despliegue tosco sin animación en bloques de diagnóstico y ayuda `<details>`
+### P3-24 Despliegue tosco sin animación en bloques de diagnóstico y ayuda `<details>` (resuelto en 4fe6376)
 - **Dónde**: `src/app/(panel)/administracion/incidentes/[incidente]/page.tsx:136`, `src/app/(panel)/administracion/pantallas/page.tsx:59`, `src/app/(panel)/administracion/pantallas/anuncios/page.tsx:43`
 - **Qué pasa**: Los bloques `<details>` se expanden y contraen de forma instantánea y rígida, sin transición fluida en la altura del contenedor ni animación de rotación en el indicador o chevron de apertura.
 - **Propuesta**: Implementar un componente `Acordeon` basado en Radix UI (`@radix-ui/react-accordion`) o aplicar transiciones CSS con `interpolate-size: allow-keywords` y `transition: height var(--wiwo-motion-fast) var(--ease-neo)`.

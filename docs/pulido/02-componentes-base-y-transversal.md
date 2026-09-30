@@ -84,7 +84,7 @@ Todas las rutas son relativas a `ops-v2/`.
 - **Decisión (30-09-2026)**: corregir el inventario de `docs/sistema-de-diseno.md` a lo que existe (verificado: tampoco existen `PanelDetalle`, `Emergente`, `Migas` ni `Paginacion`). Crear un primitivo solo si hay 3 o más usos reales hechos a mano que lo justifiquen, y anotarlo.
 - **Prioridad**: Alta · **Esfuerzo**: S
 
-### P2-11 `TarjetaFlotantePersona` monta en `createPortal` sin animación ni transición
+### P2-11 `TarjetaFlotantePersona` monta en `createPortal` sin animación ni transición (resuelto en 4fe6376)
 - **Dónde**: `src/componentes/presentadores/TarjetaFlotantePersona.tsx:85-115`
 - **Qué pasa**: La ficha flotante al pasar el cursor sobre un enlace de persona se teletransporta directo a `document.body` mediante `createPortal`, pero aparece y desaparece en 0ms, sin `animate-aparecer` ni transición de opacidad/escala, viéndose rígida y sin pulir.
 - **Propuesta**: Incorporar `animate-aparecer` (o `animate-entrar-escala` rápido de 120ms) y encapsular su salida o cierre suave respetando `prefers-reduced-motion`.
@@ -126,19 +126,19 @@ Todas las rutas son relativas a `ops-v2/`.
 
 ## Animaciones faltantes
 
-### P2-16 Desconexión de animación de salida en `OrbeChatIA`
+### P2-16 Desconexión de animación de salida en `OrbeChatIA` (resuelto en 4fe6376)
 - **Dónde**: `src/componentes/ia/OrbeChatIA.tsx:210-240`
 - **Qué pasa**: La ventana flotante del asistente IA entra suavemente con `animate-entrar-abajo`, pero al cerrarse se desmonta instantáneamente en React sin ejecutar una animación inversa (`animate-salir-abajo` o fade-out), resultando en un cierre abrupto.
 - **Propuesta**: Implementar transición con Radix `Presence` o clase de salida antes de desmontar el componente al pulsar cerrar o presionar `Escape`.
 - **Prioridad**: Alta · **Esfuerzo**: S
 
-### P2-17 `Interruptor.tsx`: animación de cambio de estado basada en duración genérica
+### P2-17 `Interruptor.tsx`: animación de cambio de estado basada en duración genérica (resuelto en 4fe6376)
 - **Dónde**: `src/componentes/formularios/Interruptor.tsx:42-56`
 - **Qué pasa**: El desplazamiento del círculo del switch (`role="switch"`) utiliza `transition-transform duration-150` de Tailwind en lugar de la curva y tiempo de movimiento unificados del sistema (`--wiwo-ease-emphasized`, `--wiwo-motion-fast`).
 - **Propuesta**: Aplicar `ease-neo duration-rapida` (o `transition-transform duration-rapida ease-neo`) para que el rebote y la inercia coincidan con el resto de los componentes interactivos.
 - **Prioridad**: Baja · **Esfuerzo**: S
 
-### P2-18 Ausencia de transición en acordeones y paneles colapsables
+### P2-18 Ausencia de transición en acordeones y paneles colapsables (resuelto en 4fe6376)
 - **Dónde**: `src/componentes/proyecto/acta/Paso.tsx:70-92`, `src/componentes/proyecto/HistorialDeAprobaciones.tsx:105-120`
 - **Qué pasa**: Aunque el chevron de apertura rota con `rotate-180`, el contenedor colapsable subyacente se oculta/muestra alternando `{abierto && <div>...</div>}` sin animación de altura ni fundido.
 - **Propuesta**: Usar el patrón CSS de `grid-template-rows: 0fr -> 1fr` con transición en `duration-rapida ease-neo` para un despliegue suave sin JavaScript invasivo.

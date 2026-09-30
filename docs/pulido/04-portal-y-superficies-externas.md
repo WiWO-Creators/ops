@@ -50,7 +50,7 @@ Solo hallazgos verificados en el código de `ops-v2`; no se modificó ningún ar
 - **Propuesta**: Incorporar `useAviso().exito('Visto bueno registrado para la tarea.')` y `useAviso().exito('Observación enviada al equipo.')` en `AprobacionesPendientes.tsx` tras resolver la llamada con la API.
 - **Prioridad**: Media · **Esfuerzo**: S
 
-### P4-04 Duraciones de transición arbitrarias sin uso de tokens del sistema
+### P4-04 Duraciones de transición arbitrarias sin uso de tokens del sistema (resuelto en 4fe6376)
 - **Dónde**: `src/app/sala/[token]/page.tsx:48`
 - **Qué pasa**: La pantalla de tablet de sala utiliza `transition-colors duration-500` en Tailwind crudo en lugar de utilizar los tokens de duración y curva del sistema de diseño (`--wiwo-motion-slow`, `duration-lenta` o `ease-neo`).
 - **Propuesta**: Reemplazar `duration-500` por `duration-lenta ease-neo` para respetar los tokens semánticos definidos en `tokens.css`.
@@ -147,7 +147,7 @@ Solo hallazgos verificados en el código de `ops-v2`; no se modificó ningún ar
 
 ### Animaciones faltantes
 
-### P4-16 Ausencia de animación de entrada en superficies públicas de autenticación y token
+### P4-16 Ausencia de animación de entrada en superficies públicas de autenticación y token (resuelto en 4fe6376)
 - **Dónde**: `src/app/(acceso)/FormularioEntrarPortal.tsx:112`, `src/app/(acceso)/colab/FormularioEntrar.tsx:259`, `src/app/clave/[token]/FormularioFijarClave.tsx:130`, `src/app/tarea/[token]/page.tsx:64`
 - **Qué pasa**: Las pantallas de autenticación (`/`, `/colab`, `/clave/[token]`) y la ficha pública de tarea (`/tarea/[token]`) montan su contenedor principal y su tarjeta de vidrio de forma estática instantánea, sin aprovechar la clase `animate-entrar-abajo`, `animate-aparecer` o `.entrada-pagina` que sí utilizan las vistas del panel interno. Siendo la primera impresión del cliente y de los colaboradores al entrar al sistema, la tarjeta aparece de golpe sobre el fondo de aurora.
 - **Propuesta**: Aplicar `animate-entrar-abajo` o `animate-aparecer` (con soporte para `motion-reduce:animate-none`) en el contenedor `<PanelVidrio>` de los formularios de acceso y en el `<main>` de la ficha pública de tarea.
