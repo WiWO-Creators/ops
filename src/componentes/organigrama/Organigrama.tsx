@@ -503,7 +503,7 @@ function Cabecera (
             Todas las áreas
           </Boton>
 
-          <h2 className="font-titular text-texto flex min-w-0 items-center gap-2 text-[20px] font-semibold">
+          <h2 className="font-titular text-texto flex min-w-0 items-center gap-2 text-subtitulo font-semibold">
             <span aria-hidden="true" className="size-2.5 shrink-0 rounded-full" style={{ backgroundColor: area.color }} />
             <span className="truncate">{area.titulo}</span>
           </h2>

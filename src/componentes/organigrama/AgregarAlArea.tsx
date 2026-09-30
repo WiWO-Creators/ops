@@ -252,7 +252,7 @@ function FilaCandidata (
       <Avatar nombre={persona.nombre} imagen={persona.avatar ?? null} tamano="chico" />
 
       <span className="flex min-w-0 flex-col">
-        <span className="text-texto truncate text-[13px] leading-tight font-semibold">
+        <span className="text-texto truncate text-sm leading-tight font-semibold">
           {persona.nombre}
         </span>
         {persona.correo !== undefined && (

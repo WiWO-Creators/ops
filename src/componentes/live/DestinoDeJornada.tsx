@@ -347,7 +347,7 @@ function Escalon ({
       >
         <span
           aria-hidden="true"
-          className="bg-superficie-hundida text-texto-sutil inline-flex size-5 shrink-0 items-center justify-center rounded-full text-[0.625rem] font-bold"
+          className="bg-superficie-hundida text-texto-sutil inline-flex size-5 shrink-0 items-center justify-center rounded-full text-micro font-bold"
         >
           {numero}
         </span>

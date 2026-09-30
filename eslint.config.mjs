@@ -2,6 +2,30 @@ import { defineConfig, globalIgnores } from 'eslint/config'
 import nextVitals from 'eslint-config-next/core-web-vitals'
 import nextTs from 'eslint-config-next/typescript'
 
+/**
+ * Escalas de `docs/sistema-de-diseno.md` que no admiten valores sueltos: capas de `z-index` con
+ * nombre (`globals.css`) y tamaños de texto de la escala. Los `vmin` de la carteleria no caen aca:
+ * escalan con la pantalla a proposito.
+ */
+const ESCALAS_SIN_ARBITRARIOS = [
+  {
+    selector: 'Literal[value=/(^|[\\s:"\'`])-?z-\\[/]',
+    message: '`z-[…]` no: usa una capa con nombre de `globals.css` (`z-superposicion`, `z-aviso`…) o la escala numérica para apilados locales.'
+  },
+  {
+    selector: 'TemplateElement[value.raw=/(^|[\\s:"\'`])-?z-\\[/]',
+    message: '`z-[…]` no: usa una capa con nombre de `globals.css` (`z-superposicion`, `z-aviso`…) o la escala numérica para apilados locales.'
+  },
+  {
+    selector: 'Literal[value=/text-\\[[\\d.]+(px|rem)\\]/]',
+    message: '`text-[Npx|Nrem]` no: usa la escala (`text-menor`, `text-sm`, `text-micro`…) o agrega un token en `globals.css`.'
+  },
+  {
+    selector: 'TemplateElement[value.raw=/text-\\[[\\d.]+(px|rem)\\]/]',
+    message: '`text-[Npx|Nrem]` no: usa la escala (`text-menor`, `text-sm`, `text-micro`…) o agrega un token en `globals.css`.'
+  }
+]
+
 const eslintConfig = defineConfig([
   ...nextVitals,
   ...nextTs,
@@ -19,6 +43,15 @@ const eslintConfig = defineConfig([
         'error',
         { ignoreRestSiblings: true, argsIgnorePattern: '^_', varsIgnorePattern: '^_' }
       ]
+    }
+  },
+
+  {
+    // `no-restricted-syntax` no se acumula entre bloques: el que sigue la redeclara entera para sus
+    // archivos, asi que repite estas escalas.
+    files: ['src/**/*.{ts,tsx}'],
+    rules: {
+      'no-restricted-syntax': ['error', ...ESCALAS_SIN_ARBITRARIOS]
     }
   },
 
@@ -44,7 +77,8 @@ const eslintConfig = defineConfig([
         {
           selector: 'TemplateElement[value.raw=/animate-(pulse|ping)/]',
           message: '`animate-pulse`/`animate-ping` solo en `src/componentes/estado/` o en las excepciones de docs/sistema-de-diseno.md § Guardrails.'
-        }
+        },
+        ...ESCALAS_SIN_ARBITRARIOS
       ]
     }
   },

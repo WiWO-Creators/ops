@@ -146,7 +146,7 @@ export function AvisoDeCierre ({
       className={cn(
         // Esquina inferior derecha en pantalla ancha; en móvil sube por encima del botón del chat y
         // ocupa el ancho disponible, como el resto de los avisos flotantes del panel.
-        'border-linea bg-superficie-flotante fixed bottom-24 left-1/2 z-[60] -translate-x-1/2',
+        'border-linea bg-superficie-flotante fixed bottom-24 left-1/2 z-telon -translate-x-1/2',
         'sm:bottom-4 sm:left-auto sm:right-4 sm:translate-x-0',
         'flex w-[min(26rem,calc(100vw-2rem))] flex-col gap-3 rounded-2xl border px-4 py-3 shadow-lg',
         'animate-entrar-abajo'

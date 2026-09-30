@@ -260,7 +260,7 @@ export function OrbeChatIA ({ sujeto = 'staff' }: { sujeto?: SujetoOrbe } = {}):
           style={{ width: `${tamanoVisible.ancho}px`, height: `${tamanoVisible.alto}px` }}
           className={cn(
             saliendo ? 'animate-salir-abajo pointer-events-none' : 'animate-entrar-abajo',
-            'border-linea bg-superficie-flotante shadow-flotante rounded-tarjeta fixed bottom-[calc(6rem_+_var(--barra-inferior,0px))] right-4 z-50 flex max-h-[calc(100dvh_-_7rem_-_var(--barra-inferior,0px))] max-w-[calc(100vw-2rem)] flex-col gap-3 border p-3'
+            'border-linea bg-superficie-flotante shadow-flotante rounded-tarjeta fixed bottom-[calc(6rem_+_var(--barra-inferior,0px))] right-4 z-superposicion flex max-h-[calc(100dvh_-_7rem_-_var(--barra-inferior,0px))] max-w-[calc(100vw-2rem)] flex-col gap-3 border p-3'
           )}
         >
           {/* El tirador va dentro del `padding` del panel y no encima del borde: pegado al canto
@@ -316,7 +316,7 @@ export function OrbeChatIA ({ sujeto = 'staff' }: { sujeto?: SujetoOrbe } = {}):
         aria-expanded={abierto}
         aria-controls={abierto ? idPanel : undefined}
         aria-label={abierto ? `Cerrar ${ASISTENTE}` : `Preguntarle a ${ASISTENTE}`}
-        className="bg-gradiente-marca text-gradiente-marca-contenido shadow-flotante fixed bottom-[calc(1.5rem_+_var(--barra-inferior,0px))] right-4 z-50 inline-flex size-14 items-center justify-center rounded-full transition-[transform,filter] duration-rapida ease-neo hover:brightness-95 active:scale-[0.96]"
+        className="bg-gradiente-marca text-gradiente-marca-contenido shadow-flotante fixed bottom-[calc(1.5rem_+_var(--barra-inferior,0px))] right-4 z-superposicion inline-flex size-14 items-center justify-center rounded-full transition-[transform,filter] duration-rapida ease-neo hover:brightness-95 active:scale-[0.96]"
       >
         <Orbe tamano="medio" estado={abierto || encima ? 'thinking' : undefined} />
       </button>

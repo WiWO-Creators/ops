@@ -147,9 +147,16 @@
   /* Los peldaños de fabrica de Tailwind se atan a la misma escala. Sin esto conviven dos sistemas:
    * `text-sm` y `text-xs` traen 14 y 12px mientras el cuerpo sale de `--step-0`, y una sola pantalla
    * termina con cinco tamaños —11, 12, 13, 14 y 17.3px— donde ninguno es un peldaño del otro. Los
-   * `text-[0.6875rem]` sueltos que habia repartidos por los rotulos son este `--text-xs`. */
+   * 11px de los rotulos son este peldaño: `text-xs` trae el interlineado de fabrica de Tailwind y
+   * `text-menor` hereda el del contenedor. */
   --text-xs: var(--step--1); /* 11px */
   --text-sm: 0.8125rem; /* 13px - contenido de tabla, meta secundaria */
+
+  /* Tres tamaños fijos fuera de los peldaños, que existian a mano en corchetes. Sin compañero
+   * `--line-height` a proposito: heredan el interlineado, igual que el `text-[…]` que reemplazan. */
+  --text-micro: 0.625rem; /* 10px - contadores sobre un icono, ejes de grafico */
+  --text-subtitulo: 1.25rem; /* 20px - titulo de un panel dentro de la pantalla, sin crecer con ella */
+  --text-cifra: 1.375rem; /* 22px - la cifra que resume una fila (score) */
 
   /* Escala tipografica, portada de Neo. Antes se usaba sin definir. */
   --text-menor: var(--step--1);
@@ -179,6 +186,24 @@
   --color-grafico-ordinal-2: var(--grafico-ordinal-2);
   --color-grafico-ordinal-3: var(--grafico-ordinal-3);
   --color-grafico-ordinal-4: var(--grafico-ordinal-4);
+}
+
+/*
+ * Capas globales de `z-index`, de abajo arriba. `z-[…]` esta prohibido por lint (`eslint.config.mjs`):
+ * una capa nueva se agrega aca con nombre, o no existe.
+ *
+ * Los apilados LOCALES —un encabezado `sticky`, un rotulo sobre su grafico— siguen con la escala
+ * numerica de Tailwind (`z-1`, `z-10`, `z-20`): compiten dentro de su contenedor, no con la pantalla.
+ *
+ * `@theme` a secas y no `inline`: son numeros fijos, y asi `monito.css` y `movil.css` pueden leer la
+ * variable con `var()`.
+ */
+@theme {
+  --z-index-flotante: 40; /* avisos que ceden ante una superposicion: RecordatorioInstalar */
+  --z-index-superposicion: 50; /* dialogos, cajones, menus, popovers, paleta, llamada, orbe a pantalla completa */
+  --z-index-aviso: 55; /* AvisosDeError: un error al guardar desde un dialogo tiene que verse */
+  --z-index-telon: 60; /* telon de la bienvenida, AvisoDeCierre, tarjeta que se arrastra en movil */
+  --z-index-bienvenida: 70; /* la capa de React de la bienvenida y el recorrido de novedades */
 }
 
 /*

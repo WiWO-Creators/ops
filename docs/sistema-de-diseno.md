@@ -13,7 +13,7 @@ Se copian a `src/estilos/`:
 
 | Archivo | Qué trae |
 |---|---|
-| `tokens.css` | Paleta Neo, motion, escala de espaciado, tamaños de control, radios, sombras |
+| `tokens.css` | Paleta Neo, motion y los radios que mapea el `@theme` (la escala de espaciado, los tamaños de control y las sombras del tema portado se quitaron: nadie los leía) |
 | `fonts.css` | Los `@font-face` de las tres familias |
 
 Y las fuentes de `apps/web/public/fonts/neo/` a `public/fonts/neo/`.
@@ -44,7 +44,7 @@ de accesibilidad de la marca cruda:
 ## Capas
 
 ```
-tokens.css        crudo: la marca no se edita          --wiwo-blue, --spacing-3, --motion-fast
+tokens.css        crudo: la marca no se edita          --wiwo-blue, --wiwo-motion-fast, --large-BorderRadius
    ↓
 neo.css           semánticos del diseño NUEVO          --superficie, --linea, --texto, --acento
    ↓
@@ -53,7 +53,13 @@ neo.css           semánticos del diseño NUEVO          --superficie, --linea, 
 
 El `@theme` mapea **`neo.css`, no los tokens crudos**. Cambiar el tema es tocar un archivo.
 
-De `tokens.css` se copia literal la **marca** —paleta, motion, espaciado, radios— y
+Cada valor tiene un solo dueño: `tokens.css` la marca cruda (paleta, motion, radios);
+`neo-tokens.css` lo que Neo trae y el tema portado no (escala `--step-*`, pesos, medidas de línea,
+paleta de gráficos); `neo.css` los semánticos por tema; y `globals.css` solo los expone a Tailwind,
+con valores propios únicamente para lo que no es de marca (cortes, animaciones, capas de `z-index`).
+El espaciado es el de Tailwind (`--spacing`, 0.25rem): no hay otra escala.
+
+De `tokens.css` se copia literal la **marca** —paleta, motion, radios— y
 `pruebas/marca.test.js` falla si alguien la toca. Las dos **rampas de superficie** (`--wiwo-surface-*`
 y la rampa oscura derivada de la tinta) no vienen del tema portado: las agregó este proyecto para
 resolver los problemas de accesibilidad de la marca cruda, y se ajustan cuando el sistema lo pide —

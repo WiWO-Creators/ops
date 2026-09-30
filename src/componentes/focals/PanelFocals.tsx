@@ -203,7 +203,7 @@ function FilaCuenta ({ cuenta, mostrarFocal }: { cuenta: CuentaFocal, mostrarFoc
       >
         <span className="flex flex-col items-end gap-0.5">
           <span
-            className={cn('text-[22px] leading-none font-semibold tabular-nums', tramo.numero)}
+            className={cn('text-cifra leading-none font-semibold tabular-nums', tramo.numero)}
             title={cliente.score === null ? 'Todavía no hay datos para calcular el score' : 'Score de 1 a 100'}
           >
             {cliente.score ?? '—'}

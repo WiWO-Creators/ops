@@ -46,6 +46,9 @@ function pedirFichaPersona (id: number): Promise<FichaPersona | null> {
   return promesa
 }
 
+/** Lo que la mini-ficha muestra de `GET /staff/{id}`. */
+type MiniFicha = Pick<FichaPersona, 'cargo' | 'area' | 'email' | 'phonenumber'>
+
 interface PropsTarjetaFlotantePersona {
   id: number
   nombre: string
@@ -53,6 +56,8 @@ interface PropsTarjetaFlotantePersona {
   tamano?: TamanoAvatar
   /** `false` en una pila de avatares, donde el nombre ya se lee en el `sr-only` del grupo. */
   mostrarNombre?: boolean
+  /** Ficha ya conocida: con ella la tarjeta no pide nada al abrirse. La usa el taller. */
+  fichaInicial?: MiniFicha
   className?: string
 }
 
@@ -76,6 +81,7 @@ export function TarjetaFlotantePersona ({
   imagen = null,
   tamano = 'medio',
   mostrarNombre = true,
+  fichaInicial,
   className
 }: PropsTarjetaFlotantePersona): ReactElement {
   const disparadorRef = useRef<HTMLAnchorElement>(null)
@@ -83,7 +89,7 @@ export function TarjetaFlotantePersona ({
   const [abierto, setAbierto] = useState(false)
   const { montado, saliendo, alTerminarAnimacion } = usePresencia(abierto)
   const [posicion, setPosicion] = useState({ top: 0, left: 0 })
-  const [ficha, setFicha] = useState<FichaPersona | null | undefined>(undefined)
+  const [ficha, setFicha] = useState<MiniFicha | null | undefined>(fichaInicial)
 
   useEffect(() => () => {
     if (cierrePendiente.current !== null) clearTimeout(cierrePendiente.current)
@@ -168,7 +174,7 @@ export function TarjetaFlotantePersona ({
           style={{ position: 'fixed', top: posicion.top, left: posicion.left }}
           className={cn(
             saliendo ? 'animate-salir-escala pointer-events-none' : 'animate-entrar-escala',
-            'border-linea bg-superficie-flotante rounded-tarjeta shadow-flotante z-50 w-72 origin-top-left border p-4'
+            'border-linea bg-superficie-flotante rounded-tarjeta shadow-flotante z-superposicion w-72 origin-top-left border p-4'
           )}
         >
           <ContenidoDeFicha nombre={nombre} imagen={imagen} ficha={ficha} />
@@ -187,7 +193,7 @@ function ContenidoDeFicha ({
 }: {
   nombre: string
   imagen: string | null
-  ficha: FichaPersona | null | undefined
+  ficha: MiniFicha | null | undefined
 }): ReactElement {
   return (
     <div className="flex flex-col gap-3">

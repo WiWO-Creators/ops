@@ -165,7 +165,7 @@ function CajaDePersona (
       <Avatar nombre={persona.nombre} imagen={persona.avatar} tamano="chico" />
 
       <span className="min-w-0 flex-1">
-        <span className="text-texto block truncate text-[13px] leading-tight font-semibold">
+        <span className="text-texto block truncate text-sm leading-tight font-semibold">
           {persona.nombre}
         </span>
         <span className="text-texto-sutil block truncate text-xs">

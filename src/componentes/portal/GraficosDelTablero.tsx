@@ -331,7 +331,7 @@ export function GraficoDeEntregas ({ linea }: { linea: LineaDeEntregas }) {
                     la mitad del texto queda fuera de la caja. Es lo que pasa siempre que todas las
                     entregas estan vencidas, que es justo cuando mas hay que mirar el grafico. */}
                 <span
-                  className="text-texto-sutil absolute top-0 text-[10px] tracking-wide uppercase"
+                  className="text-texto-sutil absolute top-0 text-micro tracking-wide uppercase"
                   style={{ left: `${hoy * 100}%`, transform: anclaDelRotulo(hoy) }}
                 >
                   hoy

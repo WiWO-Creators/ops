@@ -166,7 +166,7 @@ function InterruptorVisibilidad ({
 
       {/* La etiqueta dice la frase entera y no "Sí"/"No": en la tabla el sentido lo daba el
           encabezado de la columna, y en una linea de tiempo no hay encabezado que lo de. */}
-      <label className="text-texto-sutil flex items-center gap-1.5 py-1 text-[0.6875rem] whitespace-nowrap">
+      <label className="text-texto-sutil flex items-center gap-1.5 py-1 text-menor whitespace-nowrap">
         <input
           type="checkbox"
           checked={visible}

@@ -99,7 +99,7 @@ export function RejillaMes ({
     <EntradaEscalonada densa clave={clavePeriodo(dias)} className="border-linea rounded-tarjeta overflow-hidden border">
       <div className="border-linea bg-superficie-hundida grid grid-cols-7 border-b">
         {CABECERAS.map((nombre) => (
-          <span key={nombre} className="text-texto-tenue px-1 py-1.5 text-center text-[0.6875rem] font-medium">
+          <span key={nombre} className="text-texto-tenue px-1 py-1.5 text-center text-menor font-medium">
             {nombre}
           </span>
         ))}
@@ -174,7 +174,7 @@ function CeldaDeMes ({
           <Link
             href={urlDelDia(dia)}
             scroll={false}
-            className="bg-relleno-neutro text-relleno-neutro-contenido rounded-control hover:bg-hover px-1.5 text-[0.6875rem] tabular-nums transition-colors duration-150 sm:hidden"
+            className="bg-relleno-neutro text-relleno-neutro-contenido rounded-control hover:bg-hover px-1.5 text-menor tabular-nums transition-colors duration-150 sm:hidden"
           >
             {tareas.length}
             <span className="sr-only">
@@ -198,7 +198,7 @@ function CeldaDeMes ({
         <Link
           href={urlDelDia(dia)}
           scroll={false}
-          className="text-texto-tenue hover:text-acento hidden text-left text-[0.6875rem] underline-offset-4 hover:underline sm:block"
+          className="text-texto-tenue hover:text-acento hidden text-left text-menor underline-offset-4 hover:underline sm:block"
         >
           +{excedente} más
         </Link>
@@ -257,7 +257,7 @@ export function ColumnasDeDias ({
               </Link>
 
               {delDia.length > 0 && (
-                <span className="bg-relleno-neutro text-relleno-neutro-contenido rounded-control px-1.5 text-[0.6875rem] tabular-nums">
+                <span className="bg-relleno-neutro text-relleno-neutro-contenido rounded-control px-1.5 text-menor tabular-nums">
                   {delDia.length}
                   <span className="sr-only">{delDia.length === 1 ? ' entrega' : ' entregas'} este día</span>
                 </span>
@@ -440,7 +440,7 @@ export function TarjetaEntrega ({
 
         {!compacta && (
           <>
-            <span className="text-texto-sutil flex flex-wrap items-center gap-x-2 gap-y-1 text-[0.6875rem]">
+            <span className="text-texto-sutil flex flex-wrap items-center gap-x-2 gap-y-1 text-menor">
               <EstadoDeTarea status={tarea.status} catalogo={estados} />
               {vencida && (
                 <span className="text-texto-peligro font-medium">
@@ -448,7 +448,7 @@ export function TarjetaEntrega ({
                 </span>
               )}
               {tarea.patente !== null && <span className="tabular-nums">{tarea.patente}</span>}
-              <Fecha valor={tarea.due_date} comoVencimiento className="text-[0.6875rem]" />
+              <Fecha valor={tarea.due_date} comoVencimiento className="text-menor" />
             </span>
 
             {tarea.assignees.length > 0 && <GrupoAvatares personas={tarea.assignees} maximo={3} />}

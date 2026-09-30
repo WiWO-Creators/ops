@@ -145,7 +145,7 @@ function InsigniaTarea () {
   return (
     <span
       title="Carpeta de una Tarea: no se renombra, mueve ni elimina, pero puedes soltar archivos adentro"
-      className="bg-relleno-neutro text-texto-tenue rounded-control inline-flex shrink-0 items-center gap-1 px-1.5 py-0.5 text-[0.6875rem] font-semibold"
+      className="bg-relleno-neutro text-texto-tenue rounded-control inline-flex shrink-0 items-center gap-1 px-1.5 py-0.5 text-menor font-semibold"
     >
       <Lock className="size-3" aria-hidden="true" />
       Tarea

@@ -86,7 +86,7 @@ export function ContenidoSelector ({
         position="popper"
         sideOffset={6}
         className={cn(
-          'border-linea bg-superficie-flotante rounded-medio shadow-2 z-50 overflow-hidden border',
+          'border-linea bg-superficie-flotante rounded-medio shadow-2 z-superposicion overflow-hidden border',
           'max-h-[var(--radix-select-content-available-height)] w-[var(--radix-select-trigger-width)]',
           // Crece desde el disparador y no desde su propio centro: Radix calcula el origen segun el
           // lado por el que finalmente entro el panel, que puede no ser el pedido si no habia lugar.

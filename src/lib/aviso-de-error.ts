@@ -91,7 +91,7 @@ export async function reportarIncidente (reporte: ReporteDelNavegador): Promise<
  * Marca el contenedor de la pila de avisos en el DOM.
  *
  * Existe para que las superposiciones puedan reconocerlo: la pila se dibuja en un portal aparte y por
- * encima de los dialogos (`z-[55]`), asi que para Radix un clic en un aviso es un clic FUERA del
+ * encima de los dialogos (`z-aviso`), asi que para Radix un clic en un aviso es un clic FUERA del
  * dialogo y cierra el formulario que la persona estaba llenando. Cerrar el aviso del error que acaba
  * de ocurrir no puede costar el trabajo que todavia no se guardo.
  *

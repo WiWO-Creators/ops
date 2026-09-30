@@ -368,7 +368,7 @@ function ColumnaDia ({ dia, esHoy, vista, tareas, urlDeTarea, estados }: PropsCo
           </span>
         </span>
         {tareas.length > 0 && (
-          <span className="bg-relleno-neutro text-relleno-neutro-contenido rounded-control px-1.5 text-[0.6875rem] tabular-nums">
+          <span className="bg-relleno-neutro text-relleno-neutro-contenido rounded-control px-1.5 text-menor tabular-nums">
             {tareas.length}
             <span className="sr-only">{tareas.length === 1 ? ' tarea vence' : ' tareas vencen'} este día</span>
           </span>
@@ -422,7 +422,7 @@ function TarjetaDelDia (
       >
         <span className="text-texto text-xs leading-snug font-medium">{tarea.name}</span>
 
-        <span className="text-texto-sutil flex flex-wrap items-center gap-x-2 gap-y-1 text-[0.6875rem]">
+        <span className="text-texto-sutil flex flex-wrap items-center gap-x-2 gap-y-1 text-menor">
           <EstadoDeTarea status={tarea.status} catalogo={estados} />
           {tarea.patente !== null && <span className="tabular-nums">{tarea.patente}</span>}
           {tarea.start_date !== null && (
@@ -471,7 +471,7 @@ function TiraSinVencimiento (
               {tarea.name}
               <EstadoDeTarea status={tarea.status} catalogo={estados} />
               {tarea.start_date !== null && (
-                <span className="text-texto-sutil text-[0.6875rem]">Desde {formatearFecha(tarea.start_date)}</span>
+                <span className="text-texto-sutil text-menor">Desde {formatearFecha(tarea.start_date)}</span>
               )}
             </Link>
           </li>

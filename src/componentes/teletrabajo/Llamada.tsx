@@ -35,7 +35,7 @@ export const ALTO = 'h-[calc(100dvh_-_5.5rem_-_var(--barra-inferior,0px)_-_env(s
  * pagina la taparia en sus primeros fotogramas (ver `TransicionDePagina`).
  */
 const PANTALLA_COMPLETA_MOVIL = cn(
-  'max-md:bg-superficie max-md:fixed max-md:inset-0 max-md:z-50 max-md:h-auto max-md:gap-2',
+  'max-md:bg-superficie max-md:fixed max-md:inset-0 max-md:z-superposicion max-md:h-auto max-md:gap-2',
   'max-md:pt-seguro-holgado max-md:px-3'
 )
 

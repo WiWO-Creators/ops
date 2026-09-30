@@ -5,7 +5,7 @@ import { cn } from '@/lib/clases'
 import { coloresAvatar, iniciales } from '@/lib/personas'
 
 const TAMANOS = {
-  chico: 'size-6 text-[0.625rem]',
+  chico: 'size-6 text-micro',
   medio: 'size-8 text-xs',
   grande: 'size-10 text-sm'
 } as const

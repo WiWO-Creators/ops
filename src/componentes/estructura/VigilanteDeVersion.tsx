@@ -230,7 +230,7 @@ export function VigilanteDeVersion ({ version, segundos, novedades }: PropsVigil
           role="status"
           // En movil sube por encima del boton del chat (`ia/OrbeChatIA`, `bottom-6 right-4`, 56px):
           // centrada y a 30rem, la barra le llega justo encima en pantallas angostas.
-          className="fixed bottom-24 left-1/2 z-50 w-[min(30rem,calc(100vw-2rem))] -translate-x-1/2 sm:bottom-5"
+          className="fixed bottom-24 left-1/2 z-superposicion w-[min(30rem,calc(100vw-2rem))] -translate-x-1/2 sm:bottom-5"
         >
           <div
             className={cn(

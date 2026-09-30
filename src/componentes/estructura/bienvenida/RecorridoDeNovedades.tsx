@@ -109,7 +109,7 @@ export function RecorridoDeNovedades ({ novedades, onCerrar }: PropsRecorrido) {
       role="dialog"
       aria-modal="true"
       aria-labelledby={idTitulo}
-      className="bienvenida-capa bg-superficie fixed inset-0 z-[70] overflow-y-auto overscroll-contain"
+      className="bienvenida-capa bg-superficie fixed inset-0 z-bienvenida overflow-y-auto overscroll-contain"
     >
       <div ref={contenidoRef} className="relative">
         <div aria-hidden="true" className="pointer-events-none sticky top-0 grid h-dvh place-items-center overflow-hidden">

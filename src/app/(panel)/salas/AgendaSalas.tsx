@@ -147,7 +147,7 @@ export function AgendaSalas ({ dia, vista, salas, reservas, personas, yoId, esAd
                 {filas.map((minuto) => (
                   <div
                     key={minuto}
-                    className="text-texto-sutil border-linea flex items-start justify-end border-b pr-2 pt-0.5 text-[0.6875rem]"
+                    className="text-texto-sutil border-linea flex items-start justify-end border-b pr-2 pt-0.5 text-menor"
                     style={{ height: ALTO_FRANJA }}
                   >
                     {minuto % 60 === 0 ? formatearMinutos(minuto) : ''}
@@ -263,7 +263,7 @@ function BloqueReserva ({ reserva, dia, propia, onAbrir }: PropsBloque) {
       onClick={onAbrir}
       style={{ top: `${caja.arriba}%`, height: `${caja.alto}%` }}
       className={cn(
-        'rounded-chico absolute inset-x-1 z-[1] overflow-hidden px-2 py-1 text-left',
+        'rounded-chico absolute inset-x-1 z-1 overflow-hidden px-2 py-1 text-left',
         'transition-[filter] duration-150 hover:brightness-95',
         // El verde de marca se reserva para la pantalla de puerta, donde "libre" u "ocupada" es TODO
         // el mensaje. En una grilla con veinte bloques grita y tapa la lectura del hueco, que es lo
@@ -274,7 +274,7 @@ function BloqueReserva ({ reserva, dia, propia, onAbrir }: PropsBloque) {
       )}
     >
       <span className="block truncate text-xs font-semibold">{reserva.title}</span>
-      <span className="block truncate text-[0.6875rem] opacity-90">
+      <span className="block truncate text-menor opacity-90">
         {caja.recortado && '· '}
         {horaLocal(reserva.start)}–{horaLocal(reserva.end)}
         {reserva.staff !== null && ` · ${reserva.staff.full_name}`}
