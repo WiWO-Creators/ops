@@ -27,8 +27,7 @@ import {
 } from '@/dominio/scope'
 import { GLOSARIO } from '@/dominio/glosario'
 import type { EstadoIa } from '@/dominio/ajustes'
-import type { ContenidoScope, EstadoScope, FuenteScope, Interpretacion, Scope } from '@/datos/scope'
-import { rutasDeScope } from '@/datos/scope'
+import type { ContenidoScope, FuenteScope, Interpretacion, RutasEditablesDeScope, Scope } from '@/datos/scope'
 
 /**
  * Editor del Scope: cargar, interpretar con IA, revisar y guardar.
@@ -43,21 +42,21 @@ import { rutasDeScope } from '@/datos/scope'
  * deberia costar otra llamada al modelo. «Volver a la entrada» deja reinterpretar.
  */
 
-interface PropsEditorScope {
-  proyectoId: number
+interface PropsEditorScope<T> {
+  /** Rutas del dueño del Scope: un Proyecto (`rutasDeScope`) o un Contrato (`rutasDeScopeContrato`). */
+  rutas: RutasEditablesDeScope
   /** El Scope guardado, o `null` si es la primera carga. */
   scope: Scope | null
   ia: EstadoIa
-  /** Se llama con lo que devolvio el `PUT`. */
-  onGuardado: (estado: EstadoScope) => void
+  /** Se llama con lo que devolvio el `PUT`, que tiene la forma del `GET` del dueño. */
+  onGuardado: (estado: T) => void
   onCancelar: () => void
 }
 
 /** En que paso esta el editor. */
 type Paso = 'entrada' | 'revision'
 
-export function EditorScope ({ proyectoId, scope, ia, onGuardado, onCancelar }: PropsEditorScope): ReactElement {
-  const rutas = rutasDeScope(proyectoId)
+export function EditorScope<T> ({ rutas, scope, ia, onGuardado, onCancelar }: PropsEditorScope<T>): ReactElement {
   const [entrada, setEntrada] = useState<EntradaScope>(() => entradaInicial(scope))
   const [archivo, setArchivo] = useState<File | null>(null)
   const [paso, setPaso] = useState<Paso>(scope === null ? 'entrada' : 'revision')
@@ -122,7 +121,7 @@ export function EditorScope ({ proyectoId, scope, ia, onGuardado, onCancelar }: 
     setOcupado('guardando')
     setError(null)
 
-    const resultado = await escribirEnBff<EstadoScope>(rutas.scope, 'PUT', cuerpoDeGuardado(entrada, contenido))
+    const resultado = await escribirEnBff<T>(rutas.scope, 'PUT', cuerpoDeGuardado(entrada, contenido))
 
     setOcupado(null)
 

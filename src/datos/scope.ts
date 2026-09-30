@@ -3,7 +3,9 @@
  * Tareas.
  *
  * Contrato: `GET|PUT /projects/{id}/scope`, `POST /ia/proyectos/{id}/scope/interpretar` y
- * `POST /ia/proyectos/{id}/scope/analizar`. Las escrituras van por `escribirEnBff()`; aca solo vive
+ * `POST /ia/proyectos/{id}/scope/analizar`. El scope principal vive en el Contrato
+ * (`GET|PUT /contratos/{id}/scope`, `POST /ia/contratos/{id}/scope/interpretar`) y los Proyectos
+ * creados «dentro del scope» lo heredan. Las escrituras van por `escribirEnBff()`; aca solo vive
  * lo que ninguna otra capa del panel ya resuelve.
  */
 
@@ -27,8 +29,12 @@ export interface ContenidoScope {
   supuestos: string[]
 }
 
+/** De quien es el Scope que se lee: del Proyecto mismo o heredado de su Contrato. */
+export type OrigenScope = 'propio' | 'contrato'
+
 /** El Scope guardado. */
 export interface Scope extends ContenidoScope {
+  origen: OrigenScope
   fuente: FuenteScope
   texto_original: string | null
   archivo_nombre: string | null
@@ -59,11 +65,40 @@ export interface AnalisisScope {
   tareas: TareaAnalizada[]
 }
 
+/** A que Contrato se vinculo el Proyecto al crearlo. `dentro_scope` falso es cotizacion aparte. */
+export interface VinculoScope {
+  contrato_id: number
+  asunto: string
+  dentro_scope: boolean
+}
+
 /** `data` de `GET|PUT /projects/{id}/scope`. */
 export interface EstadoScope {
   puede_editar: boolean
+  /** `null` si el Proyecto se creo sin Contrato. */
+  vinculo: VinculoScope | null
   scope: Scope | null
   analisis: AnalisisScope | null
+}
+
+/** Un Proyecto que usa el Scope de un Contrato, o que se cotizo aparte de el. */
+export interface ProyectoDelContrato {
+  id: number
+  nombre: string
+  dentro_scope: boolean
+}
+
+/** `data` de `GET|PUT /contratos/{id}/scope`. */
+export interface EstadoScopeContrato {
+  puede_editar: boolean
+  scope: Scope | null
+  proyectos: ProyectoDelContrato[]
+}
+
+/** Las dos rutas que necesita el editor, sea de un Proyecto o de un Contrato. */
+export interface RutasEditablesDeScope {
+  scope: string
+  interpretar: string
 }
 
 /** `data` de `POST /ia/proyectos/{id}/scope/interpretar`. No guarda nada. */
@@ -87,6 +122,16 @@ export function rutasDeScope (proyectoId: number): { scope: string, interpretar:
     scope: `projects/${id}/scope`,
     interpretar: `ia/proyectos/${id}/scope/interpretar`,
     analizar: `ia/proyectos/${id}/scope/analizar`
+  }
+}
+
+/** Rutas del Scope principal de un Contrato, sin la base del BFF ni barra inicial. */
+export function rutasDeScopeContrato (contratoId: number): RutasEditablesDeScope {
+  const id = encodeURIComponent(String(contratoId))
+
+  return {
+    scope: `contratos/${id}/scope`,
+    interpretar: `ia/contratos/${id}/scope/interpretar`
   }
 }
 
