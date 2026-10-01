@@ -1,6 +1,8 @@
 import type { Metadata, Viewport } from 'next'
 import { AvisosDeError } from '@/componentes/estado/AvisosDeError'
 import { ColorDeBarraDelSistema } from '@/componentes/estructura/AppInstalable'
+import { CapaDeModo } from '@/componentes/modos/CapaDeModo'
+import { leerModoEspecial } from '@/datos/modo-especial'
 import { COLOR_BARRA } from '@/lib/pwa'
 import { SCRIPT_BARRA_INICIAL } from '@/lib/barra-lateral'
 import { SCRIPT_BIENVENIDA_INICIAL } from '@/lib/bienvenida'
@@ -32,9 +34,20 @@ export const viewport: Viewport = {
   ]
 }
 
-export default function RaizLayout ({ children }: { children: React.ReactNode }) {
+export default async function RaizLayout ({ children }: { children: React.ReactNode }) {
+  // El modo especial vigente (Halloween, etc.). Se pinta en <html> para que lo vean los cuatro
+  // armazones y las pantallas. `data-modo-vigente` queda siempre; `data-modo` es el que ven las hojas
+  // de estilo y lo quita el script de `SCRIPT_TEMA_INICIAL` si la persona lo apago. Sin modo, ninguno.
+  const modo = await leerModoEspecial()
+
   return (
-    <html lang="es" suppressHydrationWarning>
+    <html
+      lang="es"
+      suppressHydrationWarning
+      data-modo={modo?.clave}
+      data-modo-vigente={modo?.clave}
+      data-modo-hasta={modo?.hasta}
+    >
       <head>
         {/*
           Corre antes del primer pintado para que quien eligio oscuro no vea un destello claro.
@@ -64,6 +77,8 @@ export default function RaizLayout ({ children }: { children: React.ReactNode })
         <AvisosDeError />
         {/* Barra del sistema del color del tema elegido, en los cuatro armazones. */}
         <ColorDeBarraDelSistema />
+        {/* Decoracion, entrada y huevo de pascua del modo especial; no pinta nada sin modo. */}
+        <CapaDeModo />
       </body>
     </html>
   )

@@ -3668,6 +3668,33 @@ Responde `200` con el mismo cuerpo de `GET /settings` ya actualizado.
 Fuera de alcance por decision: **ninguna** opcion de SMTP, credenciales, claves de API o envio de
 correo aparece, ni siquiera como solo lectura.
 
+#### Modo especial (`apariencia`)
+
+Un estilo temporal de toda la interfaz (hoy `halloween`), programado con un rango de dias. Son tres
+editables del grupo `apariencia` (migracion `1160`):
+
+| Clave | Tipo | Nace en |
+|---|---|---|
+| `wiwo_modo_especial` | enum `ninguno`,`halloween` | `ninguno` |
+| `wiwo_modo_desde` | `fecha` (`YYYY-MM-DD` o vacio) | vacio |
+| `wiwo_modo_hasta` | `fecha`, ultimo dia inclusive | vacio |
+
+`fecha` es un tipo nuevo de opcion: valor texto, `YYYY-MM-DD` real del calendario o cadena vacia.
+Con el modo distinto de `ninguno` hacen falta las dos fechas, y `desde <= hasta`; se valida el
+conjunto (lo ya guardado mas lo que viaja) y falla con `422`, por campo, `required` o
+`after_or_equal:wiwo_modo_desde`.
+
+#### `GET /public/modo` — sin sesion
+
+El modo vigente **hoy** (dia en la zona del negocio), para pintar tambien el acceso, el portal y las
+pantallas. No expone nada mas que la clave y el rango.
+
+```json
+{ "data": { "clave": "halloween", "desde": "2026-10-25", "hasta": "2026-11-01" } }
+```
+
+`data` es `null` si no hay modo, si faltan fechas o si hoy cae fuera del rango. Solo `GET`.
+
 ### Panel: búsqueda global, auditoría y tareas personales
 
 Rama `feat/api-panel-transversales`. **Tres secciones nuevas**, ninguna existente cambia.

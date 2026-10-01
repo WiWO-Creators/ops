@@ -1,0 +1,63 @@
+/*
+ * Modo Halloween.
+ *
+ * Solo redeclara la capa SEMANTICA de `neo.css` (superficies, acento, marca, luces de la aurora): el
+ * resto de la interfaz lee esos tokens y cambia sola. No toca ningun componente. Todo valor es un
+ * literal hexadecimal para que `pruebas/modo-halloween.test.js` calcule el contraste sin resolver
+ * nada, y para que apagar el modo —quitar `data-modo` de <html>— devuelva la marca intacta.
+ *
+ * Los pares de texto sobre fondo estan defendidos por esa prueba: acento sobre superficie y sobre
+ * tarjeta, y el contenido de un boton de acento sobre su relleno.
+ */
+
+:root[data-modo='halloween'] {
+  --superficie: light-dark(#F7F0E6, #15101C);
+  --superficie-elevada: light-dark(#FFFCF7, #1E1628);
+  --superficie-hundida: light-dark(#F1E8DA, #1A1322);
+  --superficie-flotante: light-dark(#FFFCF7, #281D35);
+  --superficie-acentuada: light-dark(#F6DFC4, #3A2A4D);
+  --superficie-acentuada-2: light-dark(#F0D0A8, #473560);
+
+  --acento: light-dark(#A63F00, #FF9A3D);
+  --acento-fuerte: light-dark(#7F2F00, #FF7A00);
+  --acento-suave: light-dark(#FBE7D3, #2E2038);
+  --acento-contenido: light-dark(#FFFFFF, #1A0F00);
+
+  --marca: light-dark(#5B2A86, #FFB067);
+
+  --relleno-gradiente-marca: linear-gradient(103deg, #FF7A00 0%, #5B2A86 85%);
+  --relleno-gradiente-marca-contenido: #FFFFFF;
+  --relleno-gradiente-suave: linear-gradient(135deg, rgb(255 122 0 / 0.14), rgb(91 42 134 / 0.14));
+  /* Gradiente de los titulares recortados: cada parada legible por si sola, igual que el de marca. */
+  --gradiente-texto: light-dark(
+    linear-gradient(103deg, #7F2F00 0%, #5B2A86 90%),
+    linear-gradient(103deg, #FF9A3D 0%, #C9A0FF 90%)
+  );
+
+  /* Las tres luces de la aurora: naranja, morado y un tono calido. */
+  --aurora-verde: light-dark(rgb(255 122 0 / 0.14), rgb(255 122 0 / 0.12));
+  --aurora-azul: light-dark(rgb(91 42 134 / 0.12), rgb(120 60 180 / 0.2));
+  --aurora-beige: light-dark(rgb(255 190 120 / 0.5), rgb(255 154 61 / 0.08));
+
+  /* Colores de los dibujos de `componentes/modos/Dibujos.tsx`. */
+  --calabaza: #FF7A00;
+  --calabaza-sombra: #B34700;
+  --calabaza-tallo: #3F7D1F;
+  --calabaza-cara: #2A1A00;
+}
+
+/* La decoracion: telarañas y murcielagos con el color de la marca, discretos. */
+:root[data-modo='halloween'] .decoracion-modo-tela {
+  color: light-dark(#5B2A86, #FFB067);
+  opacity: 0.35;
+}
+
+:root[data-modo='halloween'] .decoracion-modo-murcielago {
+  color: light-dark(#2A1A3D, #D9C2F0);
+  opacity: 0.55;
+}
+
+/* Sin modo (apagado por la persona o vencido) la decoracion no se ve, aunque quede montada un instante. */
+:root:not([data-modo]) .decoracion-modo {
+  display: none;
+}

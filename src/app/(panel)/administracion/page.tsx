@@ -2,6 +2,7 @@ import { Suspense } from 'react'
 import { CalendarSync, Inbox, KeyRound, Megaphone, MonitorPlay, RefreshCcwDot, Siren, Sparkles, type LucideIcon } from 'lucide-react'
 import { AccesoGoogle } from '@/componentes/administracion/AccesoGoogle'
 import { FormularioDeAjustes } from '@/componentes/administracion/FormularioDeAjustes'
+import { ModoEspecialAdmin } from '@/componentes/administracion/ModoEspecialAdmin'
 import { PanelAvisosPorCorreo } from '@/componentes/administracion/PanelAvisosPorCorreo'
 import { Cargando, ErrorEstado, SinPermiso } from '@/componentes/estado/Estados'
 import { Pestanas, type Panel } from '@/componentes/proyecto/Pestanas'
@@ -191,6 +192,7 @@ export default async function AdministracionPage () {
         </FormularioDeAjustes>
       )
     },
+    { clave: 'apariencia', etiqueta: 'Apariencia', contenido: <ModoEspecialAdmin inicial={ajustes} /> },
     { clave: 'acceso', etiqueta: 'Acceso con Google', contenido: <AccesoGoogle inicial={ajustes} /> },
     { clave: 'correo', etiqueta: 'Avisos por correo', contenido: <PanelAvisosPorCorreo /> }
   ]

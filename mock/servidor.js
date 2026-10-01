@@ -4778,6 +4778,72 @@ function opcionesDeJornada () {
   }
 }
 
+/**
+ * El modo especial (`wiwo_modo_*`). `MOCK_MODO` lo precarga para las pruebas de navegador:
+ * `halloween:2026-10-01:2026-11-30`. Sin la variable nace apagado, como la instalacion real.
+ */
+const MODO_MOCK = (() => {
+  const [modo = 'ninguno', desde = '', hasta = ''] = (process.env.MOCK_MODO ?? '').split(':')
+
+  return { modo: modo === '' ? 'ninguno' : modo, desde, hasta }
+})()
+
+const DIA_VALIDO = /^\d{4}-\d{2}-\d{2}$/
+
+/** Las unicas claves que el mock sabe escribir en `PATCH /settings`; cualquier otra es 422 `no_editable`. */
+const CLAVES_DE_AJUSTES_DEL_MOCK = new Set([
+  'wiwo_portal_ia_chat', 'wiwo_live_cierre_automatico', 'wiwo_live_hora_cierre', 'wiwo_live_prorroga_minutos',
+  'wiwo_modo_especial', 'wiwo_modo_desde', 'wiwo_modo_hasta'
+])
+
+/** El grupo `apariencia` de `GET /settings`, con la forma de `RecursoAjustes::presentar()`. */
+function opcionesDeModo () {
+  return {
+    wiwo_modo_especial: { group: 'apariencia', type: 'enum', value: MODO_MOCK.modo, options: ['ninguno', 'halloween'] },
+    wiwo_modo_desde: { group: 'apariencia', type: 'fecha', value: MODO_MOCK.desde },
+    wiwo_modo_hasta: { group: 'apariencia', type: 'fecha', value: MODO_MOCK.hasta }
+  }
+}
+
+/** Aplica las claves del modo de un `PATCH /settings` con las mismas reglas que `Escritura\Ajuste`. */
+function escribirAjustesDeModo (cambios) {
+  const final = { ...MODO_MOCK }
+  const errores = {}
+
+  if ('wiwo_modo_especial' in cambios) {
+    if (['ninguno', 'halloween'].includes(cambios.wiwo_modo_especial)) final.modo = cambios.wiwo_modo_especial
+    else errores.wiwo_modo_especial = ['invalid']
+  }
+  for (const [clave, campo] of [['wiwo_modo_desde', 'desde'], ['wiwo_modo_hasta', 'hasta']]) {
+    if (!(clave in cambios)) continue
+    const valor = String(cambios[clave])
+    if (valor === '' || DIA_VALIDO.test(valor)) final[campo] = valor
+    else errores[clave] = ['invalid']
+  }
+  if (Object.keys(errores).length === 0 && ['modo', 'desde', 'hasta'].some((k) => final[k] !== MODO_MOCK[k])) {
+    if (final.modo !== 'ninguno' && final.desde === '') errores.wiwo_modo_desde = ['required']
+    if (final.modo !== 'ninguno' && final.hasta === '') errores.wiwo_modo_hasta = ['required']
+    if (Object.keys(errores).length === 0 && final.desde !== '' && final.hasta !== '' && final.desde > final.hasta) {
+      errores.wiwo_modo_hasta = ['after_or_equal:wiwo_modo_desde']
+    }
+  }
+  if (Object.keys(errores).length > 0) {
+    throw new ErrorApi(422, 'validation_failed', 'Hay ajustes que no se pueden escribir.', errores)
+  }
+
+  Object.assign(MODO_MOCK, final)
+}
+
+/** El modo vigente hoy, o `null`: lo que contesta `GET /public/modo`. */
+function modoVigenteMock () {
+  const hoy = new Date().toISOString().slice(0, 10)
+
+  if (MODO_MOCK.modo !== 'halloween' || MODO_MOCK.desde === '' || MODO_MOCK.hasta === '') return null
+  if (hoy < MODO_MOCK.desde || hoy > MODO_MOCK.hasta) return null
+
+  return { clave: MODO_MOCK.modo, desde: MODO_MOCK.desde, hasta: MODO_MOCK.hasta }
+}
+
 /** Aplica las claves de jornada de un `PATCH /settings`, ignorando el resto. */
 function escribirAjustesDeJornada (cambios) {
   const interruptor = INTERRUPTORES_MANT.find((i) => i.clave === 'wiwo_live_cierre_automatico')
@@ -6500,6 +6566,13 @@ async function resolverRuta (metodo, segmentos, parametros, token, cuerpo, petic
   // El mock acepta CUALQUIER token con forma de enlace y contesta el area 4 ("Content Studio"). No
   // emula la emision ni la revocacion —eso es de `/accesos/pantallas`, que si necesita sesion—: lo
   // que esta ruta tiene que dar es el PAQUETE, que es lo unico que la pantalla sabe leer.
+  // `GET /public/modo`: el modo especial vigente, sin sesion (lo pintan tambien el acceso y el portal).
+  if (recurso === 'public' && resto[0] === 'modo') {
+    if (metodo !== 'GET' || resto.length > 1) throw new ErrorApi(404, 'not_found', 'No existe ese enlace.')
+
+    return { estado: 200, cuerpo: conDatos(modoVigenteMock()) }
+  }
+
   if (recurso === 'public' && resto[0] === 'display') {
     if (metodo !== 'GET') throw new ErrorApi(404, 'not_found', 'No existe esa pantalla.')
 
@@ -7387,8 +7460,17 @@ async function resolverRuta (metodo, segmentos, parametros, token, cuerpo, petic
     if (metodo === 'PATCH') {
       const cambios = await cuerpo()
 
-      escribirAjustesDelOrbePortal(cambios)
+      const ajenas = Object.keys(cambios).filter((clave) => !CLAVES_DE_AJUSTES_DEL_MOCK.has(clave))
+
+      if (ajenas.length > 0) {
+        throw new ErrorApi(422, 'validation_failed', 'Hay ajustes que no se pueden escribir.',
+          Object.fromEntries(ajenas.map((clave) => [clave, ['no_editable']])))
+      }
+
+      // El orbe valida su propia clave y rechaza las ajenas; se le pasa solo la suya.
+      escribirAjustesDelOrbePortal('wiwo_portal_ia_chat' in cambios ? { wiwo_portal_ia_chat: cambios.wiwo_portal_ia_chat } : {})
       escribirAjustesDeJornada(cambios)
+      escribirAjustesDeModo(cambios)
     }
 
     return {
@@ -7398,7 +7480,8 @@ async function resolverRuta (metodo, segmentos, parametros, token, cuerpo, petic
           ia_habilitada: { value: true, tipo: 'bool' },
           ia_tope_tokens: { value: 700, tipo: 'int' },
           ...opcionDelOrbePortal(),
-          ...opcionesDeJornada()
+          ...opcionesDeJornada(),
+          ...opcionesDeModo()
         }
       })
     }
