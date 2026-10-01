@@ -1,6 +1,7 @@
 'use client'
 
 import { animate, stagger, utils } from 'animejs'
+import { cumpleConsulta, MENOS_MOVIMIENTO } from '@/lib/useConsultaDeMedios'
 import { Murcielago } from './Dibujos'
 import { useAnimacionDeModo } from './useAnimacionDeModo'
 
@@ -12,6 +13,39 @@ const CRUCE_MS = 14_000
 const PAUSA_MS = 38_000
 /** Cada cuanto aletea. */
 const ALETEO_MS = 260
+
+/** Cuanto tarda un murcielago colgado, asustado, en volver a su lugar. */
+const REGRESO_MS = 9000
+
+/**
+ * Hace huir a un murcielago colgado: sale volando hacia arriba y a un lado, y mas tarde vuelve a
+ * colgarse donde estaba. Solo toca `translate` y `opacity`: el balanceo vive en `rotate`.
+ */
+function asustar (colgado: HTMLElement): void {
+  if (cumpleConsulta(MENOS_MOVIMIENTO) || colgado.dataset.huyendo === '1') return
+
+  const lado = utils.random(0, 1) === 0 ? -1 : 1
+
+  colgado.dataset.huyendo = '1'
+  animate(colgado, {
+    translateX: lado * utils.random(120, 260),
+    translateY: -utils.random(90, 160),
+    opacity: [0.6, 0],
+    duration: 900,
+    ease: 'inQuad',
+    onComplete: () => {
+      animate(colgado, {
+        translateX: 0,
+        translateY: 0,
+        opacity: [0, 0.6],
+        duration: 1400,
+        delay: REGRESO_MS,
+        ease: 'outQuad',
+        onComplete: () => { delete colgado.dataset.huyendo }
+      })
+    }
+  })
+}
 
 /**
  * Murciélagos de dos clases. Una oleada cruza la pantalla entera cada tanto, aleteando y subiendo y
@@ -70,7 +104,8 @@ export function Murcielagos () {
           key={`c${i}`}
           data-murcielago-colgado=""
           style={{ top: 50, left: `${34 + i * 16}vw`, transformOrigin: '50% 0' }}
-          className="decoracion-modo-murcielago absolute hidden h-4 w-6 rotate-180 md:block"
+          onClick={(evento) => { asustar(evento.currentTarget) }}
+          className="decoracion-modo-murcielago pointer-events-auto absolute hidden h-4 w-6 cursor-pointer rotate-180 md:block"
         >
           <Murcielago className="size-full" />
         </span>

@@ -2,7 +2,7 @@
 
 import { useEffect, useLayoutEffect, useRef, useState } from 'react'
 import { animate, createSpring } from 'animejs'
-import { RefreshCw, X } from 'lucide-react'
+import { Ghost, RefreshCw, X } from 'lucide-react'
 import { Boton } from '@/componentes/formularios/Boton'
 import { Orbe } from '@/componentes/estado/Orbe'
 import type { Novedad } from '@/dominio/novedades'
@@ -11,6 +11,7 @@ import { cn } from '@/lib/clases'
 import { cumpleConsulta, MENOS_MOVIMIENTO } from '@/lib/useConsultaDeMedios'
 import { CapaDeBienvenida } from './bienvenida/CapaDeBienvenida'
 import { elegirEscena } from './bienvenida/escenas'
+import { useEstadoDeModo } from '@/lib/modo-especial'
 import { RecorridoDeNovedades } from './bienvenida/RecorridoDeNovedades'
 
 /** Cuanto tarda el aviso en salir cuando alguien lo descarta, con la caida de la animacion de resorte. */
@@ -74,6 +75,10 @@ export function VigilanteDeVersion ({ version, segundos, novedades }: PropsVigil
   // a mitad de la obra si algo mas obliga a repintar. El sorteo en el servidor no importa —esta capa
   // solo se muestra despues de montar, cuando el efecto de abajo encuentra la marca—.
   const [escena] = useState(elegirEscena)
+  // Con Halloween a la vista el aviso trae un fantasma y un tono acorde; el resto no cambia.
+  const { activo: modo } = useEstadoDeModo()
+  const enHalloween = modo === 'halloween'
+  const Icono = enHalloween ? Ghost : RefreshCw
   const avisoRef = useRef<HTMLDivElement | null>(null)
   const iconoRef = useRef<SVGSVGElement | null>(null)
 
@@ -247,12 +252,16 @@ export function VigilanteDeVersion ({ version, segundos, novedades }: PropsVigil
             >
               {recargando
                 ? <Orbe tamano="chico" estado="thinking" />
-                : <RefreshCw ref={iconoRef} className="size-[1.125rem]" />}
+                : <Icono ref={iconoRef} className="size-[1.125rem]" />}
             </span>
             <div className="min-w-0 flex-1">
-              <p className="text-texto text-sm leading-tight font-semibold">Hay una versión nueva de Ops</p>
+              <p className="text-texto text-sm leading-tight font-semibold">
+                {enHalloween ? 'Se apareció una versión nueva de Ops' : 'Hay una versión nueva de Ops'}
+              </p>
               <p className="text-texto-tenue mt-0.5 text-xs leading-snug">
-                Actualiza cuando termines lo que estás haciendo.
+                {enHalloween
+                  ? 'Actualiza cuando termines lo que estás haciendo. No muerde.'
+                  : 'Actualiza cuando termines lo que estás haciendo.'}
               </p>
             </div>
             <Boton

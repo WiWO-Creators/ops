@@ -3,7 +3,7 @@
 import { useState } from 'react'
 import { Maximize2, RotateCcw, ScrollText } from 'lucide-react'
 import { CapaDeBienvenida } from '@/componentes/estructura/bienvenida/CapaDeBienvenida'
-import { ESCENAS, type EscenaDeBienvenida } from '@/componentes/estructura/bienvenida/escenas'
+import { ESCENAS, ESCENAS_DE_MODO, type EscenaDeBienvenida } from '@/componentes/estructura/bienvenida/escenas'
 import { RecorridoDeNovedades } from '@/componentes/estructura/bienvenida/RecorridoDeNovedades'
 import { Boton } from '@/componentes/formularios/Boton'
 import type { Novedad } from '@/dominio/novedades'
@@ -37,7 +37,7 @@ export function LaboratorioDeAnimaciones ({ novedades }: { novedades: readonly N
   return (
     <>
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-        {ESCENAS.map((escena) => (
+        {[...ESCENAS, ...Object.values(ESCENAS_DE_MODO).flat()].map((escena) => (
           <article key={escena.clave} className={CLASE_TARJETA}>
             <div className={CLASE_VISTA}>
               <escena.Dibujo key={vueltas[escena.clave] ?? 0} />

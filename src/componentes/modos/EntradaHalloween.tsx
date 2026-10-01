@@ -73,6 +73,13 @@ export function EntradaHalloween () {
   return createPortal(<Telon onTerminar={() => { setVisible(false) }} />, document.body)
 }
 
+/** El 31 de octubre, en la zona del navegador: la noche de brujas de verdad. */
+function esNocheDeBrujas (): boolean {
+  const hoy = new Date()
+
+  return hoy.getMonth() === 9 && hoy.getDate() === 31
+}
+
 /** El telon en si: se arma, se anima y avisa cuando se debe retirar. */
 function Telon ({ onTerminar }: { onTerminar: () => void }) {
   useSecuenciaDeObra((linea) => {
@@ -114,7 +121,7 @@ function Telon ({ onTerminar }: { onTerminar: () => void }) {
           <Murcielago className="text-marca h-6 w-9" data-entrada-modo="murcielago" />
         </div>
         <p data-entrada-modo="texto" className="text-texto font-titular text-xl font-semibold">
-          Feliz Halloween
+          {esNocheDeBrujas() ? 'Esta noche es la noche' : 'Feliz Halloween'}
         </p>
       </div>
     </div>

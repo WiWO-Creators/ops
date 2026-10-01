@@ -54,12 +54,12 @@ export function Arana (props: SVGProps<SVGSVGElement>) {
 export function Calabaza (props: SVGProps<SVGSVGElement>) {
   return (
     <svg aria-hidden viewBox="0 0 64 60" {...props}>
-      <path d="M32 10 C32 4 36 2 40 2" fill="none" stroke="var(--calabaza-tallo)" strokeWidth="4" strokeLinecap="round" />
-      <ellipse cx="32" cy="36" rx="28" ry="22" fill="var(--calabaza)" />
-      <ellipse cx="20" cy="36" rx="10" ry="20" fill="var(--calabaza-sombra)" opacity="0.35" />
-      <ellipse cx="44" cy="36" rx="10" ry="20" fill="var(--calabaza-sombra)" opacity="0.35" />
-      <path d="M17 30 L25 30 L21 22 Z M39 30 L47 30 L43 22 Z" fill="var(--calabaza-cara)" />
-      <path d="M18 42 L24 47 L28 43 L32 48 L36 43 L40 47 L46 42 L44 51 L20 51 Z" fill="var(--calabaza-cara)" />
+      <path d="M32 10 C32 4 36 2 40 2" fill="none" stroke="var(--calabaza-tallo, #3F7D1F)" strokeWidth="4" strokeLinecap="round" />
+      <ellipse cx="32" cy="36" rx="28" ry="22" fill="var(--calabaza, #FF7A00)" />
+      <ellipse cx="20" cy="36" rx="10" ry="20" fill="var(--calabaza-sombra, #B34700)" opacity="0.35" />
+      <ellipse cx="44" cy="36" rx="10" ry="20" fill="var(--calabaza-sombra, #B34700)" opacity="0.35" />
+      <path d="M17 30 L25 30 L21 22 Z M39 30 L47 30 L43 22 Z" fill="var(--calabaza-cara, #2A1A00)" />
+      <path d="M18 42 L24 47 L28 43 L32 48 L36 43 L40 47 L46 42 L44 51 L20 51 Z" fill="var(--calabaza-cara, #2A1A00)" />
     </svg>
   )
 }

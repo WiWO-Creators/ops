@@ -3,7 +3,7 @@
 import { useEstadoDeModo } from '@/lib/modo-especial'
 import { DecoracionHalloween } from './DecoracionHalloween'
 import { EntradaHalloween } from './EntradaHalloween'
-import { HuevoDePascua } from './HuevoDePascua'
+import { HuevosDePascua } from './HuevosDePascua'
 import { VigiladorDeModo } from './VigiladorDeModo'
 
 /**
@@ -23,7 +23,7 @@ export function CapaDeModo () {
         <>
           <DecoracionHalloween />
           <EntradaHalloween />
-          <HuevoDePascua />
+          <HuevosDePascua />
         </>
       )}
     </>
