@@ -43,6 +43,7 @@ export function Logo ({ tamano = 'medio', className }: PropsLogo) {
     <span
       role="img"
       aria-label="WiWO Ops"
+      data-logo=""
       className={cn('inline-block bg-marca', TAMANOS[tamano], className)}
       style={{
         aspectRatio: `${ANCHO} / ${ALTO}`,

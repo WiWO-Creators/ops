@@ -3,6 +3,7 @@
 import { useCallback } from 'react'
 import { Moon, Sun } from 'lucide-react'
 import { aplicarTema, esOscuro } from '@/lib/tema'
+import { InterruptorDeModo } from '@/componentes/modos/InterruptorDeModo'
 import { cn } from '@/lib/clases'
 
 /**
@@ -17,28 +18,31 @@ export function SelectorTema ({ className }: { className?: string }) {
   const alternar = useCallback(() => { aplicarTema(esOscuro() ? 'light' : 'dark') }, [])
 
   return (
-    <button
-      type="button"
-      onClick={alternar}
-      title="Cambiar tema"
-      aria-label="Cambiar tema"
-      className={cn(
-        'border-linea bg-superficie-hundida text-texto-tenue hover:text-texto hover:bg-superficie-elevada',
-        'relative grid size-9 place-items-center rounded-control border transition-colors duration-rapida ease-neo',
-        'focus-visible:outline-acento focus-visible:outline-2 focus-visible:outline-offset-2',
-        className
-      )}
-    >
-      {/* Los dos iconos comparten celda del grid y se cruzan girando: el que sale rota y se encoge
-          mientras el que entra hace el camino inverso. Apilarlos evita que el boton salte de tamaño. */}
-      <Sun
-        aria-hidden
-        className="col-start-1 row-start-1 size-4 rotate-0 scale-100 transition-transform duration-media ease-neo oscuro:-rotate-90 oscuro:scale-0"
-      />
-      <Moon
-        aria-hidden
-        className="col-start-1 row-start-1 size-4 rotate-90 scale-0 transition-transform duration-media ease-neo oscuro:rotate-0 oscuro:scale-100"
-      />
-    </button>
+    <>
+      <InterruptorDeModo className={className} />
+      <button
+        type="button"
+        onClick={alternar}
+        title="Cambiar tema"
+        aria-label="Cambiar tema"
+        className={cn(
+          'border-linea bg-superficie-hundida text-texto-tenue hover:text-texto hover:bg-superficie-elevada',
+          'relative grid size-9 place-items-center rounded-control border transition-colors duration-rapida ease-neo',
+          'focus-visible:outline-acento focus-visible:outline-2 focus-visible:outline-offset-2',
+          className
+        )}
+      >
+        {/* Los dos iconos comparten celda del grid y se cruzan girando: el que sale rota y se encoge
+            mientras el que entra hace el camino inverso. Apilarlos evita que el boton salte de tamaño. */}
+        <Sun
+          aria-hidden
+          className="col-start-1 row-start-1 size-4 rotate-0 scale-100 transition-transform duration-media ease-neo oscuro:-rotate-90 oscuro:scale-0"
+        />
+        <Moon
+          aria-hidden
+          className="col-start-1 row-start-1 size-4 rotate-90 scale-0 transition-transform duration-media ease-neo oscuro:rotate-0 oscuro:scale-100"
+        />
+      </button>
+    </>
   )
 }

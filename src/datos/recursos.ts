@@ -2371,7 +2371,7 @@ export interface PresetFiltro {
  * agrega un tipo nuevo, el compilador marca los lugares que no lo contemplan en vez de dejar que la
  * pantalla dibuje un control equivocado en silencio.
  */
-export type TipoDeAjuste = 'bool' | 'entero' | 'enum' | 'rol' | 'texto'
+export type TipoDeAjuste = 'bool' | 'entero' | 'enum' | 'rol' | 'texto' | 'fecha'
 
 /**
  * Una opcion editable con su dominio, tal como la publica `Recursos\RecursoAjustes::presentar()`.
