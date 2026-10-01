@@ -2,6 +2,8 @@
 
 import { Ghost } from 'lucide-react'
 import { animate } from 'animejs'
+import { useAviso } from '@/componentes/estado/useAviso'
+import { elegirDistinta, FRASES_DE_FANTASMA } from './huevos'
 import { useAnimacionDeModo } from './useAnimacionDeModo'
 
 /** Lo que tarda en cruzar, y cuanto espera para volver a aparecer. */
@@ -11,9 +13,10 @@ const PAUSA_MS = 52_000
 /**
  * Un fantasma que cruza de derecha a izquierda flotando, aparece y se desvanece, y no vuelve en casi
  * un minuto. Es lo mas raro de ver de toda la decoracion, a proposito: si estuviera siempre se
- * volveria parte del fondo.
+ * volveria parte del fondo. Si alguien logra hacerle clic mientras pasa, lo atrapa y dice algo.
  */
 export function Fantasma () {
+  const aviso = useAviso()
   const raizRef = useAnimacionDeModo<HTMLDivElement>((raiz) => [
     animate(raiz, {
       translateX: ['112vw', '-16vw'],
@@ -40,7 +43,8 @@ export function Fantasma () {
     <div
       ref={raizRef}
       style={{ top: '38vh', left: 0 }}
-      className="decoracion-modo-fantasma decoracion-modo-vuelo absolute hidden opacity-0 md:block"
+      onClick={() => { aviso.info(elegirDistinta(FRASES_DE_FANTASMA, null)) }}
+      className="decoracion-modo-fantasma decoracion-modo-vuelo pointer-events-auto absolute hidden cursor-pointer opacity-0 md:block"
     >
       <Ghost aria-hidden strokeWidth={1.4} className="size-14" />
     </div>

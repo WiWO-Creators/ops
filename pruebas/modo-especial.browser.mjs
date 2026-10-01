@@ -103,7 +103,8 @@ async function contexto (opciones = {}) {
   const ctx = await contexto({ reducedMotion: 'reduce' })
   const p = await ctx.newPage()
   await p.goto(`${BASE}/inicio`, { waitUntil: 'domcontentloaded' })
-  await p.waitForTimeout(1000)
+  await p.waitForSelector('[data-murcielago-colgado]', { state: 'attached', timeout: 8000 })
+  await p.waitForTimeout(600)
   ok(await p.locator('[data-entrada-modo="telon"]').count() === 0, 'con menos movimiento no hay entrada')
   ok(await p.locator('[data-murcielago-colgado]').count() === 3, 'los murcielagos colgados estan')
   const quieto = await p.evaluate(() => getComputedStyle(document.querySelector('[data-murcielago-colgado]')).transform)
@@ -126,6 +127,75 @@ async function contexto (opciones = {}) {
   ok(true, 'cinco clics en el logo hacen llover calabazas')
   await p.waitForSelector('[data-calabaza-lluvia]', { state: 'detached', timeout: 8000 })
   ok(true, 'la lluvia se retira sola')
+  await ctx.close()
+}
+
+// --- 4b. Huevos de pascua: palabras secretas y piezas tocables ---
+{
+  const ctx = await contexto()
+  const p = await ctx.newPage()
+  await p.addInitScript(() => localStorage.setItem('wiwo-modo-entrada', new Date().toLocaleDateString('sv')))
+  await p.goto(`${BASE}/inicio`, { waitUntil: 'domcontentloaded' })
+  await p.waitForSelector('[data-logo]')
+  await despejar(p)
+
+  // Con un campo de texto enfocado las letras no cuentan.
+  await p.evaluate(() => { const i = document.createElement('input'); i.id = 'prueba'; document.body.appendChild(i); i.focus() })
+  await p.keyboard.type('boo')
+  ok(await p.locator('[data-susto]').count() === 0, 'escribir «boo» en un campo de texto no dispara nada')
+  await p.evaluate(() => { document.getElementById('prueba')?.remove(); document.body.focus() })
+
+  await p.keyboard.type('boo')
+  await p.waitForSelector('[data-susto="fantasma"]', { timeout: 2000 })
+  ok(true, '«boo» hace saltar al fantasma')
+  await p.waitForSelector('[data-susto="fantasma"]', { state: 'detached', timeout: 4000 })
+
+  await p.keyboard.type('murcielago')
+  await p.waitForSelector('[data-enjambre]', { timeout: 2000 })
+  ok(await p.locator('[data-enjambre]').count() === 22, '«murcielago» suelta un enjambre de 22')
+  await p.waitForSelector('[data-enjambre]', { state: 'detached', timeout: 5000 })
+
+  await p.keyboard.type('bruja')
+  await p.waitForSelector('[data-escoba="bruja"]', { timeout: 2000 })
+  ok(true, '«bruja» cruza la pantalla en su escoba')
+  await p.waitForSelector('[data-escoba="bruja"]', { state: 'detached', timeout: 6000 })
+
+  await p.keyboard.type('calabaza')
+  await p.waitForSelector('[data-calabaza-lluvia]', { timeout: 2000 })
+  ok(true, '«calabaza» hace llover calabazas')
+  await p.waitForSelector('[data-calabaza-lluvia]', { state: 'detached', timeout: 8000 })
+
+  // Calabaza con vela: al tocarla habla.
+  await p.locator('[data-luz] + button').first().dispatchEvent('click')
+  await p.waitForSelector('.decoracion-modo-globo', { timeout: 1500 })
+  ok((await p.locator('.decoracion-modo-globo').innerText()).trim() !== '', 'tocar una calabaza la hace decir una frase')
+
+  // Murcielago colgado: al tocarlo huye.
+  const colgado = p.locator('[data-murcielago-colgado]').first()
+  await colgado.click({ force: true })
+  await p.waitForTimeout(1300)
+  ok(Number(await colgado.evaluate((e) => getComputedStyle(e).opacity)) < 0.1, 'tocar un murcielago colgado lo hace huir')
+
+  // Arana: tres clics seguidos la hacen bailar y salen las crias.
+  const arana = p.locator('.decoracion-modo-arana').first()
+  for (let i = 0; i < 3; i++) await arana.click({ force: true })
+  await p.waitForSelector('[data-cria]', { timeout: 1500 })
+  ok(await p.locator('[data-cria]').count() === 6, 'tres clics a la araña sueltan a sus seis crias')
+  await ctx.close()
+}
+
+// --- 4c. Escenas de actualizacion de Halloween (laboratorio de animaciones) ---
+{
+  const ctx = await contexto()
+  const p = await ctx.newPage()
+  await p.goto(`${BASE}/administracion/animaciones`, { waitUntil: 'domcontentloaded' })
+  await despejar(p)
+  for (const nombre of ['Calabaza', 'Caldero', 'Fantasma']) {
+    ok(await p.getByRole('heading', { name: nombre }).count() === 1, `el laboratorio lista la escena «${nombre}»`)
+  }
+  await p.getByRole('heading', { name: 'Caldero' }).locator('xpath=ancestor::article').getByRole('button', { name: /Pantalla completa/ }).click()
+  await p.waitForSelector('.bienvenida-capa', { timeout: 3000 })
+  ok((await p.locator('.bienvenida-capa').innerText()).includes('Cocinando la actualización'), 'la capa de bienvenida muestra la frase de la escena')
   await ctx.close()
 }
 
