@@ -46,18 +46,75 @@
   --calabaza-cara: #2A1A00;
 }
 
-/* La decoracion: telarañas y murcielagos con el color de la marca, discretos. */
+/* Los titulares con gradiente de marca (el saludo, los encabezados de seccion) leen los verdes y azules
+ * crudos de la marca; en Halloween se pintan de naranja a morado, con cada parada legible por si sola
+ * porque es texto recortado. */
+:root[data-modo='halloween'] :is(.texto-gradiente-marca, .texto-gradiente-animado) {
+  background-image: linear-gradient(
+    var(--angulo-gradiente-marca, 103deg),
+    light-dark(#B34700, #FF9A3D) 0%,
+    light-dark(#C25400, #FFC890) 22%,
+    light-dark(#5B2A86, #C9A0FF) 50%,
+    light-dark(#C25400, #FFC890) 78%,
+    light-dark(#B34700, #FF9A3D) 100%
+  );
+}
+
+/* La decoracion: cada pieza toma su color de la paleta del modo y es discreta; ninguna tapa contenido. */
 :root[data-modo='halloween'] .decoracion-modo-tela {
   color: light-dark(#5B2A86, #FFB067);
-  opacity: 0.35;
+  opacity: 0.4;
 }
 
 :root[data-modo='halloween'] .decoracion-modo-murcielago {
   color: light-dark(#2A1A3D, #D9C2F0);
-  opacity: 0.55;
+  opacity: 0.6;
+}
+
+:root[data-modo='halloween'] .decoracion-modo-hilo {
+  background: light-dark(#5B2A86, #FFB067);
+  opacity: 0.5;
+}
+
+:root[data-modo='halloween'] .decoracion-modo-arana {
+  color: light-dark(#2A1A3D, #D9C2F0);
+  opacity: 0.8;
+}
+
+:root[data-modo='halloween'] .decoracion-modo-fantasma {
+  color: light-dark(#5B2A86, #E8DAFF);
+}
+
+:root[data-modo='halloween'] .decoracion-modo-brasa {
+  background: light-dark(#D9640A, #FF9A3D);
+}
+
+:root[data-modo='halloween'] .decoracion-modo-brasa-morada {
+  background: light-dark(#7A3FB0, #C9A0FF);
+}
+
+/* La niebla es morada en oscuro y calida en claro; los dos gradientes salen del borde de abajo. */
+:root[data-modo='halloween'] .decoracion-modo-niebla {
+  background: radial-gradient(ellipse 60% 100% at 50% 100%, light-dark(rgb(122 63 176 / 0.16), rgb(150 90 220 / 0.2)), transparent 70%);
+}
+
+:root[data-modo='halloween'] .decoracion-modo-niebla-2 {
+  background: radial-gradient(ellipse 45% 100% at 30% 100%, light-dark(rgb(255 122 0 / 0.12), rgb(255 122 0 / 0.1)), transparent 70%);
+}
+
+/* El resplandor de la vela tras cada calabaza. */
+:root[data-modo='halloween'] .decoracion-modo-luz {
+  background: radial-gradient(circle, light-dark(rgb(255 140 20 / 0.5), rgb(255 154 61 / 0.45)), transparent 70%);
 }
 
 /* Sin modo (apagado por la persona o vencido) la decoracion no se ve, aunque quede montada un instante. */
 :root:not([data-modo]) .decoracion-modo {
   display: none;
+}
+
+/* Con menos movimiento no se muestra lo que existe solo para moverse. */
+@media (prefers-reduced-motion: reduce) {
+  :root[data-modo='halloween'] .decoracion-modo-vuelo {
+    display: none;
+  }
 }
