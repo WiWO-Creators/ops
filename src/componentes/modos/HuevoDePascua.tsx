@@ -70,7 +70,7 @@ function Lluvia ({ onTerminar }: { onTerminar: () => void }) {
   }, [])
 
   return (
-    <div aria-hidden className="pointer-events-none fixed inset-0 z-[90] overflow-hidden">
+    <div aria-hidden className="pointer-events-none fixed inset-0 z-flotante overflow-hidden">
       {Array.from({ length: CALABAZAS }, (_, i) => (
         <span
           key={i}

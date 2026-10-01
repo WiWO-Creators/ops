@@ -99,7 +99,7 @@ function Telon ({ onTerminar }: { onTerminar: () => void }) {
       data-entrada-modo="telon"
       role="presentation"
       onClick={onTerminar}
-      className="fixed inset-0 z-[100] grid cursor-pointer place-items-center bg-superficie"
+      className="fixed inset-0 z-telon grid cursor-pointer place-items-center bg-superficie"
     >
       <Moon
         aria-hidden
