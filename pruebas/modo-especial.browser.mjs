@@ -64,7 +64,16 @@ async function contexto (opciones = {}) {
   ok(true, 'la entrada se retira sola (<= 2 s)')
 
   ok(await p.locator('.decoracion-modo').isVisible(), 'la decoracion esta visible')
-  ok(await p.locator('[data-murcielago]').count() === 3, 'hay tres murcielagos')
+  ok(await p.locator('[data-murcielago]').count() === 3, 'hay tres murcielagos en la oleada')
+  ok(await p.locator('[data-murcielago-colgado]').count() === 3, 'y tres colgados de la cabecera')
+  ok(await p.locator('.decoracion-modo-tela').count() === 4, 'hay cuatro telarañas')
+  ok(await p.locator('.decoracion-modo-arana').count() === 1, 'hay una araña colgando')
+  ok(await p.locator('[data-brasa]').count() === 16, 'hay brasas')
+  ok(await p.locator('[data-luz]').count() === 2, 'y dos calabazas con vela')
+  // anime.js marca cada hilo con `pathLength` y le va moviendo el `stroke-dasharray` al dibujarlo.
+  await p.waitForTimeout(500)
+  const hilos = await p.evaluate(() => [...document.querySelectorAll('[data-hilo]')].filter((e) => e.getAttribute('pathLength') === '1000').length)
+  ok(hilos === 44, `anime.js dibuja los 44 hilos de las telarañas (vio ${hilos})`)
   ok((await marca(p)).toLowerCase().includes('#5b2a86') || (await marca(p)).toLowerCase().includes('#ffb067'), 'la marca usa la paleta de Halloween')
 
   await p.reload({ waitUntil: 'domcontentloaded' })
@@ -96,9 +105,11 @@ async function contexto (opciones = {}) {
   await p.goto(`${BASE}/inicio`, { waitUntil: 'domcontentloaded' })
   await p.waitForTimeout(1000)
   ok(await p.locator('[data-entrada-modo="telon"]').count() === 0, 'con menos movimiento no hay entrada')
-  ok(await p.locator('[data-murcielago]').count() === 3, 'los murcielagos estan, quietos')
-  const quieto = await p.evaluate(() => getComputedStyle(document.querySelector('[data-murcielago]')).transform)
-  ok(quieto === 'none' || quieto === 'matrix(1, 0, 0, 1, 0, 0)', 'y sin transformacion animada')
+  ok(await p.locator('[data-murcielago-colgado]').count() === 3, 'los murcielagos colgados estan')
+  const quieto = await p.evaluate(() => getComputedStyle(document.querySelector('[data-murcielago-colgado]')).transform)
+  ok(!quieto.includes('NaN') && quieto !== '', 'quietos, sin animar')
+  ok(!(await p.locator('[data-murcielago]').first().isVisible()), 'la oleada de vuelo no se muestra')
+  ok(!(await p.locator('[data-brasa]').first().isVisible()), 'ni las brasas')
   await ctx.close()
 }
 
