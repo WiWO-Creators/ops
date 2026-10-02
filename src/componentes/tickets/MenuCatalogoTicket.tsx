@@ -1,14 +1,19 @@
 'use client'
 
 import { useState, type ReactElement } from 'react'
+import { Boton } from '@/componentes/formularios/Boton'
+import { AreaTexto } from '@/componentes/formularios/Entrada'
 import { Insignia } from '@/componentes/presentadores/Insignia'
+import { CerrarDialogo, ContenidoDialogo, Dialogo } from '@/componentes/superposiciones/Dialogo'
 import {
   ContenidoMenu, DisparadorMenu, GrupoRadioMenu, ItemMenuRadio, MenuContextual
 } from '@/componentes/superposiciones/MenuContextual'
 import { escribirEnBff } from '@/componentes/datos/mutaciones'
 import { useAviso } from '@/componentes/estado/useAviso'
 import type { EstadoLookup } from '@/datos/recursos'
-import { falloDeTicket, nombreEnCatalogo, type FuenteDeTicket } from '@/dominio/ticket-vista'
+import {
+  cuerpoDeRespuesta, ESTADO_TICKET_EN_ESPERA, falloDeTicket, nombreEnCatalogo, type FuenteDeTicket
+} from '@/dominio/ticket-vista'
 import { cn } from '@/lib/clases'
 
 /**
@@ -21,6 +26,10 @@ import { cn } from '@/lib/clases'
  * El cambio es optimista y se revierte si la API lo rechaza: una insignia que dice «Cerrado» despues
  * de un 422 mentiria sobre el ticket.
  *
+ * Con `rutaResponder`, elegir «En espera» abre un dialogo para anotar el motivo (opcional). Si se
+ * escribe, viaja como respuesta con el cambio de estado, asi queda en el hilo y lo ven equipo y
+ * cliente; sin motivo, es el `PATCH` de siempre.
+ *
  * Un valor que el catalogo no nombra se dibuja segun `sinNombre`: «Estado #7» para el equipo, nada
  * para el cliente.
  */
@@ -30,6 +39,7 @@ export function MenuCatalogoTicket ({
   valor,
   catalogo,
   rutaEditar,
+  rutaResponder,
   puedeEditar,
   sinNombre,
   onCambiado
@@ -42,6 +52,8 @@ export function MenuCatalogoTicket ({
   catalogo: EstadoLookup[]
   /** `PATCH` del ticket, ya resuelta. */
   rutaEditar: string
+  /** `POST` de respuestas ya resuelta; si viaja, «En espera» pide un motivo. */
+  rutaResponder?: string
   puedeEditar: boolean
   /** Que hacer con un valor sin nombre en el catalogo (ver `FuenteDeTicket.catalogoSinNombre`). */
   sinNombre: FuenteDeTicket['catalogoSinNombre']
@@ -51,6 +63,8 @@ export function MenuCatalogoTicket ({
   const [pintado, setPintado] = useState(valor)
   const [ultimoDeLaApi, setUltimoDeLaApi] = useState(valor)
   const [enCurso, setEnCurso] = useState(false)
+  const [pidiendoMotivo, setPidiendoMotivo] = useState(false)
+  const [motivo, setMotivo] = useState('')
 
   // Se realinea cuando la ficha recargada trae otro valor. `setState` en el render, como en
   // `MenuEstadoTarea`, en vez de encadenar renders desde un efecto.
@@ -80,12 +94,32 @@ export function MenuCatalogoTicket ({
 
     if (!Number.isInteger(destino) || destino === pintado || enCurso) return
 
+    if (campo === 'status' && rutaResponder !== undefined && destino === ESTADO_TICKET_EN_ESPERA) {
+      setMotivo('')
+      setPidiendoMotivo(true)
+
+      return
+    }
+
+    await aplicar(destino, null)
+  }
+
+  /**
+   * Cambia el valor, con el motivo como respuesta si lo hay.
+   *
+   * @param destino el id elegido
+   * @param texto el motivo escrito, o `null` para el `PATCH` simple
+   */
+  async function aplicar (destino: number, texto: string | null): Promise<void> {
     const previo = pintado
+    const cuerpo = texto === null ? null : cuerpoDeRespuesta(texto, destino)
 
     setPintado(destino)
     setEnCurso(true)
 
-    const resultado = await escribirEnBff<unknown>(rutaEditar, 'PATCH', { [campo]: destino })
+    const resultado = cuerpo !== null && rutaResponder !== undefined
+      ? await escribirEnBff<unknown>(rutaResponder, 'POST', cuerpo)
+      : await escribirEnBff<unknown>(rutaEditar, 'PATCH', { [campo]: destino })
 
     setEnCurso(false)
 
@@ -103,6 +137,38 @@ export function MenuCatalogoTicket ({
 
   return (
     <div className="flex flex-col items-start gap-1">
+      <Dialogo open={pidiendoMotivo} onOpenChange={setPidiendoMotivo}>
+        <ContenidoDialogo
+          titulo="Poner en espera"
+          descripcion="El motivo queda en el hilo y lo ven el equipo y el cliente. Es opcional."
+          ancho="chico"
+          cerrable
+        >
+          <form
+            className="flex flex-col gap-3"
+            onSubmit={(evento) => {
+              evento.preventDefault()
+              setPidiendoMotivo(false)
+              void aplicar(ESTADO_TICKET_EN_ESPERA, motivo)
+            }}
+          >
+            <AreaTexto
+              rows={4}
+              value={motivo}
+              autoFocus
+              aria-label="Motivo de la espera"
+              placeholder="¿Por qué queda en espera?"
+              onChange={(evento) => { setMotivo(evento.target.value) }}
+            />
+            <div className="flex justify-end gap-2">
+              <CerrarDialogo asChild>
+                <Boton type="button">Cancelar</Boton>
+              </CerrarDialogo>
+              <Boton type="submit" variante="primario">Poner en espera</Boton>
+            </div>
+          </form>
+        </ContenidoDialogo>
+      </Dialogo>
       <MenuContextual>
         <DisparadorMenu asChild>
           <button

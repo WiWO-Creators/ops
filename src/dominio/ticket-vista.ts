@@ -34,6 +34,9 @@ export const ESTADO_TICKET_CERRADO = 5
 /** Estado «Abierto» de Perfex (id 1): el de un ticket que el equipo todavia no contesto. */
 export const ESTADO_TICKET_ABIERTO = 1
 
+/** Estado «En espera» de Perfex (`On Hold`, id 4): el que pide un motivo al elegirlo desde la insignia. */
+export const ESTADO_TICKET_EN_ESPERA = 4
+
 /** Estado «Respondido» de Perfex (id 3): a donde pasa un ticket abierto cuando el equipo contesta (G). */
 export const ESTADO_TICKET_RESPONDIDO = 3
 
