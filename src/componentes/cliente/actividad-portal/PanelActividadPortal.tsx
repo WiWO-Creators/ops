@@ -118,6 +118,11 @@ export function PanelActividadPortal ({ clienteId }: { clienteId: number }) {
 
       {datos !== null && lectura !== null && datos.kpis.sesiones > 0 && (
         <div className="flex flex-col gap-10">
+          {datos.truncado && (
+            <p className="text-texto-tenue text-sm">
+              El período tiene más actividad de la que se lee de una vez: las cifras son de lo más reciente. Acorta el período para ver todo.
+            </p>
+          )}
           <div className="grid grid-cols-2 gap-x-4 gap-y-6 lg:grid-cols-4 lg:divide-linea lg:divide-x">
             <Cifra etiqueta="Sesiones" valor={datos.kpis.sesiones} formato="entero" />
             <Cifra

@@ -48,7 +48,7 @@ export default async function PortalLayout ({ children }: { children: React.Reac
     {/* Primero, para que sus efectos corran antes que los de la pagina. `useSearchParams` pide
         `Suspense`. Con `rastreo` ausente o apagado no registra nada. */}
     <Suspense fallback={null}>
-      <RastreadorPortal activo={yo.rastreo === true} />
+      <RastreadorPortal activo={yo.rastreo === true} quien={`${yo.id}-${yo.suplantado_por?.id ?? 0}`} />
     </Suspense>
     <div className="flex h-dvh flex-col overflow-hidden">
       {yo.suplantado_por != null && (

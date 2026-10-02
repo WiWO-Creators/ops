@@ -242,6 +242,7 @@ export function actividadDeCliente (clienteId, parametros) {
     vistas: orden(vistas, 'visitas'),
     proyectos: orden(proyectos, 'visitas').slice(0, 15),
     clicks: orden(clicks, 'clicks'),
+    truncado: false,
     contactos: filasContactos
   }
 }

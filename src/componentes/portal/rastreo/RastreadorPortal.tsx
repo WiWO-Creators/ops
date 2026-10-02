@@ -39,8 +39,9 @@ function enviar (cuerpo: CuerpoDeRastreo, final: boolean): void {
  * el seguimiento esta apagado— no registra nada.
  *
  * @param activo `rastreo` de `/portal/me`
+ * @param quien contacto y, si lo suplanta el equipo, quien: separa las sesiones de cada uno
  */
-export function RastreadorPortal ({ activo }: { activo: boolean }) {
+export function RastreadorPortal ({ activo, quien }: { activo: boolean, quien: string }) {
   const ruta = usePathname()
   const tarea = useSearchParams().get(PARAMETRO_TAREA)
   const motor = useRef<MotorDeRastreo | null>(null)
@@ -48,7 +49,7 @@ export function RastreadorPortal ({ activo }: { activo: boolean }) {
   useEffect(() => {
     if (!activo) return
 
-    const nuevo = new MotorDeRastreo(enviar, window.matchMedia('(max-width: 767px)').matches ? 'movil' : 'escritorio')
+    const nuevo = new MotorDeRastreo(enviar, window.matchMedia('(max-width: 767px)').matches ? 'movil' : 'escritorio', quien)
     const alPulsar = (e: MouseEvent): void => {
       if (e.target instanceof Element) nuevo.clickEn(e.target)
     }
@@ -83,7 +84,7 @@ export function RastreadorPortal ({ activo }: { activo: boolean }) {
       nuevo.terminar()
       motor.current = null
     }
-  }, [activo])
+  }, [activo, quien])
 
   useEffect(() => {
     const normal = rutaDeRastreo(ruta)

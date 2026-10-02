@@ -16,6 +16,9 @@ import {
 
 const CLAVE_SESION = 'wiwo-rastreo-portal'
 
+/** Cada cuanto se renueva `ultimo` en el storage mientras hay actividad. */
+const RENOVAR_SESION_MS = 60_000
+
 /** Lo que viaja en `POST /portal/actividad`. */
 export interface CuerpoDeRastreo {
   session: string
@@ -51,6 +54,7 @@ export class MotorDeRastreo {
   constructor (
     private readonly enviar: (cuerpo: CuerpoDeRastreo, final: boolean) => void,
     private readonly dispositivo: 'movil' | 'escritorio',
+    private readonly quien: string,
     private readonly reloj: () => number = () => Date.now()
   ) {
     const ahora = this.reloj()
@@ -127,6 +131,12 @@ export class MotorDeRastreo {
   /** Hubo interaccion: renueva el reloj de inactividad y reanuda si estaba en pausa. */
   avisarActividad (): void {
     this.ultimaActividad = this.reloj()
+
+    // Sin esto `ultimo` solo se escribe al montar: tras 30 min de uso continuo, un F5 abriria otra
+    // sesion y partiria una jornada en dos.
+    if (this.ultimaActividad - this.sesion.ultimo > RENOVAR_SESION_MS) {
+      this.sesion = this.abrirSesion(this.ultimaActividad, this.sesion)
+    }
 
     if (this.inactivo) {
       this.inactivo = false
@@ -239,6 +249,14 @@ export class MotorDeRastreo {
   }
 
   /**
+   * La clave de storage lleva a quien mira (contacto y, si lo suplanta el equipo, quien): con otra
+   * persona en la misma pestaña el uuid no se reutiliza y la API no lo rechaza.
+   */
+  private claveDeSesion (): string {
+    return `${CLAVE_SESION}:${this.quien}`
+  }
+
+  /**
    * Continua la sesion guardada en `sessionStorage` o abre otra. Sin storage vive en memoria:
    * `actual` es la que ya se tenia y se sigue mientras no caduque.
    */
@@ -246,7 +264,7 @@ export class MotorDeRastreo {
     let guardada: EstadoDeSesion | null = actual
 
     try {
-      const crudo = window.sessionStorage.getItem(CLAVE_SESION)
+      const crudo = window.sessionStorage.getItem(this.claveDeSesion())
 
       if (crudo !== null) {
         const dato = JSON.parse(crudo) as Partial<EstadoDeSesion>
@@ -260,7 +278,7 @@ export class MotorDeRastreo {
     const sesion = sesionVigente(guardada, ahora, nuevoUuid)
 
     try {
-      window.sessionStorage.setItem(CLAVE_SESION, JSON.stringify(sesion))
+      window.sessionStorage.setItem(this.claveDeSesion(), JSON.stringify(sesion))
     } catch {
       // Sin storage la sesion vive en memoria: se pierde al recargar y no es un error.
     }

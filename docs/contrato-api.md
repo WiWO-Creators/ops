@@ -3977,7 +3977,9 @@ Cliente.
 
 #### `POST /portal/actividad` — contacto
 
-Lote de hasta 50 eventos. Responde `204` siempre, también con el seguimiento apagado.
+Lote de hasta 50 eventos. Responde `204` si se guarda o si el seguimiento está apagado; `422` si el
+lote no cumple el formato o si el uuid de sesión ya es de otro contacto (o de otra forma de entrar,
+suplantada o no); `429` al pasar el tope.
 
 ```json
 { "session": "0f8fad5b-d9cb-469f-a165-70867728950e", "device": "movil",
@@ -4001,7 +4003,8 @@ Lote de hasta 50 eventos. Responde `204` siempre, también con el seguimiento ap
 #### `GET /clients/{id}/portal-activity` — staff, cliente visible
 
 Parámetros: `desde`, `hasta` (`YYYY-MM-DD`, por defecto los últimos 30 días, máximo 366) y
-`suplantadas=1` para incluir lo que hizo el equipo (por defecto queda fuera).
+`suplantadas=1` para incluir lo que hizo el equipo (por defecto queda fuera). Una fecha que no
+existe da `422`. La respuesta trae `truncado: true` si el periodo superó las 50.000 filas leídas.
 
 ```json
 { "data": {
@@ -4020,11 +4023,12 @@ Parámetros: `desde`, `hasta` (`YYYY-MM-DD`, por defecto los últimos 30 días, 
 `vistas` normaliza los ids (`/portal/proyectos/:id`); una fila con `pestana` cuenta la pestaña dentro
 de la página. `segundos_activos` suma solo las `vista`: las `pestana` van dentro de su vista.
 `proyectos` dice CUÁL proyecto miran (`vistas` normaliza los ids y no puede); un proyecto borrado
-sale con `nombre: null`.
+sale con `nombre: null`. Solo se nombran proyectos del propio cliente.
 
 #### `GET /contacts/{id}/portal-activity` — staff, cliente visible
 
-Parámetros: `pagina` (15 sesiones por página) y `suplantadas=1`. Cada sesión trae sus pasos en orden:
+Parámetros: `pagina` (1 a 10.000; 15 sesiones por página) y `suplantadas=1`. Solo trae sesiones del
+cliente actual del contacto. Cada sesión trae sus pasos en orden:
 
 ```json
 { "data": [ { "sesion": "…", "inicio": "2026-10-02T15:33:00Z", "segundos": 62, "dispositivo": "escritorio",

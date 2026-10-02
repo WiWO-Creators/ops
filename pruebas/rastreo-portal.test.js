@@ -38,6 +38,8 @@ test('el rotulo de un boton se vuelve clave sin acentos ni signos', () => {
   assert.equal(claveDeRotulo('Cerrar sesión'), 'boton.cerrar-sesion')
   assert.equal(claveDeRotulo('  ¡Aprobar!  '), 'boton.aprobar')
   assert.equal(claveDeRotulo('???'), null)
+  assert.equal(claveDeRotulo('Borrar el preset Ventas 2026'), null)
+  assert.equal(claveDeRotulo('Ficha de una persona con nombre largo'), null)
   assert.equal(claveDeRotulo(null), null)
   assert.ok((claveDeRotulo('x'.repeat(200)) ?? '').length <= 64)
 })

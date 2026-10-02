@@ -59,6 +59,8 @@ export interface ActividadDeCliente {
   por_dia: DiaDeActividad[]
   vistas: VistaRanking[]
   proyectos: ProyectoVisto[]
+  /** El periodo superó lo que la API lee de una vez: las cifras son de lo más reciente. */
+  truncado: boolean
   clicks: ClickRanking[]
   contactos: ContactoActivo[]
 }

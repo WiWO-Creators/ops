@@ -76,7 +76,9 @@ export function claveDeRastreo (clave: string | null | undefined): string | null
  * @returns `boton.<rotulo>` o `null` si el rotulo queda vacio
  */
 export function claveDeRotulo (rotulo: string | null | undefined): string | null {
-  if (typeof rotulo !== 'string') return null
+  // Un rotulo largo o con cifras suele llevar un nombre ("Ficha de Ana", "Borrar preset 3"): se
+  // descarta antes que arriesgar nombres propios. Lo estable lleva `data-rastreo`.
+  if (typeof rotulo !== 'string' || rotulo.length > 30 || /\d/.test(rotulo)) return null
 
   const limpio = rotulo
     .normalize('NFD')
