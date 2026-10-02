@@ -13,7 +13,7 @@ import {
   type ActividadDeCliente
 } from '@/dominio/actividad-portal'
 import { hoyLocal, sumarDias } from '@/lib/fechas'
-import { BarrasDeVistas, Cifra, CifraDeFecha, ListaDeClicks, RitmoDiario, TablaDeContactos } from './piezas'
+import { BarrasDeVistas, Cifra, CifraDeFecha, ListaDeClicks, ProyectosMasMirados, RitmoDiario, TablaDeContactos } from './piezas'
 import { useCoreografia } from './useCoreografia'
 
 /** Filas por lado en "lo mas visto" y "lo menos visto". */
@@ -68,7 +68,7 @@ export function PanelActividadPortal ({ clienteId }: { clienteId: number }) {
 
   const lectura = useMemo(() => {
     if (datos === null) return null
-    const ranking = rankingDeVistas(datos.vistas, datos.nombres)
+    const ranking = rankingDeVistas(datos.vistas)
     const { mas, menos } = extremosDelRanking(ranking, FILAS_POR_LADO)
 
     return {
@@ -156,9 +156,12 @@ export function PanelActividadPortal ({ clienteId }: { clienteId: number }) {
             />
           </div>
 
-          <ListaDeClicks clicks={datos.clicks} />
+          <div className="grid gap-x-12 gap-y-10 lg:grid-cols-2">
+            <ProyectosMasMirados proyectos={datos.proyectos} />
+            <ListaDeClicks clicks={datos.clicks} />
+          </div>
 
-          <TablaDeContactos clienteId={clienteId} contactos={datos.contactos} nombres={datos.nombres} />
+          <TablaDeContactos clienteId={clienteId} contactos={datos.contactos} />
         </div>
       )}
     </div>

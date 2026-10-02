@@ -17,6 +17,13 @@ export interface VistaRanking {
   segundos: number
 }
 
+export interface ProyectoVisto {
+  id: number
+  nombre: string | null
+  visitas: number
+  segundos: number
+}
+
 export interface ClickRanking {
   objetivo: string
   clicks: number
@@ -51,9 +58,9 @@ export interface ActividadDeCliente {
   }
   por_dia: DiaDeActividad[]
   vistas: VistaRanking[]
+  proyectos: ProyectoVisto[]
   clicks: ClickRanking[]
   contactos: ContactoActivo[]
-  nombres: Record<string, string>
 }
 
 export interface PasoDeSesion {

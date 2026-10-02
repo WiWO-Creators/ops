@@ -4010,17 +4010,17 @@ Parámetros: `desde`, `hasta` (`YYYY-MM-DD`, por defecto los últimos 30 días, 
             "mediana_segundos": 180, "ultima_visita": "2026-10-02T15:39:00Z" },
   "por_dia":   [ { "dia": "2026-10-01", "sesiones": 2, "segundos": 340 } ],
   "vistas":    [ { "ruta": "/portal/proyectos/:id", "pestana": "gantt", "visitas": 4, "segundos": 60 } ],
+  "proyectos": [ { "id": 12, "nombre": "DELCO", "visitas": 9, "segundos": 540 } ],
   "clicks":    [ { "objetivo": "aprobacion.aprobar", "clicks": 7 } ],
   "contactos": [ { "id": 1, "nombre": "Renata Ferreyra", "email": "clienta@acme.com", "sesiones": 9,
                    "segundos": 1500, "ultima_visita": "2026-10-02T15:39:00Z",
-                   "vista_favorita": "/portal/proyectos/:id" } ],
-  "nombres":   { "12": "DELCO" } } }
+                   "vista_favorita": "/portal/proyectos/:id" } ] } }
 ```
 
 `vistas` normaliza los ids (`/portal/proyectos/:id`); una fila con `pestana` cuenta la pestaña dentro
 de la página. `segundos_activos` suma solo las `vista`: las `pestana` van dentro de su vista.
-`nombres` resuelve los proyectos que aparecen; un proyecto borrado no sale y quien muestra cae al
-genérico.
+`proyectos` dice CUÁL proyecto miran (`vistas` normaliza los ids y no puede); un proyecto borrado
+sale con `nombre: null`.
 
 #### `GET /contacts/{id}/portal-activity` — staff, cliente visible
 

@@ -11,7 +11,8 @@ import {
   type ClickRanking,
   type ContactoActivo,
   type DiaDeActividad,
-  type FilaDeRanking
+  type FilaDeRanking,
+  type ProyectoVisto
 } from '@/dominio/actividad-portal'
 import { formatearFecha, formatearRelativo } from '@/lib/fechas'
 import { cn } from '@/lib/clases'
@@ -140,6 +141,43 @@ export function BarrasDeVistas ({ titulo, descripcion, filas, maximo, vacio }: {
   )
 }
 
+/** Los Proyectos que mas abren: es el nivel que `Lo mas visto` no puede dar, porque junta todos en uno. */
+export function ProyectosMasMirados ({ proyectos }: { proyectos: ProyectoVisto[] }) {
+  const maximo = Math.max(0, ...proyectos.map((p) => p.visitas))
+
+  return (
+    <section className="flex flex-col gap-3" aria-label="Proyectos que más miran">
+      <div>
+        <h3 className="text-texto text-base font-semibold">Proyectos que más miran</h3>
+        <p className="text-texto-tenue text-sm">Cuáles abren de verdad, y cuánto tiempo pasan en cada uno.</p>
+      </div>
+      {proyectos.length === 0
+        ? <p className="text-texto-tenue text-sm">Todavía no abrieron ningún proyecto en este período.</p>
+        : (
+          <ul className="flex flex-col gap-3">
+            {proyectos.slice(0, 8).map((p) => (
+              <li key={p.id} data-entrada="item" className="flex flex-col gap-1.5">
+                <div className="flex items-baseline justify-between gap-3 text-sm">
+                  <span className="text-texto min-w-0 truncate">{p.nombre ?? 'Un proyecto que ya no existe'}</span>
+                  <span className="text-texto-tenue shrink-0 tabular-nums">
+                    {`${p.visitas} ${p.visitas === 1 ? 'visita' : 'visitas'} y ${formatearDuracion(p.segundos)}`}
+                  </span>
+                </div>
+                <div className="h-1.5">
+                  <div
+                    data-barra
+                    style={{ width: `${Math.max(2, Math.round(fraccionDeBarra(p.visitas, maximo) * 100))}%` }}
+                    className="bg-acento rounded-chico h-full origin-left"
+                  />
+                </div>
+              </li>
+            ))}
+          </ul>
+          )}
+    </section>
+  )
+}
+
 /** Los botones mas pulsados, con la misma forma que las barras de vistas. */
 export function ListaDeClicks ({ clicks }: { clicks: ClickRanking[] }) {
   const maximo = Math.max(0, ...clicks.map((c) => c.clicks))
@@ -153,8 +191,8 @@ export function ListaDeClicks ({ clicks }: { clicks: ClickRanking[] }) {
       {clicks.length === 0
         ? <p className="text-texto-tenue text-sm">Todavía no pulsaron ningún botón en este período.</p>
         : (
-          <ul className="grid gap-x-10 gap-y-3 md:grid-cols-2">
-            {clicks.slice(0, 12).map((c) => (
+          <ul className="flex flex-col gap-3">
+            {clicks.slice(0, 8).map((c) => (
               <li key={c.objetivo} data-entrada="item" className="flex flex-col gap-1.5">
                 <div className="flex items-baseline justify-between gap-3 text-sm">
                   <span className="text-texto min-w-0 truncate">{etiquetaDeClick(c.objetivo)}</span>
@@ -176,10 +214,9 @@ export function ListaDeClicks ({ clicks }: { clicks: ClickRanking[] }) {
 }
 
 /** Una fila por contacto que entro al portal en el periodo, con enlace a su recorrido. */
-export function TablaDeContactos ({ clienteId, contactos, nombres }: {
+export function TablaDeContactos ({ clienteId, contactos }: {
   clienteId: number
   contactos: ContactoActivo[]
-  nombres: Record<string, string>
 }) {
   return (
     <section className="flex flex-col gap-3" aria-label="Contactos">
@@ -215,7 +252,7 @@ export function TablaDeContactos ({ clienteId, contactos, nombres }: {
               <CeldaTabla numerica>{c.sesiones}</CeldaTabla>
               <CeldaTabla numerica>{formatearDuracion(c.segundos)}</CeldaTabla>
               <CeldaTabla sinCortar>{c.ultima_visita === null ? 'Sin visitas' : formatearRelativo(c.ultima_visita)}</CeldaTabla>
-              <CeldaTabla>{c.vista_favorita === null ? 'Sin datos' : etiquetaDeRuta(c.vista_favorita, nombres)}</CeldaTabla>
+              <CeldaTabla>{c.vista_favorita === null ? 'Sin datos' : etiquetaDeRuta(c.vista_favorita)}</CeldaTabla>
             </FilaTabla>
           ))}
         </CuerpoTabla>

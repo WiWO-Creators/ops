@@ -60,6 +60,7 @@ test('el equipo lee el resumen del cliente con la forma que pinta el panel', asy
 
   assert.ok(d.kpis.sesiones > 0)
   assert.ok(Array.isArray(d.por_dia) && Array.isArray(d.vistas) && Array.isArray(d.clicks) && Array.isArray(d.contactos))
+  assert.ok(Array.isArray(d.proyectos) && d.proyectos.every((p) => typeof p.id === 'number' && p.visitas > 0))
   assert.ok(d.contactos.every((c) => typeof c.nombre === 'string' && typeof c.segundos === 'number'))
 })
 

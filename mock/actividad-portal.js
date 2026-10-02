@@ -147,6 +147,7 @@ export function actividadDeCliente (clienteId, parametros) {
   const dias = new Map()
   const vistas = new Map()
   const clicks = new Map()
+  const proyectos = new Map()
   const contactos = new Map()
   let segundos = 0
 
@@ -181,6 +182,16 @@ export function actividadDeCliente (clienteId, parametros) {
       v.segundos += s
       vistas.set(ruta, v)
       c.rutas.set(ruta, (c.rutas.get(ruta) ?? 0) + 1)
+      const proyecto = /^\/portal\/proyectos\/(\d+)$/.exec(e.ruta)
+
+      if (proyecto) {
+        const id = Number(proyecto[1])
+        const p = proyectos.get(id) ?? { id, nombre: ESPACIOS.find((x) => x.id === id)?.name ?? null, visitas: 0, segundos: 0 }
+
+        p.visitas++
+        p.segundos += s
+        proyectos.set(id, p)
+      }
       const d = dias.get(e.creado_en.slice(0, 10)) ?? { dia: e.creado_en.slice(0, 10), sesiones: 0, segundos: 0 }
 
       d.segundos += s
@@ -229,9 +240,9 @@ export function actividadDeCliente (clienteId, parametros) {
     },
     por_dia: [...dias.values()].sort((a, b) => a.dia.localeCompare(b.dia)),
     vistas: orden(vistas, 'visitas'),
+    proyectos: orden(proyectos, 'visitas').slice(0, 15),
     clicks: orden(clicks, 'clicks'),
-    contactos: filasContactos,
-    nombres: nombresDeProyectos([...vistas.values()].map((v) => v.ruta))
+    contactos: filasContactos
   }
 }
 
