@@ -178,3 +178,8 @@ test('cambiar la visibilidad de un adjunto pasa por el BFF solo para el equipo',
     assert.equal(rutaPermitida(ruta, 'contacto'), false, ruta.join('/'))
   }
 })
+
+test('database-export pasa para staff y no para el portal', () => {
+  assert.equal(rutaPermitida(['database-export'], 'staff'), true)
+  assert.equal(rutaPermitida(['database-export'], 'contacto'), false)
+})
