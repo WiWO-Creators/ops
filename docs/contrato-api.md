@@ -3965,6 +3965,18 @@ persona **no se registra en ninguna parte**; para tenerlo, el BFF tendria que re
 `staff` es `null` si la cuenta ya no existe. `impersonated_by` no es `null` cuando la sesion la
 abrio otra persona por `POST /impersonate`.
 
+### `GET /database-export` — exportar la base de datos
+
+Solo superadministracion (403 al resto). Responde un archivo, no el sobre JSON: `application/gzip`
+con `Content-Disposition: attachment; filename="<base>_<fecha>_<hora>.sql.gz"`, el volcado completo de
+`mysqldump` (`--single-transaction`, rutinas y triggers) comprimido al vuelo. Excluye solo los datos
+de `tblsessions`. Incluye hashes de contrasenas y tokens: es la copia entera.
+
+Cada exportacion anota una linea en la auditoria (`tblactivity_log`) con la persona y la IP, antes de
+emitir. Un `503` dice que el servidor no tiene `mysqldump` (o la variable `WIWO_MYSQLDUMP_BIN` apunta
+a algo no ejecutable). Si el volcado falla a mitad de camino la conexion se corta con el cuerpo
+truncado y el error queda en el log del servidor: un `.sql.gz` que no descomprime esta incompleto.
+
 ### `GET /sessions/impersonations` — suplantaciones vivas
 
 Quien esta usando el panel ahora mismo con la cuenta de otra persona. Alimenta el aviso destacado de

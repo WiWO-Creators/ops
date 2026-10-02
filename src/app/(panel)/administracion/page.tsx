@@ -1,5 +1,5 @@
 import { Suspense } from 'react'
-import { CalendarSync, Inbox, KeyRound, Megaphone, MonitorPlay, RefreshCcwDot, Siren, Sparkles, type LucideIcon } from 'lucide-react'
+import { CalendarSync, Database, Inbox, KeyRound, Megaphone, MonitorPlay, RefreshCcwDot, Siren, Sparkles, type LucideIcon } from 'lucide-react'
 import { AccesoGoogle } from '@/componentes/administracion/AccesoGoogle'
 import { FormularioDeAjustes } from '@/componentes/administracion/FormularioDeAjustes'
 import { ModoEspecialAdmin } from '@/componentes/administracion/ModoEspecialAdmin'
@@ -29,6 +29,8 @@ interface PantallaAparte {
   descripcion: string
   icono: LucideIcon
   tono: TonoTarjeta
+  /** El destino es un archivo que se descarga, no una pantalla. */
+  descarga?: boolean
 }
 
 /** Las pantallas de Administración que no son pestañas: cada una tiene su propio listado paginado. */
@@ -88,6 +90,14 @@ const PANTALLAS_APARTE: PantallaAparte[] = [
     descripcion: 'Las coreografías de después de actualizar y el recorrido de novedades, para repetirlas sin desplegar.',
     icono: Sparkles,
     tono: 'acento'
+  },
+  {
+    href: '/api/bff/database-export',
+    titulo: 'Exportar la base de datos',
+    descripcion: 'Descarga una copia completa (.sql.gz) con todos los datos, contraseñas cifradas incluidas. Cada descarga queda en la auditoría.',
+    icono: Database,
+    tono: 'peligro',
+    descarga: true
   }
 ]
 
@@ -217,6 +227,7 @@ export default async function AdministracionPage () {
             descripcion={pantalla.descripcion}
             icono={pantalla.icono}
             tono={pantalla.tono}
+            descarga={pantalla.descarga}
           />
         ))}
       </EntradaEscalonada>

@@ -299,7 +299,7 @@ export function cabecerasDeEntrada (peticion: NextRequest): Record<string, strin
  * Es una lista corta y explicita, no un reenvio de todo: `content-length` y `content-encoding`
  * describen el cuerpo que Node ya recodifico, y copiarlos rompe la respuesta.
  */
-const CABECERAS_REENVIADAS = ['cache-control', 'x-accel-buffering'] as const
+const CABECERAS_REENVIADAS = ['cache-control', 'x-accel-buffering', 'content-disposition'] as const
 
 /**
  * Arma las cabeceras de la respuesta del BFF a partir de las de la API.
