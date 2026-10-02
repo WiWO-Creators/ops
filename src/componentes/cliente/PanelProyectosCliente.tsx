@@ -191,7 +191,7 @@ function CuerpoProyectosCliente ({ clienteId, estados, capacidades, capacidadesP
 /**
  * Definicion de Espacios acotada a un Cliente: mismo recurso que `/proyectos`, sin la columna ni el
  * filtro "Cliente" (siempre serian el mismo bajo este encabezado) y con el avance y el nombre
- * enriquecidos igual que en el listado completo.
+ * enriquecidos igual que en el listado completo. Es la unica pantalla que pide los upsells abiertos.
  *
  * @param clienteId Cliente al que se acota la lista.
  * @returns Una definicion nueva; `ESPACIOS` no se muta.
@@ -199,7 +199,14 @@ function CuerpoProyectosCliente ({ clienteId, estados, capacidades, capacidadesP
 function definicionDeProyectosCliente (clienteId: number): DefinicionRecurso<Espacio> {
   const base = espaciosAcotados(`filter[clientid]=${clienteId}`, 'clientid')
 
-  return { ...base, columnas: enriquecerColumnas(base.columnas.filter((columna) => columna.clave !== 'client')) }
+  // `upsells` es lo que le dice a la API que liste tambien los upsells abiertos de este cliente: en
+  // el listado general `/proyectos` siguen ocultos, y filtrar por cliente no basta para mostrarlos.
+  return {
+    ...base,
+    columnas: enriquecerColumnas(base.columnas.filter((columna) => columna.clave !== 'client')),
+    includes: [...(base.includes ?? []), 'upsells'],
+    incluirSiempre: [...(base.incluirSiempre ?? []), 'upsells']
+  }
 }
 
 /**
