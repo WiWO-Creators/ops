@@ -550,9 +550,10 @@ lectura no asigna nada. `/portal` no devuelve este campo: es un código interno.
 
 **`oportunidad`** (`"upsell"` | `"licitacion"` | `null`) dice de qué oportunidad comercial nació el
 Espacio y viaja en el listado y el detalle. El listado diario **no** trae los upsells ni las licitaciones
-sin ganar, pero con `filter[clientid]` (la ficha de un cliente) el upsell sí viaja, porque es una venta de
-ese cliente: la interfaz lo muestra entre sus Proyectos con la marca «Upsell». La licitación sigue oculta
-(no tiene cliente hasta que se gana). Una vez ganado, el Espacio entra a todos los listados y conserva
+sin ganar, salvo que se pida `include=upsells` (lo hace solo la ficha de un cliente, junto a
+`filter[clientid]`): es una venta de ese cliente y la interfaz la muestra entre sus Proyectos con la marca
+«Upsell». Filtrar por cliente sin ese `include` NO los trae. La licitación sigue oculta (no tiene cliente
+hasta que se gana). Una vez ganado, el Espacio entra a todos los listados y conserva
 `oportunidad`.
 
 Filtros: `status`, `clientid`, `member` (staff id), `date_from`/`date_to` sobre `start_date`, `q`.
