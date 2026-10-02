@@ -349,6 +349,12 @@ export interface Espacio {
    * del Proceso.
    */
   patente?: string | null
+  /**
+   * De que oportunidad comercial nacio el Espacio, o `null` si es un Proyecto corriente. Un upsell
+   * abierto solo viaja en el listado acotado a un cliente (`filter[clientid]`); en el resto de los
+   * listados esta oculto hasta que se gana. Ausente en las respuestas del portal.
+   */
+  oportunidad?: 'upsell' | 'licitacion' | null
   /** Imagen propia del proyecto; si es `null`, la interfaz usa el logo del cliente. */
   image_url: string | null
   description: string | null

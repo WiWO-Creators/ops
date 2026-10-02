@@ -548,6 +548,13 @@ la tabla `tblwiwo_project_patentes` (migración `0160`) — en los dos casos la 
 igual que hace con la del Proceso. A diferencia de aquélla, **acá no hay reparación perezosa**: la
 lectura no asigna nada. `/portal` no devuelve este campo: es un código interno.
 
+**`oportunidad`** (`"upsell"` | `"licitacion"` | `null`) dice de qué oportunidad comercial nació el
+Espacio y viaja en el listado y el detalle. El listado diario **no** trae los upsells ni las licitaciones
+sin ganar, pero con `filter[clientid]` (la ficha de un cliente) el upsell sí viaja, porque es una venta de
+ese cliente: la interfaz lo muestra entre sus Proyectos con la marca «Upsell». La licitación sigue oculta
+(no tiene cliente hasta que se gana). Una vez ganado, el Espacio entra a todos los listados y conserva
+`oportunidad`.
+
 Filtros: `status`, `clientid`, `member` (staff id), `date_from`/`date_to` sobre `start_date`, `q`.
 Orden: `name`, `start_date`, `deadline`, `progress`.
 Include: `custom_fields`, `members`.
