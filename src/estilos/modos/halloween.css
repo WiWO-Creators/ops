@@ -81,6 +81,10 @@
   opacity: 0.8;
 }
 
+:root[data-modo='halloween'] .decoracion-modo-tejedora {
+  color: light-dark(#2A1A3D, #D9C2F0);
+}
+
 :root[data-modo='halloween'] .decoracion-modo-fantasma {
   color: light-dark(#5B2A86, #E8DAFF);
 }
@@ -125,7 +129,8 @@
 
 /* Con menos movimiento no se muestra lo que existe solo para moverse. */
 @media (prefers-reduced-motion: reduce) {
-  :root[data-modo='halloween'] .decoracion-modo-vuelo {
+  :root[data-modo='halloween'] .decoracion-modo-vuelo,
+  :root[data-modo='halloween'] .decoracion-modo-tejedora {
     display: none;
   }
 }
