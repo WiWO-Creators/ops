@@ -8,6 +8,7 @@ import { PanelEquipoCliente } from '@/componentes/cliente/EquipoCliente'
 import { FichaCliente } from '@/componentes/cliente/FichaCliente'
 import { PanelFocalesCliente } from '@/componentes/cliente/FocalesCliente'
 import { PanelSupervisoresCliente } from '@/componentes/cliente/SupervisoresCliente'
+import { PanelActividadPortal } from '@/componentes/cliente/actividad-portal/PanelActividadPortal'
 import { PanelContactos } from '@/componentes/cliente/PanelContactos'
 import { PanelProyectosCliente } from '@/componentes/cliente/PanelProyectosCliente'
 import { SemaforoCliente } from '@/componentes/clientes/SemaforoCliente'
@@ -220,6 +221,9 @@ export default async function ClientePage (props: PageProps<'/clientes/[id]'>) {
       etiqueta: GLOSARIO.proceso.plural,
       contenido: <PanelTareasCliente clienteId={cliente.id} capacidades={capacidadesTareas} />
     },
+    // Lo que hacen los contactos cuando entran al portal. La pestaña se pide a la API sola: con el
+    // seguimiento apagado responde 404 y el panel lo dice, sin tumbar la ficha.
+    { clave: 'actividad', etiqueta: 'Actividad del portal', contenido: <PanelActividadPortal clienteId={cliente.id} /> },
     { clave: 'notas', etiqueta: 'Notas', contenido: <PanelNotasCliente clienteId={cliente.id} /> },
     { clave: 'archivos', etiqueta: 'Archivos', contenido: <PanelArchivosCliente clienteId={cliente.id} /> }
   ]

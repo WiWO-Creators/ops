@@ -151,7 +151,7 @@ export function NuevaSolicitud ({ prioridades, espacios, entradaId = null }: Pro
     <>
       <Dialogo open={abierto} onOpenChange={setAbierto}>
         <DisparadorDialogo asChild>
-          <Boton variante="primario">Nuevo ticket</Boton>
+          <Boton variante="primario" data-rastreo="ticket.nuevo">Nuevo ticket</Boton>
         </DisparadorDialogo>
 
         <ContenidoDialogo
@@ -222,12 +222,13 @@ export function NuevaSolicitud ({ prioridades, espacios, entradaId = null }: Pro
             {fallo !== null && <AvisoEnLinea variante="error" mensaje={fallo} className="text-sm" />}
 
             <div className="flex justify-end gap-2">
-              <Boton type="button" variante="sutil" onClick={() => { setAbierto(false) }}>
+              <Boton type="button" variante="sutil" data-rastreo="ticket.cancelar" onClick={() => { setAbierto(false) }}>
                 Cancelar
               </Boton>
               <Boton
                 type="submit"
                 variante="primario"
+                data-rastreo="ticket.enviar"
                 cargando={enviando}
                 disabled={!solicitudCompleta(borrador) || espera !== null}
               >

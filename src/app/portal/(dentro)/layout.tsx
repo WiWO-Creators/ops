@@ -1,3 +1,4 @@
+import { Suspense } from 'react'
 import Link from 'next/link'
 import { SelectorTema } from '@/componentes/estructura/SelectorTema'
 import { Avatar } from '@/componentes/presentadores/Avatar'
@@ -11,6 +12,7 @@ import { BotonSalirPortal } from '../BotonSalirPortal'
 import { NavegacionPortal } from '../NavegacionPortal'
 import { ScrollSuave } from '@/componentes/estructura/ScrollSuave'
 import { OrbeChatIA } from '@/componentes/ia/OrbeChatIA'
+import { RastreadorPortal } from '@/componentes/portal/rastreo/RastreadorPortal'
 
 /**
  * Armazon del portal del cliente.
@@ -43,6 +45,11 @@ export default async function PortalLayout ({ children }: { children: React.Reac
     // `esPortal` fijo en `true`: en el portal ninguna persona, cliente o proyecto se enlaza, sea cual
     // sea la capacidad. Ver `ProveedorEnlaces`.
     <ProveedorEnlaces permisos={{}} esPortal>
+    {/* Primero, para que sus efectos corran antes que los de la pagina. `useSearchParams` pide
+        `Suspense`. Con `rastreo` ausente o apagado no registra nada. */}
+    <Suspense fallback={null}>
+      <RastreadorPortal activo={yo.rastreo === true} quien={`${yo.id}-${yo.suplantado_por?.id ?? 0}`} />
+    </Suspense>
     <div className="flex h-dvh flex-col overflow-hidden">
       {yo.suplantado_por != null && (
         <BarraVerComoCliente

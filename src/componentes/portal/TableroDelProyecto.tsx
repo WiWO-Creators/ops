@@ -122,6 +122,7 @@ function SelectorDeMesDelTablero (
         </label>
         <button
           type="submit"
+          data-rastreo="tablero.ver-mes"
           className="border-linea rounded-medio bg-superficie-elevada text-texto hover:bg-hover h-9 cursor-pointer border px-4 text-sm font-medium"
         >
           Ver mes
