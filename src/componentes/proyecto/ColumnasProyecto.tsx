@@ -2,12 +2,14 @@
 
 import Link from 'next/link'
 import { Etiquetas } from '@/componentes/presentadores/Etiqueta'
+import { Insignia } from '@/componentes/presentadores/Insignia'
 import { EnlaceProyecto } from '@/componentes/presentadores/EnlaceProyecto'
 import { GrupoEnlacesPersona } from '@/componentes/presentadores/GrupoEnlacesPersona'
 import { BarraProgreso } from '@/componentes/presentadores/BarraProgreso'
 import type { Columna } from '@/definiciones/tipos'
 import type { Espacio } from '@/datos/recursos'
 import type { Capacidad } from '@/datos/tipos'
+import { GLOSARIO } from '@/dominio/glosario'
 import { puedeVerSeccion } from '@/dominio/permisos'
 import { DistintivoSolicitud } from './SolicitudDeEliminacion'
 import { cn } from '@/lib/clases'
@@ -93,6 +95,12 @@ function CeldaNombre ({ espacio, acciones }: { espacio: Espacio, acciones: Accio
         nombre={espacio.name}
         capacidades={acciones !== undefined ? capacidades : undefined}
       />
+
+      {/* La marca del upsell va junto al nombre y no en una columna: dentro de la ficha de un cliente
+          el upsell se lista entre sus Proyectos, y lo unico que lo distingue es esto. */}
+      {espacio.oportunidad === 'upsell' && (
+        <Insignia tono="acento" tamano="chico" className="shrink-0">{GLOSARIO.upsell.singular}</Insignia>
+      )}
 
       {/* El pedido de eliminacion se lee junto al nombre y no en una columna propia: cambia como se
           lee la fila entera, y una columna mas obligaria a mirar a la derecha para enterarse. */}
