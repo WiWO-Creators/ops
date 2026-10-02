@@ -21,9 +21,19 @@ export const RUTA_DE_ASIGNABLES = `staff/asignables?per_page=${TOPE_DE_ASIGNABLE
  * entra o sale del equipo, no mientras se edita una tarea.
  */
 let enMemoria: Promise<PersonaAsignable[]> | null = null
+let pedidaEn = 0
 
 /**
- * Las personas a las que se le puede asignar un Proceso, pedidas **una sola vez por pestaña**.
+ * Cuanto vive lo cacheado antes de volver a pedirse (ms).
+ *
+ * Sin vencimiento, alguien dado de alta con la pestaña ya abierta no aparecia en ningun selector
+ * hasta recargar. Un minuto mantiene la peticion unica dentro de una sesion de edicion y deja que
+ * la siguiente apertura vea a las personas nuevas.
+ */
+const VIGENCIA_DE_ASIGNABLES_MS = 60_000
+
+/**
+ * Las personas a las que se le puede asignar un Proceso, pedidas **una vez por minuto como maximo**.
  *
  * Todas las pantallas que ofrecen asignados salen de aca: el selector de la tarea, las acciones
  * masivas y el alta rapida. Que cada una tuviera su propia fuente era lo que hacia que dos personas
@@ -40,6 +50,9 @@ let enMemoria: Promise<PersonaAsignable[]> | null = null
  * @throws Error con el mensaje del contrato si la peticion falla; el proximo llamado reintenta
  */
 export async function cargarAsignables (): Promise<PersonaAsignable[]> {
+  if (enMemoria !== null && Date.now() - pedidaEn > VIGENCIA_DE_ASIGNABLES_MS) enMemoria = null
+
+  if (enMemoria === null) pedidaEn = Date.now()
   enMemoria ??= pedirSobre<PersonaAsignable[]>(RUTA_DE_ASIGNABLES, new AbortController().signal)
     .then((sobre) => sobre.data)
     .catch((fallo: unknown) => {
@@ -54,6 +67,7 @@ export async function cargarAsignables (): Promise<PersonaAsignable[]> {
 /** Olvida lo cacheado. Solo para las pruebas: en la pantalla no hay ningun momento que lo pida. */
 export function olvidarAsignables (): void {
   enMemoria = null
+  pedidaEn = 0
 }
 
 /**

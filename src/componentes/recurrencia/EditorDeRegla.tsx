@@ -3,6 +3,7 @@
 import { CalendarDays, TriangleAlert } from 'lucide-react'
 import { useEffect, useMemo, useState, type FormEvent, type ReactElement } from 'react'
 import { escribirEnBff } from '@/componentes/datos/mutaciones'
+import { AvisoEnLinea } from '@/componentes/estado/Estados'
 import { Boton } from '@/componentes/formularios/Boton'
 import { Campo } from '@/componentes/formularios/Campo'
 import { Entrada } from '@/componentes/formularios/Entrada'
@@ -16,6 +17,7 @@ import {
 import { formatearFecha } from '@/lib/fechas'
 import { DiasExcluidos } from './DiasExcluidos'
 import { FinDeRecurrencia } from './FinDeRecurrencia'
+import { useAviso } from '@/componentes/estado/useAviso'
 
 /** La Tarea cuya regla se edita: lo guardado y lo minimo para nombrarla. */
 export type TareaConRegla = ReglaGuardada & { id: number, name: string, paused?: boolean }
@@ -145,6 +147,7 @@ function FormularioDeRegla ({ tarea, onCerrar, onGuardada }: {
   onCerrar: () => void
   onGuardada?: () => void
 }): ReactElement {
+  const aviso = useAviso()
   const inicial = useMemo(() => camposDeRegla(tarea), [tarea])
   const [campos, setCampos] = useState<CamposRegla>(inicial)
   const [intentado, setIntentado] = useState(false)
@@ -197,6 +200,7 @@ function FormularioDeRegla ({ tarea, onCerrar, onGuardada }: {
       return
     }
 
+    aviso.exito(`Recurrencia de «${tarea.name}» guardada.`)
     onGuardada?.()
     onCerrar()
   }
@@ -244,7 +248,7 @@ function FormularioDeRegla ({ tarea, onCerrar, onGuardada }: {
 
         <div className="flex min-w-0 flex-col gap-2 sm:col-span-3">
           <FinDeRecurrencia inicio={campos.inicio} valor={campos.fin} onCambiar={(fin) => { cambiar({ fin }) }} />
-          {errores.fin !== undefined && <p role="alert" className="text-texto-peligro text-xs">{errores.fin}</p>}
+          {errores.fin !== undefined && <AvisoEnLinea variante="error" mensaje={errores.fin} />}
           {dosTopes && (
             <p className="text-texto-sutil text-xs">
               Esta regla termina tras {inicial.fin.ciclos} veces o el {formatearFecha(inicial.fin.hasta)}, lo que ocurra
@@ -256,7 +260,7 @@ function FormularioDeRegla ({ tarea, onCerrar, onGuardada }: {
 
       <VistaPrevia estado={previa} hayErroresLocales={hayErroresLocales} />
 
-      {error !== null && <p role="alert" className="text-texto-peligro animate-entrar-abajo text-sm">{error}</p>}
+      {error !== null && <AvisoEnLinea variante="error" mensaje={error} className="text-sm" />}
 
       <div className="flex justify-end gap-2">
         <Boton variante="secundario" onClick={onCerrar} disabled={enCurso}>Cancelar</Boton>
@@ -284,7 +288,7 @@ function FormularioDeRegla ({ tarea, onCerrar, onGuardada }: {
 function VistaPrevia ({ estado, hayErroresLocales }: { estado: EstadoPrevia, hayErroresLocales: boolean }): ReactElement {
   return (
     <section aria-live="polite" aria-busy={estado.fase === 'esperando' && !hayErroresLocales} className="border-linea bg-superficie-hundida rounded-tarjeta flex flex-col gap-2 border p-4">
-      <h3 className="text-texto-sutil text-xs font-medium tracking-[0.08em] uppercase">Vista previa</h3>
+      <h3 className="text-texto-sutil text-xs antetitulo">Vista previa</h3>
 
       {hayErroresLocales
         ? <p className="text-texto-tenue text-sm">Corrige los campos marcados para ver las próximas copias.</p>

@@ -2,6 +2,7 @@
 
 import { ChevronDown } from 'lucide-react'
 import { useState, type ReactElement } from 'react'
+import { AvisoEnLinea } from '@/componentes/estado/Estados'
 import { Avatar } from '@/componentes/presentadores/Avatar'
 import {
   BuscadorMenu, ContenidoMenu, DisparadorMenu, GrupoRadioMenu, ItemMenuRadio, MenuContextual, SinResultadosMenu
@@ -10,7 +11,7 @@ import { escribirEnBff } from '@/componentes/datos/mutaciones'
 import { useAviso } from '@/componentes/estado/useAviso'
 import { cargarAsignables } from '@/datos/asignables'
 import type { PersonaAsignable } from '@/datos/recursos'
-import { filtrarPersonas } from '@/dominio/salas'
+import { filtrarPersonas } from '@/dominio/busqueda'
 import { falloDeTicket, type PersonaDelTicket } from '@/dominio/ticket-vista'
 import { cn } from '@/lib/clases'
 
@@ -121,7 +122,7 @@ export function MenuAsignadoTicket ({
             aria-label={`Asignado: ${nombre}. Cambiar asignado.`}
             className={cn(
               'rounded-control hover:bg-hover -mx-1.5 inline-flex max-w-full cursor-pointer items-center gap-1.5 px-1.5 py-0.5',
-              'transition-colors duration-150',
+              'transition-colors duration-rapida ease-neo',
               enCurso && 'cursor-progress opacity-60'
             )}
           >
@@ -163,7 +164,7 @@ function OpcionesDePersonas ({
   deshabilitado: boolean
 }): ReactElement {
   if (personas.fase === 'error') {
-    return <p role="alert" className="text-texto-peligro px-2.5 py-2 text-sm">{personas.mensaje}</p>
+    return <AvisoEnLinea variante="error" mensaje={personas.mensaje} className="px-2.5 py-2 text-sm" />
   }
 
   if (personas.fase !== 'listo') {

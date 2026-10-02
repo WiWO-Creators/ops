@@ -26,7 +26,7 @@ export function BotonSalirPortal () {
   }
 
   return (
-    <Boton variante="sutil" tamano="chico" onClick={() => { void salir() }} disabled={saliendo}>
+    <Boton variante="sutil" tamano="chico" data-rastreo="sesion.salir" onClick={() => { void salir() }} disabled={saliendo}>
       Salir
     </Boton>
   )

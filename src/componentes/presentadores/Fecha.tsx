@@ -1,13 +1,6 @@
 import { cn } from '@/lib/clases'
 import { estadoVencimiento, formatearFecha, formatearRelativo, formatearVencimiento } from '@/lib/fechas'
-
-const TONO_VENCIMIENTO = {
-  vencido: 'text-texto-peligro font-medium',
-  hoy: 'text-texto-aviso font-medium',
-  proximo: 'text-texto',
-  lejano: 'text-texto-tenue',
-  'sin-fecha': 'text-texto-sutil'
-} as const
+import { TONO_VENCIMIENTO } from './tonos-vencimiento'
 
 interface PropsFecha {
   valor: string | null | undefined

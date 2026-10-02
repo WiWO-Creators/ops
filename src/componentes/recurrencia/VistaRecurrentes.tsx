@@ -5,7 +5,8 @@ import { startTransition, useEffect, useMemo, useState, ViewTransition, type Rea
 import { escribirEnBff } from '@/componentes/datos/mutaciones'
 import { PARAMETRO_TAREA } from '@/componentes/datos/tabla'
 import { useParametroEnUrl } from '@/componentes/datos/useFiltrosEnUrl'
-import { ErrorEstado, Vacio } from '@/componentes/estado/Estados'
+import { AvisoEnLinea, ErrorEstado, Vacio } from '@/componentes/estado/Estados'
+import { EntradaEscalonada } from '@/componentes/estructura/EntradaEscalonada'
 import { Boton } from '@/componentes/formularios/Boton'
 import { Segmentado } from '@/componentes/formularios/Segmentado'
 import { SelectorBuscable } from '@/componentes/formularios/Selector'
@@ -29,6 +30,7 @@ import { HistorialDeCopias } from './HistorialDeCopias'
 import { LimpiezaDeCopias, type ReglaALimpiar } from './LimpiezaDeCopias'
 import { ImportadorRecurrentes } from './ImportadorRecurrentes'
 import './recurrencia.css'
+import { useAviso } from '@/componentes/estado/useAviso'
 
 /**
  * Que parte de la lista se mira. "Atencion" junta lo atrasado, lo mal configurado y lo que nadie usa:
@@ -326,13 +328,16 @@ function ContenidoDeLista ({ estado, vista, onVista, reglas, visibles, vacia, on
       {visibles.length === 0
         ? <Vacio titulo="Nada en esta vista" descripcion={vacia} className="border-linea rounded-tarjeta border" />
         : (
-          <ul aria-label="Tareas recurrentes" className="flex flex-col gap-2">
-            {visibles.map((regla, posicion) => (
-              <ViewTransition key={regla.id} name={`rec-regla-${regla.id}`} exit="rec-salida" update="auto" default="none">
-                {fila(regla, posicion)}
-              </ViewTransition>
-            ))}
-          </ul>
+          // Cambiar de vista filtra aca mismo, sin remontar la lista: la clave repite la entrada.
+          <EntradaEscalonada clave={vista}>
+            <ul aria-label="Tareas recurrentes" className="flex flex-col gap-2">
+              {visibles.map((regla, posicion) => (
+                <ViewTransition key={regla.id} name={`rec-regla-${regla.id}`} exit="rec-salida" update="auto" default="none">
+                  {fila(regla, posicion)}
+                </ViewTransition>
+              ))}
+            </ul>
+          </EntradaEscalonada>
           )}
     </div>
   )
@@ -372,10 +377,10 @@ function FilaDeRegla ({ regla, posicion, puedeEditar, esAdmin, resaltada, onVerC
 
   return (
     <li
-      style={{ '--i': posicion } as React.CSSProperties}
+      data-entrada="item"
       data-resaltada={resaltada || undefined}
       className={cn(
-        'rec-escalonada border-linea bg-superficie rounded-tarjeta hover:border-linea-fuerte grid grid-cols-1 items-center gap-x-4 gap-y-2 border px-4 py-3 transition-colors duration-150 md:grid-cols-[minmax(0,2.2fr)_minmax(0,1fr)_minmax(0,1fr)_auto]',
+        'border-linea bg-superficie rounded-tarjeta hover:border-linea-fuerte grid grid-cols-1 items-center gap-x-4 gap-y-2 border px-4 py-3 transition-colors duration-rapida ease-neo md:grid-cols-[minmax(0,2.2fr)_minmax(0,1fr)_minmax(0,1fr)_auto]',
         resaltada && 'border-acento ring-acento/30 ring-2'
       )}
     >
@@ -383,7 +388,7 @@ function FilaDeRegla ({ regla, posicion, puedeEditar, esAdmin, resaltada, onVerC
         <button
           type="button"
           onClick={() => { abrir(String(regla.id)) }}
-          className="text-texto hover:text-acento truncate text-left font-semibold transition-colors duration-150"
+          className="text-texto hover:text-acento truncate text-left font-semibold transition-colors duration-rapida ease-neo"
         >
           {regla.name}
         </button>
@@ -437,7 +442,7 @@ function FilaDeRegla ({ regla, posicion, puedeEditar, esAdmin, resaltada, onVerC
             <button
               type="button"
               onClick={() => { abrir(String(regla.last_copy?.id ?? regla.id)) }}
-              className="text-texto-sutil hover:text-acento self-start text-left text-xs underline-offset-2 transition-colors duration-150 hover:underline"
+              className="text-texto-sutil hover:text-acento self-start text-left text-xs underline-offset-2 transition-colors duration-rapida ease-neo hover:underline"
             >
               Última copia: {formatearFecha(regla.last_copy.start_date ?? regla.last_copy.created_at)}
             </button>
@@ -494,6 +499,7 @@ function FilaDeRegla ({ regla, posicion, puedeEditar, esAdmin, resaltada, onVerC
  * aviso de `escribirEnBff`.
  */
 function BotonReanudar ({ regla }: { regla: ReglaRecurrente }): ReactElement {
+  const aviso = useAviso()
   const [enCurso, setEnCurso] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
@@ -503,7 +509,11 @@ function BotonReanudar ({ regla }: { regla: ReglaRecurrente }): ReactElement {
     setError(null)
     const resultado = await escribirEnBff(`tasks/${regla.id}`, 'PATCH', { recurring_paused: false })
     setEnCurso(false)
-    if (!resultado.ok) setError(resultado.mensaje)
+    if (!resultado.ok) {
+      setError(resultado.mensaje)
+      return
+    }
+    aviso.exito(`«${regla.name}» se reanudó.`)
   }
 
   return (
@@ -512,7 +522,7 @@ function BotonReanudar ({ regla }: { regla: ReglaRecurrente }): ReactElement {
         {!enCurso && <Play size={13} aria-hidden="true" />}
         Reanudar
       </Boton>
-      {error !== null && <span role="alert" className="text-texto-peligro basis-full text-right text-xs">{error}</span>}
+      {error !== null && <AvisoEnLinea variante="error" mensaje={error} elemento="span" className="basis-full text-right" />}
     </>
   )
 }
@@ -556,6 +566,7 @@ function ConfirmarCambioDeRegla ({ pedido, abierto, onCerrar }: {
   abierto: boolean
   onCerrar: () => void
 }): ReactElement {
+  const aviso = useAviso()
   const [enCurso, setEnCurso] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const textos = CONFIRMACIONES[pedido?.accion ?? 'pausar']
@@ -579,6 +590,7 @@ function ConfirmarCambioDeRegla ({ pedido, abierto, onCerrar }: {
       return
     }
 
+    aviso.exito(pedido.accion === 'pausar' ? `«${pedido.regla.name}» quedó en pausa.` : `«${pedido.regla.name}» dejó de repetirse.`)
     cerrar()
   }
 
@@ -587,7 +599,7 @@ function ConfirmarCambioDeRegla ({ pedido, abierto, onCerrar }: {
       <ContenidoDialogo titulo={textos.titulo} descripcion={textos.descripcion} ancho="chico">
         <p className="text-texto text-sm font-semibold">{pedido?.regla.name}</p>
         <p className="text-texto-tenue mt-2 text-sm">{textos.detalle}</p>
-        {error !== null && <p role="alert" className="text-texto-peligro animate-entrar-abajo mt-3 text-sm">{error}</p>}
+        {error !== null && <AvisoEnLinea variante="error" mensaje={error} className="mt-3 text-sm" />}
         <div className="mt-5 flex justify-end gap-2">
           <Boton variante="secundario" onClick={cerrar} disabled={enCurso}>Cancelar</Boton>
           <Boton variante={textos.variante} cargando={enCurso} onClick={() => { void aplicar() }}>{textos.boton}</Boton>

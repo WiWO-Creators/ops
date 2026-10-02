@@ -36,7 +36,7 @@ export function ResumenEstadosTareas ({ resumen, estadoActivo, onElegir }: Props
             onClick={() => onElegir(activa ? null : estado.status)}
             className={cn(
               'border-linea bg-superficie-elevada rounded-tarjeta hover:bg-hover',
-              'flex flex-col gap-1 border p-3 text-left transition-colors duration-150',
+              'flex flex-col gap-1 border p-3 text-left transition-colors duration-rapida ease-neo',
               activa && 'border-linea-fuerte bg-seleccionado'
             )}
           >

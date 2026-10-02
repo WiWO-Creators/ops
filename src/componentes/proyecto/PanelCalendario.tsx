@@ -129,6 +129,7 @@ function CalendarioDelEspacio ({ proyectoId, fuente, capacidades }: PropsPanelCa
   // vaciarla al empezar el efecto: un `setCarga(null)` sincronico dentro del efecto encadena un
   // render de mas, y comparar el id dice lo mismo sin ese costo.
   const [carga, setCarga] = useState<{ para: number, datos: Carga | null, error: string | null } | null>(null)
+  const [intento, setIntento] = useState(0)
 
   // Se calcula una vez por render y no dentro de cada celda: leer el reloj en varios lugares abre la
   // puerta a que dos partes de la misma pantalla discrepen si el render cruza la medianoche.
@@ -170,7 +171,7 @@ function CalendarioDelEspacio ({ proyectoId, fuente, capacidades }: PropsPanelCa
     })
 
     return () => { control.abort() }
-  }, [proyectoId, fuente])
+  }, [proyectoId, fuente, intento])
 
   const dias = useMemo(() => diasDelPeriodo(dia, vista), [dia, vista])
 
@@ -300,7 +301,15 @@ function CalendarioDelEspacio ({ proyectoId, fuente, capacidades }: PropsPanelCa
   // Mientras lo que hay en mano sea de otro Espacio, se muestra la carga: pintar las entregas del
   // anterior bajo la cabecera nueva diria algo que no es.
   if (carga === null || carga.para !== proyectoId) return <Cargando mensaje="Cargando el calendario…" />
-  if (carga.error !== null) return <ErrorEstado titulo="No se pudo cargar el calendario" detalle={carga.error} />
+  if (carga.error !== null) {
+    return (
+      <ErrorEstado
+        titulo="No se pudo cargar el calendario"
+        detalle={carga.error}
+        onReintentar={() => { setCarga(null); setIntento((n) => n + 1) }}
+      />
+    )
+  }
   if (carga.datos === null) return <Cargando mensaje="Cargando el calendario…" />
 
   const { tareas, estados, truncado } = carga.datos

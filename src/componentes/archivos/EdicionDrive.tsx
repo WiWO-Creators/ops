@@ -5,7 +5,7 @@ import { ChevronDown, ChevronRight, Folder, FolderLock } from 'lucide-react'
 import { Boton } from '@/componentes/formularios/Boton'
 import { Entrada } from '@/componentes/formularios/Entrada'
 import { CerrarDialogo, ContenidoDialogo, Dialogo } from '@/componentes/superposiciones/Dialogo'
-import { Cargando, ErrorEstado } from '@/componentes/estado/Estados'
+import { AvisoEnLinea, Cargando, ErrorEstado } from '@/componentes/estado/Estados'
 import { pedirSobre } from '@/datos/cliente'
 import { LARGO_MAXIMO_NOMBRE_DRIVE, motivoNombreInvalido } from '@/dominio/drive-arbol'
 import { motivoParaNoSoltar, type ArrastreDrive } from '@/dominio/drive-explorador'
@@ -105,7 +105,7 @@ export function EditorNombreDrive ({ inicial, etiqueta, textoGuardar, onGuardar,
           </>
         )}
       </div>
-      {error !== null && <p role="alert" className="text-texto-peligro text-xs">{error}</p>}
+      {error !== null && <AvisoEnLinea variante="error" mensaje={error} />}
     </form>
   )
 }

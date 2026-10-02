@@ -2,6 +2,7 @@
 
 import { useEffect, useId, useState } from 'react'
 import { Plus } from 'lucide-react'
+import { AvisoEnLinea } from '@/componentes/estado/Estados'
 import { Boton } from '@/componentes/formularios/Boton'
 import { Campo } from '@/componentes/formularios/Campo'
 import { AreaTexto, Entrada } from '@/componentes/formularios/Entrada'
@@ -226,7 +227,7 @@ function CuerpoCierre ({ staffId, cerrando, aviso, onSeguir, onConfirmar }: Prop
       />
 
       {aviso !== null && (
-        <p role="alert" className="text-texto-peligro text-sm text-pretty">{aviso}</p>
+        <AvisoEnLinea variante="error" mensaje={aviso} className="text-sm text-pretty" />
       )}
 
       <div className="border-linea flex flex-wrap justify-end gap-2 border-t pt-4">
@@ -507,7 +508,7 @@ function AgregarTiempo ({ staffId, deshabilitado, onAgregado }: PropsAgregar) {
       </div>
 
       {error !== null && (
-        <p role="alert" className="text-texto-peligro text-xs text-pretty">{error}</p>
+        <AvisoEnLinea variante="error" mensaje={error} className="text-pretty" />
       )}
 
       {/*

@@ -11,7 +11,7 @@ import {
 } from '@/componentes/superposiciones/MenuContextual'
 import { escribirEnBff } from '@/componentes/datos/mutaciones'
 import type { EstadoLookup, RespuestaPredefinida } from '@/datos/recursos'
-import { normalizar } from '@/dominio/salas'
+import { normalizar } from '@/dominio/busqueda'
 import {
   avisoSinRespuesta,
   claveDeBorrador,
@@ -315,7 +315,7 @@ function CuerpoPredefinidas ({
   onElegir: (predefinida: RespuestaPredefinida) => void
 }): ReactElement {
   if (predefinidas.fase === 'error') {
-    return <p role="alert" className="text-texto-peligro px-2.5 py-2 text-sm">{predefinidas.mensaje}</p>
+    return <AvisoEnLinea variante="error" mensaje={predefinidas.mensaje} className="px-2.5 py-2 text-sm" />
   }
 
   if (predefinidas.fase !== 'listo') {

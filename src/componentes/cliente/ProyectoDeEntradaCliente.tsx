@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react'
 import { escribirEnBff } from '@/componentes/datos/mutaciones'
+import { AvisoEnLinea } from '@/componentes/estado/Estados'
 import { Campo } from '@/componentes/formularios/Campo'
 import { Boton } from '@/componentes/formularios/Boton'
 import { CLASES_CASILLA } from '@/componentes/formularios/Entrada'
@@ -140,7 +141,7 @@ export function ProyectoDeEntradaCliente ({ clienteId, proyectos, capacidades }:
   if (error !== null && guardado === null) {
     return (
       <Seccion>
-        <p role="alert" className="text-texto-peligro text-sm">{error}</p>
+        <AvisoEnLinea variante="error" mensaje={error} className="text-sm" />
       </Seccion>
     )
   }
@@ -199,12 +200,12 @@ export function ProyectoDeEntradaCliente ({ clienteId, proyectos, capacidades }:
 
           {activo && elegido === SIN_ELEGIR && (
             <p className="text-texto-tenue text-xs">
-              Elegí primero el {GLOSARIO.espacio.singular.toLowerCase()} que se va a abrir.
+              Elige primero el {GLOSARIO.espacio.singular.toLowerCase()} que se va a abrir.
             </p>
           )}
         </fieldset>
 
-        {error !== null && <p role="alert" className="text-texto-peligro text-sm">{error}</p>}
+        {error !== null && <AvisoEnLinea variante="error" mensaje={error} className="text-sm" />}
         {avisoDeGuardado && (
           <p role="status" className="text-texto-tenue text-xs">
             {guardado.activo && guardado.project_name !== null

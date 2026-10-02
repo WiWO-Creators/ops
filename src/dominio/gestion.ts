@@ -1,4 +1,5 @@
 import { LOCALE, ZONA_NEGOCIO } from '../lib/fechas.ts'
+import { SIN_DATO } from '../lib/presentacion.ts'
 import type {
   AbiertasAlCierre,
   MedicionPorEtapa,
@@ -28,8 +29,7 @@ import type {
  *      etapas se dibuja con su motivo, no con cuatro ceros.
  */
 
-/** Lo que se muestra donde no hay número. El mismo guion largo del resto del producto. */
-export const SIN_DATO = '—'
+export { SIN_DATO }
 
 /**
  * Cuántas {procesos} hacen falta para que una mediana sea una mediana.

@@ -8,6 +8,7 @@ import { camposDeLicitacion } from '@/componentes/licitacion/campos'
 import { ControlDeCampo } from '@/componentes/proyecto/FormularioRecurso'
 import { cuerpoDelFormulario, validarFormulario, valoresIniciales, type CampoFormulario, type OpcionCampo } from '@/componentes/proyecto/formulario'
 import { ContenidoDialogo, Dialogo } from '@/componentes/superposiciones/Dialogo'
+import { ConfirmacionEnLinea } from '@/componentes/datos/ConfirmacionEnLinea'
 import { mensajeDeRespuesta, pedirSobre } from '@/datos/cliente'
 import type { ContactoProspecto, Prospecto, ProspectoDetalle } from '@/datos/recursos'
 import type { Capacidad } from '@/datos/tipos'
@@ -81,6 +82,7 @@ export function FlujoLicitacion ({ usuarioId, capacidades, paises, areas, staff,
   const [fallo, setFallo] = useState<string | null>(null)
   const [errores, setErrores] = useState<Record<string, string>>({})
   const [guardando, setGuardando] = useState(false)
+  const [confirmando, setConfirmando] = useState<'descartar' | 'cerrar' | null>(null)
   // Los contactos del prospecto elegido. Arrancan con los de la ficha desde la que se abrió el flujo y
   // se reemplazan si en el paso 1 se elige un prospecto que ya existía.
   const [contactosDelProspecto, setContactosDelProspecto] = useState(contactos)
@@ -124,7 +126,7 @@ export function FlujoLicitacion ({ usuarioId, capacidades, paises, areas, staff,
 
   /** Descarta sólo el avance local; los registros confirmados en la aplicación permanecen. */
   function descartar (): void {
-    if (!window.confirm('¿Descartar este borrador? Los prospectos y contactos ya guardados permanecerán en la aplicación.')) return
+    setConfirmando(null)
     try {
       eliminarBorrador(window.localStorage, clave)
       onGuardado()
@@ -263,7 +265,7 @@ export function FlujoLicitacion ({ usuarioId, capacidades, paises, areas, staff,
         {hecho && !bloqueado
           ? (
             <button type="button" aria-label={`Volver al ${rotulo}`} onClick={() => { cambiarPaso(indice as 0 | 1 | 2) }}
-              className="rounded-control hover:bg-hover -mx-1 flex min-w-0 items-center gap-2 px-1 py-1 transition-colors duration-150">
+              className="rounded-control hover:bg-hover -mx-1 flex min-w-0 items-center gap-2 px-1 py-1 transition-colors duration-rapida ease-neo">
               {interior}
             </button>
             )
@@ -349,11 +351,25 @@ export function FlujoLicitacion ({ usuarioId, capacidades, paises, areas, staff,
           {fallo !== null && <p role="alert" className={ALERTA_URGENTE}>{fallo}</p>}
           {aviso !== null ? <p role="alert" className={ALERTA_URGENTE}>{aviso}</p>
             : <p role="status" className="text-texto-tenue text-sm">{guardadoLocal ? 'Borrador guardado en este navegador.' : 'El avance se guarda automáticamente en este navegador.'} Los pasos completados ya están guardados en la aplicación.</p>}
-          <div className="flex flex-wrap justify-end gap-3">
-            <Boton type="button" variante="sutil" disabled={guardando} onClick={descartar}>Descartar borrador</Boton>
-            {aviso !== null && <Boton type="button" variante="sutil" disabled={guardando} onClick={() => {
-              if (window.confirm('¿Cerrar sin guardar los últimos cambios del borrador?')) onCerrar()
-            }}>Cerrar sin guardar</Boton>}
+          {confirmando === 'descartar' && (
+            <ConfirmacionEnLinea
+              advertencia="Se descarta el borrador. Los prospectos y contactos ya guardados permanecen en la aplicación."
+              etiquetaConfirmar="Descartar borrador"
+              onConfirmar={descartar}
+              onCancelar={() => { setConfirmando(null) }}
+            />
+          )}
+          {confirmando === 'cerrar' && (
+            <ConfirmacionEnLinea
+              advertencia="Los últimos cambios del borrador no quedaron guardados en este navegador y se pierden al cerrar."
+              etiquetaConfirmar="Cerrar sin guardar"
+              onConfirmar={() => { setConfirmando(null); onCerrar() }}
+              onCancelar={() => { setConfirmando(null) }}
+            />
+          )}
+          {confirmando === null && <div className="flex flex-wrap justify-end gap-3">
+            <Boton type="button" variante="sutil" disabled={guardando} onClick={() => { setConfirmando('descartar') }}>Descartar borrador</Boton>
+            {aviso !== null && <Boton type="button" variante="sutil" disabled={guardando} onClick={() => { setConfirmando('cerrar') }}>Cerrar sin guardar</Boton>}
             {paso > 0 && <Boton type="button" variante="sutil" disabled={bloqueado} onClick={() => { cambiarPaso(paso === 2 ? 1 : 0) }}>Atrás</Boton>}
             {paso === PASO_OMITIBLE && sinContacto && <Boton type="button" variante="sutil" disabled={bloqueado} onClick={omitirContacto}>Omitir por ahora</Boton>}
             <Boton type="button" variante="secundario" disabled={guardando} onClick={guardarYSalir}>Guardar y salir</Boton>
@@ -362,7 +378,7 @@ export function FlujoLicitacion ({ usuarioId, capacidades, paises, areas, staff,
             <Boton type="submit" variante="primario" cargando={guardando} disabled={sinPermiso || sinPermisoDeContacto || borrador.pendiente !== null || borrador.licitacionId !== null}>
               {paso === 2 ? 'Crear licitación' : soloLectura ? 'Continuar' : 'Guardar y continuar'}
             </Boton>
-          </div>
+          </div>}
         </form>
       </ContenidoDialogo>
     </Dialogo>

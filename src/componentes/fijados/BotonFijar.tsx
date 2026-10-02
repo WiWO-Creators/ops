@@ -47,7 +47,7 @@ export function BotonFijar ({ elemento, className }: { elemento: ElementoPersona
       onAnimationEnd={() => setRecien(false)}
       data-recien-fijado={recien}
       className={cn(
-        'boton-fijar rounded-control inline-flex size-9 shrink-0 items-center justify-center transition-colors duration-150',
+        'boton-fijar rounded-control inline-flex size-9 shrink-0 items-center justify-center transition-colors duration-rapida ease-neo',
         fijado ? 'text-acento hover:bg-acento/10' : 'text-texto-tenue hover:bg-hover hover:text-texto',
         className
       )}
@@ -56,7 +56,7 @@ export function BotonFijar ({ elemento, className }: { elemento: ElementoPersona
         size={18}
         strokeWidth={2}
         aria-hidden="true"
-        className={cn('boton-fijar-estrella transition-[fill] duration-150', fijado ? 'fill-current' : 'fill-transparent')}
+        className={cn('boton-fijar-estrella transition-[fill] duration-rapida ease-neo', fijado ? 'fill-current' : 'fill-transparent')}
       />
     </button>
   )

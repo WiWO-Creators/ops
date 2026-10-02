@@ -348,7 +348,7 @@ function QuienEstaDentro ({ dentro }: { dentro: QuienEsta[] | null }) {
           />
         ))}
         {restantes > 0 && (
-          <span className="bg-relleno-neutro text-texto-tenue ring-superficie-elevada -ml-1 inline-flex size-6 items-center justify-center rounded-full text-[0.625rem] font-semibold ring-2">
+          <span className="bg-relleno-neutro text-texto-tenue ring-superficie-elevada -ml-1 inline-flex size-6 items-center justify-center rounded-full text-micro font-semibold ring-2">
             +{restantes}
           </span>
         )}

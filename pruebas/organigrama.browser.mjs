@@ -153,15 +153,17 @@ try {
   // para que la prueba se pueda correr dos veces seguidas: con el valor que ya está puesto no hay
   // cambio que guardar y el botón queda deshabilitado, que es lo correcto pero no lo que se prueba.
   // Todo el recorrido va con teclado a propósito: es la prueba de que arrastrar no es la única vía.
-  const jefe = panel.getByRole('combobox').nth(1)
+  const jefe = panel.getByRole('button', { name: /^Quién está a cargo de/ })
   const puesto = (await jefe.innerText()).trim()
   await jefe.focus()
   await pagina.keyboard.press('Enter')
 
-  const opciones = pagina.getByRole('option')
+  // Cada opción trae el nombre y, debajo, el área: se compara solo el nombre.
+  const opciones = pagina.getByRole('menuitem')
+  const nombreDeOpcion = (texto) => texto.split('\n')[0].trim()
   await opciones.first().waitFor({ timeout: 15000 })
   const textos = await opciones.allInnerTexts()
-  const otra = textos.findIndex((texto) => texto.trim() !== puesto)
+  const otra = textos.findIndex((texto) => nombreDeOpcion(texto) !== puesto)
   assert.ok(otra >= 0, `El selector de jefe sólo ofrece lo que ya está puesto: ${textos.join(' / ')}.`)
   await clicar(opciones.nth(otra))
 
@@ -242,13 +244,13 @@ try {
   await panelDeFila.waitFor({ timeout: 15000 })
   assert.ok(await panelDeFila.getByText('Depende de').count(), 'La fila tiene que abrir el mismo panel que la caja.')
 
-  const jefeDeFila = panelDeFila.getByRole('combobox').nth(1)
+  const jefeDeFila = panelDeFila.getByRole('button', { name: /^Quién está a cargo de/ })
   const puestoDeFila = (await jefeDeFila.innerText()).trim()
   await jefeDeFila.focus()
   await pagina.keyboard.press('Enter')
   await opciones.first().waitFor({ timeout: 15000 })
   const textosDeFila = await opciones.allInnerTexts()
-  const otraDeFila = textosDeFila.findIndex((texto) => texto.trim() !== puestoDeFila)
+  const otraDeFila = textosDeFila.findIndex((texto) => nombreDeOpcion(texto) !== puestoDeFila)
   assert.ok(otraDeFila >= 0, 'El selector de jefe de la fila sólo ofrece lo que ya está puesto.')
   await clicar(opciones.nth(otraDeFila))
 

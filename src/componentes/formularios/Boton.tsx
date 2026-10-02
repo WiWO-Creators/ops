@@ -7,7 +7,7 @@ export const boton = cva(
     'inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-control font-semibold',
     // Solo `transform`, `opacity` y color: animar `filter` o `box-shadow` en un control que aparece
     // cientos de veces por pantalla es lo que hacia pesado al panel actual.
-    'transition-[background-color,border-color,color,transform] duration-150 ease-neo',
+    'transition-[background-color,border-color,color,transform] duration-rapida ease-neo',
     'active:scale-[0.98]',
     /* Neo: "Disabled — no depende solo de opacidad; conserva lectura y cursor claro". Un boton al
        50% de opacidad se vuelve ilegible sobre superficies claras, asi que se apaga con superficie y
@@ -40,11 +40,17 @@ export const boton = cva(
   }
 )
 
-interface PropsBoton
-  extends React.ButtonHTMLAttributes<HTMLButtonElement>,
-    VariantProps<typeof boton> {
+interface PropsBotonBase
+  extends Omit<React.ButtonHTMLAttributes<HTMLButtonElement>, 'aria-label'>,
+    Omit<VariantProps<typeof boton>, 'soloIcono'> {
   cargando?: boolean
 }
+
+/** Sin texto visible el boton no tiene nombre accesible propio: `aria-label` pasa a ser obligatorio. */
+type PropsBoton = PropsBotonBase & (
+  | { soloIcono: true, 'aria-label': string }
+  | { soloIcono?: false | null, 'aria-label'?: string }
+)
 
 /**
  * Boton del sistema.

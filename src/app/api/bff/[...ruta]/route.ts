@@ -158,7 +158,11 @@ const ESTADOS_ESPERADOS = new Set([401, 409, 422, 429])
  * nadie previo y que hay que poder investigar.
  */
 const ESPERADOS_POR_RUTA: ReadonlyArray<{ metodo: string, estado: number, ruta: RegExp }> = [
-  { metodo: 'GET', estado: 403, ruta: /^\/projects\/\d+\/task-types(?:\?|$)/ }
+  { metodo: 'GET', estado: 403, ruta: /^\/projects\/\d+\/task-types(?:\?|$)/ },
+  // El rastreo del portal manda lotes solo; pasarse del tope (429) o chocar con una sesion ajena (422)
+  // se descarta en el navegador y no es un incidente que investigar por cada lote.
+  { metodo: 'POST', estado: 429, ruta: /^\/portal\/actividad$/ },
+  { metodo: 'POST', estado: 422, ruta: /^\/portal\/actividad$/ }
 ]
 
 /**

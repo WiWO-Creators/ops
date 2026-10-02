@@ -1,6 +1,7 @@
 'use client'
 
 import { useCallback, useEffect, useRef, useState, type ReactElement } from 'react'
+import { AvisoEnLinea } from '@/componentes/estado/Estados'
 import { Boton } from '@/componentes/formularios/Boton'
 import { Orbe } from '@/componentes/estado/Orbe'
 import {
@@ -200,7 +201,7 @@ export function GrabadoraDeAudio ({ onGrabado, onDescartado, ocupado = false }: 
       </div>
 
       {error !== null && (
-        <p id="error-microfono" role="alert" className="text-texto-peligro text-sm">{error}</p>
+        <AvisoEnLinea variante="error" mensaje={error} id="error-microfono" className="text-sm" />
       )}
 
       {!grabando && listo === null && error === null && (

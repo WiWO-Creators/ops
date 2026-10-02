@@ -238,15 +238,15 @@ export function AvisosDeError () {
       // le llega a Radix como «clic fuera» y le cerraria el dialogo a quien solo queria descartar el
       // aviso. Ver `naceEnLosAvisos()` en `lib/aviso-de-error.ts`.
       {...{ [ATRIBUTO_AVISOS]: '' }}
-      // `z-[55]` queda sobre los dialogos y los cajones —z-50, el mayor en uso— porque un error al
-      // guardar desde un dialogo tiene que verse; y bajo el telon de la bienvenida, que es 60.
+      // `z-aviso` queda sobre los dialogos y los cajones —`z-superposicion`— porque un error al
+      // guardar desde un dialogo tiene que verse; y bajo el telon de la bienvenida, `z-telon`.
       //
       // `view-transition-name` propio, igual que la capa de bienvenida: el panel envuelve cada pagina
       // en `<ViewTransition>`, y mientras la transicion corre el navegador pinta la pagina en la capa
       // superior, por encima de cualquier `z-index`. Sin un nombre propio, el aviso desaparece
       // durante los primeros fotogramas de cada navegacion. Ver `src/estilos/monito.css`.
       style={{ viewTransitionName: 'avisos-de-error' }}
-      className="pointer-events-none fixed inset-x-0 bottom-0 z-[55] flex flex-col items-end gap-2 p-4 sm:left-auto sm:max-w-sm"
+      className="pointer-events-none fixed inset-x-0 bottom-0 z-aviso flex flex-col items-end gap-2 p-4 sm:left-auto sm:max-w-sm"
     >
       {avisos.map((aviso) => (
         <Aviso key={aviso.id} aviso={aviso} onCerrar={cerrar} />

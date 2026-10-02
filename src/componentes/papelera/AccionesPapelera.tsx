@@ -3,6 +3,7 @@
 import { useRouter } from 'next/navigation'
 import { useState, type ReactElement } from 'react'
 import { ConfirmarBorrado, useConfirmarBorrado } from '@/componentes/datos/ConfirmarBorrado'
+import { AvisoEnLinea } from '@/componentes/estado/Estados'
 import { Boton } from '@/componentes/formularios/Boton'
 import { useAviso } from '@/componentes/estado/useAviso'
 import { escribirEnBff, leerDelBff } from '@/componentes/datos/mutaciones'
@@ -80,23 +81,23 @@ export function AccionesPapelera ({ elemento }: { elemento: ElementoEnPapelera }
     <>
       <span className="flex justify-end gap-2 whitespace-nowrap">
         <Boton variante="sutil" tamano="chico" onClick={() => { void abrirBorrado() }}>
-          Borrar definitivamente
+          Eliminar definitivamente
         </Boton>
         <Boton variante="primario" tamano="chico" cargando={restaurando} onClick={() => { void restaurar() }}>
           Restaurar
         </Boton>
       </span>
 
-      {falloFila !== null && <p role="alert" className="text-texto-peligro mt-1 text-right text-xs">{falloFila}</p>}
+      {falloFila !== null && <AvisoEnLinea variante="error" mensaje={falloFila} className="mt-1 text-right" />}
 
       <ConfirmarBorrado
         abierto={confirmarBorrado.abierto}
         onCerrar={confirmarBorrado.cerrar}
         tamano="chico"
-        titulo="Borrar definitivamente"
-        advertencia={`«${elemento.nombre}» (${nombreDeEntidad(elemento.entidad).toLowerCase()}) se borra para siempre, con todo lo que cuelga. Esto no se puede deshacer.`}
+        titulo="Eliminar definitivamente"
+        advertencia={`«${elemento.nombre}» (${nombreDeEntidad(elemento.entidad).toLowerCase()}) se elimina para siempre, con todo lo que cuelga. Esto no se puede deshacer.`}
         confirmacionEscrita={PALABRA}
-        etiquetaConfirmar="Borrar para siempre"
+        etiquetaConfirmar="Eliminar para siempre"
         deshabilitadoExtra={bloqueado}
         contenidoExtra={
           <>
@@ -108,9 +109,7 @@ export function AccionesPapelera ({ elemento }: { elemento: ElementoEnPapelera }
             />
 
             {bloqueado && (
-              <p role="alert" className="text-texto-peligro text-sm">
-                {previa?.motivo ?? 'No se puede borrar definitivamente.'}
-              </p>
+              <AvisoEnLinea variante="error" mensaje={previa?.motivo ?? 'No se puede eliminar definitivamente.'} className="text-sm" />
             )}
           </>
         }

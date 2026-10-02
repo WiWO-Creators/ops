@@ -4,7 +4,8 @@ import Link from 'next/link'
 import { useState, type ReactElement } from 'react'
 import { useRouter } from 'next/navigation'
 import { Boton } from '@/componentes/formularios/Boton'
-import { DialogoEliminarProyecto } from '@/componentes/proyecto/DialogoEliminarProyecto'
+import { MenuAccionesFila } from '@/componentes/datos/MenuAccionesFila'
+import { useBorradoDeProyecto } from '@/componentes/proyecto/DialogoEliminarProyecto'
 import { DialogoResultado } from '@/componentes/proyecto/DialogoResultado'
 import { FormularioRecurso } from '@/componentes/proyecto/FormularioRecurso'
 import { cuerpoDelFormulario, valoresIniciales, type OpcionCampo } from '@/componentes/proyecto/formulario'
@@ -52,7 +53,11 @@ export function AccionesLicitacion ({ licitacion, capacidades, areas, staff, eti
   const router = useRouter()
   const [editando, setEditando] = useState(false)
   const [confirmando, setConfirmando] = useState<'ganar' | 'perder' | null>(null)
-  const [eliminando, setEliminando] = useState(false)
+  const borrado = useBorradoDeProyecto(
+    licitacion.espacio,
+    () => { router.replace(`/prospectos/${licitacion.prospecto_id}?tab=licitaciones`) },
+    GLOSARIO.licitacion.singular
+  )
 
   const abierta = licitacion.estado === 'abierta'
   const puedeEditar = capacidades.includes('edit')
@@ -87,9 +92,7 @@ export function AccionesLicitacion ({ licitacion, capacidades, areas, staff, eti
       )}
 
       {puedeEliminar && (
-        <Boton variante="peligro" tamano="chico" onClick={() => { setEliminando(true) }}>
-          Eliminar
-        </Boton>
+        <MenuAccionesFila ariaLabel={`Más acciones de ${licitacion.espacio.name}`} borrado={borrado} />
       )}
 
       {puedeEditar && (
@@ -113,13 +116,6 @@ export function AccionesLicitacion ({ licitacion, capacidades, areas, staff, eti
         }}
         onCerrar={() => { setConfirmando(null) }}
         onHecho={() => { router.refresh() }}
-      />
-
-      <DialogoEliminarProyecto
-        espacio={eliminando ? licitacion.espacio : null}
-        tipo={GLOSARIO.licitacion.singular}
-        onCerrar={() => { setEliminando(false) }}
-        onEliminado={() => { router.replace(`/prospectos/${licitacion.prospecto_id}?tab=licitaciones`) }}
       />
     </div>
   )

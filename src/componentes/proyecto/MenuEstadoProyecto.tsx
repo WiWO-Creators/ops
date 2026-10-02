@@ -114,7 +114,7 @@ export function MenuEstadoProyecto ({
             aria-label={`Estado de "${nombreProyecto}": ${resuelto.nombre}. Cambiar estado.`}
             className={cn(
               'rounded-control cursor-pointer',
-              'transition-opacity duration-150',
+              'transition-opacity duration-rapida ease-neo',
               enCurso ? 'cursor-progress opacity-60' : 'hover:opacity-80'
             )}
           >

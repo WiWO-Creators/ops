@@ -2,6 +2,7 @@ import { Suspense } from 'react'
 import Link from 'next/link'
 import { unstable_rethrow } from 'next/navigation'
 import { ArrowRight, Star, TriangleAlert } from 'lucide-react'
+import { AvisoEnLinea } from '@/componentes/estado/Estados'
 import { cn } from '@/lib/clases'
 import { pedir, pedirOpcional } from '@/datos/servidor'
 import { ErrorApi, mensajeParaPantalla } from '@/datos/errores'
@@ -271,7 +272,7 @@ async function MisProyectos ({ staffId, fijados }: { staffId: number, fijados: n
           <li key={espacio.id}>
             <Link
               href={`/proyectos/${espacio.id}`}
-              className="flex flex-wrap items-center gap-x-4 gap-y-1 px-5 py-4 transition-colors duration-150 ease-neo hover:bg-hover focus-visible:bg-hover"
+              className="flex flex-wrap items-center gap-x-4 gap-y-1 px-5 py-4 transition-colors duration-rapida ease-neo hover:bg-hover focus-visible:bg-hover"
             >
               <span className="flex min-w-0 flex-1 basis-full items-center gap-2 sm:basis-auto">
                 {fijado && <Star size={14} strokeWidth={2} aria-label="Fijado" className="shrink-0 fill-current text-acento" />}
@@ -377,7 +378,7 @@ function VerTodo ({ href, etiqueta }: { href: string, etiqueta: string }) {
   return (
     <Link
       href={href}
-      className="flex items-center gap-1.5 rounded-control px-3 py-2 text-base font-semibold text-acento transition-colors duration-150 ease-neo hover:bg-hover"
+      className="flex items-center gap-1.5 rounded-control px-3 py-2 text-base font-semibold text-acento transition-colors duration-rapida ease-neo hover:bg-hover"
     >
       {etiqueta}
       <ArrowRight size={18} strokeWidth={2.25} aria-hidden="true" />
@@ -455,12 +456,11 @@ function MiTrabajo ({ grupos, restantes, estados, error }: PropsMiTrabajo) {
 
       {error !== null
         ? (
-          <p
-            role="alert"
-            className="rounded-tarjeta border border-texto-peligro/25 bg-superficie-peligro px-5 py-4 text-base text-texto-peligro"
-          >
-            {error}
-          </p>
+          <AvisoEnLinea
+            variante="error"
+            mensaje={error}
+            className="rounded-tarjeta border border-texto-peligro/25 bg-superficie-peligro px-5 py-4 text-base"
+          />
           )
         : grupos.length === 0
         ? (
@@ -582,7 +582,7 @@ function FilaDeProceso ({ proceso, estados }: { proceso: Proceso, estados: Opcio
       <Link
         href={enProyecto ?? `?${PARAMETRO_TAREA}=${proceso.id}`}
         scroll={enProyecto !== null}
-        className="flex flex-wrap items-center gap-x-4 gap-y-2 px-5 py-4 transition-colors duration-150 ease-neo hover:bg-hover focus-visible:bg-hover"
+        className="flex flex-wrap items-center gap-x-4 gap-y-2 px-5 py-4 transition-colors duration-rapida ease-neo hover:bg-hover focus-visible:bg-hover"
       >
         <span className="min-w-0 flex-1 basis-full truncate text-base text-texto sm:basis-auto">
           {proceso.name}

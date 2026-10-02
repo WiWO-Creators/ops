@@ -134,11 +134,11 @@ export function PaletaDeComandos ({ secciones }: { secciones: Seccion[] }) {
   return (
     <Radix.Root open={abierta} onOpenChange={(abrir) => { if (abrir) setAbierta(true); else cerrar() }}>
       <Radix.Portal>
-        <Radix.Overlay className="bg-superficie-inversa/30 fixed inset-0 z-50 data-[state=closed]:animate-desaparecer data-[state=open]:animate-aparecer" />
+        <Radix.Overlay className="bg-superficie-inversa/30 fixed inset-0 z-superposicion data-[state=closed]:animate-desaparecer data-[state=open]:animate-aparecer" />
         <Radix.Content
           aria-describedby={undefined}
           className={cn(
-            'paleta-panel fixed inset-x-0 top-0 z-50 mx-auto flex max-h-dvh w-full flex-col overflow-hidden',
+            'paleta-panel fixed inset-x-0 top-0 z-superposicion mx-auto flex max-h-dvh w-full flex-col overflow-hidden',
             'border-linea bg-superficie-flotante shadow-flotante border-b',
             'sm:top-[12vh] sm:max-h-[70vh] sm:w-[calc(100vw-2rem)] sm:max-w-xl sm:rounded-tarjeta sm:border'
           )}

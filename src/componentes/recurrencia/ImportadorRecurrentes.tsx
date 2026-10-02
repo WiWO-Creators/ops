@@ -3,6 +3,7 @@
 import { CircleAlert, CircleCheck, Download, FileUp, TriangleAlert } from 'lucide-react'
 import { useId, useMemo, useState, type ChangeEvent, type ReactElement } from 'react'
 import { escribirEnBff } from '@/componentes/datos/mutaciones'
+import { AvisoEnLinea } from '@/componentes/estado/Estados'
 import { Boton } from '@/componentes/formularios/Boton'
 import { AreaTexto } from '@/componentes/formularios/Entrada'
 import type { Referencia } from '@/datos/recursos'
@@ -153,7 +154,7 @@ export function ImportadorRecurrentes ({ proyectos, personas, onTerminar }: {
           <Boton variante="sutil" tamano="chico" onClick={() => { descargar(new Blob(['\uFEFF', plantillaCsv()], { type: 'text/csv;charset=utf-8' }), 'plantilla-tareas-recurrentes.csv') }}>
             <Download size={14} aria-hidden="true" /> Plantilla CSV
           </Boton>
-          <label className="bg-control text-texto border-control-borde hover:bg-hover rounded-control inline-flex h-8 cursor-pointer items-center gap-2 border px-3 text-xs font-semibold transition-colors duration-150 has-[:focus-visible]:outline-2">
+          <label className="bg-control text-texto border-control-borde hover:bg-hover rounded-control inline-flex h-8 cursor-pointer items-center gap-2 border px-3 text-xs font-semibold transition-colors duration-rapida ease-neo has-[:focus-visible]:outline-2">
             <FileUp size={14} aria-hidden="true" /> Subir CSV
             <input type="file" accept={TIPOS_DE_ARCHIVO} className="sr-only" onChange={(evento) => { void subir(evento) }} />
           </label>
@@ -180,7 +181,7 @@ export function ImportadorRecurrentes ({ proyectos, personas, onTerminar }: {
         />
       )}
 
-      {error !== null && <p role="alert" className="text-texto-peligro animate-entrar-abajo text-sm">{error}</p>}
+      {error !== null && <AvisoEnLinea variante="error" mensaje={error} className="text-sm" />}
 
       <div className="flex flex-wrap items-center justify-between gap-3">
         <Resumen filas={filas.length} parte={vigente} desactualizado={parte !== null && vigente === null} />
@@ -203,7 +204,7 @@ export function ImportadorRecurrentes ({ proyectos, personas, onTerminar }: {
 
 /** Cuantas filas hay y como salio la ultima revision, en una linea que se anuncia al cambiar. */
 function Resumen ({ filas, parte, desactualizado }: { filas: number, parte: ParteDeValidacion | null, desactualizado: boolean }): ReactElement {
-  let mensaje = filas === 0 ? 'Sin filas todavía.' : `${filas} ${filas === 1 ? 'fila leída' : 'filas leídas'}. Revísalas antes de crear.`
+  let mensaje = filas === 0 ? 'Todavía no hay filas.' : `${filas} ${filas === 1 ? 'fila leída' : 'filas leídas'}. Revísalas antes de crear.`
   if (desactualizado) mensaje = 'Cambiaste el texto: vuelve a revisar.'
   if (parte !== null) {
     mensaje = parte.invalidas === 0

@@ -9,7 +9,7 @@ import { Insignia } from '@/componentes/presentadores/Insignia'
 import { EnlacePersonalizado } from '@/componentes/presentadores/EnlacePersonalizado'
 import { GLOSARIO } from '@/dominio/glosario'
 import { cn } from '@/lib/clases'
-import { BarraProgreso } from './CabeceraProyecto'
+import { BarraProgreso } from '@/componentes/presentadores/BarraProgreso'
 import { Metrica, formatearNumero } from './ResumenProyecto'
 import { GraficoHoras } from './GraficoHoras'
 import { useRecurso } from './carga'
@@ -403,7 +403,7 @@ interface PropsCifra {
 function Cifra ({ etiqueta, tiempo, importe, simbolo }: PropsCifra): ReactElement {
   return (
     <div className="flex flex-col gap-0.5">
-      <span className="text-texto-sutil text-xs font-medium tracking-[0.08em] uppercase">
+      <span className="text-texto-sutil text-xs antetitulo">
         {etiqueta}
       </span>
       {tiempo !== null && (

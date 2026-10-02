@@ -2,10 +2,12 @@
 
 import { useState, type ReactElement } from 'react'
 import { escribirEnBff } from '@/componentes/datos/mutaciones'
+import { AvisoEnLinea } from '@/componentes/estado/Estados'
 import { Boton } from '@/componentes/formularios/Boton'
 import { Campo } from '@/componentes/formularios/Campo'
 import { Entrada } from '@/componentes/formularios/Entrada'
 import { ContenidoDialogo, Dialogo } from '@/componentes/superposiciones/Dialogo'
+import { useAviso } from '@/componentes/estado/useAviso'
 
 /**
  * Confirmacion de "ganar" o "perder" sobre una oportunidad comercial, con las consecuencias escritas
@@ -55,6 +57,7 @@ export function DialogoResultado ({
   onCerrar,
   onHecho
 }: PropsDialogoResultado): ReactElement {
+  const aviso = useAviso()
   const [enviando, setEnviando] = useState(false)
   const [fallo, setFallo] = useState<string | null>(null)
   const [texto, setTexto] = useState('')
@@ -81,6 +84,7 @@ export function DialogoResultado ({
       return
     }
 
+    aviso.exito(ganando ? 'Oportunidad marcada como ganada.' : 'Oportunidad marcada como perdida.')
     cerrar(false)
     onHecho()
   }
@@ -113,7 +117,7 @@ export function DialogoResultado ({
           </Campo>
         )}
 
-        {fallo !== null && <p role="alert" className="text-texto-peligro text-sm">{fallo}</p>}
+        {fallo !== null && <AvisoEnLinea variante="error" mensaje={fallo} className="text-sm" />}
 
         <div className="mt-4 flex justify-end gap-2">
           <Boton type="button" variante="sutil" onClick={() => { cerrar(false) }}>Cancelar</Boton>

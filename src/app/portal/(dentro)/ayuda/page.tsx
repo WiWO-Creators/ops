@@ -3,6 +3,7 @@ import Link from 'next/link'
 import { ErrorApi } from '@/datos/errores'
 import type { GrupoAyudaPortal } from '@/datos/portal'
 import { Vacio } from '@/componentes/estado/Estados'
+import { TituloModulo } from '@/componentes/estructura/TituloModulo'
 import { cargarDetalle, EstadoDeError } from '../detalle'
 
 export const metadata: Metadata = { title: 'Ayuda · Portal de clientes' }
@@ -23,7 +24,7 @@ export default async function AyudaPagina () {
   if (sobre.data.length === 0) {
     return (
       <section className="flex flex-col gap-4">
-        <h1 className="text-texto text-xl font-semibold">Ayuda</h1>
+        <TituloModulo titulo="Ayuda" />
         <Vacio titulo="Sin artículos" descripcion="Todavía no publicamos guías acá." />
       </section>
     )
@@ -31,7 +32,7 @@ export default async function AyudaPagina () {
 
   return (
     <section className="flex flex-col gap-4">
-      <h1 className="text-texto text-xl font-semibold">Ayuda</h1>
+      <TituloModulo titulo="Ayuda" />
 
       <div className="grid gap-4 md:grid-cols-2">
         {sobre.data.map((grupo) => (

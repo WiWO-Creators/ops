@@ -20,7 +20,9 @@ import type { AjusteEditable, Ajustes, Lookups } from '../datos/recursos.ts'
 /** Los dos motivos que devuelve `Escritura\Ajuste::escribir()` en el `details` del 422. */
 const MOTIVO_DE_RECHAZO: Record<string, string> = {
   no_editable: 'la API no acepta escribir esta opción',
-  invalid: 'el valor no pasó la validación del backend'
+  invalid: 'el valor no pasó la validación del backend',
+  required: 'hace falta con el modo activo',
+  'after_or_equal:wiwo_modo_desde': 'no puede ser anterior al primer día'
 }
 
 /**
@@ -89,6 +91,10 @@ export const GRUPOS_DE_AJUSTES: Record<string, { titulo: string, ayuda: string }
   [GRUPO_PUSH]: {
     titulo: 'Notificaciones push',
     ayuda: 'Si los avisos de la campana además hacen sonar el celular o el escritorio de quien activó las notificaciones en Mi perfil. Hacen falta las claves VAPID en el servidor.'
+  },
+  apariencia: {
+    titulo: 'Apariencia',
+    ayuda: 'El modo especial de la interfaz (Halloween) y los días en que se ve.'
   },
   jornada: {
     titulo: 'Jornada',
@@ -194,6 +200,14 @@ export const ETIQUETAS_DE_AJUSTES: Record<string, { etiqueta: string, ayuda?: st
     etiqueta: `Rehacer el análisis del ${nombrar('espacio').toLowerCase()} cada (días)`,
     ayuda: 'Techo contra la deriva: pasados estos días el análisis se arma de cero en vez de actualizarse por incrementos.'
   },
+
+  // --- apariencia ---
+  wiwo_modo_especial: {
+    etiqueta: 'Modo especial',
+    ayuda: 'Cambia el estilo de toda la interfaz mientras dura el rango de días.'
+  },
+  wiwo_modo_desde: { etiqueta: 'Primer día' },
+  wiwo_modo_hasta: { etiqueta: 'Último día (inclusive)' },
 
   // --- correo ---
   wiwo_resumen_equipo_envio: {

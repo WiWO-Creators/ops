@@ -80,7 +80,7 @@ export function SugerenciasDeProspecto ({ texto, deshabilitado, alUsarExistente 
   const { sugerencias, exacta } = coincidenciasDeEmpresa(respuesta.prospectos, texto)
   const aviso = exacta !== null ? 'Ya existe un prospecto con esa empresa.'
     : sugerencias.length > 0 ? 'Hay prospectos parecidos.' : 'No hay prospectos con esa empresa.'
-  const opcion = 'rounded-control hover:bg-hover flex w-full min-w-0 items-center gap-3 px-3 py-2 text-left text-sm transition-colors duration-150 disabled:cursor-not-allowed disabled:opacity-60'
+  const opcion = 'rounded-control hover:bg-hover flex w-full min-w-0 items-center gap-3 px-3 py-2 text-left text-sm transition-colors duration-rapida ease-neo disabled:cursor-not-allowed disabled:opacity-60'
 
   return (
     <div role="group" aria-label="Prospectos que ya existen" className="border-linea bg-superficie rounded-medio flex flex-col gap-1 border p-2 sm:col-span-2">

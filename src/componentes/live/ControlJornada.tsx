@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useId, useRef, useState, useSyncExternalStore } from 'react'
 import { Clock, Play, Square, Timer } from 'lucide-react'
+import { AvisoEnLinea } from '@/componentes/estado/Estados'
 import { Boton } from '@/componentes/formularios/Boton'
 import {
   ContenidoMenu,
@@ -791,7 +792,7 @@ export function ControlJornada ({
         aria-label="Jornada y medidor"
         className={cn(
           'rounded-control border-control-borde bg-control text-texto inline-flex h-8 max-w-44 items-center gap-2 border px-2.5 text-xs font-semibold',
-          'hover:bg-hover transition-colors duration-150',
+          'hover:bg-hover transition-colors duration-rapida ease-neo',
           className
         )}
       >
@@ -1115,7 +1116,7 @@ function CuerpoControl ({
       </div>
       )}
 
-      {aviso !== null && <p role="alert" className="text-texto-peligro text-pretty text-xs">{aviso}</p>}
+      {aviso !== null && <AvisoEnLinea variante="error" mensaje={aviso} className="text-pretty" />}
       {errorDeRed !== null && (
         <p role="status" className="text-texto-sutil text-pretty text-xs">{errorDeRed}</p>
       )}

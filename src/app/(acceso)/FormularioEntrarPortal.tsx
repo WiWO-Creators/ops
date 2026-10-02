@@ -3,6 +3,7 @@
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { useEffect, useRef, useState } from 'react'
+import { AvisoEnLinea } from '@/componentes/estado/Estados'
 import { Orbe, type EstadoOrbe } from '@/componentes/estado/Orbe'
 import { Logo } from '@/componentes/estructura/Logo'
 import { Boton, boton } from '@/componentes/formularios/Boton'
@@ -109,10 +110,10 @@ export function FormularioEntrarPortal ({ aviso = null }: { aviso?: string | nul
           <Logo />
         </div>
 
-        <PanelVidrio className="w-full max-w-sm p-6 sm:p-8">
-          <header className="mb-8">
-            <h1 className="font-titular text-texto text-xl font-semibold">Portal de clientes</h1>
-            <p className="text-texto-tenue mt-1 text-sm">
+        <PanelVidrio className="animate-entrar-abajo w-full max-w-sm p-6 sm:p-8">
+          <header className="mb-6">
+            <h1 className="font-titular text-texto text-2xl font-bold tracking-tight">Portal de clientes</h1>
+            <p className="text-texto-tenue mt-2 text-sm">
               Entra con el correo con el que trabajamos.
             </p>
           </header>
@@ -155,12 +156,11 @@ export function FormularioEntrarPortal ({ aviso = null }: { aviso?: string | nul
             )}
 
             {error !== null && (
-              <p
-                role="alert"
-                className="rounded-chico border-relleno-peligro/40 bg-superficie-peligro text-texto-peligro border px-3 py-2 text-sm"
-              >
-                {error}
-              </p>
+              <AvisoEnLinea
+                variante="error"
+                mensaje={error}
+                className="rounded-chico border-relleno-peligro/40 bg-superficie-peligro border px-3 py-2 text-sm"
+              />
             )}
 
             <Boton type="submit" variante="primario" disabled={enviando} className="mt-1 w-full">

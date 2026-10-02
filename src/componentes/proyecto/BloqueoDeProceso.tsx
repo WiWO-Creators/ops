@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, type ReactElement } from 'react'
+import { AvisoEnLinea } from '@/componentes/estado/Estados'
 import { Boton } from '@/componentes/formularios/Boton'
 import { Campo } from '@/componentes/formularios/Campo'
 import { AreaTexto } from '@/componentes/formularios/Entrada'
@@ -103,7 +104,7 @@ export function BloqueoDeProceso ({ tarea, puedeEditar, onCambiado }: PropsBloqu
   return (
     <section className="border-linea bg-superficie-elevada rounded-tarjeta flex flex-col gap-3 border p-3">
       <div className="flex flex-wrap items-center gap-2">
-        <span className="text-texto-sutil text-xs font-medium tracking-[0.08em] uppercase">Bloqueo</span>
+        <span className="text-texto-sutil text-xs antetitulo">Bloqueo</span>
         {bloqueo.activo
           ? <Insignia tono="peligro">Bloqueada</Insignia>
           : <span className="text-texto-sutil text-sm">Sin bloqueo activo</span>}
@@ -177,7 +178,7 @@ export function BloqueoDeProceso ({ tarea, puedeEditar, onCambiado }: PropsBloqu
         </div>
       )}
 
-      {fallo !== null && <p role="alert" className="text-texto-peligro text-sm">{fallo}</p>}
+      {fallo !== null && <AvisoEnLinea variante="error" mensaje={fallo} className="text-sm" />}
     </section>
   )
 }

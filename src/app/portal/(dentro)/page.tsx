@@ -26,7 +26,7 @@ import { TituloModulo } from '@/componentes/estructura/TituloModulo'
 import { Tarjeta, type TonoTarjeta } from '@/componentes/estructura/Tarjeta'
 import { Insignia } from '@/componentes/presentadores/Insignia'
 import { Fecha } from '@/componentes/presentadores/Fecha'
-import { BarraProgreso } from '@/componentes/proyecto/CabeceraProyecto'
+import { BarraProgreso } from '@/componentes/presentadores/BarraProgreso'
 import { PARAMETRO_TAREA } from '@/componentes/datos/tabla'
 import { pedirPortal, proyectoUnicoDelPortal } from '@/datos/servidor'
 import { cn } from '@/lib/clases'
@@ -190,7 +190,7 @@ function VerTodo ({ href, etiqueta }: { href: string, etiqueta: string }) {
   return (
     <Link
       href={href}
-      className="flex items-center gap-1.5 rounded-control px-3 py-2 text-base font-semibold text-acento transition-colors duration-150 ease-neo hover:bg-hover"
+      className="flex items-center gap-1.5 rounded-control px-3 py-2 text-base font-semibold text-acento transition-colors duration-rapida ease-neo hover:bg-hover"
     >
       {etiqueta}
       <ArrowRight size={18} strokeWidth={2.25} aria-hidden="true" />
@@ -202,7 +202,7 @@ function VerTodo ({ href, etiqueta }: { href: string, etiqueta: string }) {
 const LISTA = 'flex flex-col divide-y divide-linea overflow-hidden rounded-tarjeta border border-linea bg-superficie-elevada shadow-1'
 
 /** Las clases de la fila enlazada de esas listas. */
-const FILA = 'flex flex-wrap items-center gap-x-4 gap-y-2 px-5 py-4 transition-colors duration-150 ease-neo hover:bg-hover focus-visible:bg-hover'
+const FILA = 'flex flex-wrap items-center gap-x-4 gap-y-2 px-5 py-4 transition-colors duration-rapida ease-neo hover:bg-hover focus-visible:bg-hover'
 
 /**
  * Lo que el cliente tiene para hoy, con lo vencido arriba en su propia tarjeta.

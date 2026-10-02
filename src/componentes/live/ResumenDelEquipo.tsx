@@ -175,7 +175,7 @@ function Persona ({ persona, total }: { persona: PersonaDelResumen, total: numbe
 function Listado ({ rotulo, items, total }: { rotulo: string, items: ItemDelResumen[], total: number }) {
   return (
     <div className="flex flex-col gap-1">
-      <span className="text-texto-sutil text-xs font-medium tracking-[0.08em] uppercase">{rotulo}</span>
+      <span className="text-texto-sutil text-xs antetitulo">{rotulo}</span>
 
       {items.length === 0
         ? <span className="text-texto-tenue text-sm">Nada medido a este nivel.</span>

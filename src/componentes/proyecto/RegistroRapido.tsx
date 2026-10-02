@@ -2,6 +2,7 @@
 
 import { Minus, Plus } from 'lucide-react'
 import { useState, type ReactElement } from 'react'
+import { AvisoEnLinea } from '@/componentes/estado/Estados'
 import { Boton } from '@/componentes/formularios/Boton'
 import { avisarCambioDeMedidor } from '@/componentes/live/medidor'
 import { leerError } from '@/datos/errores'
@@ -155,9 +156,7 @@ export function RegistroRapido ({
       </div>
 
       {aviso !== null && (
-        <p role="alert" className="border-linea bg-superficie-peligro text-texto-peligro rounded-chico border px-3 py-2 text-sm">
-          {aviso}
-        </p>
+        <AvisoEnLinea variante="error" mensaje={aviso} className="border-linea bg-superficie-peligro rounded-chico border px-3 py-2 text-sm" />
       )}
     </section>
   )

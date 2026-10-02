@@ -5,7 +5,7 @@ import { FolderPlus } from 'lucide-react'
 import { Boton } from '@/componentes/formularios/Boton'
 import { Campo } from '@/componentes/formularios/Campo'
 import { Entrada } from '@/componentes/formularios/Entrada'
-import { Cargando, ErrorEstado, Vacio } from '@/componentes/estado/Estados'
+import { AvisoEnLinea, ErrorEstado, Hueso, Vacio } from '@/componentes/estado/Estados'
 import { pedirSobre } from '@/datos/cliente'
 import { escribirEnBff } from '@/componentes/datos/mutaciones'
 import { GLOSARIO } from '@/dominio/glosario'
@@ -103,7 +103,7 @@ export function ArbolDrive ({ raiz, id }: Props) {
     return () => { control.abort() }
   }, [raiz, id, intento])
 
-  if (carga.fase === 'cargando') return <Cargando alto="min-h-40" mensaje="Cargando Drive…" />
+  if (carga.fase === 'cargando') return <EsqueletoDrive />
   if (carga.fase === 'error') return <ErrorEstado detalle={carga.mensaje} onReintentar={reintentar} />
 
   const { datos } = carga
@@ -181,7 +181,7 @@ export function ArbolDrive ({ raiz, id }: Props) {
                 </Boton>
 
                 {errorCrear !== null && (
-                  <p role="alert" className="text-texto-peligro max-w-prose text-sm">{errorCrear}</p>
+                  <AvisoEnLinea variante="error" mensaje={errorCrear} className="max-w-prose text-sm" />
                 )}
               </div>
             }
@@ -265,3 +265,32 @@ function CodigoCliente ({ clienteId, letrasActuales, onActualizado }: {
   )
 }
 
+/** Anchos de los nombres del esqueleto: distintos entre sí para que se lean como filas reales. */
+const ANCHOS_DE_FILA = ['w-48', 'w-64', 'w-40', 'w-56', 'w-36']
+
+/**
+ * Espera del árbol de Drive con la forma del explorador: la barra de herramientas y cinco filas
+ * de icono y nombre, para que el árbol ocupe el lugar que el esqueleto ya reservó.
+ *
+ * @returns el esqueleto del explorador
+ */
+function EsqueletoDrive () {
+  return (
+    <div
+      aria-busy="true"
+      className="border-linea bg-superficie-elevada rounded-tarjeta shadow-1 flex flex-col overflow-clip border"
+    >
+      <span className="sr-only" role="status">Cargando Drive…</span>
+      <div className="border-linea-suave flex items-center gap-2 border-b px-3 py-2.5">
+        <Hueso className="rounded-control h-8 w-40" />
+        <Hueso className="rounded-control ml-auto h-8 w-24" />
+      </div>
+      {ANCHOS_DE_FILA.map((ancho) => (
+        <div key={ancho} className="border-linea-suave flex items-center gap-3 border-b px-4 py-2.5 last:border-b-0">
+          <Hueso className="rounded-medio size-6 shrink-0" />
+          <Hueso className={`h-4 max-w-full ${ancho}`} />
+        </div>
+      ))}
+    </div>
+  )
+}

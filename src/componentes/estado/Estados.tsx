@@ -160,6 +160,8 @@ interface PropsAvisoEnLinea {
   mensaje: string
   /** Para asociarlo con `aria-describedby` desde el campo que explica. */
   id?: string
+  /** `span` cuando va dentro de un contenedor en linea (un `span` o un `button`), donde un `p` no cabe. */
+  elemento?: 'p' | 'span'
   className?: string
 }
 
@@ -173,21 +175,26 @@ interface PropsAvisoEnLinea {
  *
  * No reemplaza el error de validacion de un campo puntual: ese vive en la prop `error` de `Campo`.
  *
+ * Entra con `animate-entrar-abajo`, el mismo gesto para todo aviso en linea; el tamaño de letra y
+ * los margenes se ajustan con `className` (`text-sm` para el error general de un formulario).
+ *
  * @param variante `error` o `exito`
  * @param mensaje el texto a mostrar
+ * @param id para asociarlo con `aria-describedby`
+ * @param elemento `p` por defecto; `span` dentro de un contenedor en linea
  * @param className clases extra
  */
-export function AvisoEnLinea ({ variante, mensaje, id, className }: PropsAvisoEnLinea) {
+export function AvisoEnLinea ({ variante, mensaje, id, elemento: Elemento = 'p', className }: PropsAvisoEnLinea) {
   const esError = variante === 'error'
 
   return (
-    <p
+    <Elemento
       id={id}
       role={esError ? 'alert' : 'status'}
-      className={cn('text-xs', esError ? 'text-texto-peligro' : 'text-texto-exito', className)}
+      className={cn('animate-entrar-abajo text-xs', esError ? 'text-texto-peligro' : 'text-texto-exito', className)}
     >
       {mensaje}
-    </p>
+    </Elemento>
   )
 }
 

@@ -6,9 +6,7 @@ import { tableroDePresets } from './presets'
 import { claveDeCatalogo } from '@/datos/catalogos'
 import { operadoresCampo } from '@/definiciones/filtros'
 import type { TableroDePreset } from '@/datos/recursos'
-import { POR_PAGINA_MAXIMO } from '@/datos/consulta'
 import type { DefinicionRecurso, EstadoConsulta, Filtro, OpcionFiltro } from '@/definiciones/tipos'
-import type { Paginacion } from '@/datos/tipos'
 import { Boton } from '@/componentes/formularios/Boton'
 import { Entrada } from '@/componentes/formularios/Entrada'
 import {
@@ -32,7 +30,9 @@ import {
   UMBRAL_BUSCADOR
 } from '@/componentes/superposiciones/MenuContextual'
 import { cn } from '@/lib/clases'
-import { alternarTodas, dependenciaPendiente, estanTodasElegidas, filtrosTrasCambiar, opcionesPorPagina, resumenDeFiltro } from './tabla'
+import { alternarTodas, dependenciaPendiente, estanTodasElegidas, filtrosTrasCambiar, resumenDeFiltro } from './tabla'
+
+export { PaginacionTabla } from './PaginacionTabla'
 
 /**
  * Controles de una vista de lista: busqueda, filtros, columnas y paginacion.
@@ -303,7 +303,7 @@ function FiltroEnEspera ({ filtro, esperaA }: { filtro: Filtro, esperaA: Filtro 
   // proposito: el disparador tiene ancho fijo y lo que no entra se recorta —de ahi el `title`—.
   const pista = esperaA === null
     ? `${filtro.etiqueta}: sin opciones`
-    : `${filtro.etiqueta}: elegí ${esperaA.etiqueta}`
+    : `${filtro.etiqueta}: elige ${esperaA.etiqueta}`
 
   return (
     <button
@@ -529,59 +529,6 @@ function FiltroRangoFechas ({ filtro, valores, onCambiar }: PropsControlFiltro) 
   )
 }
 
-interface PropsPaginacion {
-  paginacion: Paginacion | undefined
-  onCambiar: (parcial: Partial<EstadoConsulta>) => void
-}
-
-/**
- * Paginacion de la tabla, leida de `meta.pagination`.
- *
- * Sin `meta` no se dibuja nada: inventar "pagina 1 de 1" cuando el backend no dijo cuantas hay es
- * afirmar algo que no se sabe.
- *
- * Con una sola pagina que ademas entra holgada tampoco se dibuja nada: "Pagina 1 de 1" repite el total
- * que ya esta en la cabecera del listado, y el selector de filas por pagina y los dos botones no
- * llevan a ningun lado. Se vuelven a mostrar en cuanto hay una segunda pagina o el tamaño de pagina
- * empieza a recortar.
- */
-export function PaginacionTabla ({ paginacion, onCambiar }: PropsPaginacion) {
-  if (paginacion === undefined) return null
-
-  const { page, per_page: porPagina, total, total_pages: totalPaginas } = paginacion
-
-  if (totalPaginas <= 1 && total <= porPagina) return null
-
-  return (
-    <div className="text-texto-tenue flex flex-wrap items-center justify-between gap-2 text-xs">
-      <p aria-live="polite">
-        Página {page} de {Math.max(1, totalPaginas)} · {total} en total
-      </p>
-
-      <div className="flex items-center gap-2">
-        <Selector
-          value={String(porPagina)}
-          onValueChange={(valor) => onCambiar({ porPagina: Number(valor), pagina: 1 })}
-        >
-          <DisparadorSelector aria-label="Filas por página" className="w-24" />
-          <ContenidoSelector>
-            {opcionesPorPagina(POR_PAGINA_MAXIMO, porPagina).map((cantidad) => (
-              <Opcion key={cantidad} value={String(cantidad)}>{cantidad}</Opcion>
-            ))}
-          </ContenidoSelector>
-        </Selector>
-
-        <Boton tamano="chico" disabled={page <= 1} onClick={() => onCambiar({ pagina: page - 1 })}>
-          Anterior
-        </Boton>
-        <Boton tamano="chico" disabled={page >= totalPaginas} onClick={() => onCambiar({ pagina: page + 1 })}>
-          Siguiente
-        </Boton>
-      </div>
-    </div>
-  )
-}
-
 /**
  * Edita una condición tipada y solo la aplica al enviar un valor válido.
  * @param props Configuración, valores actuales y callback de aplicación.
@@ -600,11 +547,22 @@ function FiltroCampo ({ filtro, valores, onCambiar }: PropsControlFiltro) {
       onCambiar([operador, sinValor ? '1' : valor])
     }}>
       <span className="text-sm">{filtro.etiqueta}</span>
-      <select aria-label={`Operador de ${filtro.etiqueta}`} className="border-control-borde bg-control text-texto rounded-control h-9 border px-2 text-sm" value={operador} onChange={(evento) => { setOperador(evento.target.value) }}>
-        {operadores.map((op) => <option key={op} value={op}>{etiquetas[op]}</option>)}
-      </select>
+      <Selector value={operador} onValueChange={setOperador}>
+        <DisparadorSelector aria-label={`Operador de ${filtro.etiqueta}`} className="w-auto min-w-36" />
+        <ContenidoSelector>
+          {operadores.map((op) => <Opcion key={op} value={op}>{etiquetas[op]}</Opcion>)}
+        </ContenidoSelector>
+      </Selector>
       {!sinValor && (filtro.tipoDato === 'booleano'
-        ? <select required aria-label={`Valor de ${filtro.etiqueta}`} className="border-control-borde bg-control text-texto rounded-control h-9 border px-2 text-sm" value={valor} onChange={(evento) => { setValor(evento.target.value) }}><option value="">Elegir…</option><option value="1">Sí</option><option value="0">No</option></select>
+        ? (
+          <Selector required value={valor} onValueChange={setValor}>
+            <DisparadorSelector aria-label={`Valor de ${filtro.etiqueta}`} marcador="Elegir…" className="w-28" />
+            <ContenidoSelector>
+              <Opcion value="1">Sí</Opcion>
+              <Opcion value="0">No</Opcion>
+            </ContenidoSelector>
+          </Selector>
+          )
         : <Entrada required aria-label={`Valor de ${filtro.etiqueta}`} className="w-40" type={filtro.tipoDato === 'numero' ? 'number' : filtro.tipoDato === 'fecha' ? 'date' : 'text'} step={filtro.tipoDato === 'numero' ? 'any' : undefined} value={valor} onChange={(evento) => { setValor(evento.target.value) }} />)}
       <Boton type="submit" tamano="chico" disabled={!sinValor && valor.trim() === ''}>Aplicar</Boton>
     </form>

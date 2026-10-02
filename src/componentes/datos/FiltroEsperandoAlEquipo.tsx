@@ -31,7 +31,7 @@ export function FiltroEsperandoAlEquipo (): ReactElement {
         aria-pressed={activo}
         onClick={alternar}
         className={cn(
-          'rounded-control inline-flex h-8 items-center gap-2 border px-3 text-sm font-medium transition-colors duration-150 active:scale-[0.98]',
+          'rounded-control inline-flex h-8 items-center gap-2 border px-3 text-sm font-medium transition-colors duration-rapida ease-neo active:scale-[0.98]',
           activo
             ? 'border-acento bg-acento-suave text-acento'
             : 'border-control-borde bg-control text-texto-tenue hover:bg-hover hover:text-texto'

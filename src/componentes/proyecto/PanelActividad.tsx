@@ -2,7 +2,7 @@
 
 import { useState, type ReactElement } from 'react'
 import { PaginacionTabla } from '@/componentes/datos/ControlesTabla'
-import { Cargando, ErrorEstado } from '@/componentes/estado/Estados'
+import { AvisoEnLinea, Cargando, ErrorEstado } from '@/componentes/estado/Estados'
 import { mensajeDeRespuesta } from '@/datos/cliente'
 import type { Capacidad } from '@/datos/tipos'
 import { conConsulta, type FuenteDeProyecto } from '@/dominio/fuente-proyecto'
@@ -162,11 +162,11 @@ function InterruptorVisibilidad ({
    */
   return (
     <span className="flex shrink-0 items-center gap-2" aria-busy={guardando}>
-      {fallo !== null && <span role="alert" className="text-texto-peligro text-xs">{fallo}</span>}
+      {fallo !== null && <AvisoEnLinea variante="error" mensaje={fallo} elemento="span" />}
 
       {/* La etiqueta dice la frase entera y no "Sí"/"No": en la tabla el sentido lo daba el
           encabezado de la columna, y en una linea de tiempo no hay encabezado que lo de. */}
-      <label className="text-texto-sutil flex items-center gap-1.5 py-1 text-[0.6875rem] whitespace-nowrap">
+      <label className="text-texto-sutil flex items-center gap-1.5 py-1 text-menor whitespace-nowrap">
         <input
           type="checkbox"
           checked={visible}
