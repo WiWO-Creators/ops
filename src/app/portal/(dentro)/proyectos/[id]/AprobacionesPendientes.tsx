@@ -152,7 +152,7 @@ function FilaAprobacion ({ tarea, estados }: {
               </p>
               {/* Una Tarea puede volver a «Espera de respuesta» en otra vuelta: el cliente tiene que
                   poder contestar de nuevo sin que la respuesta vieja lo trabe. */}
-              <Boton variante="sutil" tamano="chico" onClick={() => { setCambiando(true) }}>
+              <Boton variante="sutil" tamano="chico" data-rastreo="aprobacion.cambiar" onClick={() => { setCambiando(true) }}>
                 Responder de nuevo
               </Boton>
             </div>
@@ -164,6 +164,7 @@ function FilaAprobacion ({ tarea, estados }: {
           <Boton
             variante="primario"
             tamano="chico"
+            data-rastreo="aprobacion.aprobar"
             cargando={enviando && !rechazando}
             onClick={() => { void responder('aprobada') }}
           >
@@ -171,7 +172,7 @@ function FilaAprobacion ({ tarea, estados }: {
           </Boton>
           {/* Sin `variante="peligro"`: rechazar no es destruir, es pedir un cambio. El rojo asusta y
               hace que el cliente apruebe cosas que no queria aprobar. */}
-          <Boton variante="secundario" tamano="chico" onClick={() => { setRechazando(true) }}>
+          <Boton variante="secundario" tamano="chico" data-rastreo="aprobacion.rechazar" onClick={() => { setRechazando(true) }}>
             Rechazar
           </Boton>
         </div>
@@ -206,10 +207,10 @@ function FilaAprobacion ({ tarea, estados }: {
             {fallo !== null && <p role="alert" className="text-texto-peligro text-sm">{fallo}</p>}
 
             <div className="flex justify-end gap-2">
-              <Boton type="button" variante="sutil" onClick={() => { setRechazando(false) }}>
+              <Boton type="button" variante="sutil" data-rastreo="aprobacion.cancelar" onClick={() => { setRechazando(false) }}>
                 Cancelar
               </Boton>
-              <Boton type="submit" variante="primario" cargando={enviando} disabled={motivo.trim() === ''}>
+              <Boton type="submit" variante="primario" data-rastreo="aprobacion.comentar" cargando={enviando} disabled={motivo.trim() === ''}>
                 Enviar comentario
               </Boton>
             </div>

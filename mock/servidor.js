@@ -22,6 +22,7 @@ import {
 } from './recurrentes.js'
 import { contarCopias, limpiarCopias, listarCopias, marcarEditada, sembrarCopias, usoDe } from './copias-recurrentes.js'
 import { avisosRuta } from './avisos.js'
+import { actividadDeCliente, actividadDeContacto, registrarActividad } from './actividad-portal.js'
 import { altaDelPortal, esAccionDelPortal, ticketDelPortal, ticketsDelEquipo } from './tickets.js'
 import { esPrincipal, filaDelPortal, listadosDeTickets, ticketsDelResumen } from './tickets-listados.js'
 import { filtrosGuardados } from './filtros-guardados.js'
@@ -6571,6 +6572,13 @@ async function resolverRuta (metodo, segmentos, parametros, token, cuerpo, petic
       })
     }
 
+    // El rastreo de uso: el contacto anota lo que hace en el portal. Responde 204 como la API.
+    if (metodo === 'POST' && resto[0] === 'actividad' && resto.length === 1) {
+      registrarActividad(sesion.resolverContacto(token, 'acceso'), await cuerpo(), null)
+
+      return { estado: 204, cuerpo: null }
+    }
+
     // El alta de una solicitud es lo UNICO que el contacto escribe en todo el portal, asi que el
     // resto sigue siendo de solo lectura: cualquier otro metodo cae en el 404 de siempre.
     const escribeTicket = (metodo === 'POST' && resto[0] === 'tickets' && resto.length === 1) || esAccionDelPortal(metodo, resto)
@@ -6593,6 +6601,7 @@ async function resolverRuta (metodo, segmentos, parametros, token, cuerpo, petic
           secciones_habilitadas: seccionesDelPortal(contacto),
           proyecto_de_entrada: entradaDelContacto(contacto),
           client: marcaDelCliente(contacto),
+          rastreo: true,
           locale: 'es'
         })
       }
@@ -7580,6 +7589,22 @@ async function resolverRuta (metodo, segmentos, parametros, token, cuerpo, petic
     const asignados = ADMINS_DE_CLIENTE.get(cliente.id) ?? []
 
     return { estado: 200, cuerpo: conDatos(STAFF.filter((s) => asignados.includes(s.id)).map(presentarStaff)) }
+  }
+
+  // --- Actividad del portal, para el equipo ---------------------------------
+  if (recurso === 'clients' && resto[1] === 'portal-activity' && resto.length === 2 && metodo === 'GET') {
+    exigirPermiso(actual, 'customers', 'view')
+    const cliente = buscarO404(CLIENTES, Number(resto[0]), 'cliente')
+
+    return { estado: 200, cuerpo: conDatos(actividadDeCliente(cliente.id, parametros)) }
+  }
+
+  if (recurso === 'contacts' && resto[1] === 'portal-activity' && resto.length === 2 && metodo === 'GET') {
+    exigirPermiso(actual, 'customers', 'view')
+    const contacto = buscarO404(CONTACTOS, Number(resto[0]), 'contacto')
+    const { filas, meta } = actividadDeContacto(contacto.id, parametros)
+
+    return { estado: 200, cuerpo: conDatos(filas, meta) }
   }
 
   // --- Contactos de un cliente ---------------------------------------------

@@ -19,6 +19,7 @@ export function SelectorTema ({ className }: { className?: string }) {
   return (
     <button
       type="button"
+      data-rastreo="tema.cambiar"
       onClick={alternar}
       title="Cambiar tema"
       aria-label="Cambiar tema"

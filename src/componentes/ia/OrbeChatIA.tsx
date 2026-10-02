@@ -281,6 +281,7 @@ export function OrbeChatIA ({ sujeto = 'staff' }: { sujeto?: SujetoOrbe } = {}):
             </div>
             <button
               type="button"
+              data-rastreo="orbe.cerrar"
               onClick={() => setAbierto(false)}
               aria-label={`Cerrar ${ASISTENTE}`}
               className="text-texto-tenue hover:bg-hover hover:text-texto rounded-control px-2 py-1 text-sm"
@@ -295,6 +296,7 @@ export function OrbeChatIA ({ sujeto = 'staff' }: { sujeto?: SujetoOrbe } = {}):
 
       <button
         type="button"
+        data-rastreo="orbe.alternar"
         onClick={() => setAbierto((estaba) => !estaba)}
         onPointerEnter={() => setEncima(true)}
         onPointerLeave={() => setEncima(false)}

@@ -3969,6 +3969,76 @@ devuelve solo el mas reciente de cada par (suplantado, suplantador).
 
 ---
 
+### Actividad del portal — qué hacen los contactos cuando entran
+
+Migración `1160`. El portal anota lo que hace cada contacto (páginas y pestañas que abre, cuánto
+las ve, qué botones pulsa) y el equipo lo lee en la pestaña «Actividad del portal» de la ficha del
+Cliente.
+
+#### `POST /portal/actividad` — contacto
+
+Lote de hasta 50 eventos. Responde `204` siempre, también con el seguimiento apagado.
+
+```json
+{ "session": "0f8fad5b-d9cb-469f-a165-70867728950e", "device": "movil",
+  "events": [
+    { "type": "vista",   "route": "/portal/proyectos/12", "duration_ms": 4200 },
+    { "type": "pestana", "route": "/portal/proyectos/12", "tab": "gantt", "duration_ms": 900 },
+    { "type": "click",   "route": "/portal/proyectos/12", "target": "aprobacion.aprobar", "object_id": 55 }
+  ] }
+```
+
+- **Nada de texto libre.** `route` es un pathname `/portal/...` en minúsculas, sin query ni hash;
+  `tab` y `target` cumplen `^[a-z0-9_.-]{1,64}$`; `object_id` y `duration_ms` son enteros. Un evento
+  inválido da `422` para todo el lote y no se guarda nada.
+- `session` es un uuid que genera el navegador y repite en cada lote. Un uuid que ya es de otro
+  contacto da `422`.
+- El contacto, su cliente, la IP, el navegador y si lo suplanta el equipo salen del token, nunca del
+  cuerpo. Lo que hace el equipo con «Ver como cliente» se guarda con `suplantado_por`.
+- Tope `PORTAL_RASTREO_POR_HORA` (2000 por contacto y hora): al pasarlo, `429` con `Retry-After`.
+- Interruptor `wiwo_portal_rastreo` (nace en `1`). `/portal/me` expone `rastreo: boolean`.
+
+#### `GET /clients/{id}/portal-activity` — staff, cliente visible
+
+Parámetros: `desde`, `hasta` (`YYYY-MM-DD`, por defecto los últimos 30 días, máximo 366) y
+`suplantadas=1` para incluir lo que hizo el equipo (por defecto queda fuera).
+
+```json
+{ "data": {
+  "desde": "2026-09-03", "hasta": "2026-10-02",
+  "kpis": { "sesiones": 25, "contactos_activos": 3, "segundos_activos": 4260,
+            "mediana_segundos": 180, "ultima_visita": "2026-10-02T15:39:00Z" },
+  "por_dia":   [ { "dia": "2026-10-01", "sesiones": 2, "segundos": 340 } ],
+  "vistas":    [ { "ruta": "/portal/proyectos/:id", "pestana": "gantt", "visitas": 4, "segundos": 60 } ],
+  "clicks":    [ { "objetivo": "aprobacion.aprobar", "clicks": 7 } ],
+  "contactos": [ { "id": 1, "nombre": "Renata Ferreyra", "email": "clienta@acme.com", "sesiones": 9,
+                   "segundos": 1500, "ultima_visita": "2026-10-02T15:39:00Z",
+                   "vista_favorita": "/portal/proyectos/:id" } ],
+  "nombres":   { "12": "DELCO" } } }
+```
+
+`vistas` normaliza los ids (`/portal/proyectos/:id`); una fila con `pestana` cuenta la pestaña dentro
+de la página. `segundos_activos` suma solo las `vista`: las `pestana` van dentro de su vista.
+`nombres` resuelve los proyectos que aparecen; un proyecto borrado no sale y quien muestra cae al
+genérico.
+
+#### `GET /contacts/{id}/portal-activity` — staff, cliente visible
+
+Parámetros: `pagina` (15 sesiones por página) y `suplantadas=1`. Cada sesión trae sus pasos en orden:
+
+```json
+{ "data": [ { "sesion": "…", "inicio": "2026-10-02T15:33:00Z", "segundos": 62, "dispositivo": "escritorio",
+              "eventos": 10, "suplantado_por": null,
+              "pasos": [ { "tipo": "vista", "ruta": "/portal", "pestana": null, "objetivo": null,
+                           "objeto_id": null, "segundos": 12, "a": "2026-10-02T15:33:00Z" } ] } ],
+  "meta": { "pagina": 1, "por_pagina": 15, "total": 22, "nombres": { "12": "DELCO" } } }
+```
+
+Con el seguimiento apagado las dos lecturas dan `404`. Los eventos se borran a los
+`PORTAL_RASTREO_MESES` (12); las sesiones se conservan.
+
+---
+
 ### `/todos` — tareas personales
 
 El "To-do" del panel (`tbltodos`). **Privadas por persona, sin excepcion**: el dueño sale del

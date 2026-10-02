@@ -2,7 +2,7 @@
 
 import { useRouter } from 'next/navigation'
 import { useState } from 'react'
-import { Eye, KeyRound, Mail, Phone, Plus, Star } from 'lucide-react'
+import { Activity, Eye, KeyRound, Mail, Phone, Plus, Star } from 'lucide-react'
 import { CeldaEncabezado, CeldaTabla, CuerpoTabla, EncabezadoTabla, FilaTabla, Tabla } from '@/componentes/datos/Tabla'
 import { BotonCopiar } from '@/componentes/datos/BotonCopiar'
 import { MenuAccionesFila } from '@/componentes/datos/MenuAccionesFila'
@@ -274,6 +274,14 @@ export function PanelContactos ({ clienteId, contactos, capacidades }: PropsPane
                     cargando={ocupado === contacto.id}
                     onEditar={puedeEditar ? () => setEditando(contacto) : undefined}
                     acciones={[
+                      // Para todo el que ve la ficha, igual que "Ver como cliente": es lectura, y la API
+                      // ya exige que el cliente sea visible.
+                      {
+                        clave: 'actividad',
+                        etiqueta: 'Ver actividad en el portal',
+                        icono: Activity,
+                        onSeleccionar: () => { router.push(`/clientes/${clienteId}/actividad/${contacto.id}`) }
+                      },
                       ...(puedeEditar
                         ? [
                           {
