@@ -166,7 +166,7 @@ export function Segmentado ({
           // La misma lista acotada que `Boton`: color y `transform`, nunca `box-shadow` ni `filter`.
           // Animar la sombra en un control que aparece en cada barra del panel cuesta repintados que
           // nadie ve. Sin `transform` en la lista, el hundido al pulsar salta en vez de acompañar.
-          'transition-[background-color,color,transform] duration-150 active:scale-[0.98]',
+          'transition-[background-color,color,transform] duration-rapida ease-neo active:scale-[0.98]',
           // La firma de foco de Neo son dos capas: el `outline` y un halo que vive en `box-shadow`
           // (`globals.css`, `:focus-visible`). `shadow-1` es una utilidad y le gana a la capa base,
           // asi que la opcion PUESTA —que es justo la que lleva `tabIndex=0` y la primera que recibe

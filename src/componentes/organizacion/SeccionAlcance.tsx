@@ -138,7 +138,7 @@ function ExplicacionDelAlcance ({ alcance }: { alcance: AlcanceDePersona }) {
 function Renglon ({ titulo, children }: { titulo: string, children: React.ReactNode }) {
   return (
     <div className="grid grid-cols-[6rem_1fr] items-baseline gap-3">
-      <span className="text-texto-sutil text-xs font-medium uppercase tracking-wide">{titulo}</span>
+      <span className="text-texto-sutil text-xs antetitulo">{titulo}</span>
       <div className="min-w-0">{children}</div>
     </div>
   )

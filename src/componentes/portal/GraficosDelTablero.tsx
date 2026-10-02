@@ -331,7 +331,7 @@ export function GraficoDeEntregas ({ linea }: { linea: LineaDeEntregas }) {
                     la mitad del texto queda fuera de la caja. Es lo que pasa siempre que todas las
                     entregas estan vencidas, que es justo cuando mas hay que mirar el grafico. */}
                 <span
-                  className="text-texto-sutil absolute top-0 text-[10px] tracking-wide uppercase"
+                  className="text-texto-sutil absolute top-0 text-micro tracking-wide uppercase"
                   style={{ left: `${hoy * 100}%`, transform: anclaDelRotulo(hoy) }}
                 >
                   hoy
@@ -425,7 +425,7 @@ export function GraficoDeTrabas ({ barras }: { barras: BarraDeTraba[] }) {
       icono={<OctagonAlert size={14} aria-hidden="true" className="shrink-0" />}
     >
       <div className="flex flex-wrap items-center gap-x-4 gap-y-1">
-        <Clave className="bg-acento">Depende de vos</Clave>
+        <Clave className="bg-acento">Depende de ti</Clave>
         <Clave className="bg-relleno-neutro">Depende de nosotros o de un tercero</Clave>
       </div>
 

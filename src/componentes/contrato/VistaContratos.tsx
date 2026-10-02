@@ -10,7 +10,6 @@ import { Boton } from '@/componentes/formularios/Boton'
 import { FormularioRecurso } from '@/componentes/proyecto/FormularioRecurso'
 import type { OpcionCampo } from '@/componentes/proyecto/formulario'
 import { EnlaceCliente } from '@/componentes/presentadores/EnlaceCliente'
-import { useAviso } from '@/componentes/estado/useAviso'
 import { mensajeDeRespuesta } from '@/datos/cliente'
 import type { AccesoContratos, Contrato } from '@/datos/recursos'
 import type { OpcionFiltro, ResultadoLista } from '@/definiciones/tipos'
@@ -52,7 +51,6 @@ interface Edicion {
 
 export function VistaContratos ({ inicial, opcionesDeFiltro, clientes, tipos, acceso, areas }: PropsVistaContratos) {
   const router = useRouter()
-  const aviso = useAviso()
   const [creando, setCreando] = useState(false)
   const [editando, setEditando] = useState<Edicion | null>(null)
   const [configurando, setConfigurando] = useState(false)
@@ -140,10 +138,8 @@ export function VistaContratos ({ inicial, opcionesDeFiltro, clientes, tipos, ac
         ruta="contratos"
         metodo="POST"
         registro={REGISTRO_NUEVO_CONTRATO}
-        onGuardado={() => {
-          aviso.exito('Contrato creado.')
-          router.refresh()
-        }}
+        avisoExito="Contrato creado."
+        onGuardado={() => { router.refresh() }}
         columnas={2}
         ancho="grande"
       />
@@ -158,10 +154,8 @@ export function VistaContratos ({ inicial, opcionesDeFiltro, clientes, tipos, ac
           ruta={`contratos/${editando.contrato.id}`}
           metodo="PATCH"
           registro={registroDeContrato(editando.contrato)}
-          onGuardado={() => {
-            aviso.exito('Contrato actualizado.')
-            editando.recargar()
-          }}
+          avisoExito="Contrato actualizado."
+          onGuardado={() => { editando.recargar() }}
           columnas={2}
           ancho="grande"
         />
@@ -178,10 +172,8 @@ export function VistaContratos ({ inicial, opcionesDeFiltro, clientes, tipos, ac
           metodo="PATCH"
           registro={registroDeAcceso(acceso)}
           enviar={guardarAcceso}
-          onGuardado={() => {
-            aviso.exito('Acceso actualizado.')
-            router.refresh()
-          }}
+          avisoExito="Acceso actualizado."
+          onGuardado={() => { router.refresh() }}
         />
       )}
     </div>

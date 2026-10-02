@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect, useId, useRef, useState, type ReactElement } from 'react'
+import { AvisoEnLinea } from '@/componentes/estado/Estados'
 import { Boton } from '@/componentes/formularios/Boton'
 import { Insignia } from '@/componentes/presentadores/Insignia'
 import { Orbe } from '@/componentes/estado/Orbe'
@@ -363,9 +364,7 @@ export function AsistenteDeActa ({ proyectoId, onCreada, onCancelar, transcripci
       </div>
 
       {error !== null && (
-        <p role="alert" className="bg-superficie-peligro text-texto-peligro rounded-chico px-3 py-2 text-sm">
-          {error}
-        </p>
+        <AvisoEnLinea variante="error" mensaje={error} className="bg-superficie-peligro rounded-chico px-3 py-2 text-sm" />
       )}
 
       <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-end">

@@ -16,11 +16,12 @@ process.env.TZ = 'UTC'
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import {
-  bloqueDeReserva, diaLocal, diasDeCalendarioMes, estadoDeReserva, filtrarPersonas, formatearMinutos, franjas, horaLocal,
-  instanteDe, minutosDeHora, minutosLocales, normalizar, revisarReserva, seSuperpone,
+  bloqueDeReserva, diaLocal, diasDeCalendarioMes, estadoDeReserva, formatearMinutos, franjas, horaLocal,
+  instanteDe, minutosDeHora, minutosLocales, revisarReserva, seSuperpone,
   reservaTocaDia, sugerirAsistentes, sumarDias, sumarMeses, ventanaDelDia, ventanaDelMes,
   HORA_APERTURA, HORA_CIERRE, PASO_MINUTOS
 } from '../src/dominio/salas.ts'
+import { filtrarPersonas, normalizar } from '../src/dominio/busqueda.ts'
 
 // La zona del negocio es America/Santiago. A diferencia de Argentina, Chile SI cambia la hora:
 // UTC-4 en invierno y UTC-3 en verano, y el salto de 2026 cae el 6 de septiembre. Los instantes

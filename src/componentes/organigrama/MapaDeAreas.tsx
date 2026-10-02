@@ -198,7 +198,7 @@ function TarjetaDeArea (
             className="size-2.5 shrink-0 rounded-full"
             style={{ backgroundColor: colorDeArea(area.id) }}
           />
-          <h3 className="font-titular text-texto truncate text-[16px] leading-tight font-semibold">
+          <h3 className="font-titular text-texto truncate text-titulo leading-tight font-semibold">
             {area.nombre}
           </h3>
         </div>
@@ -285,7 +285,7 @@ function TarjetaSinArea ({ cuantos, onEntrar }: { cuantos: number, onEntrar: () 
     >
       <header className="flex items-center gap-2">
         <UserRound aria-hidden="true" className="text-texto-sutil size-4 shrink-0" />
-        <h3 className="font-titular text-texto truncate text-[16px] leading-tight font-semibold">
+        <h3 className="font-titular text-texto truncate text-titulo leading-tight font-semibold">
           Sin área
         </h3>
       </header>

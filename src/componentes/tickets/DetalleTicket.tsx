@@ -7,7 +7,7 @@ import { Avatar } from '@/componentes/presentadores/Avatar'
 import { EnlacePersona } from '@/componentes/presentadores/EnlacePersona'
 import { Fecha } from '@/componentes/presentadores/Fecha'
 import { Insignia } from '@/componentes/presentadores/Insignia'
-import { BarraProgreso } from '@/componentes/proyecto/CabeceraProyecto'
+import { BarraProgreso } from '@/componentes/presentadores/BarraProgreso'
 import { Cargando, ErrorEstado, Vacio } from '@/componentes/estado/Estados'
 import { escribirEnBff } from '@/componentes/datos/mutaciones'
 import { observarLista } from '@/datos/refresco-lista'
@@ -425,7 +425,7 @@ function Adjuntos ({ adjuntos }: { adjuntos: MensajeDeTicket['adjuntos'] }): Rea
                 href={adjunto.ruta}
                 download={adjunto.nombre}
                 aria-label={`Descargar ${adjunto.nombre}`}
-                className="border-linea rounded-control text-texto hover:bg-hover hover:text-acento inline-flex max-w-64 items-center gap-1.5 border px-2 py-1 text-xs transition-colors duration-150"
+                className="border-linea rounded-control text-texto hover:bg-hover hover:text-acento inline-flex max-w-64 items-center gap-1.5 border px-2 py-1 text-xs transition-colors duration-rapida ease-neo"
               >
                 <Paperclip size={12} strokeWidth={2} aria-hidden="true" className="shrink-0" />
                 <span className="truncate">{adjunto.nombre}</span>
@@ -441,7 +441,7 @@ function Adjuntos ({ adjuntos }: { adjuntos: MensajeDeTicket['adjuntos'] }): Rea
 function Dato ({ etiqueta, children }: { etiqueta: string, children: ReactNode }): ReactElement {
   return (
     <div className="flex min-w-0 flex-col gap-1">
-      <dt className="text-texto-sutil text-xs font-medium tracking-[0.08em] uppercase">{etiqueta}</dt>
+      <dt className="text-texto-sutil text-xs antetitulo">{etiqueta}</dt>
       <dd className="text-texto min-w-0 text-sm">{children}</dd>
     </div>
   )

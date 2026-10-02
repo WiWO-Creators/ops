@@ -53,6 +53,20 @@ export const ROTULO_TIPO: Record<TipoNovedad, string> = {
  */
 export const NOVEDADES: Novedad[] = [
   {
+    fecha: '2026-10-02',
+    tipo: 'nuevo',
+    titulo: 'Seguimiento de lo que hacen los clientes en el portal',
+    detalle: 'En la ficha del Cliente, la pestaña «Actividad del portal» muestra cuándo entran sus contactos, qué páginas, pestañas y proyectos abren más y menos, qué botones pulsan y cuánto tiempo pasan. Desde cada contacto puedes abrir su recorrido sesión por sesión. Lo que hace el equipo con «Ver como cliente» no cuenta.',
+    commits: ['ops-v2@b777515', 'board@f2817fe']
+  },
+  {
+    fecha: '2026-10-02',
+    tipo: 'mejora',
+    titulo: 'Patente en todos los buscadores',
+    detalle: 'Los selectores de Tareas y Proyectos (jornada, alta de Tarea, sumar a un hito y filtros de recurrentes) ahora encuentran por patente y la muestran junto al nombre.',
+    commits: []
+  },
+  {
     fecha: '2026-09-30',
     tipo: 'nuevo',
     titulo: 'Adjuntar archivos al crear una Tarea',

@@ -176,7 +176,7 @@ export function MenuCatalogoTicket ({
             disabled={enCurso}
             aria-label={`${rotulo}: ${nombre}. Cambiar ${rotulo.toLowerCase()}.`}
             className={cn(
-              'rounded-control cursor-pointer transition-opacity duration-150',
+              'rounded-control cursor-pointer transition-opacity duration-rapida ease-neo',
               enCurso ? 'cursor-progress opacity-60' : 'hover:opacity-80'
             )}
           >

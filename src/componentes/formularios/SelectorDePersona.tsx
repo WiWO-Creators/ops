@@ -5,7 +5,7 @@ import { ChevronSelector, CLASES_DISPARADOR } from '@/componentes/formularios/Se
 import {
   BuscadorMenu, ContenidoMenu, DisparadorMenu, ItemMenu, MenuContextual, SinResultadosMenu
 } from '@/componentes/superposiciones/MenuContextual'
-import { comparable } from '@/dominio/organizacion'
+import { filtrarPorPalabras } from '@/dominio/busqueda'
 import { cn } from '@/lib/clases'
 
 /** Cuántas personas se listan de una vez. Lo demás se acota escribiendo. */
@@ -38,20 +38,19 @@ interface PropsSelectorDePersona {
 /**
  * Elige a UNA persona de una lista larga, escribiendo.
  *
- * Es el hermano de una sola opción de `SelectorPersonas`: con 180 personas un `Select` hay que leerlo
- * entero para encontrar a alguien. El campo es `BuscadorMenu`, que ya resuelve el foco y las teclas
- * dentro del menú de Radix.
+ * Es el hermano de una sola opción de `SelectorPersonas` y el selector de persona del sistema: con 180
+ * personas un `Select` hay que leerlo entero para encontrar a alguien. El campo es `BuscadorMenu`, que
+ * ya resuelve el foco y las teclas dentro del menú de Radix, y `filtrarPorPalabras` busca sin acentos
+ * y en cualquier orden, en el nombre y en el detalle.
  */
 export function SelectorDePersona ({
   opciones, valor, onCambiar, marcador, etiqueta, permitirNinguno = true, ayudaVacia, deshabilitado = false, id
 }: PropsSelectorDePersona) {
   const [busqueda, setBusqueda] = useState('')
 
-  const texto = comparable(busqueda)
-  const visibles = (texto === ''
-    ? opciones
-    : opciones.filter((opcion) => comparable(`${opcion.nombre} ${opcion.detalle ?? ''}`).includes(texto))
-  ).slice(0, MAXIMO_VISIBLES)
+  const texto = busqueda.trim()
+  const visibles = filtrarPorPalabras(opciones, busqueda, (opcion) => [opcion.nombre, opcion.detalle])
+    .slice(0, MAXIMO_VISIBLES)
   const elegido = valor === null ? undefined : opciones.find((opcion) => opcion.staffid === valor)
 
   return (

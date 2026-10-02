@@ -4,7 +4,8 @@ import Link from 'next/link'
 import { useState, type ReactElement } from 'react'
 import { useRouter } from 'next/navigation'
 import { Boton } from '@/componentes/formularios/Boton'
-import { DialogoEliminarProyecto } from '@/componentes/proyecto/DialogoEliminarProyecto'
+import { MenuAccionesFila } from '@/componentes/datos/MenuAccionesFila'
+import { useBorradoDeProyecto } from '@/componentes/proyecto/DialogoEliminarProyecto'
 import { DialogoResultado } from '@/componentes/proyecto/DialogoResultado'
 import { guardarEdicionCombinada } from '@/componentes/proyecto/edicion-combinada'
 import { FormularioRecurso } from '@/componentes/proyecto/FormularioRecurso'
@@ -50,7 +51,7 @@ export function AccionesUpsell ({ upsell, monedas, capacidades }: PropsAcciones)
   const router = useRouter()
   const [editando, setEditando] = useState(false)
   const [confirmando, setConfirmando] = useState<'ganar' | 'perder' | null>(null)
-  const [eliminando, setEliminando] = useState(false)
+  const borrado = useBorradoDeProyecto(upsell.espacio, () => { router.replace('/upsells') }, GLOSARIO.upsell.singular)
 
   const abierta = upsell.estado === 'abierta'
   const puedeEditar = capacidades.includes('edit')
@@ -83,9 +84,7 @@ export function AccionesUpsell ({ upsell, monedas, capacidades }: PropsAcciones)
       )}
 
       {puedeEliminar && (
-        <Boton variante="peligro" tamano="chico" onClick={() => { setEliminando(true) }}>
-          Eliminar
-        </Boton>
+        <MenuAccionesFila ariaLabel={`Más acciones de ${upsell.espacio.name}`} borrado={borrado} />
       )}
 
       {puedeEditar && (
@@ -108,13 +107,6 @@ export function AccionesUpsell ({ upsell, monedas, capacidades }: PropsAcciones)
         }}
         onCerrar={() => { setConfirmando(null) }}
         onHecho={() => { router.refresh() }}
-      />
-
-      <DialogoEliminarProyecto
-        espacio={eliminando ? upsell.espacio : null}
-        tipo={GLOSARIO.upsell.singular}
-        onCerrar={() => { setEliminando(false) }}
-        onEliminado={() => { router.replace('/upsells') }}
       />
     </div>
   )

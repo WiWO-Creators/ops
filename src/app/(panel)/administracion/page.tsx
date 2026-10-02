@@ -1,10 +1,12 @@
 import { Suspense } from 'react'
-import { CalendarSync, Inbox, KeyRound, Megaphone, MonitorPlay, RefreshCcwDot, Siren, Sparkles, type LucideIcon } from 'lucide-react'
+import { CalendarSync, Database, Inbox, KeyRound, Megaphone, MonitorPlay, RefreshCcwDot, Siren, Sparkles, type LucideIcon } from 'lucide-react'
 import { AccesoGoogle } from '@/componentes/administracion/AccesoGoogle'
 import { FormularioDeAjustes } from '@/componentes/administracion/FormularioDeAjustes'
+import { ModoEspecialAdmin } from '@/componentes/administracion/ModoEspecialAdmin'
 import { PanelAvisosPorCorreo } from '@/componentes/administracion/PanelAvisosPorCorreo'
 import { Cargando, ErrorEstado, SinPermiso } from '@/componentes/estado/Estados'
 import { Pestanas, type Panel } from '@/componentes/proyecto/Pestanas'
+import { EntradaEscalonada } from '@/componentes/estructura/EntradaEscalonada'
 import { Tarjeta, type TonoTarjeta } from '@/componentes/estructura/Tarjeta'
 import { TituloModulo } from '@/componentes/estructura/TituloModulo'
 import { leerAjustes } from '@/datos/ajustes'
@@ -27,6 +29,8 @@ interface PantallaAparte {
   descripcion: string
   icono: LucideIcon
   tono: TonoTarjeta
+  /** El destino es un archivo que se descarga, no una pantalla. */
+  descarga?: boolean
 }
 
 /** Las pantallas de Administración que no son pestañas: cada una tiene su propio listado paginado. */
@@ -86,6 +90,14 @@ const PANTALLAS_APARTE: PantallaAparte[] = [
     descripcion: 'Las coreografías de después de actualizar y el recorrido de novedades, para repetirlas sin desplegar.',
     icono: Sparkles,
     tono: 'acento'
+  },
+  {
+    href: '/api/bff/database-export',
+    titulo: 'Exportar la base de datos',
+    descripcion: 'Descarga una copia completa (.sql.gz) con todos los datos, contraseñas cifradas incluidas. Cada descarga queda en la auditoría.',
+    icono: Database,
+    tono: 'peligro',
+    descarga: true
   }
 ]
 
@@ -190,6 +202,7 @@ export default async function AdministracionPage () {
         </FormularioDeAjustes>
       )
     },
+    { clave: 'apariencia', etiqueta: 'Apariencia', contenido: <ModoEspecialAdmin inicial={ajustes} /> },
     { clave: 'acceso', etiqueta: 'Acceso con Google', contenido: <AccesoGoogle inicial={ajustes} /> },
     { clave: 'correo', etiqueta: 'Avisos por correo', contenido: <PanelAvisosPorCorreo /> }
   ]
@@ -205,7 +218,7 @@ export default async function AdministracionPage () {
           y traerlo en cada visita a Administracion para que casi nunca se mire seria pagarlo de
           gusto. La grilla vive aca porque es la unica puerta que tienen. Son tarjetas y no enlaces
           subrayados porque tres URL crudas una debajo de la otra se leian como una nota al pie. */}
-      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+      <EntradaEscalonada trasEntradaDePagina items=":scope > *" className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
         {PANTALLAS_APARTE.map((pantalla) => (
           <Tarjeta
             key={pantalla.href}
@@ -214,9 +227,10 @@ export default async function AdministracionPage () {
             descripcion={pantalla.descripcion}
             icono={pantalla.icono}
             tono={pantalla.tono}
+            descarga={pantalla.descarga}
           />
         ))}
-      </div>
+      </EntradaEscalonada>
 
       {/* El `Suspense` no es decorativo: `Pestanas` usa `useSearchParams`, y sin ese límite el build
           de la ruta falla. Mismo motivo que en el detalle de un Proyecto. */}

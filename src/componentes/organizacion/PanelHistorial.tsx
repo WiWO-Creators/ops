@@ -9,7 +9,7 @@ import {
 import { pedirSobre } from '@/datos/cliente'
 import { CabeceraDePanel, SIN_VALOR } from './piezas'
 import { ListaDeCambios } from './ListaDeCambios'
-import { SelectorDePersona } from './SelectorDePersona'
+import { SelectorDePersona } from '@/componentes/formularios/SelectorDePersona'
 import type { CambioDelHistorial, EntidadDelHistorial, PersonaDeAccesos } from '@/datos/accesos'
 
 /** Cuántos cambios se piden por vez. */

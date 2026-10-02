@@ -203,7 +203,7 @@ function FilaCuenta ({ cuenta, mostrarFocal }: { cuenta: CuentaFocal, mostrarFoc
       >
         <span className="flex flex-col items-end gap-0.5">
           <span
-            className={cn('text-[22px] leading-none font-semibold tabular-nums', tramo.numero)}
+            className={cn('text-cifra leading-none font-semibold tabular-nums', tramo.numero)}
             title={cliente.score === null ? 'Todavía no hay datos para calcular el score' : 'Score de 1 a 100'}
           >
             {cliente.score ?? '—'}
@@ -244,7 +244,7 @@ function FilaCuenta ({ cuenta, mostrarFocal }: { cuenta: CuentaFocal, mostrarFoc
         <div className="border-linea flex flex-col gap-4 border-t p-4">
           <section className="flex flex-col gap-2">
             <div className="flex flex-wrap items-center justify-between gap-2">
-              <h3 className="text-texto-tenue text-xs font-medium tracking-wide uppercase">
+              <h3 className="text-texto-tenue text-xs antetitulo">
                 Por qué el cliente tiene ese puntaje
               </h3>
 
@@ -265,7 +265,7 @@ function FilaCuenta ({ cuenta, mostrarFocal }: { cuenta: CuentaFocal, mostrarFoc
           </section>
 
           <section className="flex flex-col gap-2">
-            <h3 className="text-texto-tenue text-xs font-medium tracking-wide uppercase">
+            <h3 className="text-texto-tenue text-xs antetitulo">
               Sus {GLOSARIO.espacio.plural.toLowerCase()}
             </h3>
             <ListaEspacios espacios={espacios} />

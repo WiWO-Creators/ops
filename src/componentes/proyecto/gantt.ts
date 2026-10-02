@@ -59,6 +59,16 @@ export function diaDeFecha (valor: string | null | undefined): number | null {
 }
 
 /**
+ * Convierte un dia UTC desde la epoca de vuelta a `YYYY-MM-DD`; inversa de `diaDeFecha`.
+ *
+ * @param dia el dia que devuelve `rangoDeGantt`
+ * @returns la fecha en el formato del contrato
+ */
+export function fechaDeDia (dia: number): string {
+  return new Date(dia * DIA).toISOString().slice(0, 10)
+}
+
+/**
  * Calcula la linea de tiempo que cubre a todos los grupos y todas sus tareas.
  *
  * @param grupos los grupos tal como los devuelve `GET /projects/{id}/gantt`

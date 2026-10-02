@@ -5,6 +5,7 @@ import { cn } from '@/lib/clases'
 import { ErrorApi } from '@/datos/errores'
 import type { AnuncioPortal } from '@/datos/portal'
 import { ContenidoHtml } from '@/componentes/presentadores/ContenidoHtml'
+import { TituloModulo } from '@/componentes/estructura/TituloModulo'
 import { cargarDetalle, EstadoDeError } from '../detalle'
 
 export const metadata: Metadata = { title: 'Anuncios · Portal de clientes' }
@@ -30,7 +31,7 @@ export default async function AnunciosPagina () {
   if (data.length === 0) {
     return (
       <section className="flex flex-col gap-4">
-        <h1 className="text-texto text-xl font-semibold">Anuncios</h1>
+        <TituloModulo titulo="Anuncios" />
         <Vacio titulo="Sin anuncios" descripcion="Cuando tengamos algo que contarte, va a aparecer acá." />
       </section>
     )
@@ -38,7 +39,7 @@ export default async function AnunciosPagina () {
 
   return (
     <section className="flex flex-col gap-4">
-      <h1 className="text-texto text-xl font-semibold">Anuncios</h1>
+      <TituloModulo titulo="Anuncios" />
 
       <ul className="flex flex-col gap-3">
         {data.map((anuncio) => (

@@ -306,7 +306,7 @@ export function BarraDePrioridades ({ tareas }: { tareas: TareasDelTablero }) {
                     {tramo.rotuloAdentro && (
                       <span
                         className={cn(
-                          'relative z-10 truncate px-1.5 text-[11px] font-medium',
+                          'relative z-10 truncate px-1.5 text-menor font-medium',
                           tramo.paso >= 3 ? 'text-acento-contenido' : 'text-texto'
                         )}
                       >

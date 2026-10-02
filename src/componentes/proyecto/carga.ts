@@ -1,7 +1,7 @@
 'use client'
 
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { mensajeDeRespuesta, pedirRespuesta } from '@/datos/cliente'
+import { MENSAJE_SESION_CERRADA, mensajeDeRespuesta, pedirRespuesta } from '@/datos/cliente'
 import type { Meta, Sobre } from '@/datos/tipos'
 
 /**
@@ -18,18 +18,10 @@ import type { Meta, Sobre } from '@/datos/tipos'
 /** Estado de una carga. El error es un texto listo para mostrar, no un envelope. */
 export type EstadoCarga<T> =
   | { fase: 'cargando' }
-  | { fase: 'listo', datos: T, meta: Meta | undefined }
+  | { fase: 'listo', datos: T, meta?: Meta }
   | { fase: 'error', mensaje: string }
 
-/**
- * Lo que se muestra cuando la API dice que la sesion ya no sirve.
- *
- * Existe como constante y no como literal suelto porque lo dicen dos pantallas distintas —este hook
- * y el tablero— y es la frase que convierte el sintoma en su causa: hasta ahora una sesion cerrada
- * de madrugada se veia como una lista vacia o como una vista congelada, y el equipo la reportaba
- * como "no aparecen tareas" o "se desincronizan". Decir lo que pasa es la mitad del arreglo.
- */
-export const MENSAJE_SESION_CERRADA = 'Se cerró tu sesión. Vuelve a entrar para seguir trabajando.'
+export { MENSAJE_SESION_CERRADA }
 
 /**
  * Cuanto tiene que llevar el dato en pantalla para que volver a la pestaña lo vuelva a pedir.

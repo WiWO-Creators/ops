@@ -3,6 +3,7 @@ import { Vacio } from '@/componentes/estado/Estados'
 import { formatearFecha } from '@/lib/fechas'
 import { ErrorApi } from '@/datos/errores'
 import type { ArchivoPortal } from '@/datos/portal'
+import { TituloModulo } from '@/componentes/estructura/TituloModulo'
 import { cargarDetalle, EstadoDeError, NombreDeArchivo } from '../detalle'
 
 export const metadata: Metadata = { title: 'Archivos · Portal de clientes' }
@@ -29,7 +30,7 @@ export default async function ArchivosPagina () {
   if (data.length === 0) {
     return (
       <section className="flex flex-col gap-4">
-        <h1 className="text-texto text-xl font-semibold">Archivos</h1>
+        <TituloModulo titulo="Archivos" />
         <Vacio titulo="Sin archivos" descripcion="Todavía no compartimos archivos contigo." />
       </section>
     )
@@ -37,7 +38,7 @@ export default async function ArchivosPagina () {
 
   return (
     <section className="flex flex-col gap-4">
-      <h1 className="text-texto text-xl font-semibold">Archivos</h1>
+      <TituloModulo titulo="Archivos" />
 
       <ul className="flex flex-col gap-2">
         {data.map((archivo) => (

@@ -292,13 +292,14 @@ function definicionDeTablaHitos (
         <AccionesFila
           tituloEdicion={`Editar ${GLOSARIO.hito.singular.toLowerCase()}`}
           campos={campos}
-          registro={h as unknown as Record<string, unknown>}
+          registro={h}
           ruta={`projects/${proyectoId}/milestones/${h.id}`}
           puedeEditar={puedeEditar}
           puedeBorrar={puedeBorrar}
           tituloBorrado={`Eliminar ${GLOSARIO.hito.singular.toLowerCase()}`}
-          advertencia={`Las ${GLOSARIO.proceso.plural.toLowerCase()} de "${h.name}" no se borran: pasan a "Sin categorizar".`}
+          advertencia={`Las ${GLOSARIO.proceso.plural.toLowerCase()} de «${h.name}» no se borran: pasan a «Sin categorizar».`}
           recargar={recargar}
+          nombre={h.name}
         />
       )
     })

@@ -2,6 +2,7 @@
 
 import { useRouter } from 'next/navigation'
 import { useState, type ReactElement } from 'react'
+import { AvisoEnLinea } from '@/componentes/estado/Estados'
 import { Boton } from '@/componentes/formularios/Boton'
 import { Dialogo, ContenidoDialogo } from '@/componentes/superposiciones/Dialogo'
 import {
@@ -21,6 +22,7 @@ import { DistintivoSolicitud, SolicitarEliminacion } from './SolicitudDeEliminac
 import type { CampoFormulario } from './formulario'
 import type { Espacio } from '@/datos/recursos'
 import type { Capacidad } from '@/datos/tipos'
+import { useAviso } from '@/componentes/estado/useAviso'
 
 /**
  * Menu "Más" de la cabecera del Proyecto: editar, copiar, marcar como, exportar y eliminar.
@@ -95,6 +97,7 @@ export function MenuProyecto ({
   esAdmin = false
 }: PropsMenuProyecto): ReactElement {
   const router = useRouter()
+  const aviso = useAviso()
   const [editando, setEditando] = useState(false)
   const [copiando, setCopiando] = useState(false)
   const [borrando, setBorrando] = useState(false)
@@ -146,6 +149,7 @@ export function MenuProyecto ({
       }
 
       setArchivando(false)
+      aviso.exito(archivar ? `«${proyecto.name}» quedó archivado.` : `«${proyecto.name}» volvió a estar activo.`)
 
       if (archivar) {
         router.push('/proyectos')
@@ -185,6 +189,7 @@ export function MenuProyecto ({
       return
     }
 
+    aviso.exito(abrir ? `En «${proyecto.name}» ahora se ven todas las ${GLOSARIO.proceso.plural.toLowerCase()}.` : `En «${proyecto.name}» cada quien ve solo sus ${GLOSARIO.proceso.plural.toLowerCase()}.`)
     setCambiandoVisibilidad(false)
     router.refresh()
   }
@@ -212,6 +217,7 @@ export function MenuProyecto ({
       return
     }
 
+    aviso.exito(`Saliste del equipo de «${proyecto.name}».`)
     setSaliendo(false)
     router.push('/proyectos')
   }
@@ -333,7 +339,7 @@ export function MenuProyecto ({
           enlace directo tiene que enterarse de que este Proyecto esta esperando una decision. */}
       <DistintivoSolicitud solicitud={solicitud} />
 
-      {fallo !== null && <span role="alert" className="text-texto-peligro text-xs">{fallo}</span>}
+      {fallo !== null && <AvisoEnLinea variante="error" mensaje={fallo} elemento="span" />}
 
       <FormularioRecurso
         abierto={editando}
@@ -342,7 +348,7 @@ export function MenuProyecto ({
         campos={camposDeEdicion()}
         ruta={`projects/${proyecto.id}`}
         metodo="PATCH"
-        registro={proyecto as unknown as Record<string, unknown>}
+        registro={proyecto}
         onGuardado={() => { router.refresh() }}
       />
 
@@ -350,10 +356,11 @@ export function MenuProyecto ({
         abierto={copiando}
         onAbiertoCambia={setCopiando}
         titulo={`Copiar ${GLOSARIO.espacio.singular.toLowerCase()}`}
-        descripcion="Se crea un proyecto nuevo con lo que elijas copiar."
+        descripcion={`Se crea un ${GLOSARIO.espacio.singular.toLowerCase()} nuevo con lo que elijas copiar.`}
         campos={camposDeCopia()}
         ruta={`projects/${proyecto.id}/actions/copy`}
         metodo="POST"
+        etiquetaEnviar={`Copiar ${GLOSARIO.espacio.singular.toLowerCase()}`}
         registro={{
           name: `${proyecto.name} (copia)`,
           clientid: proyecto.client?.id ?? '',
@@ -421,7 +428,7 @@ export function MenuProyecto ({
           ancho="chico"
         >
           {fallo !== null && (
-            <p role="alert" className="text-texto-peligro mb-3 text-sm">{fallo}</p>
+            <AvisoEnLinea variante="error" mensaje={fallo} className="mb-3 text-sm" />
           )}
 
           <div className="flex justify-end gap-2">
@@ -440,7 +447,7 @@ export function MenuProyecto ({
       <Dialogo open={saliendo} onOpenChange={setSaliendo}>
         <ContenidoDialogo
           titulo={`Salir del ${GLOSARIO.espacio.singular.toLowerCase()}`}
-          descripcion={`Dejás de ser parte del equipo de "${proyecto.name}". Si no tenés permiso `
+          descripcion={`Dejas de ser parte del equipo de "${proyecto.name}". Si no tienes permiso `
             + `para ver todos los ${GLOSARIO.espacio.plural.toLowerCase()}, este va a dejar de `
             + 'aparecerte y vas a necesitar que alguien te vuelva a sumar.'}
           ancho="chico"
@@ -448,7 +455,7 @@ export function MenuProyecto ({
           {/* El error se repite aca dentro y no solo bajo el boton "Mas": el dialogo tapa la
               cabecera, y el 422 de las tareas abiertas es justo lo que hay que leer. */}
           {fallo !== null && (
-            <p role="alert" className="text-texto-peligro mb-3 text-sm">{fallo}</p>
+            <AvisoEnLinea variante="error" mensaje={fallo} className="mb-3 text-sm" />
           )}
 
           <div className="flex justify-end gap-2">

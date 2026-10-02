@@ -4,7 +4,7 @@ import { useEffect, useMemo, useState, type ReactElement } from 'react'
 import { Boton } from '@/componentes/formularios/Boton'
 import { SelectorPersonas } from '@/componentes/formularios/SelectorPersonas'
 import { escribirEnBff } from '@/componentes/datos/mutaciones'
-import { Cargando, ErrorEstado } from '@/componentes/estado/Estados'
+import { AvisoEnLinea, Cargando, ErrorEstado } from '@/componentes/estado/Estados'
 import { useAviso } from '@/componentes/estado/useAviso'
 import { EnlacePersona } from '@/componentes/presentadores/EnlacePersona'
 import { cargarAsignables } from '@/datos/asignables'
@@ -134,7 +134,7 @@ function FormularioDeSeguidores ({ ruta, inicial }: { ruta: string, inicial: Seg
           Personas que siguen cada {GLOSARIO.proceso.singular.toLowerCase()} nueva
         </label>
         {equipo === null && falloEquipo === null && <Cargando alto="min-h-10" mensaje="Cargando el equipo…" />}
-        {falloEquipo !== null && <p role="alert" className="text-texto-peligro text-sm">{falloEquipo}</p>}
+        {falloEquipo !== null && <AvisoEnLinea variante="error" mensaje={falloEquipo} className="text-sm" />}
         {equipo !== null && (
           <SelectorPersonas
             id="seguidores-predeterminados"

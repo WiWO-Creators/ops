@@ -132,6 +132,9 @@ const PREFIJOS_PERMITIDOS = [
   'presence',
   'sessions',
   'audit',
+  // Exportacion de la base (`/administracion`): devuelve un archivo `.sql.gz`, no JSON, y solo la
+  // sirve la API a un superadministrador (403 al resto). Sin esta entrada el BFF contesta 404.
+  'database-export',
   // LIVE: la jornada propia (`/me/jornada` ya entra por `me`), el tablero del equipo y la detencion
   // de un medidor de Espacio historico (`DELETE /projects/{id}/timer`, que entra por `projects`; su
   // `POST` responde 422 desde que no hay registros sin Tarea). Solo falta `live`, que la API

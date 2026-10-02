@@ -2,6 +2,7 @@
 
 import { useState } from 'react'
 import { TriangleAlert } from 'lucide-react'
+import { AvisoEnLinea } from '@/componentes/estado/Estados'
 import { Boton } from '@/componentes/formularios/Boton'
 import { Campo } from '@/componentes/formularios/Campo'
 import { AreaTexto, Entrada } from '@/componentes/formularios/Entrada'
@@ -16,6 +17,7 @@ import {
   sugerirAsistentes
 } from '@/dominio/salas'
 import type { PersonaDeSala, Reserva, Sala } from '@/datos/recursos'
+import { useAviso } from '@/componentes/estado/useAviso'
 
 export interface BorradorReserva {
   /** Reserva que se edita. Ausente en un alta. */
@@ -61,6 +63,7 @@ interface PropsDialogoReserva {
  * el patron que React desaconseja y que ademas dejaba lo tipeado a merced de un render del padre.
  */
 export function DialogoReserva ({ borrador, salas, reservas, personas, onCerrar, onGuardado }: PropsDialogoReserva) {
+  const aviso = useAviso()
   const [campos, setCampos] = useState<BorradorReserva>(borrador)
   const [guardando, setGuardando] = useState(false)
   const [errorApi, setErrorApi] = useState<string | null>(null)
@@ -121,6 +124,7 @@ export function DialogoReserva ({ borrador, salas, reservas, personas, onCerrar,
       return
     }
 
+    aviso.exito(campos.id === undefined ? `«${cuerpo.title}» quedó reservada.` : `Reserva «${cuerpo.title}» actualizada.`)
     onGuardado()
   }
 
@@ -259,7 +263,7 @@ export function DialogoReserva ({ borrador, salas, reservas, personas, onCerrar,
           )}
 
           {errorApi !== null && (
-            <p role="alert" className="text-texto-peligro text-sm">{errorApi}</p>
+            <AvisoEnLinea variante="error" mensaje={errorApi} className="text-sm" />
           )}
 
           <div className="flex justify-end gap-2">

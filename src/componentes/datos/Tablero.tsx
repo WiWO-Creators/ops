@@ -500,7 +500,7 @@ export function Tablero<T extends FilaConId> ({
                 }}
                 className={cn(
                   'tablero-tarjeta border-linea bg-superficie-elevada rounded-tarjeta flex flex-col gap-1.5 border p-2',
-                  'transition-opacity duration-150',
+                  'transition-opacity duration-rapida ease-neo',
                   arrastrada === tarjeta.id && 'opacity-50'
                 )}
               >

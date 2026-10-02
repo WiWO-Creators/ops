@@ -1,5 +1,6 @@
 'use client'
 
+import { AvisoEnLinea } from '@/componentes/estado/Estados'
 import { Boton } from '@/componentes/formularios/Boton'
 import { CerrarDialogo, ContenidoDialogo, Dialogo } from '@/componentes/superposiciones/Dialogo'
 
@@ -71,6 +72,7 @@ export function DialogoConfirmar ({
 
 /** El error de una escritura, donde se pidió. `role="alert"` para que un lector lo lea al aparecer. */
 export function MensajeDeError ({ children }: { children: React.ReactNode }) {
+  if (typeof children === 'string') return <AvisoEnLinea variante="error" mensaje={children} className="text-sm" />
   return <p role="alert" className="text-texto-peligro text-sm">{children}</p>
 }
 

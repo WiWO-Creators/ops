@@ -11,7 +11,7 @@
 import { esJefatura } from './escalon.ts'
 import { GLOSARIO } from './glosario.ts'
 import { puedeVerSeccion } from './permisos.ts'
-import { normalizar } from './salas.ts'
+import { filtrarPorPalabras } from './busqueda.ts'
 import type { ClienteDeJornada, EstadoDeJornada } from '@/datos/live'
 import type { Yo } from '@/datos/tipos'
 
@@ -217,45 +217,6 @@ export function fijarRecordatorioDeDestino (
 }
 
 /**
- * Las opciones donde aparece TODO lo que se escribio en el buscador de un combo.
- *
- * `normalizar` —el mismo de la agenda de salas— saca acentos y mayusculas antes de comparar: sin eso
- * "nunez" no encuentra "Núñez" ni "logistica" encuentra "Logística", y quien busca concluye que su
- * Proyecto no esta en la lista. Nadie escribe los acentos al filtrar; es el caso normal, no el borde.
- *
- * Se parte lo escrito en palabras y cada una tiene que aparecer en ALGUNO de los textos de la
- * opcion, en cualquier orden: "campaña consalud" encuentra la campaña aunque "Consalud" venga del
- * Cliente y no del nombre. Cada palabra se busca dentro de un texto, nunca a caballo entre dos, para
- * que el final del nombre y el principio del Cliente no inventen una coincidencia.
- *
- * Busca por subcadena y no por prefijo porque los nombres del catalogo empiezan casi todos igual
- * ("Proyecto ACME", "Proyecto DELCO"): con prefijo habria que escribir el nombre entero para llegar
- * a lo que lo distingue. Una busqueda vacia —o de solo espacios— devuelve todo.
- *
- * @param opciones la lista completa, tal como llego de la API
- * @param busqueda lo tipeado
- * @param textosDe los textos donde se busca en cada opcion; los ausentes o `null` se saltan
- * @returns las que coinciden, en el mismo orden en que llegaron
- */
-export function filtrarPorPalabras <T> (
-  opciones: readonly T[],
-  busqueda: string,
-  textosDe: (opcion: T) => ReadonlyArray<string | null | undefined>
-): T[] {
-  const palabras = normalizar(busqueda).split(/\s+/).filter((palabra) => palabra !== '')
-
-  if (palabras.length === 0) return [...opciones]
-
-  return opciones.filter((opcion) => {
-    const textos = textosDe(opcion)
-      .filter((texto): texto is string => typeof texto === 'string' && texto !== '')
-      .map(normalizar)
-
-    return palabras.every((palabra) => textos.some((texto) => texto.includes(palabra)))
-  })
-}
-
-/**
  * Las opciones cuyo nombre contiene todas las palabras buscadas. Ver `filtrarPorPalabras`.
  *
  * @param opciones la lista completa, tal como llego de la API
@@ -264,6 +225,23 @@ export function filtrarPorPalabras <T> (
  */
 export function filtrarPorNombre <T extends { name: string }> (opciones: readonly T[], busqueda: string): T[] {
   return filtrarPorPalabras(opciones, busqueda, (opcion) => [opcion.name])
+}
+
+/**
+ * Las opciones cuya patente o nombre contiene todas las palabras buscadas.
+ *
+ * La patente es el identificador que la gente dicta, asi que un buscador de Tareas o Proyectos que
+ * solo mira el nombre no encuentra lo que se pide por codigo. Ver `filtrarPorPalabras`.
+ *
+ * @param opciones la lista completa, tal como llego de la API
+ * @param busqueda lo tipeado
+ * @returns las que coinciden, en el mismo orden en que llegaron
+ */
+export function filtrarPorPatenteYNombre <T extends { name: string, patente?: string | null }> (
+  opciones: readonly T[],
+  busqueda: string
+): T[] {
+  return filtrarPorPalabras(opciones, busqueda, (opcion) => [opcion.patente, opcion.name])
 }
 
 /** Lo minimo de un Espacio que el combo de la jornada muestra y busca. */

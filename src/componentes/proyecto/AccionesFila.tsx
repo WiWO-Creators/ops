@@ -19,12 +19,12 @@ import type { CampoFormulario } from './formulario'
  * (las tareas de un hito, por ejemplo).
  */
 
-interface PropsAccionesFila {
+interface PropsAccionesFila<T extends object> {
   /** Titulo del dialogo de edicion. Ej: "Editar hito". */
   tituloEdicion: string
   campos: CampoFormulario[]
   /** El registro a editar, leido por las claves de los campos. */
-  registro: Record<string, unknown>
+  registro: T
   /** Ruta del BFF del registro, sin barra inicial. Ej: `projects/93/notes/5`. */
   ruta: string
   puedeEditar: boolean
@@ -35,9 +35,11 @@ interface PropsAccionesFila {
   advertencia: string
   /** Se llama despues de escribir, para que la tabla vuelva a pedir la pagina. */
   recargar: () => void
+  /** Como se llama el registro, para nombrarlo en el aviso de exito. Ej: el nombre del hito. */
+  nombre: string
 }
 
-export function AccionesFila ({
+export function AccionesFila<T extends object> ({
   tituloEdicion,
   campos,
   registro,
@@ -46,8 +48,9 @@ export function AccionesFila ({
   puedeBorrar,
   tituloBorrado,
   advertencia,
-  recargar
-}: PropsAccionesFila): ReactElement {
+  recargar,
+  nombre
+}: PropsAccionesFila<T>): ReactElement {
   const [editando, setEditando] = useState(false)
   const aviso = useAviso()
 
@@ -61,7 +64,7 @@ export function AccionesFila ({
     if (!respuesta.ok) throw new Error(await mensajeDeRespuesta(respuesta))
 
     recargar()
-    aviso.exito('Eliminado correctamente.')
+    aviso.exito(`«${nombre}» se eliminó.`)
   }
 
   return (
@@ -80,7 +83,7 @@ export function AccionesFila ({
           ruta={ruta}
           metodo="PATCH"
           registro={registro}
-          onGuardado={() => { recargar(); aviso.exito('Guardado correctamente.') }}
+          onGuardado={recargar}
         />
       )}
     </>

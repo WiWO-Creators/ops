@@ -2,6 +2,7 @@
 
 import { useState, type FormEvent, type ReactElement } from 'react'
 import { X } from 'lucide-react'
+import { AvisoEnLinea } from '@/componentes/estado/Estados'
 import { Boton } from '@/componentes/formularios/Boton'
 import { Campo } from '@/componentes/formularios/Campo'
 import { Entrada } from '@/componentes/formularios/Entrada'
@@ -237,7 +238,7 @@ export function AccesoGoogle ({ inicial }: PropsAccesoGoogle): ReactElement {
                * que no se ve es un interruptor que no existe.
                */
               className={
-                'relative h-6 w-11 shrink-0 cursor-pointer rounded-control border transition-colors duration-150 ease-neo focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-acento ' +
+                'relative h-6 w-11 shrink-0 cursor-pointer rounded-control border transition-colors duration-rapida ease-neo focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-acento ' +
                 (habilitado
                   ? 'bg-acento border-acento'
                   : 'bg-relleno-neutro border-linea-fuerte')
@@ -246,7 +247,7 @@ export function AccesoGoogle ({ inicial }: PropsAccesoGoogle): ReactElement {
               <span
                 aria-hidden="true"
                 className={
-                  'bg-superficie border-linea-fuerte absolute top-0.5 size-5 rounded-control border transition-[left] duration-150 ease-neo ' +
+                  'bg-superficie border-linea-fuerte absolute top-0.5 size-5 rounded-control border transition-[left] duration-rapida ease-neo ' +
                   (habilitado ? 'left-[1.375rem] border-transparent' : 'left-0.5')
                 }
               />
@@ -254,10 +255,11 @@ export function AccesoGoogle ({ inicial }: PropsAccesoGoogle): ReactElement {
           </div>
 
           {sinDominios && (
-            <p role="alert" className="text-texto-peligro text-sm">
-              El login está encendido y no hay ningún dominio autorizado. Nadie podrá ingresar con Google:
-              agrega al menos uno antes de guardar.
-            </p>
+            <AvisoEnLinea
+              variante="error"
+              mensaje="El login está encendido y no hay ningún dominio autorizado. Nadie podrá ingresar con Google: agrega al menos uno antes de guardar."
+              className="text-sm"
+            />
           )}
         </div>
       </Seccion>
@@ -280,9 +282,11 @@ export function AccesoGoogle ({ inicial }: PropsAccesoGoogle): ReactElement {
               El dominio también debe estar autorizado para el login con Google.
             </p>
             {sinDominiosAutoalta && (
-              <p role="alert" className="text-texto-peligro text-sm">
-                Agrega al menos un dominio de alta automática o apaga el alta automática antes de guardar.
-              </p>
+              <AvisoEnLinea
+                variante="error"
+                mensaje="Agrega al menos un dominio de alta automática o apaga el alta automática antes de guardar."
+                className="text-sm"
+              />
             )}
           </div>
         </Seccion>
@@ -316,7 +320,7 @@ export function AccesoGoogle ({ inicial }: PropsAccesoGoogle): ReactElement {
                       type="button"
                       onClick={() => { quitarDominio(dominio, paraAutoalta) }}
                       aria-label={`Quitar ${dominio} de ${titulo.toLowerCase()}`}
-                      className="text-texto-tenue hover:bg-hover hover:text-texto rounded-chico p-1 transition-colors duration-150"
+                      className="text-texto-tenue hover:bg-hover hover:text-texto rounded-chico p-1 transition-colors duration-rapida ease-neo"
                     >
                       <X aria-hidden="true" className="size-3.5" />
                     </button>

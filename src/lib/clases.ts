@@ -1,5 +1,24 @@
 import { clsx, type ClassValue } from 'clsx'
-import { twMerge } from 'tailwind-merge'
+import { extendTailwindMerge } from 'tailwind-merge'
+
+/**
+ * Tamaños de texto propios del `@theme` de `globals.css` que `tailwind-merge` no conoce.
+ *
+ * Sin declararlos, toma `text-titulo` por un COLOR: contra un `text-texto` al lado borraba uno de
+ * los dos, y el titulo salia a 14px sin que nada fallara. `pruebas/clases.test.js` falla si
+ * `globals.css` suma un `--text-*` que no esta aca.
+ */
+export const TAMANOS_DE_TEXTO = ['micro', 'menor', 'titulo', 'subtitulo', 'cifra', 'seccion', 'pantalla', 'heroe'] as const
+
+/** Capas de `z-index` con nombre de `globals.css` (`--z-index-*`). */
+export const CAPAS_Z = ['flotante', 'superposicion', 'aviso', 'telon', 'bienvenida'] as const
+
+const unirClases = extendTailwindMerge({
+  extend: {
+    theme: { text: [...TAMANOS_DE_TEXTO] },
+    classGroups: { z: [{ z: [...CAPAS_Z] }] }
+  }
+})
 
 /**
  * Une clases condicionales resolviendo los conflictos de Tailwind.
@@ -12,5 +31,5 @@ import { twMerge } from 'tailwind-merge'
  * @returns la cadena de clases final
  */
 export function cn (...valores: ClassValue[]): string {
-  return twMerge(clsx(valores))
+  return unirClases(clsx(valores))
 }

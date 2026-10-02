@@ -13,8 +13,9 @@ import { useAlCambiarTickets, useAlCerrarTicket } from '@/componentes/datos/useA
 import type { DefinicionRecurso, OpcionFiltro, ResultadoLista } from '@/definiciones/tipos'
 import { PORTAL_TICKETS } from '@/definiciones/portal-soporte'
 import { PORTAL_PROYECTOS } from '@/definiciones/portal-proyectos'
-import type { TicketPortal } from '@/datos/portal'
+import type { EspacioPortal, TicketPortal } from '@/datos/portal'
 import { PARAMETRO_TICKET } from '@/dominio/ticket-vista'
+import { TarjetaDeProyectoPortal } from './TarjetaDeProyectoPortal'
 
 /**
  * Las tablas del portal, del lado del cliente.
@@ -25,9 +26,9 @@ import { PARAMETRO_TICKET } from '@/dominio/ticket-vista'
  *
  * Las dos comparten componente porque son la misma tabla con otra definicion. Soporte agrega algo
  * mas: el asunto y la fila abren el modal del ticket (`?ticket={id}`) sin salir de la bandeja, la
- * fila con una respuesta sin leer se resalta, en pantallas angostas se ve en tarjetas y la lista se
- * vuelve a pedir con los filtros puestos cuando el modal avisa que el ticket cambio. Proyectos navega
- * a su ficha.
+ * fila con una respuesta sin leer se resalta y la lista se vuelve a pedir con los filtros puestos
+ * cuando el modal avisa que el ticket cambio. Proyectos navega a su ficha. Las dos se ven en tarjetas
+ * en pantallas angostas.
  */
 
 const DEFINICIONES = {
@@ -114,8 +115,8 @@ export function TablaPortal<T extends { id: number }> ({
       claseFila={esSoporte ? (fila) => claseDeFilaDeSolicitud(fila as unknown as TicketPortal) : undefined}
       tarjeta={esSoporte
         ? (fila, catalogos) => <TarjetaDeSolicitud ticket={fila as unknown as TicketPortal} catalogos={catalogos} />
-        : undefined}
-      tarjetasEnMovil={esSoporte}
+        : (fila, catalogos) => <TarjetaDeProyectoPortal proyecto={fila as unknown as EspacioPortal} catalogos={catalogos} />}
+      tarjetasEnMovil
     />
   )
 }

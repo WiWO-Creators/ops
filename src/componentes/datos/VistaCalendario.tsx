@@ -10,6 +10,7 @@ import { Segmentado } from '@/componentes/formularios/Segmentado'
 import { ErrorEstado, Vacio } from '@/componentes/estado/Estados'
 import { GrupoAvatares } from '@/componentes/presentadores/Avatar'
 import { Insignia } from '@/componentes/presentadores/Insignia'
+import { BORDE_VENCIMIENTO } from '@/componentes/presentadores/tonos-vencimiento'
 import { PARAMETRO_TAREA } from '@/componentes/datos/tabla'
 import { EstadoDeTarea } from '@/componentes/proyecto/EstadoDeTarea'
 import { ModalTarea } from '@/componentes/proyecto/ModalTarea'
@@ -62,15 +63,6 @@ import type { DefinicionRecurso, EstadoConsulta, OpcionFiltro } from '@/definici
  * filtros se ofrecen, si hay bloque de alertas y en que clave de la URL se guarda dia/semana. No hay
  * una segunda grilla ni una segunda aritmetica de fechas: `dominio/calendario.ts` es una sola.
  */
-
-/** Color del borde de la tarjeta segun cuan cerca esta el vencimiento. Mismo criterio que `Fecha`. */
-const BORDE_VENCIMIENTO = {
-  vencido: 'border-l-relleno-peligro',
-  hoy: 'border-l-relleno-aviso',
-  proximo: 'border-l-acento',
-  lejano: 'border-l-linea',
-  'sin-fecha': 'border-l-linea'
-} as const
 
 interface PropsVistaCalendario {
   /** Dia ancla del periodo, ya validado por el servidor. */
@@ -368,7 +360,7 @@ function ColumnaDia ({ dia, esHoy, vista, tareas, urlDeTarea, estados }: PropsCo
           </span>
         </span>
         {tareas.length > 0 && (
-          <span className="bg-relleno-neutro text-relleno-neutro-contenido rounded-control px-1.5 text-[0.6875rem] tabular-nums">
+          <span className="bg-relleno-neutro text-relleno-neutro-contenido rounded-control px-1.5 text-menor tabular-nums">
             {tareas.length}
             <span className="sr-only">{tareas.length === 1 ? ' tarea vence' : ' tareas vencen'} este día</span>
           </span>
@@ -416,13 +408,13 @@ function TarjetaDelDia (
         scroll={false}
         className={cn(
           'rounded-chico bg-superficie hover:bg-hover flex flex-col gap-1 border-l-2 p-2',
-          'transition-colors duration-150',
+          'transition-colors duration-rapida ease-neo',
           BORDE_VENCIMIENTO[estadoVencimiento(tarea.due_date)]
         )}
       >
         <span className="text-texto text-xs leading-snug font-medium">{tarea.name}</span>
 
-        <span className="text-texto-sutil flex flex-wrap items-center gap-x-2 gap-y-1 text-[0.6875rem]">
+        <span className="text-texto-sutil flex flex-wrap items-center gap-x-2 gap-y-1 text-menor">
           <EstadoDeTarea status={tarea.status} catalogo={estados} />
           {tarea.patente !== null && <span className="tabular-nums">{tarea.patente}</span>}
           {tarea.start_date !== null && (
@@ -466,12 +458,12 @@ function TiraSinVencimiento (
             <Link
               href={urlDeTarea(tarea.id)}
               scroll={false}
-              className="border-linea rounded-chico bg-superficie hover:bg-hover text-texto flex items-center gap-2 border px-2 py-1.5 text-xs transition-colors duration-150"
+              className="border-linea rounded-chico bg-superficie hover:bg-hover text-texto flex items-center gap-2 border px-2 py-1.5 text-xs transition-colors duration-rapida ease-neo"
             >
               {tarea.name}
               <EstadoDeTarea status={tarea.status} catalogo={estados} />
               {tarea.start_date !== null && (
-                <span className="text-texto-sutil text-[0.6875rem]">Desde {formatearFecha(tarea.start_date)}</span>
+                <span className="text-texto-sutil text-menor">Desde {formatearFecha(tarea.start_date)}</span>
               )}
             </Link>
           </li>

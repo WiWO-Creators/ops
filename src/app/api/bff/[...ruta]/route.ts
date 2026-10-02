@@ -158,7 +158,11 @@ const ESTADOS_ESPERADOS = new Set([401, 409, 422, 429])
  * nadie previo y que hay que poder investigar.
  */
 const ESPERADOS_POR_RUTA: ReadonlyArray<{ metodo: string, estado: number, ruta: RegExp }> = [
-  { metodo: 'GET', estado: 403, ruta: /^\/projects\/\d+\/task-types(?:\?|$)/ }
+  { metodo: 'GET', estado: 403, ruta: /^\/projects\/\d+\/task-types(?:\?|$)/ },
+  // El rastreo del portal manda lotes solo; pasarse del tope (429) o chocar con una sesion ajena (422)
+  // se descarta en el navegador y no es un incidente que investigar por cada lote.
+  { metodo: 'POST', estado: 429, ruta: /^\/portal\/actividad$/ },
+  { metodo: 'POST', estado: 422, ruta: /^\/portal\/actividad$/ }
 ]
 
 /**
@@ -295,7 +299,7 @@ export function cabecerasDeEntrada (peticion: NextRequest): Record<string, strin
  * Es una lista corta y explicita, no un reenvio de todo: `content-length` y `content-encoding`
  * describen el cuerpo que Node ya recodifico, y copiarlos rompe la respuesta.
  */
-const CABECERAS_REENVIADAS = ['cache-control', 'x-accel-buffering'] as const
+const CABECERAS_REENVIADAS = ['cache-control', 'x-accel-buffering', 'content-disposition'] as const
 
 /**
  * Arma las cabeceras de la respuesta del BFF a partir de las de la API.

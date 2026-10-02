@@ -24,7 +24,8 @@ import {
   ItemMenu,
   MenuContextual
 } from '@/componentes/superposiciones/MenuContextual'
-import { normalizar } from '@/dominio/salas'
+import { normalizar } from '@/dominio/busqueda'
+import { GLOSARIO } from '@/dominio/glosario'
 import { mensajeMasivoDeVencimiento } from '@/dominio/vencimiento-requerido'
 import { cargarAsignables } from '@/datos/asignables'
 import { pedirSobre } from '@/datos/cliente'
@@ -38,6 +39,11 @@ import {
   SIN_FECHA,
   type AccionMasivaDescrita
 } from './tareas'
+
+const TAREA = GLOSARIO.proceso.singular.toLowerCase()
+const TAREAS = GLOSARIO.proceso.plural.toLowerCase()
+const PROYECTO = GLOSARIO.espacio.singular.toLowerCase()
+const PROYECTOS = GLOSARIO.espacio.plural.toLowerCase()
 
 /**
  * Barra de acciones masivas de la tabla de tareas.
@@ -166,7 +172,7 @@ export function AccionesMasivasTareas ({
         } while (pagina <= ultima)
         if (!control.signal.aborted) setProyectos(destinos)
       } catch {
-        if (!control.signal.aborted) setErrorProyectos('No se pudieron cargar los proyectos. Cierra y vuelve a abrir para reintentar.')
+        if (!control.signal.aborted) setErrorProyectos(`No se pudieron cargar los ${PROYECTOS}. Cierra y vuelve a abrir para reintentar.`)
       } finally {
         if (!control.signal.aborted) setCargandoProyectos(false)
       }
@@ -225,7 +231,7 @@ export function AccionesMasivasTareas ({
     }
 
     if (accion.control === 'proyecto' && (cargandoProyectos || destinos.length === 0 || destinos.some((id) => !proyectos.some((proyecto) => proyecto.id === id)))) {
-      setError('Elige un proyecto disponible antes de aplicar.')
+      setError(`Elige un ${PROYECTO} disponible antes de aplicar.`)
       return
     }
 
@@ -268,7 +274,7 @@ export function AccionesMasivasTareas ({
   return (
     <div
       role="group"
-      aria-label="Acciones sobre las tareas seleccionadas"
+      aria-label={`Acciones sobre las ${TAREAS} seleccionadas`}
       className="border-linea bg-superficie-elevada rounded-tarjeta flex flex-wrap items-center gap-2 border p-2"
     >
       <span className="text-texto text-sm font-medium tabular-nums">
@@ -302,8 +308,8 @@ export function AccionesMasivasTareas ({
         <ContenidoDialogo
           titulo={accion?.etiqueta ?? ''}
           descripcion={accion?.control === 'proyecto'
-            ? `Elige uno o más proyectos para ${ids.length === 1 ? 'la tarea seleccionada' : `las ${ids.length} tareas seleccionadas`}. Cada copia tendrá su propio código.`
-            : `Se aplica a ${ids.length} tarea${ids.length === 1 ? '' : 's'}.`}
+            ? `Elige uno o más ${PROYECTOS} para ${ids.length === 1 ? `la ${TAREA} seleccionada` : `las ${ids.length} ${TAREAS} seleccionadas`}. Cada copia tendrá su propio código.`
+            : `Se aplica a ${ids.length} ${ids.length === 1 ? TAREA : TAREAS}.`}
         >
           <div className="flex flex-col gap-4">
             {/* Las tareas que se van a copiar, por su nombre. La cuenta sola ("1 tareas
@@ -311,7 +317,7 @@ export function AccionesMasivasTareas ({
                 queda tapada por el dialogo. */}
             {accion?.control === 'proyecto' && (
               <div className="flex min-w-0 flex-col gap-1">
-                <p className="text-sm font-medium">Tarea{ids.length === 1 ? '' : 's'} a copiar</p>
+                <p className="text-sm font-medium">{ids.length === 1 ? GLOSARIO.proceso.singular : GLOSARIO.proceso.plural} a copiar</p>
                 <ul className="text-texto-sutil flex max-h-28 flex-col gap-1 overflow-y-auto text-sm">
                   {filas.map((fila) => (
                     <li key={fila.id} className="min-w-0 break-words">
@@ -324,15 +330,15 @@ export function AccionesMasivasTareas ({
             )}
             {accion?.control === 'proyecto' ? (
               <fieldset className="flex min-w-0 flex-col gap-2" disabled={enCurso || cargandoProyectos || errorProyectos !== null}>
-                <legend className="mb-2 text-sm font-medium">Proyectos destino</legend>
+                <legend className="mb-2 text-sm font-medium">{GLOSARIO.espacio.plural} destino</legend>
                 <Entrada
                   type="search"
-                  aria-label="Buscar proyectos por nombre, código o cliente"
+                  aria-label={`Buscar ${PROYECTOS} por nombre, código o cliente`}
                   placeholder="Escribe el nombre, el código o el cliente…"
                   value={busquedaProyecto}
                   onChange={(evento) => setBusquedaProyecto(evento.target.value)}
                 />
-                {cargandoProyectos ? <p role="status" className="text-texto-sutil text-sm">Cargando proyectos…</p> : (
+                {cargandoProyectos ? <p role="status" className="text-texto-sutil text-sm">Cargando {PROYECTOS}…</p> : (
                   <div className="border-linea max-h-48 overflow-y-auto rounded-chico border">
                     {coincidentes.map((proyecto) => (
                       <label key={proyecto.id} className="hover:bg-superficie-hundida flex min-h-11 cursor-pointer items-center gap-3 px-3 py-2 text-sm">
@@ -356,13 +362,13 @@ export function AccionesMasivasTareas ({
                       </label>
                     ))}
                     {proyectos.length > 0 && coincidentes.length === 0 && (
-                      <p role="status" className="text-texto-sutil px-3 py-3 text-sm">No hay proyectos con ese nombre, código ni cliente.</p>
+                      <p role="status" className="text-texto-sutil px-3 py-3 text-sm">No hay {PROYECTOS} con ese nombre, código ni cliente.</p>
                     )}
                   </div>
                 )}
                 {destinos.length > 0 && (
                   <div className="flex flex-col gap-2 text-sm" aria-live="polite">
-                    <p>{destinos.length} proyecto{destinos.length === 1 ? '' : 's'} seleccionado{destinos.length === 1 ? '' : 's'}:</p>
+                    <p>{destinos.length} {destinos.length === 1 ? PROYECTO : PROYECTOS} seleccionado{destinos.length === 1 ? '' : 's'}:</p>
                     <ol className="flex max-h-28 flex-col gap-1 overflow-y-auto">
                       {destinos.map((id, indice) => (
                         <li key={id} className="flex min-w-0 items-center justify-between gap-2">
@@ -372,7 +378,7 @@ export function AccionesMasivasTareas ({
                       ))}
                     </ol>
                     <p className="text-texto-sutil">
-                      Se trasladarán {ids.length} tareas al primer proyecto{destinos.length > 1 ? ` y se crearán ${ids.length * (destinos.length - 1)} copias en los demás` : ''}. Las tareas trasladadas quedarán sin el hito ni el tipo del proyecto anterior.
+                      Se trasladarán {ids.length} {TAREAS} al primer {PROYECTO}{destinos.length > 1 ? ` y se crearán ${ids.length * (destinos.length - 1)} copias en los demás` : ''}. Las {TAREAS} trasladadas quedarán sin el {GLOSARIO.hito.singular.toLowerCase()} ni el tipo del {PROYECTO} anterior.
                     </p>
                   </div>
                 )}
@@ -390,7 +396,7 @@ export function AccionesMasivasTareas ({
             )}
 
             {accion?.control === 'proyecto' && errorProyectos !== null && <AvisoEnLinea variante="error" mensaje={errorProyectos} />}
-            {accion?.control === 'proyecto' && !cargandoProyectos && errorProyectos === null && proyectos.length === 0 && <p role="status" className="text-texto-sutil text-sm">No hay proyectos disponibles.</p>}
+            {accion?.control === 'proyecto' && !cargandoProyectos && errorProyectos === null && proyectos.length === 0 && <p role="status" className="text-texto-sutil text-sm">Todavía no hay {PROYECTOS} disponibles.</p>}
 
             {error !== null && <AvisoEnLinea variante="error" mensaje={error} />}
 
@@ -404,7 +410,7 @@ export function AccionesMasivasTareas ({
                 disabled={enCurso || (accion?.control === 'proyecto' && (cargandoProyectos || destinos.length === 0 || errorProyectos !== null || proyectos.length === 0))}
                 onClick={() => { void aplicar() }}
               >
-                {accion?.control === 'proyecto' ? 'Agregar a proyecto' : 'Aplicar'}
+                {accion?.control === 'proyecto' ? `Agregar a ${PROYECTO}` : 'Aplicar'}
               </Boton>
             </div>
           </div>
@@ -449,7 +455,7 @@ function ControlDeAccion ({
 
   if (accion.control === 'etiquetas') {
     return (
-      <Campo etiqueta="Etiquetas" ayuda="Separadas por coma. Se agregan a las que ya tenga la tarea.">
+      <Campo etiqueta="Etiquetas" ayuda={`Separadas por coma. Se agregan a las que ya tenga la ${TAREA}.`}>
         {(props) => (
           <Entrada
             value={valor}
@@ -512,7 +518,7 @@ function ControlDeAccion ({
       <div className="flex flex-col gap-3">
         <Campo
           etiqueta="Nueva fecha de entrega"
-          ayuda="Se aplica a todas las tareas seleccionadas."
+          ayuda={`Se aplica a todas las ${TAREAS} seleccionadas.`}
         >
           {(props) => (
             <Entrada

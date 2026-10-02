@@ -89,7 +89,7 @@ function Barras ({ grafico }: { grafico: DatosGrafico }): ReactElement {
         ))}
       </div>
 
-      <div className="flex gap-1 text-[0.625rem]">
+      <div className="flex gap-1 text-micro">
         {grafico.etiquetas.map((etiqueta, indice) => (
           <span key={`${etiqueta}-${indice}`} className="text-texto-sutil min-w-0 flex-1 truncate text-center">
             {etiqueta}

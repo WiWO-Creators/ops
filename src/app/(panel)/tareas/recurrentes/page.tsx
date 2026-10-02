@@ -29,7 +29,7 @@ export default async function RecurrentesPage () {
     cargarLookups()
   ])
 
-  const proyectos = espacios.data.map((espacio) => ({ id: espacio.id, name: espacio.name }))
+  const proyectos = espacios.data.map((espacio) => ({ id: espacio.id, name: espacio.name, patente: espacio.patente }))
   const personas = (equipo.datos ?? []).map((persona) => ({ id: persona.id, name: persona.full_name }))
 
   return (

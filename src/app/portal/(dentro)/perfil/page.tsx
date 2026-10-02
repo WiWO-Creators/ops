@@ -1,6 +1,7 @@
 import type { Metadata } from 'next'
 import { pedirPortal } from '@/datos/servidor'
 import type { EmpresaPortal, YoPortal } from '@/datos/tipos'
+import { TituloModulo } from '@/componentes/estructura/TituloModulo'
 import { Bloque, Datos } from '../detalle'
 
 export const metadata: Metadata = { title: 'Mi perfil · Portal de clientes' }
@@ -26,7 +27,7 @@ export default async function PerfilPagina () {
 
   return (
     <section className="flex flex-col gap-4">
-      <h1 className="text-texto text-xl font-semibold">Mi perfil</h1>
+      <TituloModulo titulo="Mi perfil" />
 
       <Bloque titulo="Tus datos">
         <Datos
