@@ -17,13 +17,16 @@
  * no es un tramo: es una cuenta a la que le falta un dato.
  *
  * El buscador filtra a cada tecla y sin pedirle nada al servidor: la cartera entera ya está en el
- * navegador desde que la página se resolvió, así que esperar un envío sería lentitud regalada.
+ * navegador desde que la página se resolvió, así que esperar un envío sería lentitud regalada. El
+ * texto se vuelca a la URL con una pausa y por `history.replaceState`, que tampoco pide nada.
  */
 import { Search, X } from 'lucide-react'
 import { Entrada } from '@/componentes/formularios/Entrada'
 import { GLOSARIO } from '@/dominio/glosario'
 import { cn } from '@/lib/clases'
 import type { FiltroDeCartera, OrdenDeCartera, ResumenDeCartera } from '@/dominio/cartera'
+import { LARGO_MAXIMO_DE_BUSQUEDA } from '@/dominio/recorte-de-cartera'
+import type { ControlDeRecorte } from './useRecorteDeCartera'
 import type { SemaforoCliente } from '@/datos/recursos'
 
 /**
@@ -50,22 +53,19 @@ interface PropsControles {
   resumen: ResumenDeCartera
   /** Cuántas cuentas quedaron después de filtrar, para decirlo cuando no son todas. */
   visibles: number
-  texto: string
-  filtro: FiltroDeCartera
-  orden: OrdenDeCartera
-  onTexto: (texto: string) => void
-  onFiltro: (filtro: FiltroDeCartera) => void
-  onOrden: (orden: OrdenDeCartera) => void
+  /** Si la pantalla es la cartera entera: sólo ahí hay cuentas sin focal que buscar. */
+  mostrarFocal: boolean
+  recorte: ControlDeRecorte
 }
 
 /**
  * Dibuja el resumen, el buscador y el orden.
  *
- * @param props los totales ya contados y el estado de los tres controles
+ * @param props los totales ya contados, si la cartera es la entera y el estado de los tres controles
  */
-export function ControlesDeCartera (
-  { resumen, visibles, texto, filtro, orden, onTexto, onFiltro, onOrden }: PropsControles
-) {
+export function ControlesDeCartera ({ resumen, visibles, mostrarFocal, recorte }: PropsControles) {
+  const { texto, filtro, orden, onTexto, onFiltro, onOrden, onLimpiar } = recorte
+
   /** Pulsar la ficha que ya está puesta la saca: es la forma de volver a ver todo sin buscar un botón. */
   function alternar (valor: FiltroDeCartera): void {
     onFiltro(filtro === valor ? 'todas' : valor)
@@ -92,14 +92,18 @@ export function ControlesDeCartera (
           />
         ))}
 
-        <span aria-hidden="true" className="bg-linea mx-1 hidden h-6 w-px sm:block" />
+        {mostrarFocal && (
+          <>
+            <span aria-hidden="true" className="bg-linea mx-1 hidden h-6 w-px sm:block" />
 
-        <Ficha
-          etiqueta={`Sin ${GLOSARIO.focal.singular.toLowerCase()}`}
-          cuantas={resumen.sinFocal}
-          puesta={filtro === 'sin_focal'}
-          onPulsar={() => alternar('sin_focal')}
-        />
+            <Ficha
+              etiqueta={`Sin ${GLOSARIO.focal.singular.toLowerCase()}`}
+              cuantas={resumen.sinFocal}
+              puesta={filtro === 'sin_focal'}
+              onPulsar={() => alternar('sin_focal')}
+            />
+          </>
+        )}
       </div>
 
       <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
@@ -111,6 +115,7 @@ export function ControlesDeCartera (
           <Entrada
             type="search"
             value={texto}
+            maxLength={LARGO_MAXIMO_DE_BUSQUEDA}
             aria-label={`Buscar una cuenta por nombre, por ${GLOSARIO.focal.singular.toLowerCase()} o por ${GLOSARIO.espacio.singular.toLowerCase()}`}
             placeholder="Busca una cuenta, un focal, un proyecto…"
             className="ps-9"
@@ -145,7 +150,7 @@ export function ControlesDeCartera (
         {(filtro !== 'todas' || texto !== '') && (
           <button
             type="button"
-            onClick={() => { onFiltro('todas'); onTexto('') }}
+            onClick={onLimpiar}
             className={cn(
               'text-texto-tenue hover:text-texto hover:bg-hover rounded-control ease-neo',
               'duration-rapida flex h-7 items-center gap-1 px-2 text-xs transition-colors',
