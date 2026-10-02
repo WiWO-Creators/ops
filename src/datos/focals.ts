@@ -7,11 +7,13 @@
  * la misma forma con `project_id`/`espacio` donde el otro trae `client_id`/`cliente`, y repetir los
  * tipos de las tres señales acá sería tener dos definiciones del mismo contrato.
  *
- * **Nada de acá pide nada.** No importa `datos/servidor`: las dos llamadas las hace la página, que es
- * un Server Component. Así este archivo se puede probar con `node --test` sin montar Next.
+ * **Las lecturas no se piden acá.** No importa `datos/servidor`: las dos llamadas del semáforo las hace
+ * la página, que es un Server Component. La única petición de este archivo es {@link pedirEstado},
+ * que recibe el `fetch` por parámetro. Así todo se puede probar con `node --test` sin montar Next.
  */
 
 import { ASISTENTE } from '../dominio/glosario.ts'
+import { mensajeDeLectura } from './cliente.ts'
 import type { PuntoScoreCliente, ScoreCliente, SemaforoCliente } from './recursos'
 
 /** El parrafo con que la IA explica un semáforo. `null` mientras nadie lo haya pedido. */
@@ -84,9 +86,157 @@ export const RUTA_CLIENTES_TODOS = '/scores'
 /** `GET /scores/espacios`: los Proyectos de esa misma cartera entera. */
 export const RUTA_ESPACIOS_TODOS = '/scores/espacios'
 
-/** `POST /ia/proyectos/{id}/estado`, para el BFF (sin barra inicial), con el id ya escapado. */
+/**
+ * Cuánto se espera la respuesta de `POST /ia/proyectos/{id}/estado` antes de rendirse.
+ *
+ * Es más largo que el de una lectura porque detrás hay una llamada a un modelo. Existe como
+ * constante para que quien lo necesite lo ajuste en un solo lugar.
+ */
+export const TIEMPO_MAXIMO_DE_ESTADO_MS = 60_000
+
+/**
+ * `POST /ia/proyectos/{id}/estado`, para el BFF (sin barra inicial), con el id ya escapado.
+ *
+ * @param espacioId el Proyecto cuyo estado se quiere redactar
+ * @returns la ruta sin la base del BFF
+ * @throws RangeError si el id no es un entero mayor que 0: un `NaN` o un negativo armarían una ruta
+ *   que el BFF rechaza sin que se entienda por qué.
+ */
 export function rutaDeEstado (espacioId: number): string {
+  if (!Number.isInteger(espacioId) || espacioId <= 0) {
+    throw new RangeError(`El id del Proyecto debe ser un entero mayor que 0, y llegó ${String(espacioId)}.`)
+  }
+
   return `ia/proyectos/${encodeURIComponent(String(espacioId))}/estado`
+}
+
+/** Un recuento por tramo con los cuatro tramos presentes y en cero. */
+export function tramosEnCero (): Record<SemaforoCliente, number> {
+  return { verde: 0, amarillo: 0, rojo: 0, sin_datos: 0 }
+}
+
+/**
+ * Lo que devuelve {@link pedirEstado}: el párrafo, o el motivo por el que no hay.
+ *
+ * `esperado` distingue un desenlace normal del sistema —la IA apagada, la foto del día que aún no
+ * corrió, la cuota agotada— de una falla real. La pantalla puede mostrar los primeros en tono neutro
+ * y reservar el de error para los segundos.
+ */
+export type ResultadoDeEstado =
+  | { ok: true, estado: EstadoDeSalud }
+  | { ok: false, error: string, esperado: boolean }
+
+/** Lo que se puede ajustar o inyectar al pedir un estado. */
+export interface OpcionesDePedirEstado {
+  /** Se dispara cuando quien pidió ya no espera la respuesta (por ejemplo, al desmontarse). */
+  senal?: AbortSignal
+  /** El `fetch` a usar; sirve para probar sin red. */
+  traer?: typeof fetch
+  /** Tiempo máximo de espera; por defecto {@link TIEMPO_MAXIMO_DE_ESTADO_MS}. */
+  tiempoMaximoMs?: number
+}
+
+/** Lo que se dice cuando el servidor contestó bien pero con algo que la pantalla no entiende. */
+const MENSAJE_RESPUESTA_ILEGIBLE = 'El servidor respondió algo que no se pudo leer.'
+
+/** Los códigos con los que el sistema dice "esto no está roto" (ver {@link mensajeDeFalloDeEstado}). */
+const ESTADOS_HTTP_ESPERADOS: readonly number[] = [404, 409, 429]
+
+/**
+ * Pide el párrafo al BFF y devuelve el estado, o el motivo por el que no hay.
+ *
+ * No usa `escribirEnBff` porque acá hace falta el **código** de la respuesta y no solo su mensaje:
+ * un 404 significa "la IA está apagada", un 409, "todavía no corrió el cálculo del día" y un 429,
+ * "se acabó la cuota". Esos tres se cuentan con otras palabras (ver {@link mensajeDeFalloDeEstado}) y
+ * **no** pasan por `mensajeDeLectura`, que los trataría como una falla: registraría el incidente y
+ * lanzaría un aviso en cada clic.
+ *
+ * Valida la forma de `data` antes de devolverla: un cuerpo que no trae `texto` ni `vigente` rompería
+ * la tarjeta más abajo, lejos de su causa.
+ *
+ * @param espacioId el Proyecto cuyo estado se quiere redactar
+ * @param opciones la señal de cancelación, el `fetch` y el tiempo máximo
+ * @returns el estado, o el error con la línea que lo explica; nunca lanza por fallos de red
+ * @throws RangeError si `espacioId` no es un entero mayor que 0
+ */
+export async function pedirEstado (
+  espacioId: number,
+  opciones: OpcionesDePedirEstado = {}
+): Promise<ResultadoDeEstado> {
+  const ruta = rutaDeEstado(espacioId)
+  const { senal, traer = fetch, tiempoMaximoMs = TIEMPO_MAXIMO_DE_ESTADO_MS } = opciones
+  const limite = AbortSignal.timeout(tiempoMaximoMs)
+  let respuesta: Response
+
+  try {
+    respuesta = await traer(`/api/bff/${ruta}`, {
+      method: 'POST',
+      signal: senal === undefined ? limite : AbortSignal.any([senal, limite])
+    })
+  } catch (fallo) {
+    return fallaAlContactar(fallo)
+  }
+
+  if (!respuesta.ok) return await falloDeRespuesta(respuesta, ruta)
+
+  return await estadoDeRespuesta(respuesta)
+}
+
+/** El resultado cuando el `fetch` lanzó: se acabó el tiempo, se canceló, o no hay red. */
+function fallaAlContactar (fallo: unknown): ResultadoDeEstado {
+  const nombre = fallo instanceof DOMException ? fallo.name : ''
+
+  if (nombre === 'TimeoutError') {
+    return { ok: false, error: `${ASISTENTE} tardó demasiado en responder. Prueba de nuevo en un rato.`, esperado: false }
+  }
+
+  if (nombre === 'AbortError') return { ok: false, error: 'Se canceló la petición.', esperado: true }
+
+  return { ok: false, error: 'No se pudo contactar al servidor. Revisa tu conexión.', esperado: false }
+}
+
+/**
+ * El resultado de una respuesta con error.
+ *
+ * El cuerpo de 404, 409 y 429 ni se lee: el mensaje del servidor haría pasar por falla un desenlace
+ * normal. El resto sí pasa por `mensajeDeLectura`, que registra los 5xx y dice "sesión cerrada" en
+ * los 401.
+ */
+async function falloDeRespuesta (respuesta: Response, ruta: string): Promise<ResultadoDeEstado> {
+  if (ESTADOS_HTTP_ESPERADOS.includes(respuesta.status)) {
+    return { ok: false, error: mensajeDeFalloDeEstado(respuesta.status, ''), esperado: true }
+  }
+
+  const mensaje = await mensajeDeLectura(respuesta, { metodo: 'POST', ruta: `/api/bff/${ruta}` })
+
+  return { ok: false, error: mensajeDeFalloDeEstado(respuesta.status, mensaje), esperado: false }
+}
+
+/** Lee y valida el cuerpo de una respuesta correcta. */
+async function estadoDeRespuesta (respuesta: Response): Promise<ResultadoDeEstado> {
+  let sobre: unknown
+
+  try {
+    sobre = await respuesta.json()
+  } catch {
+    return { ok: false, error: MENSAJE_RESPUESTA_ILEGIBLE, esperado: false }
+  }
+
+  const data = typeof sobre === 'object' && sobre !== null ? (sobre as { data?: unknown }).data : undefined
+
+  if (!esEstadoRedactado(data)) return { ok: false, error: MENSAJE_RESPUESTA_ILEGIBLE, esperado: false }
+
+  return { ok: true, estado: { texto: data.texto, generado_en: data.generado_en, vigente: data.vigente } }
+}
+
+/** `true` si `valor` trae un párrafo no vacío, su fecha y si sigue vigente. */
+function esEstadoRedactado (valor: unknown): valor is EstadoRedactado {
+  if (typeof valor !== 'object' || valor === null) return false
+
+  const { texto, generado_en: generadoEn, vigente } = valor as Record<string, unknown>
+
+  return typeof texto === 'string' && texto.trim() !== '' &&
+    typeof generadoEn === 'string' && typeof vigente === 'boolean'
 }
 
 /**
@@ -150,7 +300,7 @@ export function ordenarPorSemaforo (espacios: ScoreEspacio[]): ScoreEspacio[] {
  * @returns la cuenta de cada tramo, con los cuatro tramos siempre presentes
  */
 export function contarPorTramo (espacios: ScoreEspacio[]): Record<SemaforoCliente, number> {
-  const cuenta: Record<SemaforoCliente, number> = { verde: 0, amarillo: 0, rojo: 0, sin_datos: 0 }
+  const cuenta = tramosEnCero()
 
   for (const espacio of espacios) cuenta[espacio.semaforo] += 1
 

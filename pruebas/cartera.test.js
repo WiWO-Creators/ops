@@ -12,11 +12,26 @@ import { test } from 'node:test'
 import assert from 'node:assert/strict'
 
 import {
-  filtrarCartera,
+  FILTROS,
+  ORDENES,
+  esSinFocal,
+  filtrarCartera as filtrarPreparada,
   nombreDeCuenta,
-  ordenarCartera,
-  resumirCartera
+  ordenarCartera as ordenarPreparada,
+  prepararCartera,
+  resumirCartera,
+  textoDeRecuento
 } from '../src/dominio/cartera.ts'
+
+/** Filtra una cartera cruda: la prepara y devuelve las cuentas que quedaron. */
+function filtrarCartera (cuentas, texto, filtro) {
+  return filtrarPreparada(prepararCartera(cuentas), texto, filtro).map((preparada) => preparada.cuenta)
+}
+
+/** Ordena una cartera cruda: la prepara y devuelve las cuentas en su nuevo orden. */
+function ordenarCartera (cuentas, orden) {
+  return ordenarPreparada(prepararCartera(cuentas), orden).map((preparada) => preparada.cuenta)
+}
 
 /** Las tres señales, con la forma mínima que el tipo exige. */
 function senales () {
@@ -177,4 +192,83 @@ test('un cliente sin nombre se muestra con su id y se puede buscar igual', () =>
 
   assert.equal(nombreDeCuenta(sinNombre), 'Cliente #7')
   assert.equal(filtrarCartera([sinNombre], '#7', 'todas').length, 1)
+})
+
+test('ordenar por críticos desempata por el orden del servidor y no por el nombre', () => {
+  // El servidor ya puso a estas tres en un orden por una razón (su score): con los mismos Proyectos
+  // críticos, reordenarlas por nombre mostraría otro orden del que el listado declara.
+  const cartera = [
+    cuenta(1, 'rojo', [], ['rojo'], 'Zeta'),
+    cuenta(2, 'rojo', [], ['rojo'], 'Alfa'),
+    cuenta(3, 'verde', [], ['rojo', 'rojo'], 'Medio')
+  ]
+
+  assert.deepEqual(
+    ordenarCartera(cartera, 'criticos').map(nombreDeCuenta),
+    ['Medio', 'Zeta', 'Alfa']
+  )
+})
+
+test('ordenar una cartera vacía devuelve una lista vacía con cualquier criterio', () => {
+  for (const orden of ORDENES) assert.deepEqual(ordenarCartera([], orden), [])
+})
+
+test('filtrar y ordenar no tocan la cartera preparada', () => {
+  const preparadas = prepararCartera([cuenta(1, 'rojo', [], ['rojo']), cuenta(2, 'verde', [], [])])
+  const copia = [...preparadas]
+
+  filtrarPreparada(preparadas, 'cliente', 'rojo')
+  ordenarPreparada(preparadas, 'criticos')
+
+  assert.deepEqual(preparadas, copia)
+})
+
+test('preparar calcula una vez el texto comparable y los tramos de cada cuenta', () => {
+  const cartera = [cuenta(1, 'rojo', ['Ana Pérez'], ['rojo', 'verde', 'sin_datos'], 'Analítica Sur')]
+
+  const [preparada] = prepararCartera(cartera)
+
+  assert.equal(preparada.cuenta, cartera[0])
+  assert.match(preparada.textoNormalizado, /analitica sur ana perez/)
+  assert.deepEqual(preparada.tramos, { verde: 1, amarillo: 0, rojo: 1, sin_datos: 1 })
+  assert.deepEqual(prepararCartera([]), [])
+})
+
+test('"todas" y un texto vacío no recortan nada, y "sin focal" no mira el semáforo', () => {
+  const cartera = [cuenta(1, 'rojo', []), cuenta(2, 'sin_datos', ['Ana'])]
+
+  assert.equal(filtrarCartera(cartera, '', 'todas').length, 2)
+  assert.deepEqual(filtrarCartera(cartera, '', 'sin_focal').map(nombreDeCuenta), ['Cliente 1'])
+  assert.deepEqual(filtrarCartera([], 'x', 'rojo'), [])
+})
+
+test('buscar algo que no está da lista vacía', () => {
+  assert.deepEqual(filtrarCartera([cuenta(1, 'rojo')], 'zzz', 'todas'), [])
+})
+
+test('esSinFocal es verdadero sin focales, con la lista ausente o con nombres en blanco', () => {
+  assert.equal(esSinFocal(cuenta(1, 'verde', [])), true)
+  assert.equal(esSinFocal(cuenta(1, 'verde', ['  '])), true)
+  assert.equal(esSinFocal(cuenta(1, 'verde', ['Ana'])), false)
+
+  const vieja = cuenta(1, 'verde', ['Ana'])
+  delete vieja.cliente.focales
+
+  assert.equal(esSinFocal(vieja), true)
+})
+
+test('los filtros y órdenes válidos son los que declara el dominio', () => {
+  assert.deepEqual([...FILTROS], ['verde', 'amarillo', 'rojo', 'sin_datos', 'sin_focal', 'todas'])
+  assert.deepEqual([...ORDENES], ['peor', 'nombre', 'criticos'])
+})
+
+test('el recuento escrito sigue el orden de urgencia y singulariza el uno', () => {
+  const { espacios } = cuenta(1, 'rojo', [], ['rojo', 'rojo', 'amarillo', 'verde', 'sin_datos'])
+
+  assert.equal(textoDeRecuento(espacios), '5 Proyectos · 2 críticos · 1 en atención · 1 al día · 1 sin datos')
+  assert.equal(textoDeRecuento(cuenta(1, 'rojo', [], ['rojo']).espacios), '1 Proyecto · 1 crítico')
+})
+
+test('el recuento de una cuenta sin Proyectos lo dice con palabras', () => {
+  assert.equal(textoDeRecuento([]), 'Sin proyectos: no hay nada que abrir todavía.')
 })

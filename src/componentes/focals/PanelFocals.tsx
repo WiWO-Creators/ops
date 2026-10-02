@@ -9,23 +9,24 @@ import { Insignia } from '@/componentes/presentadores/Insignia'
 import { Cargando, Vacio } from '@/componentes/estado/Estados'
 import { useParametroEnUrl } from '@/componentes/datos/useFiltrosEnUrl'
 import { DesgloseSenales, TRAMOS, Variacion } from '@/componentes/clientes/SemaforoCliente'
-import { mensajeDeRespuesta } from '@/datos/cliente'
 import {
   contarPorTramo,
-  mensajeDeFalloDeEstado,
   nombreDe,
   nombresDeFocales,
-  rutaDeEstado,
+  pedirEstado,
   type CuentaFocal,
   type EstadoDeSalud,
-  type EstadoRedactado,
   type ScoreEspacio
 } from '@/datos/focals'
 import {
+  FILTROS,
+  ORDENES,
   filtrarCartera,
   nombreDeCuenta,
   ordenarCartera,
+  prepararCartera,
   resumirCartera,
+  textoDeRecuento,
   type FiltroDeCartera,
   type OrdenDeCartera
 } from '@/dominio/cartera'
@@ -67,9 +68,6 @@ import { cn } from '@/lib/clases'
  * @param mostrarFocal si cada cuenta lleva el nombre de quien responde por ella. Se enciende para
  *   quien mira la cartera entera: sobre la cartera propia sería el mismo nombre en todas las filas
  */
-const FILTROS_VALIDOS: FiltroDeCartera[] = ['verde', 'amarillo', 'rojo', 'sin_datos', 'sin_focal', 'todas']
-const ORDENES_VALIDOS: OrdenDeCartera[] = ['peor', 'nombre', 'criticos']
-
 /**
  * Un valor leido de la URL, validado contra los que la pantalla conoce.
  *
@@ -80,7 +78,7 @@ const ORDENES_VALIDOS: OrdenDeCartera[] = ['peor', 'nombre', 'criticos']
  * @param validos Los valores que la pantalla acepta.
  * @param porDefecto El que se usa cuando `valor` no es ninguno de los validos.
  */
-function comoValorValido<V extends string> (valor: string | null, validos: V[], porDefecto: V): V {
+function comoValorValido<V extends string> (valor: string | null, validos: readonly V[], porDefecto: V): V {
   return validos.includes(valor as V) ? (valor as V) : porDefecto
 }
 
@@ -107,8 +105,8 @@ function CuerpoDePanelFocals ({
   const parametroOrden = useParametroEnUrl('orden')
 
   const texto = parametroTexto.valor ?? ''
-  const filtro = comoValorValido(parametroFiltro.valor, FILTROS_VALIDOS, 'todas')
-  const orden = comoValorValido(parametroOrden.valor, ORDENES_VALIDOS, 'peor')
+  const filtro = comoValorValido(parametroFiltro.valor, FILTROS, 'todas')
+  const orden = comoValorValido(parametroOrden.valor, ORDENES, 'peor')
 
   function setTexto (valor: string): void {
     if (valor === '') parametroTexto.quitar()
@@ -126,9 +124,10 @@ function CuerpoDePanelFocals ({
   }
 
   const resumen = useMemo(() => resumirCartera(cuentas), [cuentas])
+  const preparadas = useMemo(() => prepararCartera(cuentas), [cuentas])
   const visibles = useMemo(
-    () => ordenarCartera(filtrarCartera(cuentas, texto, filtro), orden),
-    [cuentas, texto, filtro, orden]
+    () => ordenarCartera(filtrarCartera(preparadas, texto, filtro), orden),
+    [preparadas, texto, filtro, orden]
   )
 
   return (
@@ -156,7 +155,7 @@ function CuerpoDePanelFocals ({
           )
         : (
           <ul className="flex flex-col gap-2">
-            {visibles.map((cuenta) => (
+            {visibles.map(({ cuenta }) => (
               <li key={cuenta.cliente.client_id}>
                 <FilaCuenta cuenta={cuenta} mostrarFocal={mostrarFocal} />
               </li>
@@ -316,34 +315,18 @@ function BarraDeReparto ({ espacios }: { espacios: ScoreEspacio[] }) {
 }
 
 /**
- * "4 Proyectos · 3 críticos · 1 sin datos".
+ * El recuento escrito de los {@link GLOSARIO.espacio} de una cuenta, que permite descartarla sin abrirla.
  *
- * Es lo que permite descartar una cuenta sin abrirla. **No** se muestra un promedio de los scores de
- * los {@link GLOSARIO.espacio}: ese número no es el score del cliente —el servidor lo calcula sobre
- * las {@link GLOSARIO.proceso}, no promediando— y tenerlos al lado invitaría a compararlos.
+ * El texto lo arma `textoDeRecuento`: acá solo se pinta.
  */
 function RecuentoDeTramos ({ espacios }: { espacios: ScoreEspacio[] }) {
-  const espaciosGlosario = GLOSARIO.espacio
+  const sinEspacios = espacios.length === 0
 
-  if (espacios.length === 0) {
-    return (
-      <span className="text-texto-sutil text-xs">
-        Sin {espaciosGlosario.plural.toLowerCase()}: no hay nada que abrir todavía.
-      </span>
-    )
-  }
-
-  const cuenta = contarPorTramo(espacios)
-  const partes = [
-    `${espacios.length} ${espacios.length === 1 ? espaciosGlosario.singular : espaciosGlosario.plural}`
-  ]
-
-  if (cuenta.rojo > 0) partes.push(`${cuenta.rojo} ${cuenta.rojo === 1 ? 'crítico' : 'críticos'}`)
-  if (cuenta.amarillo > 0) partes.push(`${cuenta.amarillo} en atención`)
-  if (cuenta.verde > 0) partes.push(`${cuenta.verde} al día`)
-  if (cuenta.sin_datos > 0) partes.push(`${cuenta.sin_datos} sin datos`)
-
-  return <span className="text-texto-tenue text-xs">{partes.join(' · ')}</span>
+  return (
+    <span className={cn('text-xs', sinEspacios ? 'text-texto-sutil' : 'text-texto-tenue')}>
+      {textoDeRecuento(espacios)}
+    </span>
+  )
 }
 
 /**
@@ -426,8 +409,8 @@ function FilaEspacio ({ espacio }: { espacio: ScoreEspacio }) {
 
     // Un fallo NO borra el párrafo que ya estaba: si había uno viejo, sigue explicando de dónde
     // venía el puntaje, y dejar la tarjeta vacía por un error de red sería perder información.
-    if (resultado.estado === null) setError(resultado.error)
-    else setEstado(resultado.estado)
+    if (resultado.ok) setEstado(resultado.estado)
+    else setError(resultado.error)
   }
 
   return (
@@ -512,49 +495,6 @@ function EstadoEnPalabras (
       )}
     </section>
   )
-}
-
-/**
- * Pide el párrafo al BFF y devuelve el estado, o el motivo por el que no hay.
- *
- * No usa `escribirEnBff` porque acá hace falta el **código** de la respuesta y no solo su mensaje:
- * un 404 significa "Thinking Orb está apagado" y un 409, "todavía no corrió el cálculo del día". Los dos
- * son estados normales del sistema y se cuentan con otras palabras (ver `mensajeDeFalloDeEstado`);
- * el mensaje crudo del servidor los haría parecer una falla de la aplicación.
- *
- * @param espacioId el Proyecto cuyo estado se quiere redactar
- * @returns el estado, o `null` con la línea que explica por qué no vino
- */
-async function pedirEstado (espacioId: number): Promise<{ estado: EstadoDeSalud | null, error: string }> {
-  let respuesta: Response
-
-  try {
-    respuesta = await fetch(`/api/bff/${rutaDeEstado(espacioId)}`, { method: 'POST' })
-  } catch {
-    return { estado: null, error: 'No se pudo contactar al servidor. Revisa tu conexión.' }
-  }
-
-  if (!respuesta.ok) {
-    return {
-      estado: null,
-      error: mensajeDeFalloDeEstado(respuesta.status, await mensajeDeRespuesta(respuesta))
-    }
-  }
-
-  try {
-    const sobre = await respuesta.json() as { data: EstadoRedactado }
-
-    return {
-      estado: {
-        texto: sobre.data.texto,
-        generado_en: sobre.data.generado_en,
-        vigente: sobre.data.vigente
-      },
-      error: ''
-    }
-  } catch {
-    return { estado: null, error: 'El servidor respondió algo que no se pudo leer.' }
-  }
 }
 
 /** La flecha que abre y cierra un bloque. Un `button` de verdad, para que el teclado lo alcance. */

@@ -162,7 +162,10 @@ const ESPERADOS_POR_RUTA: ReadonlyArray<{ metodo: string, estado: number, ruta: 
   // El rastreo del portal manda lotes solo; pasarse del tope (429) o chocar con una sesion ajena (422)
   // se descarta en el navegador y no es un incidente que investigar por cada lote.
   { metodo: 'POST', estado: 429, ruta: /^\/portal\/actividad$/ },
-  { metodo: 'POST', estado: 422, ruta: /^\/portal\/actividad$/ }
+  { metodo: 'POST', estado: 422, ruta: /^\/portal\/actividad$/ },
+  // Con la IA apagada toda la rama `/ia/*` responde 404: es el interruptor, no una ruta rota, y la
+  // pantalla de Focals lo explica con palabras en vez de abrir un incidente por cada clic.
+  { metodo: 'POST', estado: 404, ruta: /^\/ia\/proyectos\/\d+\/estado$/ }
 ]
 
 /**
