@@ -12,7 +12,7 @@ import {
   SinResultadosMenu
 } from '@/componentes/superposiciones/MenuContextual'
 import { GLOSARIO } from '@/dominio/glosario'
-import { filtrarPorNombre } from '@/dominio/live'
+import { filtrarPorPatenteYNombre } from '@/dominio/live'
 import { cn } from '@/lib/clases'
 import type { Referencia } from '@/datos/recursos'
 
@@ -60,7 +60,7 @@ export function SelectorEspacios ({
 }: PropsSelectorEspacios) {
   const [busqueda, setBusqueda] = useState('')
 
-  const visibles = useMemo(() => filtrarPorNombre(espacios, busqueda), [espacios, busqueda])
+  const visibles = useMemo(() => filtrarPorPatenteYNombre(espacios, busqueda), [espacios, busqueda])
   // En el orden en que se eligieron, no en el del catálogo: el primero manda —de él salen los hitos
   // y los tipos cuando hay uno solo— y verlo saltar de lugar al agregar otro es desconcertante.
   const elegidosEnOrden = useMemo(
@@ -128,6 +128,9 @@ export function SelectorEspacios ({
                   checked={elegidos.includes(espacio.id)}
                   onCheckedChange={() => { alternar(espacio.id) }}
                 >
+                  {espacio.patente != null && espacio.patente !== '' && (
+                    <span className="text-texto-sutil shrink-0 font-mono text-xs">{espacio.patente}</span>
+                  )}
                   <span className="truncate">{espacio.name}</span>
                 </ItemMenuMarcable>
                 ))}

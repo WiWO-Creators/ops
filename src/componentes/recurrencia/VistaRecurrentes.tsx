@@ -172,7 +172,7 @@ function BarraDeFiltros ({ filtros, onCambiar, proyectos, personas, areas }: {
 }): ReactElement {
   const opciones = (lista: Referencia[], todos: string): Array<{ valor: string, etiqueta: string }> => [
     { valor: '', etiqueta: todos },
-    ...lista.map((elemento) => ({ valor: String(elemento.id), etiqueta: elemento.name }))
+    ...lista.map((elemento) => ({ valor: String(elemento.id), etiqueta: elemento.patente ? `${elemento.patente} · ${elemento.name}` : elemento.name }))
   ]
 
   return (

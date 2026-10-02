@@ -266,6 +266,23 @@ export function filtrarPorNombre <T extends { name: string }> (opciones: readonl
   return filtrarPorPalabras(opciones, busqueda, (opcion) => [opcion.name])
 }
 
+/**
+ * Las opciones cuya patente o nombre contiene todas las palabras buscadas.
+ *
+ * La patente es el identificador que la gente dicta, asi que un buscador de Tareas o Proyectos que
+ * solo mira el nombre no encuentra lo que se pide por codigo. Ver `filtrarPorPalabras`.
+ *
+ * @param opciones la lista completa, tal como llego de la API
+ * @param busqueda lo tipeado
+ * @returns las que coinciden, en el mismo orden en que llegaron
+ */
+export function filtrarPorPatenteYNombre <T extends { name: string, patente?: string | null }> (
+  opciones: readonly T[],
+  busqueda: string
+): T[] {
+  return filtrarPorPalabras(opciones, busqueda, (opcion) => [opcion.patente, opcion.name])
+}
+
 /** Lo minimo de un Espacio que el combo de la jornada muestra y busca. */
 interface EspacioDelCombo {
   id: number

@@ -53,6 +53,13 @@ export const ROTULO_TIPO: Record<TipoNovedad, string> = {
  */
 export const NOVEDADES: Novedad[] = [
   {
+    fecha: '2026-10-02',
+    tipo: 'mejora',
+    titulo: 'Patente en todos los buscadores',
+    detalle: 'Los selectores de Tareas y Proyectos (jornada, alta de Tarea, sumar a un hito y filtros de recurrentes) ahora encuentran por patente y la muestran junto al nombre.',
+    commits: []
+  },
+  {
     fecha: '2026-09-30',
     tipo: 'nuevo',
     titulo: 'Adjuntar archivos al crear una Tarea',

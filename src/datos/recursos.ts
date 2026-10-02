@@ -23,6 +23,8 @@ export interface Etiqueta {
 export interface Referencia {
   id: number
   name: string
+  /** Identificador visible (`PAT-001-07`); la API lo trae en Proyectos y Tareas. */
+  patente?: string | null
 }
 
 export interface CampoPersonalizado {

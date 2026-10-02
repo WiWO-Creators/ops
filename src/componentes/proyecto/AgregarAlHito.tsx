@@ -230,7 +230,7 @@ export function AgregarAlHito ({
                     <Entrada
                       value={busqueda}
                       onChange={(evento) => setBusqueda(evento.target.value)}
-                      placeholder="Parte del nombre"
+                      placeholder="Patente o parte del nombre"
                       {...props}
                     />
                   )}
@@ -266,6 +266,9 @@ export function AgregarAlHito ({
                           className="w-full justify-start rounded-none text-left"
                           onClick={() => { void sumar(tarea.id) }}
                         >
+                          {tarea.patente != null && tarea.patente !== '' && (
+                            <span className="text-texto-sutil mr-2 font-mono text-xs">{tarea.patente}</span>
+                          )}
                           {tarea.name}
                         </Boton>
                       </li>
