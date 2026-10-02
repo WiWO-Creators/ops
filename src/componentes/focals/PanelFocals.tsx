@@ -1,43 +1,27 @@
 'use client'
 
-import { Suspense, useMemo, useState } from 'react'
-import Link from 'next/link'
-import { ArrowUpRight, ChevronRight, Sparkles } from 'lucide-react'
+import { Suspense, useCallback, useMemo, useState } from 'react'
 import { ControlesDeCartera } from './ControlesDeCartera'
-import { Boton } from '@/componentes/formularios/Boton'
-import { Insignia } from '@/componentes/presentadores/Insignia'
-import { Cargando, Vacio } from '@/componentes/estado/Estados'
+import { FilaCuenta } from './FilaCuenta'
+import type { EstadosRedactados } from './FilaEspacio'
 import { useRecorteDeCartera } from './useRecorteDeCartera'
-import { DesgloseSenales, TRAMOS, Variacion } from '@/componentes/clientes/SemaforoCliente'
-import {
-  contarPorTramo,
-  nombreDe,
-  nombresDeFocales,
-  pedirEstado,
-  type CuentaFocal,
-  type EstadoDeSalud,
-  type ScoreEspacio
-} from '@/datos/focals'
+import { Cargando, Vacio } from '@/componentes/estado/Estados'
+import type { CuentaFocal, EstadoDeSalud } from '@/datos/focals'
 import {
   filtrarCartera,
-  nombreDeCuenta,
   ordenarCartera,
   prepararCartera,
-  resumirCartera,
-  textoDeRecuento
+  resumirCartera
 } from '@/dominio/cartera'
-import type { ScoreCliente, SemaforoCliente } from '@/datos/recursos'
-import { ASISTENTE, GLOSARIO } from '@/dominio/glosario'
-import { cn } from '@/lib/clases'
 
 /**
- * La cartera de un Focal: sus clientes, y dentro de cada uno sus {@link GLOSARIO.espacio}.
+ * La cartera de un Focal: sus clientes, y dentro de cada uno sus Proyectos.
  *
  * === Por qué dos niveles y no una tabla plana ===
  *
  * Porque las dos preguntas del Focal son distintas y se hacen en ese orden: primero "¿cuál de mis
  * cuentas está mal?" y recién después "¿qué parte de esa cuenta la tiene mal?". Una tabla de todos
- * los {@link GLOSARIO.espacio} ordenados por score contesta la segunda y hace imposible la primera:
+ * los Proyectos ordenados por score contesta la segunda y hace imposible la primera:
  * una cuenta con cuatro proyectos regulares se lee peor que otra con uno pésimo, y no lo está.
  *
  * === Por qué la fila empieza por el número ===
@@ -48,7 +32,7 @@ import { cn } from '@/lib/clases'
  * confirmar en cuál se paró el ojo, no para encontrarla.
  *
  * La barra de reparto que sigue al nombre es el mismo dato que el recuento escrito al lado, dibujado:
- * una cuenta con cinco de cinco {@link GLOSARIO.espacio} en rojo se ve entera roja antes de leer
+ * una cuenta con cinco de cinco Proyectos en rojo se ve entera roja antes de leer
  * ninguna palabra, y una con uno malo entre seis buenos deja de parecer lo mismo.
  *
  * === Por qué el párrafo de Thinking Orb es un botón y no aparece solo ===
@@ -63,9 +47,11 @@ import { cn } from '@/lib/clases'
  * @param cuentas los clientes de esta persona, ya ordenados por el servidor del peor al mejor
  * @param mostrarFocal si cada cuenta lleva el nombre de quien responde por ella. Se enciende para
  *   quien mira la cartera entera: sobre la cartera propia sería el mismo nombre en todas las filas
+ *
+ * El texto, el filtro y el orden viven en la URL: un enlace a la cartera filtrada se comparte igual que
+ * cualquier otra vista con filtros, y recargar no la pierde. El estado de IA redactado vive acá y no en
+ * cada fila, para que cerrar una cuenta o filtrar no lo pierda.
  */
-/** El texto, el filtro y el orden viven en la URL: un enlace a la cartera filtrada se comparte igual
- * que cualquier otra vista con filtros, y recargar no la pierde. */
 export function PanelFocals (props: { cuentas: CuentaFocal[], mostrarFocal?: boolean }) {
   // `useFiltrosEnUrl` lee `useSearchParams`: sin este limite de Suspense falla el build.
   return (
@@ -83,6 +69,11 @@ function CuerpoDePanelFocals ({
   mostrarFocal?: boolean
 }) {
   const recorte = useRecorteDeCartera(mostrarFocal)
+  const [estados, setEstados] = useState<EstadosRedactados>({})
+
+  const guardarEstado = useCallback((proyecto: number, estado: EstadoDeSalud): void => {
+    setEstados((previos) => ({ ...previos, [proyecto]: estado }))
+  }, [])
 
   const resumen = useMemo(() => resumirCartera(cuentas), [cuentas])
   const preparadas = useMemo(() => prepararCartera(cuentas), [cuentas])
@@ -114,367 +105,16 @@ function CuerpoDePanelFocals ({
           <ul className="flex flex-col gap-2">
             {visibles.map(({ cuenta }) => (
               <li key={cuenta.cliente.client_id}>
-                <FilaCuenta cuenta={cuenta} mostrarFocal={mostrarFocal} />
+                <FilaCuenta
+                  cuenta={cuenta}
+                  mostrarFocal={mostrarFocal}
+                  estados={estados}
+                  onEstado={guardarEstado}
+                />
               </li>
             ))}
           </ul>
           )}
     </div>
-  )
-}
-
-/**
- * Una cuenta: su puntaje, cómo se reparten sus {@link GLOSARIO.espacio} y el detalle.
- *
- * El detalle arranca cerrado a propósito. Un Focal con doce cuentas necesita ver las doce de un
- * vistazo para elegir en cuál entrar; abiertas, la primera ya ocupa la pantalla entera.
- *
- * La fila entera es **un solo botón**, y no un botón con un enlace adentro: así el clic cae en
- * cualquier parte y no hay que apuntarle a una flecha de 16 píxeles. El enlace a la ficha del
- * cliente vive dentro del detalle, donde es un destino elegido y no un accidente del clic.
- */
-function FilaCuenta ({ cuenta, mostrarFocal }: { cuenta: CuentaFocal, mostrarFocal: boolean }) {
-  const [abierta, setAbierta] = useState(false)
-  const { cliente, espacios } = cuenta
-  const tramo = TRAMOS[cliente.semaforo] ?? TRAMOS.sin_datos
-  const nombre = nombreDeCuenta(cuenta)
-
-  return (
-    <article
-      className={cn(
-        'border-linea bg-superficie-elevada rounded-tarjeta shadow-1 overflow-hidden border',
-        abierta && 'border-linea-fuerte'
-      )}
-    >
-      <button
-        type="button"
-        onClick={() => { setAbierta(!abierta) }}
-        aria-expanded={abierta}
-        className={cn(
-          'ease-neo duration-rapida grid w-full grid-cols-[3rem_minmax(0,1fr)_auto] items-center',
-          'gap-x-3 gap-y-1 p-3 text-start transition-colors hover:bg-hover',
-          'focus-visible:outline-foco focus-visible:outline-2 focus-visible:-outline-offset-2',
-          'sm:grid-cols-[3rem_minmax(0,1fr)_auto_auto]'
-        )}
-      >
-        <span className="flex flex-col items-end gap-0.5">
-          <span
-            className={cn('text-cifra leading-none font-semibold tabular-nums', tramo.numero)}
-            title={cliente.score === null ? 'Todavía no hay datos para calcular el score' : 'Score de 1 a 100'}
-          >
-            {cliente.score ?? '—'}
-          </span>
-          <Variacion puntos={cliente.variacion} />
-        </span>
-
-        <span className="flex min-w-0 flex-col gap-1">
-          <span className="flex items-center gap-2">
-            <span className="text-texto truncate text-sm font-semibold">{nombre}</span>
-            <Insignia tono={tramo.tono} tamano="chico">{tramo.etiqueta}</Insignia>
-          </span>
-
-          <span className="flex flex-wrap items-center gap-x-2 gap-y-1">
-            <BarraDeReparto espacios={espacios} />
-            <RecuentoDeTramos espacios={espacios} />
-          </span>
-        </span>
-
-        {mostrarFocal && (
-          <span className="col-start-2 sm:col-start-3">
-            <QuienResponde cliente={cliente} />
-          </span>
-        )}
-
-        <ChevronRight
-          size={16}
-          aria-hidden="true"
-          className={cn(
-            'text-texto-sutil ease-neo duration-rapida col-start-3 row-start-1 justify-self-end',
-            'transition-transform sm:col-start-4',
-            abierta && 'rotate-90'
-          )}
-        />
-      </button>
-
-      {abierta && (
-        <div className="border-linea flex flex-col gap-4 border-t p-4">
-          <section className="flex flex-col gap-2">
-            <div className="flex flex-wrap items-center justify-between gap-2">
-              <h3 className="text-texto-tenue text-xs antetitulo">
-                Por qué el cliente tiene ese puntaje
-              </h3>
-
-              <Link
-                href={`/clientes/${cliente.client_id}`}
-                className={cn(
-                  'text-texto-tenue hover:text-acento rounded-control ease-neo duration-rapida',
-                  'inline-flex items-center gap-1 text-xs underline-offset-4 transition-colors hover:underline',
-                  'focus-visible:outline-foco focus-visible:outline-2 focus-visible:outline-offset-2'
-                )}
-              >
-                Abrir la ficha de {nombre}
-                <ArrowUpRight aria-hidden="true" className="size-3.5" />
-              </Link>
-            </div>
-
-            <DesgloseSenales senales={cliente.senales} />
-          </section>
-
-          <section className="flex flex-col gap-2">
-            <h3 className="text-texto-tenue text-xs antetitulo">
-              Sus {GLOSARIO.espacio.plural.toLowerCase()}
-            </h3>
-            <ListaEspacios espacios={espacios} />
-          </section>
-        </div>
-      )}
-    </article>
-  )
-}
-
-/**
- * Cómo se reparten los {@link GLOSARIO.espacio} de una cuenta entre los cuatro tramos.
- *
- * Es el recuento de al lado, dibujado. Existe porque "6 Proyectos · 5 críticos" obliga a leer dos
- * números y dividirlos mentalmente, y la misma información como una barra casi entera en rojo no
- * obliga a nada. El texto queda igual al lado: la barra sola sería color sin palabras, que es
- * ilegible para quien no distingue el rojo del verde y en una captura en blanco y negro.
- *
- * `aria-hidden` porque el recuento escrito ya lo dice con todas las letras.
- */
-function BarraDeReparto ({ espacios }: { espacios: ScoreEspacio[] }) {
-  if (espacios.length === 0) return null
-
-  const cuenta = contarPorTramo(espacios)
-  const partes: { tramo: SemaforoCliente, cuantos: number, fondo: string }[] = [
-    { tramo: 'rojo', cuantos: cuenta.rojo, fondo: 'bg-texto-peligro' },
-    { tramo: 'amarillo', cuantos: cuenta.amarillo, fondo: 'bg-texto-aviso' },
-    { tramo: 'verde', cuantos: cuenta.verde, fondo: 'bg-texto-exito' },
-    { tramo: 'sin_datos', cuantos: cuenta.sin_datos, fondo: 'bg-linea-fuerte' }
-  ]
-
-  return (
-    <span
-      aria-hidden="true"
-      className="bg-superficie-hundida flex h-1.5 w-20 shrink-0 gap-px overflow-hidden rounded-full"
-    >
-      {partes
-        .filter((parte) => parte.cuantos > 0)
-        .map((parte) => (
-          <span
-            key={parte.tramo}
-            className={parte.fondo}
-            style={{ width: `${(parte.cuantos / espacios.length) * 100}%` }}
-          />
-        ))}
-    </span>
-  )
-}
-
-/**
- * El recuento escrito de los {@link GLOSARIO.espacio} de una cuenta, que permite descartarla sin abrirla.
- *
- * El texto lo arma `textoDeRecuento`: acá solo se pinta.
- */
-function RecuentoDeTramos ({ espacios }: { espacios: ScoreEspacio[] }) {
-  const sinEspacios = espacios.length === 0
-
-  return (
-    <span className={cn('text-xs', sinEspacios ? 'text-texto-sutil' : 'text-texto-tenue')}>
-      {textoDeRecuento(espacios)}
-    </span>
-  )
-}
-
-/**
- * "Focal: Ana Pérez", o la falta de focal dicha con todas las letras.
- *
- * Solo aparece en la cartera entera. Sin este renglón la pantalla de una gerencia es una lista de
- * clientes ordenada por puntaje y nada más: sirve para ver qué está mal, no para saber con quién
- * hablarlo, que es la mitad de la pregunta.
- *
- * Una cuenta sin focal se dibuja como tal —y no se omite el renglón— porque es justamente el caso
- * que hay que ver: un cliente del que nadie responde no tiene a quién reclamarle el rojo. Por eso
- * lleva tono de aviso y el resto de las cuentas, sólo el nombre en gris: lo que hay que encontrar
- * acá es la ausencia.
- */
-function QuienResponde ({ cliente }: { cliente: ScoreCliente }) {
-  const nombres = nombresDeFocales(cliente)
-  const focal = GLOSARIO.focal.singular
-
-  if (nombres.length === 0) {
-    return (
-      <Insignia tono="aviso" tamano="chico" className="self-start">
-        Sin {focal.toLowerCase()}
-      </Insignia>
-    )
-  }
-
-  return (
-    <span className="text-texto-tenue block max-w-48 truncate text-xs">
-      {focal}: <span className="text-texto">{nombres.join(', ')}</span>
-    </span>
-  )
-}
-
-/** Los {@link GLOSARIO.espacio} de una cuenta, del peor al mejor. */
-function ListaEspacios ({ espacios }: { espacios: ScoreEspacio[] }) {
-  if (espacios.length === 0) {
-    return (
-      <p className="text-texto-tenue text-sm">
-        Este cliente no tiene ningún {GLOSARIO.espacio.singular.toLowerCase()}, así que no hay nada
-        que puntuar acá abajo.
-      </p>
-    )
-  }
-
-  return (
-    <ul className="flex flex-col gap-2">
-      {espacios.map((espacio) => (
-        <li key={espacio.project_id}>
-          <FilaEspacio espacio={espacio} />
-        </li>
-      ))}
-    </ul>
-  )
-}
-
-/**
- * Un {@link GLOSARIO.espacio} con su semáforo, su desglose y su estado en palabras.
- *
- * El estado que ya viene del servidor se muestra de entrada: está pagado y guardado. El botón
- * aparece cuando no hay ninguno, o cuando el que hay dejó de ser vigente porque las señales se
- * movieron después de redactarlo.
- */
-function FilaEspacio ({ espacio }: { espacio: ScoreEspacio }) {
-  const [abierto, setAbierto] = useState(false)
-  const [estado, setEstado] = useState<EstadoDeSalud | null>(espacio.estado)
-  const [redactando, setRedactando] = useState(false)
-  const [error, setError] = useState<string | null>(null)
-
-  const tramo = TRAMOS[espacio.semaforo] ?? TRAMOS.sin_datos
-
-  /** Pide el párrafo. Con las mismas señales el servidor devuelve el que ya estaba, sin cobrar. */
-  async function redactar () {
-    if (redactando) return
-
-    setRedactando(true)
-    setError(null)
-
-    const resultado = await pedirEstado(espacio.project_id)
-    setRedactando(false)
-
-    // Un fallo NO borra el párrafo que ya estaba: si había uno viejo, sigue explicando de dónde
-    // venía el puntaje, y dejar la tarjeta vacía por un error de red sería perder información.
-    if (resultado.ok) setEstado(resultado.estado)
-    else setError(resultado.error)
-  }
-
-  return (
-    <article className="border-linea rounded-control border">
-      <header className="flex flex-wrap items-center justify-between gap-2 px-3 py-2">
-        <div className="flex min-w-0 items-center gap-2">
-          <span
-            className={cn('w-8 shrink-0 text-end text-base leading-none font-semibold tabular-nums', tramo.numero)}
-            title={espacio.score === null ? 'Todavía no hay datos para calcular el score' : 'Score de 1 a 100'}
-          >
-            {espacio.score ?? '—'}
-          </span>
-          <Link
-            href={`/proyectos/${espacio.project_id}`}
-            className="text-texto hover:text-acento max-w-64 truncate text-sm underline-offset-4 hover:underline"
-          >
-            {nombreDe(espacio)}
-          </Link>
-          <Insignia tono={tramo.tono} tamano="chico">{tramo.etiqueta}</Insignia>
-        </div>
-
-        <BotonDetalle
-          abierto={abierto}
-          onAlternar={() => { setAbierto(!abierto) }}
-          etiqueta={`Detalle de ${nombreDe(espacio)}`}
-        />
-      </header>
-
-      {abierto && (
-        <div className="border-linea flex flex-col gap-3 border-t px-3 py-3">
-          <DesgloseSenales senales={espacio.senales} />
-
-          <EstadoEnPalabras
-            estado={estado}
-            error={error}
-            redactando={redactando}
-            onRedactar={() => { void redactar() }}
-          />
-        </div>
-      )}
-    </article>
-  )
-}
-
-/**
- * El estado redactado, o el botón para pedirlo.
- *
- * Cuando el texto no es vigente se muestra igual, con la advertencia al lado: sigue explicando de
- * dónde venía el puntaje, y esconderlo dejaría la tarjeta sin nada mientras alguien decide si vale
- * la pena volver a pagarlo.
- */
-function EstadoEnPalabras (
-  { estado, error, redactando, onRedactar }: {
-    estado: EstadoDeSalud | null
-    error: string | null
-    redactando: boolean
-    onRedactar: () => void
-  }
-) {
-  return (
-    <section className="flex flex-col gap-2">
-      {estado !== null && (
-        <>
-          <p className="text-texto text-sm text-pretty">{estado.texto}</p>
-          <p className="text-texto-tenue text-xs">
-            {estado.vigente
-              ? `Redactado por ${ASISTENTE} el ${estado.generado_en}.`
-              : `Redactado por ${ASISTENTE} el ${estado.generado_en}, con números que desde entonces cambiaron.`}
-          </p>
-        </>
-      )}
-
-      {error !== null && <p role="alert" className="text-texto-tenue text-xs">{error}</p>}
-
-      {(estado === null || !estado.vigente) && (
-        <div>
-          <Boton tamano="chico" variante="secundario" onClick={onRedactar} cargando={redactando}>
-            <Sparkles size={14} aria-hidden="true" />
-            {estado === null ? `Explicar con ${ASISTENTE}` : 'Rehacer la explicación'}
-          </Boton>
-        </div>
-      )}
-    </section>
-  )
-}
-
-/** La flecha que abre y cierra un bloque. Un `button` de verdad, para que el teclado lo alcance. */
-function BotonDetalle (
-  { abierto, onAlternar, etiqueta }: { abierto: boolean, onAlternar: () => void, etiqueta: string }
-) {
-  return (
-    <button
-      type="button"
-      onClick={onAlternar}
-      aria-expanded={abierto}
-      aria-label={etiqueta}
-      className={cn(
-        'text-texto-tenue hover:text-texto hover:bg-hover rounded-control flex h-8 w-8 shrink-0',
-        'items-center justify-center',
-        'focus-visible:outline-foco focus-visible:outline-2 focus-visible:outline-offset-2'
-      )}
-    >
-      <ChevronRight
-        size={16}
-        aria-hidden="true"
-        className={cn('ease-neo duration-rapida transition-transform', abierto && 'rotate-90')}
-      />
-    </button>
   )
 }

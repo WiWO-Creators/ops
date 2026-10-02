@@ -19,6 +19,7 @@ import {
 } from '../datos/focals.ts'
 import { sinAcentos } from '../lib/texto.ts'
 import { GLOSARIO } from './glosario.ts'
+import { ORDEN_DE_TRAMOS, contarConPalabra } from './tramos-de-semaforo.ts'
 import type { SemaforoCliente } from '../datos/recursos'
 
 /**
@@ -209,10 +210,9 @@ export function textoDeRecuento (espacios: ScoreEspacio[]): string {
   const tramos = contarPorTramo(espacios)
   const partes = [`${espacios.length} ${espacios.length === 1 ? singular : plural}`]
 
-  if (tramos.rojo > 0) partes.push(`${tramos.rojo} ${tramos.rojo === 1 ? 'crítico' : 'críticos'}`)
-  if (tramos.amarillo > 0) partes.push(`${tramos.amarillo} en atención`)
-  if (tramos.verde > 0) partes.push(`${tramos.verde} al día`)
-  if (tramos.sin_datos > 0) partes.push(`${tramos.sin_datos} sin datos`)
+  for (const tramo of ORDEN_DE_TRAMOS) {
+    if (tramos[tramo] > 0) partes.push(contarConPalabra(tramo, tramos[tramo]))
+  }
 
   return partes.join(' · ')
 }

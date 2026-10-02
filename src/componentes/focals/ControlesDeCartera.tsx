@@ -24,23 +24,11 @@ import { Search, X } from 'lucide-react'
 import { Entrada } from '@/componentes/formularios/Entrada'
 import { GLOSARIO } from '@/dominio/glosario'
 import { cn } from '@/lib/clases'
+import { TRAMOS } from '@/componentes/clientes/SemaforoCliente'
 import type { FiltroDeCartera, OrdenDeCartera, ResumenDeCartera } from '@/dominio/cartera'
+import { ORDEN_DE_TRAMOS, PALABRAS_DE_TRAMO, contarConPalabra } from '@/dominio/tramos-de-semaforo'
 import { LARGO_MAXIMO_DE_BUSQUEDA } from '@/dominio/recorte-de-cartera'
 import type { ControlDeRecorte } from './useRecorteDeCartera'
-import type { SemaforoCliente } from '@/datos/recursos'
-
-/**
- * Las fichas de tramo, en orden de urgencia.
- *
- * Rojo primero y no el orden alfabético ni el del tipo: la pantalla existe para encontrar lo que
- * está mal, y lo primero que se lee tiene que ser eso.
- */
-const TRAMOS: readonly { valor: SemaforoCliente, etiqueta: string, punto: string }[] = [
-  { valor: 'rojo', etiqueta: 'Críticas', punto: 'bg-texto-peligro' },
-  { valor: 'amarillo', etiqueta: 'En atención', punto: 'bg-texto-aviso' },
-  { valor: 'verde', etiqueta: 'Al día', punto: 'bg-texto-exito' },
-  { valor: 'sin_datos', etiqueta: 'Sin datos', punto: 'bg-linea-fuerte' }
-]
 
 /** Los tres criterios de orden, con el nombre que tienen en la pantalla. */
 const ORDENES: readonly { valor: OrdenDeCartera, etiqueta: string }[] = [
@@ -81,14 +69,14 @@ export function ControlesDeCartera ({ resumen, visibles, mostrarFocal, recorte }
           onPulsar={() => onFiltro('todas')}
         />
 
-        {TRAMOS.map((tramo) => (
+        {ORDEN_DE_TRAMOS.map((tramo) => (
           <Ficha
-            key={tramo.valor}
-            etiqueta={tramo.etiqueta}
-            punto={tramo.punto}
-            cuantas={resumen.porTramo[tramo.valor]}
-            puesta={filtro === tramo.valor}
-            onPulsar={() => alternar(tramo.valor)}
+            key={tramo}
+            etiqueta={PALABRAS_DE_TRAMO[tramo].deCuentas}
+            punto={TRAMOS[tramo].fondo}
+            cuantas={resumen.porTramo[tramo]}
+            puesta={filtro === tramo}
+            onPulsar={() => alternar(tramo)}
           />
         ))}
 
@@ -143,7 +131,7 @@ export function ControlesDeCartera ({ resumen, visibles, mostrarFocal, recorte }
             señal de que una letra más la dejó en cero. */}
         <p role="status" aria-live="polite" className="text-texto-sutil text-xs tabular-nums">
           {visibles === resumen.cuentas
-            ? `${resumen.espacios} ${GLOSARIO.espacio.plural.toLowerCase()}, ${resumen.espaciosCriticos} en rojo`
+            ? `${resumen.espacios} ${GLOSARIO.espacio.plural.toLowerCase()}, ${contarConPalabra('rojo', resumen.espaciosCriticos)}`
             : `${visibles} de ${resumen.cuentas} cuentas`}
         </p>
 
