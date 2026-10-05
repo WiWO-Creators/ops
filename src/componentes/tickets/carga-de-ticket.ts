@@ -2,7 +2,8 @@ import { listaDe } from '@/datos/catalogos'
 import { mensajeDeRespuesta, pedirRespuesta } from '@/datos/cliente'
 import type { AdjuntoTicket, EstadoLookup, Lookups, RespuestaPredefinida, RespuestaTicket, TicketDetalle } from '@/datos/recursos'
 import type { TicketPortalDetalle } from '@/datos/portal'
-import { rutaDeTicket, vistaDelTicket, type FuenteDeTicket, type TicketVista } from '@/dominio/ticket-vista'
+import { conservarReferencias, rutasDeLectura } from '@/dominio/ticket-sondeo'
+import { vistaDelTicket, type FuenteDeTicket, type TicketVista } from '@/dominio/ticket-vista'
 
 /**
  * Lecturas del modal de ticket: la ficha con su hilo y adjuntos, y los catalogos.
@@ -18,7 +19,17 @@ export type CargaDeTicket =
   | { fase: 'cargando' }
   | { fase: 'noEncontrado' }
   | { fase: 'error', mensaje: string }
-  | { fase: 'listo', ticket: TicketVista, estados: EstadoLookup[], prioridades: EstadoLookup[] }
+  | {
+    fase: 'listo'
+    ticket: TicketVista
+    estados: EstadoLookup[]
+    prioridades: EstadoLookup[]
+    /**
+     * Los adjuntos de apertura ya resueltos, para no volver a pedirlos en el sondeo. `null` si no
+     * se pudieron traer: la proxima lectura los reintenta.
+     */
+    adjuntos: AdjuntoTicket[] | null
+  }
 
 /** Los catalogos del ticket, ya reducidos a las dos listas que se usan. */
 interface CatalogosDeTicket {
@@ -99,20 +110,30 @@ async function opcional<T> (ruta: string | null, senal: AbortSignal, vacio: T): 
  * Nunca lanza: el error del contrato es un valor mas y el modal tiene que poder mostrarlo. Solo la
  * ficha y el hilo son obligatorios; catalogos y adjuntos degradan.
  *
+ * Los adjuntos de apertura se piden **una vez por apertura**: quien sondea devuelve los que la
+ * primera lectura resolvio (`adjuntos` de la carga) y las siguientes piden solo ficha e hilo.
+ *
  * @param fuente de donde baja el ticket
  * @param ticketId el ticket
  * @param senal aborta las peticiones si el modal se cierra o llega una lectura mas nueva
+ * @param adjuntosConocidos los adjuntos de apertura que ya se trajeron, o `null` para pedirlos
  * @returns la carga resuelta; `cargando` si se aborto
  */
-export async function cargarTicket (fuente: FuenteDeTicket, ticketId: number, senal: AbortSignal): Promise<CargaDeTicket> {
+export async function cargarTicket (
+  fuente: FuenteDeTicket,
+  ticketId: number,
+  senal: AbortSignal,
+  adjuntosConocidos: AdjuntoTicket[] | null = null
+): Promise<CargaDeTicket> {
   try {
-    const rutaArchivos = fuente.archivos === null ? null : rutaDeTicket(fuente.archivos, ticketId)
+    const rutas = rutasDeLectura(fuente, ticketId, adjuntosConocidos !== null)
     const [ficha, hilo, archivos, listas] = await Promise.all([
-      pedirRespuesta(rutaDeTicket(fuente.ticket, ticketId), senal),
-      fuente.respuestas === null ? Promise.resolve(null) : pedirRespuesta(rutaDeTicket(fuente.respuestas, ticketId), senal),
-      opcional<AdjuntoTicket[]>(rutaArchivos, senal, []),
+      pedirRespuesta(rutas.ficha, senal),
+      rutas.hilo === null ? Promise.resolve(null) : pedirRespuesta(rutas.hilo, senal),
+      opcional<AdjuntoTicket[] | null>(rutas.archivos, senal, null),
       catalogos(fuente.lookups)
     ])
+    const adjuntos = fuente.archivos === null ? [] : (adjuntosConocidos ?? archivos)
 
     if (ficha.status === 404) return { fase: 'noEncontrado' }
 
@@ -125,15 +146,41 @@ export async function cargarTicket (fuente: FuenteDeTicket, ticketId: number, se
 
     return {
       fase: 'listo',
-      ticket: vistaDelTicket(fuente, data, respuestas, archivos),
+      ticket: vistaDelTicket(fuente, data, respuestas, adjuntos ?? []),
       estados: listas.estados,
-      prioridades: listas.prioridades
+      prioridades: listas.prioridades,
+      adjuntos
     }
   } catch (fallo) {
     if (senal.aborted) return { fase: 'cargando' }
 
     return { fase: 'error', mensaje: fallo instanceof Error ? fallo.message : 'No se pudo cargar el ticket.' }
   }
+}
+
+/**
+ * La carga que se muestra tras una lectura nueva, sin cambiar nada si la lectura no trajo novedades.
+ *
+ * Un error o un aborto no borran un ticket que ya se estaba mostrando (el sondeo reintenta solo). Si
+ * la lectura es del mismo ticket y no cambio nada, se devuelve la carga anterior tal cual: guardarla
+ * de nuevo no renderiza el modal. Si cambio algo, lo intacto conserva su referencia.
+ *
+ * @param previa lo que se muestra ahora
+ * @param resultado la lectura que acaba de llegar
+ * @returns la carga a guardar; `previa` misma si no hay nada que actualizar
+ */
+export function cargaTrasLectura (previa: CargaDeTicket, resultado: CargaDeTicket): CargaDeTicket {
+  if (previa.fase !== 'listo') return resultado
+  if (resultado.fase === 'error') return previa
+  if (resultado.fase !== 'listo') return resultado
+
+  const ticket = conservarReferencias(previa.ticket, resultado.ticket)
+  const sinCambios = ticket === previa.ticket &&
+    resultado.estados === previa.estados &&
+    resultado.prioridades === previa.prioridades &&
+    resultado.adjuntos === previa.adjuntos
+
+  return sinCambios ? previa : { ...resultado, ticket }
 }
 
 /**

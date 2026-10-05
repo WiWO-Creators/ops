@@ -42,7 +42,7 @@ export const CLASE_FILA_SIN_LEER = 'bg-acento-suave/40'
 export function AsuntoDeTicket ({ id, asunto, marca }: { id: number, asunto: string, marca: string | null }): ReactElement {
   return (
     <span className="inline-flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1">
-      <EnlaceATicket id={id}>{asunto}</EnlaceATicket>
+      <EnlaceATicket id={id} sinLeer={marca !== null}>{asunto}</EnlaceATicket>
       {marca !== null && <Insignia tono="acento" tamano="chico">{marca}</Insignia>}
     </span>
   )

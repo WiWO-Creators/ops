@@ -2,7 +2,7 @@
 
 import Link from 'next/link'
 import { ArrowDown, Paperclip } from 'lucide-react'
-import { useCallback, useEffect, useRef, useState, type ReactElement, type ReactNode } from 'react'
+import { memo, useCallback, useEffect, useRef, useState, type ReactElement, type ReactNode } from 'react'
 import { Boton } from '@/componentes/formularios/Boton'
 import { Avatar } from '@/componentes/presentadores/Avatar'
 import { EnlacePersona } from '@/componentes/presentadores/EnlacePersona'
@@ -12,6 +12,7 @@ import { BarraProgreso } from '@/componentes/proyecto/CabeceraProyecto'
 import { Cargando, ErrorEstado, Vacio } from '@/componentes/estado/Estados'
 import { escribirEnBff } from '@/componentes/datos/mutaciones'
 import { observarLista } from '@/datos/refresco-lista'
+import type { AdjuntoTicket } from '@/datos/recursos'
 import type { Capacidad } from '@/datos/tipos'
 import { GLOSARIO } from '@/dominio/glosario'
 import {
@@ -28,7 +29,7 @@ import {
 import { cn } from '@/lib/clases'
 import { AccionesDelSolicitante } from './AccionesDelSolicitante'
 import { CajaDeRespuesta } from './CajaDeRespuesta'
-import { cargarTicket, type CargaDeTicket } from './carga-de-ticket'
+import { cargarTicket, cargaTrasLectura, type CargaDeTicket } from './carga-de-ticket'
 import { MenuAsignadoTicket } from './MenuAsignadoTicket'
 import { MenuCatalogoTicket } from './MenuCatalogoTicket'
 import { MenuProyectoTicket } from './MenuProyectoTicket'
@@ -46,7 +47,9 @@ import { useSeguimientoDelHilo } from './useSeguimientoDelHilo'
  * decision de cuando puede hacerlo es del backend, no de esta pantalla.
  *
  * **El hilo esta en vivo** mientras el modal esta abierto (`observarLista`: cada 30 s, al volver a
- * la pestaña y al recuperar el foco). Cada lectura lleva un numero de secuencia y solo se aplica si
+ * la pestaña y al recuperar el foco; no escucha los avisos de Tareas). Cada sondeo pide ficha e hilo:
+ * los adjuntos de apertura se piden una vez por apertura y, si una lectura no trae cambios, el estado
+ * no se reemplaza (ver `cargaTrasLectura`). Cada lectura lleva un numero de secuencia y solo se aplica si
  * es mas nueva que la ultima aplicada: una lectura lenta que llega tarde no puede pisar la respuesta
  * que se acaba de confirmar. La caja de respuesta tiene su propio estado, asi que el refresco no toca
  * lo que se esta escribiendo.
@@ -82,18 +85,21 @@ export function DetalleTicket ({
   const aplicadas = useRef(0)
   const refresco = useRef<AbortController | null>(null)
   const marcadoLeido = useRef(false)
+  const adjuntosConocidos = useRef<AdjuntoTicket[] | null>(null)
 
   /**
    * Aplica una lectura si es la mas nueva.
    *
    * Un error o un aborto no borran un ticket que ya se estaba mostrando: el hilo en vivo reintenta
    * solo, y vaciar la pantalla por un corte de red de un segundo se lee como que el ticket se perdio.
+   * Los adjuntos de apertura que la lectura resolvio se recuerdan para no pedirlos en el sondeo.
    */
   const aplicar = useCallback((numero: number, resultado: CargaDeTicket): void => {
     if (resultado.fase === 'cargando' || numero < aplicadas.current) return
 
     aplicadas.current = numero
-    setCarga((previa) => previa.fase === 'listo' && resultado.fase === 'error' ? previa : resultado)
+    if (resultado.fase === 'listo' && resultado.adjuntos !== null) adjuntosConocidos.current = resultado.adjuntos
+    setCarga((previa) => cargaTrasLectura(previa, resultado))
   }, [])
 
   useEffect(() => {
@@ -101,14 +107,15 @@ export function DetalleTicket ({
       async (senal) => {
         const numero = ++solicitadas.current
 
-        return { numero, resultado: await cargarTicket(fuente, ticketId, senal) }
+        return { numero, resultado: await cargarTicket(fuente, ticketId, senal, adjuntosConocidos.current) }
       },
       ({ numero, resultado }) => { aplicar(numero, resultado) },
       (fallo) => {
         setCarga((previa) => previa.fase === 'listo'
           ? previa
           : { fase: 'error', mensaje: fallo instanceof Error ? fallo.message : 'No se pudo cargar el ticket.' })
-      }
+      },
+      { eventos: [] }
     )
 
     return () => {
@@ -130,7 +137,7 @@ export function DetalleTicket ({
 
     refresco.current = control
 
-    const resultado = await cargarTicket(fuente, ticketId, control.signal)
+    const resultado = await cargarTicket(fuente, ticketId, control.signal, adjuntosConocidos.current)
 
     aplicar(numero, resultado)
 
@@ -395,7 +402,7 @@ function TareaVinculada ({ ticket, fuente }: { ticket: TicketVista, fuente: Fuen
  * Al abrir lleva la vista al ultimo mensaje; si llegan otros mientras se lee mas arriba, no mueve
  * nada y ofrece «Nuevos mensajes» (ver `useSeguimientoDelHilo`).
  */
-function Hilo ({ mensajes }: { mensajes: MensajeDeTicket[] }): ReactElement {
+const Hilo = memo(function Hilo ({ mensajes }: { mensajes: MensajeDeTicket[] }): ReactElement {
   const lista = useRef<HTMLOListElement>(null)
   const { hayNuevos, irAlUltimo } = useSeguimientoDelHilo(lista, mensajes.length)
 
@@ -449,10 +456,10 @@ function Hilo ({ mensajes }: { mensajes: MensajeDeTicket[] }): ReactElement {
       )}
     </section>
   )
-}
+})
 
 /** Los adjuntos de un mensaje, para bajar. Solo lectura: subir queda fuera de esta pantalla. */
-function Adjuntos ({ adjuntos }: { adjuntos: MensajeDeTicket['adjuntos'] }): ReactElement {
+const Adjuntos = memo(function Adjuntos ({ adjuntos }: { adjuntos: MensajeDeTicket['adjuntos'] }): ReactElement {
   return (
     <ul className="mt-1 flex flex-wrap gap-1.5" aria-label="Adjuntos">
       {adjuntos.map((adjunto) => (
@@ -479,7 +486,7 @@ function Adjuntos ({ adjuntos }: { adjuntos: MensajeDeTicket['adjuntos'] }): Rea
       ))}
     </ul>
   )
-}
+})
 
 /** Un par etiqueta/valor, como el `Dato` de la ficha de una Tarea. */
 function Dato ({ etiqueta, children }: { etiqueta: string, children: ReactNode }): ReactElement {

@@ -18,6 +18,7 @@ import { cn } from '@/lib/clases'
 import { CeldaEncabezado, CeldaTabla, CuerpoTabla, EncabezadoTabla, FilaTabla, Tabla } from './Tabla'
 import { ControlesTabla, PaginacionTabla } from './ControlesTabla'
 import { useFiltrosEnUrl } from './useFiltrosEnUrl'
+import { ProveedorUrlDeDetalle, type ConstructorDeUrlDeDetalle } from './url-de-detalle'
 import {
   clavesVisiblesPorDefecto,
   columnasVisibles,
@@ -266,6 +267,12 @@ export function TablaRecurso<T> ({
   })
   const consulta = useMemo(() => construirQuery(estado), [estado, construirQuery])
 
+  // Lo comparten `urlDeFila` y los enlaces de las celdas (`EnlaceATicket`): una sola lectura de la URL.
+  const urlDeDetalle = useCallback<ConstructorDeUrlDeDetalle>(
+    (clave, valor) => urlConParametroGlobal(new URLSearchParams(params.toString()), clave, String(valor)),
+    [params]
+  )
+
   // La consulta con la que llegaron los datos del servidor. Mientras la URL no se mueva de ahi no
   // hay nada que volver a pedir: pedirlo igual es una peticion de mas en cada montaje.
   const consultaInicial = useRef(consultaDelInicial ?? consulta)
@@ -384,7 +391,7 @@ export function TablaRecurso<T> ({
   function urlDeFila (fila: T): string | null {
     if (abrirEn === undefined) return null
 
-    return urlConParametroGlobal(new URLSearchParams(params.toString()), abrirEn.clave, String(abrirEn.valor(fila)))
+    return urlDeDetalle(abrirEn.clave, abrirEn.valor(fila))
   }
 
   /**
@@ -591,6 +598,7 @@ export function TablaRecurso<T> ({
   }
 
   return (
+    <ProveedorUrlDeDetalle value={urlDeDetalle}>
     <div className={cn('flex flex-col gap-3', className)}>
       <div className="flex flex-wrap items-start justify-between gap-2">
         <ControlesTabla
@@ -665,6 +673,7 @@ export function TablaRecurso<T> ({
 
       <PaginacionTabla paginacion={resultado.paginacion} onCambiar={cambiar} />
     </div>
+    </ProveedorUrlDeDetalle>
   )
 }
 
