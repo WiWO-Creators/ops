@@ -15,6 +15,8 @@ import type { DefinicionRecurso, OpcionFiltro, ResultadoLista } from '@/definici
 import { PORTAL_TICKETS } from '@/definiciones/portal-soporte'
 import { PORTAL_PROYECTOS } from '@/definiciones/portal-proyectos'
 import type { TicketPortal } from '@/datos/portal'
+import type { Referencia } from '@/datos/recursos'
+import { GLOSARIO } from '@/dominio/glosario'
 import { ultimaActividad } from '@/dominio/tickets-listados'
 import { PARAMETRO_TICKET } from '@/dominio/ticket-vista'
 
@@ -40,6 +42,22 @@ const DEFINICIONES = {
 /** La columna de ultima actividad del listado de soporte, que se pinta como en la bandeja del equipo. */
 const CLAVE_ACTIVIDAD = 'last_reply'
 
+/** La columna Proyecto del listado de soporte, que se nombra con los {espacios} del contacto. */
+const CLAVE_PROYECTO = 'project'
+
+/**
+ * El nombre del {espacio} de un ticket, o el texto de la definicion si no se conoce.
+ *
+ * @param ticket la fila
+ * @param nombres nombres de los {espacios} del contacto, por id
+ * @returns el nombre, `#id` si no se conoce, o "Sin proyecto"
+ */
+function nombreDelEspacio (ticket: TicketPortal, nombres: Map<number, string>): string {
+  if (ticket.project_id === null) return `Sin ${GLOSARIO.espacio.singular.toLowerCase()}`
+
+  return nombres.get(ticket.project_id) ?? `#${ticket.project_id}`
+}
+
 export type SeccionPortalListado = keyof typeof DEFINICIONES
 
 /** Secciones cuyo listado abre un detalle, y por que columna se entra. */
@@ -52,13 +70,16 @@ export function TablaPortal<T extends { id: number }> ({
   seccion,
   inicial,
   consultaDelInicial,
-  opcionesDeFiltro
+  opcionesDeFiltro,
+  espacios
 }: {
   seccion: SeccionPortalListado
   inicial: ResultadoLista<T>
   /** La consulta con la que el servidor armo `inicial`; ver `TablaRecurso`. */
   consultaDelInicial?: string
   opcionesDeFiltro?: Record<string, OpcionFiltro[]>
+  /** Los {espacios} del contacto, para nombrar la columna Proyecto de Soporte. Sin ellos queda `#id`. */
+  espacios?: Referencia[]
 }) {
   const esSoporte = seccion === 'soporte'
   const [refresco, setRefresco] = useState(0)
@@ -72,6 +93,7 @@ export function TablaPortal<T extends { id: number }> ({
   // Se memoiza porque `TablaRecurso` la usa como dependencia de sus efectos: una definicion nueva en
   // cada render volveria a pedir la pagina en bucle.
   const definicion = useMemo(() => {
+    const nombres = new Map((espacios ?? []).map((espacio) => [espacio.id, espacio.name]))
     const base = DEFINICIONES[seccion] as unknown as DefinicionRecurso<T>
     const claveEnlace = ENLACES[seccion]
 
@@ -107,10 +129,12 @@ export function TablaPortal<T extends { id: number }> ({
                 ...columna,
                 presentar: (fila: T) => <ActividadDeTicket instante={ultimaActividad(fila as unknown as TicketPortal)} />
               }
-            : columna
+            : esSoporte && columna.clave === CLAVE_PROYECTO
+              ? { ...columna, presentar: (fila: T) => nombreDelEspacio(fila as unknown as TicketPortal, nombres) }
+              : columna
       ))
     }
-  }, [seccion, esSoporte])
+  }, [seccion, esSoporte, espacios])
 
   return (
     <TablaRecurso

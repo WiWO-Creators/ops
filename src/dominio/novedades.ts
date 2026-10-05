@@ -55,6 +55,20 @@ export const NOVEDADES: Novedad[] = [
   {
     fecha: '2026-10-05',
     tipo: 'mejora',
+    titulo: 'La bandeja de Tickets muestra solo los abiertos',
+    detalle: 'Al entrar a Tickets ya no ves los cerrados: el filtro Estado dice «Abiertos». Para verlos todos, abre Estado y marca «Todos»; «Limpiar filtros» vuelve a los abiertos.',
+    commits: []
+  },
+  {
+    fecha: '2026-10-05',
+    tipo: 'mejora',
+    titulo: 'Portal: tus tickets muestran su Proyecto',
+    detalle: 'En la lista de tickets del portal hay una columna nueva con el Proyecto de cada ticket.',
+    commits: []
+  },
+  {
+    fecha: '2026-10-05',
+    tipo: 'mejora',
     titulo: 'Tickets más claros y sin perder lo que escribes',
     detalle: 'Al crear un ticket desde el portal, lo que escribes se guarda como borrador hasta que lo envías, y cuando te acercas al largo máximo del mensaje aparece un contador. En la lista del portal la última columna ahora dice «Última actividad», el estado y la prioridad editables muestran una flecha y en el móvil se ve a quién espera cada ticket.',
     commits: []

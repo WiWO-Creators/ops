@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import { useRouter } from 'next/navigation'
-import { alternarOrden, construirConsulta, direccionDe, leerConsulta } from '@/datos/consulta'
+import { alternarOrden, construirConsulta, construirConsultaDeUrl, direccionDe, leerConsulta } from '@/datos/consulta'
 import type { Columna, DefinicionRecurso, EstadoConsulta, OpcionFiltro, ResultadoLista } from '@/definiciones/tipos'
 import { Insignia } from '@/componentes/presentadores/Insignia'
 import type { Capacidad, Sobre } from '@/datos/tipos'
@@ -255,10 +255,13 @@ export function TablaRecurso<T> ({
 
   const leerEstado = useCallback((p: URLSearchParams) => leerConsulta(p, definicion), [definicion])
   const construirQuery = useCallback((e: EstadoConsulta) => construirConsulta(e, definicion), [definicion])
+  // Lo que se escribe en la URL difiere de lo que va a la API solo en el "todos" de los filtros con
+  // default: la API no lo recibe, la URL lo necesita para no volver al default.
+  const construirParaUrl = useCallback((e: EstadoConsulta) => construirConsultaDeUrl(e, definicion), [definicion])
 
   const { estado, params, cambiar: cambiarEnUrl, escribirParametro, leerParametro } = useFiltrosEnUrl<EstadoConsulta>({
     leer: leerEstado,
-    construir: construirQuery,
+    construir: construirParaUrl,
     prefijo: prefijoUrl
   })
   const consulta = useMemo(() => construirQuery(estado), [estado, construirQuery])

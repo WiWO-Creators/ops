@@ -37,6 +37,7 @@ export default async function SoportePagina (props: PageProps<'/portal/soporte'>
         seccion="soporte"
         definicion={PORTAL_TICKETS}
         parametrosDeUrl={await props.searchParams}
+        espacios={espacios}
         acciones={
           <NuevaSolicitud
             prioridades={listaDe(lookups, 'ticket_priorities')}

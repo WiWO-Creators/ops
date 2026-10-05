@@ -16,6 +16,11 @@ export const PORTAL_TICKETS: DefinicionRecurso<TicketPortal> = {
 
   columnas: [
     { clave: 'subject', encabezado: 'Asunto', ordenPor: 'subject', presentar: (t) => t.subject },
+    {
+      clave: 'project',
+      encabezado: GLOSARIO.espacio.singular,
+      presentar: (t) => (t.project_id === null ? `Sin ${GLOSARIO.espacio.singular.toLowerCase()}` : `#${t.project_id}`)
+    },
     { clave: 'status', encabezado: 'Estado', comoInsignia: 'ticket_statuses', presentar: (t) => t.status },
     { clave: 'priority', encabezado: 'Prioridad', comoInsignia: 'ticket_priorities', presentar: (t) => t.priority },
     { clave: 'date', encabezado: 'Abierto', ordenPor: 'date', presentar: (t) => formatearFecha(t.date) },

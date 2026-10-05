@@ -1,6 +1,7 @@
 import type { Columna, DefinicionRecurso, Filtro, OpcionFiltro } from './tipos.ts'
 import type { TicketEspacio } from '../datos/recursos.ts'
 import { GLOSARIO } from '../dominio/glosario.ts'
+import { ESTADOS_TICKET_ABIERTOS } from '../dominio/ticket-vista.ts'
 import { esperaDelTicket, ultimaActividad } from '../dominio/tickets-listados.ts'
 import { formatearFecha, formatearRelativo } from '../lib/fechas.ts'
 
@@ -120,12 +121,20 @@ function columnasDeTickets (conProyecto: boolean): Array<Columna<TicketEspacio>>
 /**
  * Filtros que la API acepta para todos (`RecursoTickets::consulta()` mas `esperando`).
  *
+ * @param conReposoAbiertos si el listado arranca sin los Cerrados: el filtro de Estado dice
+ *   "Abiertos" mientras vale ese reposo
  * @returns la lista, en el orden en que se ofrecen
  */
-function filtrosComunes (): Filtro[] {
+function filtrosComunes (conReposoAbiertos = false): Filtro[] {
   return [
     { clave: 'esperando', etiqueta: 'Esperando a', tipo: 'seleccion', opciones: OPCIONES_DE_ESPERA },
-    { clave: 'status', etiqueta: 'Estado', tipo: 'multiple', desdeLookup: 'ticket_statuses' },
+    {
+      clave: 'status',
+      etiqueta: 'Estado',
+      tipo: 'multiple',
+      desdeLookup: 'ticket_statuses',
+      ...(conReposoAbiertos ? { etiquetaDelDefecto: ETIQUETA_ESTADOS_ABIERTOS } : {})
+    },
     { clave: 'priority', etiqueta: 'Prioridad', tipo: 'seleccion', desdeLookup: 'ticket_priorities' }
   ]
 }
@@ -149,6 +158,9 @@ function filtrosDeAdministracion (alcance: AlcanceDeTickets): Filtro[] {
   ]
 }
 
+/** Texto del disparador de Estado mientras vale el reposo de la bandeja. */
+const ETIQUETA_ESTADOS_ABIERTOS = 'Abiertos'
+
 /** Ordenables comunes: la whitelist de orden de `RecursoTickets::consulta()`. */
 const ORDENABLES = ['subject', 'status', 'priority', 'date', 'lastreply']
 
@@ -168,7 +180,7 @@ export function definicionDeTickets (alcance: AlcanceDeTickets): DefinicionRecur
     titulo: GLOSARIO.ticket,
     columnas: columnasDeTickets(true),
     filtros: [
-      ...filtrosComunes(),
+      ...filtrosComunes(true),
       {
         clave: 'project_id',
         etiqueta: GLOSARIO.espacio.singular,
@@ -185,6 +197,7 @@ export function definicionDeTickets (alcance: AlcanceDeTickets): DefinicionRecur
     ],
     ordenables: ORDENABLES,
     ordenPorDefecto: '-date',
+    filtrosPorDefecto: { status: ESTADOS_TICKET_ABIERTOS.join(',') },
     busqueda: true,
     includes: []
   }

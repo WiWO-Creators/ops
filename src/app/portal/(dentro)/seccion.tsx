@@ -4,6 +4,7 @@ import { construirConsulta, leerConsulta, paramsDeUrl } from '@/datos/consulta'
 import { ErrorApi } from '@/datos/errores'
 import { cargarLookupsDelPortal, opcionesDeFiltros } from '@/datos/lookups'
 import { pedirPortal } from '@/datos/servidor'
+import type { Referencia } from '@/datos/recursos'
 import type { DefinicionRecurso, ResultadoLista } from '@/definiciones/tipos'
 import { TablaPortal, type SeccionPortalListado } from './TablaPortal'
 
@@ -25,7 +26,8 @@ export async function SeccionDePortal<T extends { id: number }> ({
   seccion,
   definicion,
   parametrosDeUrl,
-  acciones
+  acciones,
+  espacios
 }: {
   seccion: SeccionPortalListado
   definicion: DefinicionRecurso<T>
@@ -36,6 +38,8 @@ export async function SeccionDePortal<T extends { id: number }> ({
    * y un boton afuera quedaria en una fila propia, leyendose como si no fuera del listado.
    */
   acciones?: React.ReactNode
+  /** Los {espacios} del contacto, para nombrar la columna de un listado que la tiene (Soporte). */
+  espacios?: Referencia[]
 }) {
   const estado = leerConsulta(paramsDeUrl(parametrosDeUrl), definicion)
   const consulta = construirConsulta(estado, definicion)
@@ -68,6 +72,7 @@ export async function SeccionDePortal<T extends { id: number }> ({
           inicial={lista}
           consultaDelInicial={consulta}
           opcionesDeFiltro={opcionesDeFiltros(definicion, lookups)}
+          espacios={espacios}
         />
       </Suspense>
     </section>

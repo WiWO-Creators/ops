@@ -40,6 +40,24 @@ export const ESTADO_TICKET_EN_ESPERA = 4
 /** Estado «Respondido» de Perfex (id 3): a donde pasa un ticket abierto cuando el equipo contesta (G). */
 export const ESTADO_TICKET_RESPONDIDO = 3
 
+/** Estado «En progreso» de Perfex (id 2). */
+export const ESTADO_TICKET_EN_PROGRESO = 2
+
+/**
+ * Los estados de un ticket que sigue vivo: todos los de Perfex menos Cerrado, que es lo que la bandeja
+ * muestra por defecto.
+ *
+ * Es una lista y no «distinto de Cerrado» porque `filter[status]` solo admite `IN`. Un estado
+ * personalizado que se agregue en Perfex no entra aca y queda fuera del reposo de la bandeja; sigue
+ * apareciendo con «Todos» o marcandolo a mano.
+ */
+export const ESTADOS_TICKET_ABIERTOS: readonly number[] = [
+  ESTADO_TICKET_ABIERTO,
+  ESTADO_TICKET_EN_PROGRESO,
+  ESTADO_TICKET_RESPONDIDO,
+  ESTADO_TICKET_EN_ESPERA
+]
+
 /**
  * Evento de ventana que avisa que un ticket cambio (respuesta, estado, asignado, cierre, lectura).
  *
