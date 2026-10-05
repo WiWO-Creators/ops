@@ -104,7 +104,7 @@ export function ProyectoUnico (
       <div className="flex items-center gap-2">
         <CabeceraDeEspacio espacio={espacio} coincide={coincide} />
       </div>
-      <DetalleEspacio espacio={espacio} estado={estado} onEstado={onEstado} />
+      <DetalleEspacio espacio={espacio} estado={estado} onEstado={onEstado} conDesglose={false} />
     </article>
   )
 }
