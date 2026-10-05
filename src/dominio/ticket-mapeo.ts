@@ -1,4 +1,4 @@
-import type { AdjuntoTicket, EstadoLookup, Referencia, RespuestaTicket, TicketDetalle } from '../datos/recursos.ts'
+import type { AdjuntoTicket, EstadoLookup, Referencia, RespuestaTicket, SolicitanteTicket, TicketDetalle } from '../datos/recursos.ts'
 import type { RespuestaTicketPortal, TicketPortalDetalle } from '../datos/portal.ts'
 import { ESTADO_TICKET_ABIERTO, ESTADO_TICKET_CERRADO, ESTADO_TICKET_RESPONDIDO } from './ticket-estados.ts'
 import type { FuenteDeTicket, MotivoSinRespuesta } from './ticket-fuente.ts'
@@ -90,12 +90,14 @@ export interface TicketVista {
 /**
  * Nombre de quien abrio el ticket, en el orden en que lo resuelve la API.
  *
- * @param detalle la ficha del panel
+ * Es la regla comun de la ficha y de los listados: el listado agrega por su cuenta la empresa y un
+ * texto de respaldo (`nombreDelSolicitante`, en `definiciones/tickets.ts`); la ficha prefiere no
+ * inventar un nombre y deja `null`.
+ *
+ * @param solicitante el solicitante de la ficha o de la fila del listado
  * @returns el nombre del contacto, el del remitente del correo o su direccion; `null` si no hay nada
  */
-function nombreDelSolicitante (detalle: TicketDetalle): string | null {
-  const { solicitante } = detalle
-
+export function nombreDelRemitente (solicitante: Pick<SolicitanteTicket, 'contact' | 'name' | 'email'>): string | null {
   return solicitante.contact?.full_name ?? solicitante.name ?? solicitante.email ?? null
 }
 
@@ -129,7 +131,7 @@ export function ticketDelPanel (
   respuestas: RespuestaTicket[],
   archivos: AdjuntoTicket[] = []
 ): TicketVista {
-  const solicitante = nombreDelSolicitante(detalle)
+  const solicitante = nombreDelRemitente(detalle.solicitante)
   const apertura: MensajeDeTicket = {
     clave: 'apertura',
     autor: solicitante ?? 'Cliente',

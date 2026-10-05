@@ -11,6 +11,7 @@ import { resolverEstado } from '@/dominio/estados-tarea'
 import {
   esperaDelTicket,
   esperaTuRespuesta,
+  nombreDeEspacio,
   noLeidoPorElCliente,
   noLeidoPorElEquipo,
   ultimaActividad
@@ -140,11 +141,11 @@ export function conCeldasDeTickets (
 
   if (nombreDeProyecto !== undefined) {
     presentadores.project = (t) => {
-      if (t.project_id === null || t.project_id === undefined) {
-        return <span className="text-texto-sutil">Sin {GLOSARIO.espacio.singular.toLowerCase()}</span>
-      }
+      const nombre = nombreDeEspacio(t.project_id, nombreDeProyecto)
 
-      return nombreDeProyecto(t.project_id) ?? `#${t.project_id}`
+      return t.project_id === null || t.project_id === undefined
+        ? <span className="text-texto-sutil">{nombre}</span>
+        : nombre
     }
   }
 

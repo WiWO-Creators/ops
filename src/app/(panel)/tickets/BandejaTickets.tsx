@@ -12,8 +12,8 @@ import {
   definicionDeTickets,
   opcionesDeProyectoDeTickets
 } from '@/definiciones/tickets'
-import { GLOSARIO } from '@/dominio/glosario'
 import { TICKET_DEL_PANEL, type ProyectoElegible } from '@/dominio/ticket-vista'
+import { nombreDeEspacio } from '@/dominio/tickets-listados'
 
 /**
  * Capacidades del equipo sobre un ticket: las mismas que en la pestaña del Proyecto. La API decide por
@@ -61,9 +61,7 @@ export function BandejaTickets ({ esAdmin, proyectos }: { esAdmin: boolean, proy
           <TarjetaDeTicket
             ticket={t}
             catalogos={catalogos}
-            proyecto={t.project_id === null || t.project_id === undefined
-              ? `Sin ${GLOSARIO.espacio.singular.toLowerCase()}`
-              : nombres.get(t.project_id) ?? `#${t.project_id}`}
+            proyecto={nombreDeEspacio(t.project_id, (id) => nombres.get(id))}
           />
         )}
         tarjetasEnMovil

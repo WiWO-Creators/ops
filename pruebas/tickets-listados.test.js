@@ -17,6 +17,7 @@ import {
   etiquetaDePestana,
   filtraEsperandoAlEquipo,
   leerContadores,
+  nombreDeEspacio,
   noLeidoPorElCliente,
   noLeidoPorElEquipo,
   ultimaActividad
@@ -233,4 +234,12 @@ test('el solicitante cae del contacto al nombre, al correo y a la empresa', () =
 
 test('el evento que emite el modal es el mismo que escuchan las listas', () => {
   assert.equal(EVENTO_TICKETS_CAMBIADOS, EVENTO_DEL_MODAL)
+})
+
+test('nombreDeEspacio: sin espacio, con nombre conocido y con id desconocido', () => {
+  assert.equal(nombreDeEspacio(null), 'Sin proyecto')
+  assert.equal(nombreDeEspacio(undefined, () => 'Portal'), 'Sin proyecto')
+  assert.equal(nombreDeEspacio(7, (id) => (id === 7 ? 'Portal' : null)), 'Portal')
+  assert.equal(nombreDeEspacio(8, (id) => (id === 7 ? 'Portal' : null)), '#8')
+  assert.equal(nombreDeEspacio(9), '#9')
 })

@@ -1,4 +1,5 @@
 import { formatearRelativo } from '../lib/fechas.ts'
+import { GLOSARIO } from './glosario.ts'
 import { ESTADO_TICKET_CERRADO } from './ticket-estados.ts'
 
 /**
@@ -27,8 +28,8 @@ export interface FilaConEspera {
   adminread?: boolean | number | null
 }
 
-/** Espera de un ticket, lista para pintar. */
-export interface EsperaDeTicket {
+/** Espera de un ticket, lista para pintar. El componente que la dibuja es `EsperaDeTicket`. */
+export interface EsperaCalculada {
   /** A quien le toca mover: `equipo` si el cliente escribio lo ultimo, `cliente` al reves. */
   lado: LadoDelTicket
   etiqueta: string
@@ -49,7 +50,7 @@ export interface EsperaDeTicket {
  * @param ahora referencia para el tiempo relativo, inyectable en pruebas
  * @returns la espera, o `null`
  */
-export function esperaDelTicket (fila: FilaConEspera, ahora: Date = new Date()): EsperaDeTicket | null {
+export function esperaDelTicket (fila: FilaConEspera, ahora: Date = new Date()): EsperaCalculada | null {
   if (fila.status === ESTADO_TICKET_CERRADO) return null
   if (fila.ultimo_de !== 'equipo' && fila.ultimo_de !== 'cliente') return null
 
@@ -218,4 +219,20 @@ export function alternarEsperandoAlEquipo (params: URLSearchParams): string {
   siguientes.delete('page')
 
   return `?${siguientes.toString()}`
+}
+
+/**
+ * Como se nombra el {espacio} de un ticket en un listado.
+ *
+ * @param id el `project_id` de la fila; `null` o `undefined` si el ticket no tiene {espacio}
+ * @param nombrePorId como se nombra un {espacio} por su id; ausente o `null` = se deja el `#id`
+ * @returns el nombre, `#id` si no se conoce, o "Sin {espacio}"
+ */
+export function nombreDeEspacio (
+  id: number | null | undefined,
+  nombrePorId?: (id: number) => string | null | undefined
+): string {
+  if (id === null || id === undefined) return `Sin ${GLOSARIO.espacio.singular.toLowerCase()}`
+
+  return nombrePorId?.(id) ?? `#${id}`
 }

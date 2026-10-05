@@ -17,8 +17,7 @@ import { PORTAL_TICKETS } from '@/definiciones/portal-soporte'
 import { PORTAL_PROYECTOS } from '@/definiciones/portal-proyectos'
 import type { TicketPortal } from '@/datos/portal'
 import type { Referencia } from '@/datos/recursos'
-import { GLOSARIO } from '@/dominio/glosario'
-import { ultimaActividad } from '@/dominio/tickets-listados'
+import { nombreDeEspacio, ultimaActividad } from '@/dominio/tickets-listados'
 
 /**
  * Las tablas del portal, del lado del cliente.
@@ -44,19 +43,6 @@ const CLAVE_ACTIVIDAD = 'last_reply'
 
 /** La columna Proyecto del listado de soporte, que se nombra con los {espacios} del contacto. */
 const CLAVE_PROYECTO = 'project'
-
-/**
- * El nombre del {espacio} de un ticket, o el texto de la definicion si no se conoce.
- *
- * @param ticket la fila
- * @param nombres nombres de los {espacios} del contacto, por id
- * @returns el nombre, `#id` si no se conoce, o "Sin proyecto"
- */
-function nombreDelEspacio (ticket: TicketPortal, nombres: Map<number, string>): string {
-  if (ticket.project_id === null) return `Sin ${GLOSARIO.espacio.singular.toLowerCase()}`
-
-  return nombres.get(ticket.project_id) ?? `#${ticket.project_id}`
-}
 
 export type SeccionPortalListado = keyof typeof DEFINICIONES
 
@@ -125,7 +111,7 @@ export function TablaPortal<T extends { id: number }> ({
                 presentar: (fila: T) => <ActividadDeTicket instante={ultimaActividad(fila as unknown as TicketPortal)} />
               }
             : esSoporte && columna.clave === CLAVE_PROYECTO
-              ? { ...columna, presentar: (fila: T) => nombreDelEspacio(fila as unknown as TicketPortal, nombres) }
+              ? { ...columna, presentar: (fila: T) => nombreDeEspacio((fila as unknown as TicketPortal).project_id, (id) => nombres.get(id)) }
               : columna
       ))
     }

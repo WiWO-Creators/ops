@@ -2,6 +2,7 @@ import type { Columna, DefinicionRecurso, Filtro, OpcionFiltro } from './tipos.t
 import type { TicketEspacio } from '../datos/recursos.ts'
 import { GLOSARIO } from '../dominio/glosario.ts'
 import { ESTADOS_TICKET_ABIERTOS } from '../dominio/ticket-estados.ts'
+import { nombreDelRemitente } from '../dominio/ticket-mapeo.ts'
 import { esperaDelTicket, ultimaActividad } from '../dominio/tickets-listados.ts'
 import { formatearFecha, formatearRelativo } from '../lib/fechas.ts'
 
@@ -56,11 +57,7 @@ export function nombreDelSolicitante (ticket: Pick<TicketEspacio, 'solicitante'>
 
   if (solicitante === undefined || solicitante === null) return 'Sin solicitante'
 
-  return solicitante.contact?.full_name ??
-    solicitante.name ??
-    solicitante.email ??
-    solicitante.client?.name ??
-    'Sin solicitante'
+  return nombreDelRemitente(solicitante) ?? solicitante.client?.name ?? 'Sin solicitante'
 }
 
 /**
