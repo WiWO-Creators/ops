@@ -1,16 +1,17 @@
 'use client'
 
 import Link from 'next/link'
-import { useCallback, useMemo, useState } from 'react'
+import { useMemo } from 'react'
 import { TablaRecurso } from '@/componentes/datos/TablaRecurso'
 import {
+  ABRIR_TICKET_EN_MODAL,
   ActividadDeTicket,
   AsuntoDeTicket,
   TarjetaDeSolicitud,
   claseDeFilaDeSolicitud,
   marcaDeSolicitud
 } from '@/componentes/datos/celdas-tickets'
-import { useAlCambiarTickets, useAlCerrarTicket } from '@/componentes/datos/useAlCambiarTickets'
+import { useRefrescoDeTickets } from '@/componentes/datos/useAlCambiarTickets'
 import type { DefinicionRecurso, OpcionFiltro, ResultadoLista } from '@/definiciones/tipos'
 import { PORTAL_TICKETS } from '@/definiciones/portal-soporte'
 import { PORTAL_PROYECTOS } from '@/definiciones/portal-proyectos'
@@ -18,7 +19,6 @@ import type { TicketPortal } from '@/datos/portal'
 import type { Referencia } from '@/datos/recursos'
 import { GLOSARIO } from '@/dominio/glosario'
 import { ultimaActividad } from '@/dominio/tickets-listados'
-import { PARAMETRO_TICKET } from '@/dominio/ticket-estados'
 
 /**
  * Las tablas del portal, del lado del cliente.
@@ -82,13 +82,8 @@ export function TablaPortal<T extends { id: number }> ({
   espacios?: Referencia[]
 }) {
   const esSoporte = seccion === 'soporte'
-  const [refresco, setRefresco] = useState(0)
-
   // Solo la bandeja de soporte escucha: un ticket que cambio no mueve la lista de Proyectos.
-  const alCambiar = useCallback(() => { if (esSoporte) setRefresco((n) => n + 1) }, [esSoporte])
-  useAlCambiarTickets(alCambiar)
-  // Abrir la ficha la marca como leida en la API: al cerrar se vuelve a pedir para quitar la marca.
-  useAlCerrarTicket(alCambiar)
+  const refresco = useRefrescoDeTickets(esSoporte)
 
   // Se memoiza porque `TablaRecurso` la usa como dependencia de sus efectos: una definicion nueva en
   // cada render volveria a pedir la pagina en bucle.
@@ -144,7 +139,7 @@ export function TablaPortal<T extends { id: number }> ({
       refresco={refresco}
       claveFila={(fila) => fila.id}
       opcionesDeFiltro={opcionesDeFiltro}
-      abrirEn={esSoporte ? { clave: PARAMETRO_TICKET, valor: (fila) => fila.id, superficial: true } : undefined}
+      abrirEn={esSoporte ? ABRIR_TICKET_EN_MODAL : undefined}
       claseFila={esSoporte ? (fila) => claseDeFilaDeSolicitud(fila as unknown as TicketPortal) : undefined}
       tarjeta={esSoporte
         ? (fila, catalogos) => <TarjetaDeSolicitud ticket={fila as unknown as TicketPortal} catalogos={catalogos} />

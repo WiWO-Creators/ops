@@ -6,6 +6,7 @@ import type { TicketEspacio } from '@/datos/recursos'
 import type { TicketPortal } from '@/datos/portal'
 import { nombreDelSolicitante } from '@/definiciones/tickets'
 import { GLOSARIO } from '@/dominio/glosario'
+import { PARAMETRO_TICKET } from '@/dominio/ticket-estados'
 import { resolverEstado } from '@/dominio/estados-tarea'
 import {
   esperaDelTicket,
@@ -25,6 +26,16 @@ import { cn } from '@/lib/clases'
  * si una pantalla lo pintara en negrita y otra con una insignia, la persona tendria que aprender dos
  * codigos para lo mismo.
  */
+
+/**
+ * Como una lista abre el modal de un ticket: la URL gana `?ticket={id}` sin navegar (`superficial`),
+ * que es lo que lee `ModalTicket`. Es el `abrirEn` de las tres listas de tickets.
+ */
+export const ABRIR_TICKET_EN_MODAL = {
+  clave: PARAMETRO_TICKET,
+  valor: (fila: { id: number }) => fila.id,
+  superficial: true
+} as const
 
 /** Fondo de una fila con algo sin leer. Suave: marca la fila sin competir con las insignias. */
 export const CLASE_FILA_SIN_LEER = 'bg-acento-suave/40'

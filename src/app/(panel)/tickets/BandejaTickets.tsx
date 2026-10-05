@@ -1,9 +1,9 @@
 'use client'
 
-import { Suspense, useCallback, useMemo, useState, type ReactElement } from 'react'
+import { Suspense, useMemo, type ReactElement } from 'react'
 import { FiltroEsperandoAlEquipo } from '@/componentes/datos/FiltroEsperandoAlEquipo'
-import { TarjetaDeTicket, claseDeFilaDeTicket, conCeldasDeTickets } from '@/componentes/datos/celdas-tickets'
-import { useAlCambiarTickets, useAlCerrarTicket } from '@/componentes/datos/useAlCambiarTickets'
+import { ABRIR_TICKET_EN_MODAL, TarjetaDeTicket, claseDeFilaDeTicket, conCeldasDeTickets } from '@/componentes/datos/celdas-tickets'
+import { useRefrescoDeTickets } from '@/componentes/datos/useAlCambiarTickets'
 import { PanelRecurso } from '@/componentes/proyecto/PanelRecurso'
 import { ModalTicket } from '@/componentes/tickets/ModalTicket'
 import type { Capacidad } from '@/datos/tipos'
@@ -13,7 +13,6 @@ import {
   opcionesDeProyectoDeTickets
 } from '@/definiciones/tickets'
 import { GLOSARIO } from '@/dominio/glosario'
-import { PARAMETRO_TICKET } from '@/dominio/ticket-estados'
 import { TICKET_DEL_PANEL, type ProyectoElegible } from '@/dominio/ticket-vista'
 
 /**
@@ -34,7 +33,7 @@ const TICKETS_DEL_EQUIPO: Capacidad[] = ['edit']
  * @param props.proyectos los Proyectos visibles, para nombrarlos, filtrar y mover un ticket de uno a otro
  */
 export function BandejaTickets ({ esAdmin, proyectos }: { esAdmin: boolean, proyectos: ProyectoElegible[] }): ReactElement {
-  const [revision, setRevision] = useState(0)
+  const revision = useRefrescoDeTickets()
 
   const nombres = useMemo(() => new Map(proyectos.map((p) => [p.id, p.name])), [proyectos])
 
@@ -47,12 +46,6 @@ export function BandejaTickets ({ esAdmin, proyectos }: { esAdmin: boolean, proy
     () => ({ [CATALOGO_PROYECTOS_DE_TICKETS]: opcionesDeProyectoDeTickets(proyectos) }),
     [proyectos]
   )
-
-  const alCambiar = useCallback(() => { setRevision((n) => n + 1) }, [])
-
-  useAlCambiarTickets(alCambiar)
-  // Abrir la ficha la marca como leida en la API: al cerrar se vuelve a pedir para quitar la marca.
-  useAlCerrarTicket(alCambiar)
 
   return (
     <>
@@ -74,7 +67,7 @@ export function BandejaTickets ({ esAdmin, proyectos }: { esAdmin: boolean, proy
           />
         )}
         tarjetasEnMovil
-        abrirEn={{ clave: PARAMETRO_TICKET, valor: (t) => t.id, superficial: true }}
+        abrirEn={ABRIR_TICKET_EN_MODAL}
       />
       {/* `ModalTicket` lee `useSearchParams`; sin este limite falla el build de la ruta. */}
       <Suspense fallback={null}>

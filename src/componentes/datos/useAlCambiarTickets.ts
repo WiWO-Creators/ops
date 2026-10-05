@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useEffectEvent, useRef } from 'react'
+import { useCallback, useEffect, useEffectEvent, useRef, useState } from 'react'
 import { useSearchParams } from 'next/navigation'
 import { idDeParametro } from '@/componentes/datos/tabla'
 import { agruparAvisos } from '@/lib/agrupar-avisos'
@@ -61,4 +61,25 @@ export function useAlCerrarTicket (alCerrar: () => void): void {
 
     previo.current = abierto
   }, [abierto])
+}
+
+/**
+ * El contador de revision de una lista de tickets, que sube cuando un ticket cambia o se cierra su
+ * modal. Se pasa como `revision` a la lista para que vuelva a pedir su pagina con los filtros puestos.
+ *
+ * Junta el cableado que copiaban las bandejas: `useAlCambiarTickets` + `useAlCerrarTicket` (abrir la
+ * ficha la marca como leida en la API: al cerrar se vuelve a pedir para quitar la marca). Tiene que
+ * montarse dentro de un limite de `Suspense`, por `useAlCerrarTicket`.
+ *
+ * @param activo `false` si la lista no muestra tickets y no debe pedirse de nuevo (por defecto `true`)
+ * @returns el numero de revision
+ */
+export function useRefrescoDeTickets (activo = true): number {
+  const [revision, setRevision] = useState(0)
+  const alCambiar = useCallback(() => { if (activo) setRevision((n) => n + 1) }, [activo])
+
+  useAlCambiarTickets(alCambiar)
+  useAlCerrarTicket(alCambiar)
+
+  return revision
 }
