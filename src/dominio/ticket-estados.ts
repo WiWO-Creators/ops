@@ -53,3 +53,14 @@ export const ESTADOS_TICKET_ABIERTOS: readonly number[] = [
  * refresco. Lleva `{ id }` en `detail`. El nombre es parte del contrato entre frentes: no cambiarlo.
  */
 export const EVENTO_TICKETS_CAMBIADOS = 'ops:tickets-cambiados'
+
+/**
+ * Avisa a la ventana que un ticket cambio. Ver {@link EVENTO_TICKETS_CAMBIADOS}.
+ *
+ * @param id el ticket
+ * @param ventana la ventana; por defecto la global, si existe
+ */
+export function avisarCambioDeTicket (id: number, ventana: Pick<Window, 'dispatchEvent'> | null = typeof window === 'undefined' ? null : window): void {
+  ventana?.dispatchEvent(new CustomEvent(EVENTO_TICKETS_CAMBIADOS, { detail: { id } }))
+}
+
