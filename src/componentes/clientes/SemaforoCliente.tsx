@@ -1,7 +1,8 @@
-import { Minus, TrendingDown, TrendingUp } from 'lucide-react'
+import { TrendingDown, TrendingUp } from 'lucide-react'
 import { Insignia, type TonoInsignia } from '@/componentes/presentadores/Insignia'
 import type { ScoreCliente, SemaforoCliente as Tramo, SenalCarga, SenalPlazos, SenalVencimientos } from '@/datos/recursos'
 import { GLOSARIO } from '@/dominio/glosario'
+import { notaDePesos } from '@/dominio/tramos-de-semaforo'
 import { cn } from '@/lib/clases'
 
 /**
@@ -149,13 +150,26 @@ export function NumeroDeScore (
  * Puntos ganados o perdidos contra la foto anterior.
  *
  * Sin foto anterior no dibuja nada: un "0" ahí se lee como "no se movió", que es distinto de "es la
- * primera medición". El icono acompaña al signo, no lo reemplaza.
+ * primera medición". El icono acompaña al signo, no lo reemplaza. Un 0 se dice "Sin cambio" y no
+ * "– 0", que se lee como un valor negativo.
+ *
+ * @param puntos puntos contra la foto anterior; `null` si no hay con qué comparar
+ * @param ocultarSinCambio no dibujar nada cuando no hubo movimiento: en una lista de cuentas, una
+ *   columna de "Sin cambio" repetido es ruido y deja de mostrar lo que sí se movió
  */
-export function Variacion ({ puntos }: { puntos: number | null }) {
+export function Variacion (
+  { puntos, ocultarSinCambio = false }: { puntos: number | null, ocultarSinCambio?: boolean }
+) {
   if (puntos === null) return null
 
-  const Icono = puntos > 0 ? TrendingUp : puntos < 0 ? TrendingDown : Minus
-  const tono = puntos > 0 ? 'text-texto-exito' : puntos < 0 ? 'text-texto-peligro' : 'text-texto-tenue'
+  if (puntos === 0) {
+    return ocultarSinCambio
+      ? null
+      : <span className="text-texto-sutil text-xs" title="Contra la medición anterior">Sin cambio</span>
+  }
+
+  const Icono = puntos > 0 ? TrendingUp : TrendingDown
+  const tono = puntos > 0 ? 'text-texto-exito' : 'text-texto-peligro'
 
   return (
     <span
@@ -172,26 +186,34 @@ export function Variacion ({ puntos }: { puntos: number | null }) {
  * Las tres señales con su sub-score, su peso y los contadores que las explican.
  *
  * @param senales el bloque `senales` de cualquiera de los dos scores
+ * @param conNota añadir, si corresponde, la nota de qué señales cuentan (por defecto sí)
  */
-export function DesgloseSenales ({ senales, className }: { senales: SenalesDelScore, className?: string }) {
+export function DesgloseSenales (
+  { senales, className, conNota = true }: { senales: SenalesDelScore, className?: string, conNota?: boolean }
+) {
+  const nota = conNota ? notaDePesos(senales) : null
+
   return (
-    <dl className={cn('flex flex-col gap-2', className)}>
-      <Senal
-        nombre="Cumplimiento de plazos"
-        senal={senales.plazos}
-        detalle={detallePlazos(senales.plazos)}
-      />
-      <Senal
-        nombre="Carga y actividad"
-        senal={senales.carga}
-        detalle={detalleCarga(senales.carga)}
-      />
-      <Senal
-        nombre="Vencimientos próximos"
-        senal={senales.vencimientos}
-        detalle={detalleVencimientos(senales.vencimientos)}
-      />
-    </dl>
+    <div className={cn('flex flex-col gap-2', className)}>
+      <dl className="flex flex-col gap-2">
+        <Senal
+          nombre="Cumplimiento de plazos"
+          senal={senales.plazos}
+          detalle={detallePlazos(senales.plazos)}
+        />
+        <Senal
+          nombre="Carga y actividad"
+          senal={senales.carga}
+          detalle={detalleCarga(senales.carga)}
+        />
+        <Senal
+          nombre="Vencimientos próximos"
+          senal={senales.vencimientos}
+          detalle={detalleVencimientos(senales.vencimientos)}
+        />
+      </dl>
+      {nota !== null && <p className="text-texto-tenue text-xs">{nota}</p>}
+    </div>
   )
 }
 
@@ -199,8 +221,8 @@ export function DesgloseSenales ({ senales, className }: { senales: SenalesDelSc
  * Una señal: su nombre, su sub-score sobre 100, cuánto pesa, y los contadores que lo explican.
  *
  * Una señal con `score: null` **no aplica** —no hay universo que medir— y su peso quedó fuera del
- * promedio. Se muestra igual, con su motivo: esconderla haría que los pesos visibles no sumaran y
- * que el score pareciera mal calculado.
+ * promedio. Se muestra igual, como "No aplica" y sin su peso —que no cuenta, y mostrarlo hace creer
+ * que sí—; esconderla haría que el score pareciera mal calculado.
  */
 function Senal (
   { nombre, senal, detalle }:
@@ -213,10 +235,14 @@ function Senal (
         <dd className="text-texto-tenue text-xs">{detalle}</dd>
       </div>
       <div className="flex shrink-0 items-baseline gap-1 tabular-nums">
-        <span className={senal.score === null ? 'text-texto-tenue' : 'font-semibold'}>
-          {senal.score ?? 'n/a'}
-        </span>
-        <span className="text-texto-tenue text-xs">· {senal.peso}%</span>
+        {senal.score === null
+          ? <span className="text-texto-sutil">No aplica</span>
+          : (
+            <>
+              <span className="font-semibold">{senal.score}</span>
+              <span className="text-texto-tenue text-xs">· {senal.peso}%</span>
+            </>
+            )}
       </div>
     </div>
   )

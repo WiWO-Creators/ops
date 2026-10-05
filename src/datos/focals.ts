@@ -110,6 +110,21 @@ export function rutaDeEstado (espacioId: number): string {
   return `ia/proyectos/${encodeURIComponent(String(espacioId))}/estado`
 }
 
+/**
+ * A dónde ir a nombrar al focal de una cuenta: la pestaña Focales de la ficha del cliente.
+ *
+ * @param clienteId el cliente sin focal
+ * @returns la ruta interna, con la pestaña ya elegida
+ * @throws RangeError si el id no es un entero mayor que 0
+ */
+export function rutaDeFocalesDelCliente (clienteId: number): string {
+  if (!Number.isInteger(clienteId) || clienteId <= 0) {
+    throw new RangeError(`El id del cliente debe ser un entero mayor que 0, y llegó ${String(clienteId)}.`)
+  }
+
+  return `/clientes/${clienteId}?tab=focales`
+}
+
 /** Un recuento por tramo con los cuatro tramos presentes y en cero. */
 export function tramosEnCero (): Record<SemaforoCliente, number> {
   return { verde: 0, amarillo: 0, rojo: 0, sin_datos: 0 }

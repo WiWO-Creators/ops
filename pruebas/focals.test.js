@@ -22,6 +22,7 @@ import {
   ordenarPorSemaforo,
   pedirEstado,
   rutaDeEstado,
+  rutaDeFocalesDelCliente,
   tramosEnCero
 } from '../src/datos/focals.ts'
 import { GLOSARIO, nombrar } from '../src/dominio/glosario.ts'
@@ -149,6 +150,16 @@ test('la ruta del estado rechaza un id que no sea un entero mayor que 0', () => 
   // Un NaN, un cero, un negativo o un decimal armarían una ruta que el BFF rechaza sin explicar por qué.
   for (const invalido of [Number.NaN, 0, -3, 1.5, Infinity]) {
     assert.throws(() => rutaDeEstado(invalido), RangeError)
+  }
+})
+
+test('la ruta para asignar focal abre la pestaña Focales de la ficha del cliente', () => {
+  assert.equal(rutaDeFocalesDelCliente(7), '/clientes/7?tab=focales')
+})
+
+test('la ruta para asignar focal rechaza un id que no sea un entero mayor que 0', () => {
+  for (const invalido of [Number.NaN, 0, -1, 2.5]) {
+    assert.throws(() => rutaDeFocalesDelCliente(invalido), RangeError)
   }
 })
 

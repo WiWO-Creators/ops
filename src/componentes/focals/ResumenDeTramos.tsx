@@ -14,10 +14,12 @@ import { cn } from '@/lib/clases'
  *
  * `aria-hidden` porque el recuento escrito ya lo dice con todas las letras.
  *
- * @param espacios los Proyectos de la cuenta; sin ninguno no se dibuja nada
+ * Con uno solo o ninguno no se dibuja: una barra de un único color repite el tramo de la cuenta.
+ *
+ * @param espacios los Proyectos de la cuenta
  */
 export function BarraDeReparto ({ espacios }: { espacios: ScoreEspacio[] }) {
-  if (espacios.length === 0) return null
+  if (espacios.length <= 1) return null
 
   const cuenta = contarPorTramo(espacios)
 

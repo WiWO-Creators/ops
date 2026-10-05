@@ -14,7 +14,9 @@ import assert from 'node:assert/strict'
 import {
   FILTROS,
   ORDENES,
+  EXPLICACION_DE_FORMULA,
   descripcionDeFocals,
+  esProyectoUnico,
   esSinFocal,
   fotoDeLaCartera,
   filtrarCartera as filtrarPreparada,
@@ -328,11 +330,33 @@ test('el vacío de la cartera propia admite que la foto del día aún no exista'
   assert.match(textoDeCarteraVacia(true).descripcion, /corrida diaria/)
 })
 
-test('la descripción de la pantalla cierra igual con y sin alcance conocido', () => {
-  const cierre = /redacta Thinking Orb a partir de esas mismas señales\.$/
-
-  for (const alcance of [true, false, null]) assert.match(descripcionDeFocals(alcance), cierre)
+test('la descripción de la pantalla es una frase de alcance, sin la fórmula', () => {
+  for (const alcance of [true, false, null]) {
+    assert.doesNotMatch(descripcionDeFocals(alcance), /fórmula|Thinking Orb/)
+    assert.match(descripcionDeFocals(alcance), /de la que peor está a la que mejor/)
+  }
 
   assert.match(descripcionDeFocals(true), /con quien responde por cada una/)
   assert.match(descripcionDeFocals(false), /de las que respondes/)
+})
+
+test('la fórmula se dice aparte, con los tres pesos y quién redacta el estado', () => {
+  assert.match(EXPLICACION_DE_FORMULA, /45 %.*30 %.*25 %/)
+  assert.match(EXPLICACION_DE_FORMULA, /Thinking Orb/)
+})
+
+test('un solo Proyecto con las mismas señales que la cuenta se devuelve como único', () => {
+  const unica = cuenta(1, 'rojo', [], ['rojo'])
+
+  assert.equal(esProyectoUnico(unica), unica.espacios[0])
+})
+
+test('sin Proyectos, con varios o con señales distintas no hay Proyecto único', () => {
+  assert.equal(esProyectoUnico(cuenta(1, 'rojo', [], [])), null)
+  assert.equal(esProyectoUnico(cuenta(1, 'rojo', [], ['rojo', 'verde'])), null)
+
+  const distinta = cuenta(1, 'rojo', [], ['rojo'])
+  distinta.espacios[0].senales.plazos.valor = 99
+
+  assert.equal(esProyectoUnico(distinta), null)
 })
