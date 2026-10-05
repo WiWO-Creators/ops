@@ -6,13 +6,19 @@ import { FilaCuenta } from './FilaCuenta'
 import type { EstadosRedactados } from './FilaEspacio'
 import { useRecorteDeCartera } from './useRecorteDeCartera'
 import { Cargando, Vacio } from '@/componentes/estado/Estados'
+import { Boton } from '@/componentes/formularios/Boton'
 import type { CuentaFocal, EstadoDeSalud } from '@/datos/focals'
 import {
   filtrarCartera,
+  fotoDeLaCartera,
   ordenarCartera,
   prepararCartera,
+  proyectosCoincidentes,
   resumirCartera
 } from '@/dominio/cartera'
+
+/** Lo que reciben las cuentas sin ningún Proyecto marcado: una sola referencia, para no romper su `memo`. */
+const SIN_COINCIDENCIAS: readonly number[] = []
 
 /**
  * La cartera de un Focal: sus clientes, y dentro de cada uno sus Proyectos.
@@ -45,6 +51,7 @@ import {
  * explicación. Lo que no cambia nunca es el semáforo, que no depende del modelo.
  *
  * @param cuentas los clientes de esta persona, ya ordenados por el servidor del peor al mejor
+ * @param hoy el día de hoy en la zona del negocio, `YYYY-MM-DD`: con él se dice si la foto es de otro día
  * @param mostrarFocal si cada cuenta lleva el nombre de quien responde por ella. Se enciende para
  *   quien mira la cartera entera: sobre la cartera propia sería el mismo nombre en todas las filas
  *
@@ -52,7 +59,7 @@ import {
  * cualquier otra vista con filtros, y recargar no la pierde. El estado de IA redactado vive acá y no en
  * cada fila, para que cerrar una cuenta o filtrar no lo pierda.
  */
-export function PanelFocals (props: { cuentas: CuentaFocal[], mostrarFocal?: boolean }) {
+export function PanelFocals (props: { cuentas: CuentaFocal[], hoy: string, mostrarFocal?: boolean }) {
   // `useFiltrosEnUrl` lee `useSearchParams`: sin este limite de Suspense falla el build.
   return (
     <Suspense fallback={<Cargando alto="min-h-60" mensaje="Cargando la cartera…" />}>
@@ -63,9 +70,11 @@ export function PanelFocals (props: { cuentas: CuentaFocal[], mostrarFocal?: boo
 
 function CuerpoDePanelFocals ({
   cuentas,
+  hoy,
   mostrarFocal = false
 }: {
   cuentas: CuentaFocal[]
+  hoy: string
   mostrarFocal?: boolean
 }) {
   const recorte = useRecorteDeCartera(mostrarFocal)
@@ -76,11 +85,23 @@ function CuerpoDePanelFocals ({
   }, [])
 
   const resumen = useMemo(() => resumirCartera(cuentas), [cuentas])
+  const foto = useMemo(() => fotoDeLaCartera(cuentas, hoy), [cuentas, hoy])
   const preparadas = useMemo(() => prepararCartera(cuentas), [cuentas])
   const visibles = useMemo(
     () => ordenarCartera(filtrarCartera(preparadas, recorte.textoDiferido, recorte.filtro), recorte.orden),
     [preparadas, recorte.textoDiferido, recorte.filtro, recorte.orden]
   )
+  const coincidencias = useMemo(() => {
+    const porCuenta = new Map<number, readonly number[]>()
+
+    for (const preparada of visibles) {
+      const proyectos = proyectosCoincidentes(preparada, recorte.textoDiferido)
+
+      if (proyectos.length > 0) porCuenta.set(preparada.cuenta.cliente.client_id, proyectos)
+    }
+
+    return porCuenta
+  }, [visibles, recorte.textoDiferido])
 
   return (
     // El ancho se corta a propósito: en una pantalla de 1440 una fila estirada de borde a borde deja
@@ -91,6 +112,7 @@ function CuerpoDePanelFocals ({
         resumen={resumen}
         visibles={visibles.length}
         mostrarFocal={mostrarFocal}
+        foto={foto}
         recorte={recorte}
       />
 
@@ -99,6 +121,11 @@ function CuerpoDePanelFocals ({
           <Vacio
             titulo="Ninguna cuenta coincide con el recorte"
             descripcion="Prueba con parte del nombre, o quita el filtro que está puesto."
+            accion={
+              <Boton variante="secundario" className="pointer-coarse:h-11" onClick={recorte.onLimpiar}>
+                Quitar el recorte
+              </Boton>
+            }
           />
           )
         : (
@@ -110,6 +137,7 @@ function CuerpoDePanelFocals ({
                   mostrarFocal={mostrarFocal}
                   estados={estados}
                   onEstado={guardarEstado}
+                  coincidencias={coincidencias.get(cuenta.cliente.client_id) ?? SIN_COINCIDENCIAS}
                 />
               </li>
             ))}

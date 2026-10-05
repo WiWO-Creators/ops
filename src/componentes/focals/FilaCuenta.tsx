@@ -1,10 +1,12 @@
 'use client'
 
 import { memo, useState } from 'react'
-import Link from 'next/link'
-import { ArrowUpRight, ChevronRight } from 'lucide-react'
+import { ChevronRight } from 'lucide-react'
+import { CLASES_DE_ENLACE_DE_FICHA, EnlaceDeFicha } from './EnlaceDeFicha'
+import { FOCO_INTERIOR } from './clases-de-foco'
 import { FilaEspacio, type EstadosRedactados } from './FilaEspacio'
 import { BarraDeReparto, RecuentoDeTramos } from './ResumenDeTramos'
+import { EnlaceCliente } from '@/componentes/presentadores/EnlaceCliente'
 import { Insignia } from '@/componentes/presentadores/Insignia'
 import { DesgloseSenales, NumeroDeScore, TRAMOS, Variacion } from '@/componentes/clientes/SemaforoCliente'
 import { nombresDeFocales, type CuentaFocal, type EstadoDeSalud, type ScoreEspacio } from '@/datos/focals'
@@ -19,6 +21,12 @@ interface PropsFilaCuenta {
   /** Los párrafos redactados en esta sesión; mandan sobre el que trajo el servidor. */
   estados: EstadosRedactados
   onEstado: (proyecto: number, estado: EstadoDeSalud) => void
+  /**
+   * Los Proyectos que hicieron aparecer a esta cuenta en la búsqueda, cuando fueron ellos y no la
+   * cuenta. Con alguno, el detalle se abre solo. Debe ser una referencia estable cuando no hay
+   * ninguno, o el `memo` de la fila no sirve de nada.
+   */
+  coincidencias: readonly number[]
 }
 
 /**
@@ -29,15 +37,21 @@ interface PropsFilaCuenta {
  *
  * La fila entera es **un solo botón**, y no un botón con un enlace adentro: así el clic cae en
  * cualquier parte y no hay que apuntarle a una flecha de 16 píxeles. El enlace a la ficha del
- * cliente vive dentro del detalle, donde es un destino elegido y no un accidente del clic.
+ * cliente vive dentro del detalle, donde es un destino elegido y no un accidente del clic. Los
+ * Proyectos de abajo se comportan igual.
+ *
+ * Si la búsqueda dio con la cuenta por uno de sus Proyectos, el detalle se abre solo y ese
+ * Proyecto queda marcado: es lo que evita abrir la cuenta y leerla entera para ver por qué apareció.
+ * Un clic de quien mira manda sobre esa apertura automática, en un sentido o en el otro.
  *
  * Va en `memo`: escribir en el buscador vuelve a pintar el panel entero, y con una cartera global
  * de cientos de cuentas esas filas no cambian. `estados` y `onEstado` llegan estables entre teclas.
  */
 export const FilaCuenta = memo(function FilaCuenta (
-  { cuenta, mostrarFocal, estados, onEstado }: PropsFilaCuenta
+  { cuenta, mostrarFocal, estados, onEstado, coincidencias }: PropsFilaCuenta
 ) {
-  const [abierta, setAbierta] = useState(false)
+  const [alternada, setAlternada] = useState<boolean | null>(null)
+  const abierta = alternada ?? coincidencias.length > 0
   const { cliente, espacios } = cuenta
   const tramo = TRAMOS[cliente.semaforo] ?? TRAMOS.sin_datos
   const nombre = nombreDeCuenta(cuenta)
@@ -51,12 +65,12 @@ export const FilaCuenta = memo(function FilaCuenta (
     >
       <button
         type="button"
-        onClick={() => { setAbierta(!abierta) }}
+        onClick={() => { setAlternada(!abierta) }}
         aria-expanded={abierta}
         className={cn(
           'ease-neo duration-rapida grid w-full grid-cols-[3rem_minmax(0,1fr)_auto] items-center',
           'gap-x-3 gap-y-1 p-3 text-start transition-colors hover:bg-hover',
-          'focus-visible:outline-foco focus-visible:outline-2 focus-visible:-outline-offset-2',
+          FOCO_INTERIOR,
           'sm:grid-cols-[3rem_minmax(0,1fr)_auto_auto]'
         )}
       >
@@ -102,17 +116,13 @@ export const FilaCuenta = memo(function FilaCuenta (
                 Por qué el cliente tiene ese puntaje
               </h3>
 
-              <Link
-                href={`/clientes/${cliente.client_id}`}
-                className={cn(
-                  'text-texto-tenue hover:text-acento rounded-control ease-neo duration-rapida',
-                  'inline-flex items-center gap-1 text-xs underline-offset-4 transition-colors hover:underline',
-                  'focus-visible:outline-foco focus-visible:outline-2 focus-visible:outline-offset-2'
-                )}
-              >
-                Abrir la ficha de {nombre}
-                <ArrowUpRight aria-hidden="true" className="size-3.5" />
-              </Link>
+              <EnlaceDeFicha etiqueta="Ficha del cliente">
+                <EnlaceCliente
+                  id={cliente.client_id}
+                  nombre={nombre}
+                  className={CLASES_DE_ENLACE_DE_FICHA}
+                />
+              </EnlaceDeFicha>
             </div>
 
             <DesgloseSenales senales={cliente.senales} />
@@ -122,7 +132,12 @@ export const FilaCuenta = memo(function FilaCuenta (
             <h3 className="text-texto-tenue text-xs antetitulo">
               Sus {GLOSARIO.espacio.plural.toLowerCase()}
             </h3>
-            <ListaEspacios espacios={espacios} estados={estados} onEstado={onEstado} />
+            <ListaEspacios
+              espacios={espacios}
+              estados={estados}
+              onEstado={onEstado}
+              coincidencias={coincidencias}
+            />
           </section>
         </div>
       )}
@@ -163,10 +178,11 @@ function QuienResponde ({ cliente }: { cliente: ScoreCliente }) {
 
 /** Los {@link GLOSARIO.espacio} de una cuenta, del peor al mejor. */
 function ListaEspacios (
-  { espacios, estados, onEstado }: {
+  { espacios, estados, onEstado, coincidencias }: {
     espacios: ScoreEspacio[]
     estados: EstadosRedactados
     onEstado: (proyecto: number, estado: EstadoDeSalud) => void
+    coincidencias: readonly number[]
   }
 ) {
   if (espacios.length === 0) {
@@ -186,6 +202,7 @@ function ListaEspacios (
             espacio={espacio}
             estado={estados[espacio.project_id] ?? espacio.estado}
             onEstado={onEstado}
+            coincide={coincidencias.includes(espacio.project_id)}
           />
         </li>
       ))}

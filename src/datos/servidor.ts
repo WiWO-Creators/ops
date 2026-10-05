@@ -8,7 +8,7 @@ import { llamarApiTipado } from './api'
 import { ErrorApi } from './errores'
 import { leerSesion } from './sesion'
 import type { Sujeto } from './sobre-sesion'
-import type { Sobre } from './tipos'
+import type { Sobre, Yo } from './tipos'
 
 /**
  * Pide un recurso a la API desde el servidor, con el token de quien mira.
@@ -42,6 +42,18 @@ export async function pedir<T> (ruta: string, sujeto: Sujeto = 'staff'): Promise
     throw error
   }
 }
+
+/**
+ * Quien mira, con `GET /me` resuelto una sola vez por navegacion.
+ *
+ * El armazon del panel y la pagina piden `/me` en la misma renderizacion: sin `cache` son dos viajes a
+ * la API por cada pantalla. Envuelto en `cache` de React, ambos comparten la misma respuesta y solo
+ * dura lo que dura la peticion, asi que no puede servirle a una persona los datos de otra.
+ *
+ * @returns El sobre de `/me`.
+ * @throws ErrorApi en cualquier error que no sea de autenticacion.
+ */
+export const cargarYo = cache(async (): Promise<Sobre<Yo>> => pedir<Yo>('/me'))
 
 /**
  * Lo mismo, con la sesion del portal.

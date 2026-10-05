@@ -18,7 +18,7 @@ import {
   type ScoreEspacio
 } from '../datos/focals.ts'
 import { sinAcentos } from '../lib/texto.ts'
-import { GLOSARIO } from './glosario.ts'
+import { ASISTENTE, GLOSARIO } from './glosario.ts'
 import { ORDEN_DE_TRAMOS, contarConPalabra } from './tramos-de-semaforo.ts'
 import type { SemaforoCliente } from '../datos/recursos'
 
@@ -94,6 +94,10 @@ export interface CuentaPreparada {
   cuenta: CuentaFocal
   /** Nombre del cliente, de sus focales y de sus Proyectos, ya sin acentos y en minúsculas. */
   textoNormalizado: string
+  /** Solo el nombre del cliente y el de sus focales: lo que la cuenta dice de sí misma. */
+  textoPropio: string
+  /** El nombre de cada Proyecto, normalizado, para saber cuál fue el que coincidió. */
+  textosDeEspacios: { id: number, texto: string }[]
   /** Cuántos Proyectos de la cuenta hay en cada tramo. */
   tramos: Record<SemaforoCliente, number>
 }
@@ -117,11 +121,44 @@ export function esSinFocal (cuenta: CuentaFocal): boolean {
  * @returns una entrada por cuenta, en el mismo orden
  */
 export function prepararCartera (cuentas: CuentaFocal[]): CuentaPreparada[] {
-  return cuentas.map((cuenta) => ({
-    cuenta,
-    textoNormalizado: textoDeCuenta(cuenta),
-    tramos: contarPorTramo(cuenta.espacios)
-  }))
+  return cuentas.map((cuenta) => {
+    const textoPropio = sinAcentos([nombreDeCuenta(cuenta), ...nombresDeFocales(cuenta.cliente)].join(' '))
+    const textosDeEspacios = cuenta.espacios.map((espacio) => ({
+      id: espacio.project_id,
+      texto: sinAcentos(espacio.espacio ?? '')
+    }))
+
+    return {
+      cuenta,
+      textoNormalizado: [textoPropio, ...textosDeEspacios.map((espacio) => espacio.texto)].join(' '),
+      textoPropio,
+      textosDeEspacios,
+      tramos: contarPorTramo(cuenta.espacios)
+    }
+  })
+}
+
+/**
+ * Los Proyectos que hicieron coincidir a una cuenta con lo que se escribió, cuando fueron ellos y no
+ * la cuenta.
+ *
+ * Si el cliente o su focal ya coinciden, la cuenta aparece por sí misma y marcar además a sus
+ * Proyectos sería ruido: todos los que casualmente contengan la palabra se encenderían sin que nadie
+ * los buscara. Solo cuando la cuenta aparece **únicamente** por un Proyecto, saber cuál es lo que
+ * evita abrir la cuenta y leer Proyecto por Proyecto hasta dar con él.
+ *
+ * @param cuenta la cuenta ya preparada con {@link prepararCartera}
+ * @param texto lo que se escribió en el buscador; vacío no marca nada
+ * @returns los ids de los Proyectos que coinciden, o una lista vacía si coincide la cuenta o nada
+ */
+export function proyectosCoincidentes (cuenta: CuentaPreparada, texto: string): number[] {
+  const aguja = sinAcentos(texto)
+
+  if (aguja === '' || cuenta.textoPropio.includes(aguja)) return []
+
+  return cuenta.textosDeEspacios
+    .filter((espacio) => espacio.texto.includes(aguja))
+    .map((espacio) => espacio.id)
 }
 
 /**
@@ -217,13 +254,90 @@ export function textoDeRecuento (espacios: ScoreEspacio[]): string {
   return partes.join(' · ')
 }
 
-/** Todo lo que se puede escribir en el buscador para dar con una cuenta, ya normalizado. */
-function textoDeCuenta (cuenta: CuentaFocal): string {
-  const partes = [
-    nombreDeCuenta(cuenta),
-    ...nombresDeFocales(cuenta.cliente),
-    ...cuenta.espacios.map((espacio) => espacio.espacio ?? '')
-  ]
+/** De qué día es la foto que se está mirando, y si ya no es la de hoy. */
+export interface FotoDeLaCartera {
+  /** El día más reciente entre las fotos de clientes y de Proyectos, `YYYY-MM-DD`. */
+  fecha: string
+  /** `true` si ese día es anterior a hoy: la corrida diaria no pasó y los puntajes son de otro día. */
+  obsoleta: boolean
+}
 
-  return sinAcentos(partes.join(' '))
+/**
+ * La fecha de la foto más reciente de la cartera, y si es de antes de hoy.
+ *
+ * Sin esto un cron caído presenta puntajes de hace una semana como si fueran de hoy: nada en la
+ * pantalla lo delata, y el número se usa igual para decidir a quién llamar. Se toma la fecha más
+ * reciente de entre todas las filas, no la de la primera, porque cuentas y Proyectos pueden llegar
+ * con días distintos y lo que importa es cuándo corrió el cálculo por última vez.
+ *
+ * @param cuentas la cartera ya agrupada
+ * @param hoy el día de hoy en la zona del negocio, `YYYY-MM-DD`; se inyecta para poder probarlo
+ * @returns la foto más reciente, o `null` si no hay ninguna cuenta
+ */
+export function fotoDeLaCartera (cuentas: CuentaFocal[], hoy: string): FotoDeLaCartera | null {
+  let fecha: string | null = null
+
+  for (const { cliente, espacios } of cuentas) {
+    for (const dia of [cliente.fecha, ...espacios.map((espacio) => espacio.fecha)]) {
+      if (fecha === null || dia > fecha) fecha = dia
+    }
+  }
+
+  return fecha === null ? null : { fecha, obsoleta: fecha < hoy }
+}
+
+/** El título y la explicación de una pantalla sin ninguna cuenta. */
+export interface TextoDeVacio {
+  titulo: string
+  descripcion: string
+}
+
+/**
+ * Lo que dice la pantalla cuando no llegó ninguna cuenta.
+ *
+ * Una lista vacía tiene dos causas que desde acá no se distinguen: que no haya nada que mostrar o
+ * que la foto del día todavía no exista —el servidor solo devuelve cuentas con foto—. Por eso el
+ * texto nombra las dos: afirmar "no eres focal de ningún cliente" sería falso cada mañana antes de
+ * que corra el cálculo, y mandaría a buscar en una ficha lo que es un asunto del cron.
+ *
+ * @param todas si la pantalla es la cartera entera y no la propia
+ * @returns el título y la descripción del vacío
+ */
+export function textoDeCarteraVacia (todas: boolean): TextoDeVacio {
+  const focal = GLOSARIO.focal.singular.toLowerCase()
+
+  if (todas) {
+    return {
+      titulo: 'Todavía no hay cuentas con semáforo',
+      descripcion:
+        'El puntaje lo calcula una corrida diaria. Si la lista sigue vacía mañana, es que esa ' +
+        'corrida no está pasando.'
+    }
+  }
+
+  return {
+    titulo: 'Aún no hay cuentas con semáforo en tu cartera',
+    descripcion:
+      `O todavía no eres ${focal} de ningún cliente —se nombra desde la ficha del cliente, en su ` +
+      `pestaña ${GLOSARIO.focal.plural}—, o la foto del día aún no se calcula: el puntaje se ` +
+      'genera una vez al día y, hasta entonces, las cuentas no aparecen.'
+  }
+}
+
+/**
+ * La descripción de la pantalla de Focals.
+ *
+ * @param todas si es la cartera entera, la propia, o `null` cuando todavía no se sabe (mientras carga)
+ * @returns la frase, que cierra igual en los tres casos para que el encabezado no salte al cargar
+ */
+export function descripcionDeFocals (todas: boolean | null): string {
+  const alcance = todas === null
+    ? 'Las cuentas de la cartera, de la que peor está a la que mejor. '
+    : todas
+      ? 'Todas las cuentas, de la que peor está a la que mejor, con quien responde por cada una. '
+      : 'Las cuentas de las que respondes, de la que peor está a la que mejor. '
+
+  return alcance +
+    'El puntaje sale de la fórmula —cumplimiento de plazos, carga y vencimientos—; el estado ' +
+    `en palabras lo redacta ${ASISTENTE} a partir de esas mismas señales.`
 }

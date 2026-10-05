@@ -14,12 +14,16 @@ import assert from 'node:assert/strict'
 import {
   FILTROS,
   ORDENES,
+  descripcionDeFocals,
   esSinFocal,
+  fotoDeLaCartera,
   filtrarCartera as filtrarPreparada,
   nombreDeCuenta,
   ordenarCartera as ordenarPreparada,
   prepararCartera,
+  proyectosCoincidentes,
   resumirCartera,
+  textoDeCarteraVacia,
   textoDeRecuento
 } from '../src/dominio/cartera.ts'
 
@@ -271,4 +275,64 @@ test('el recuento escrito sigue el orden de urgencia y singulariza el uno', () =
 
 test('el recuento de una cuenta sin Proyectos lo dice con palabras', () => {
   assert.equal(textoDeRecuento([]), 'Sin proyectos: no hay nada que abrir todavía.')
+})
+
+test('la foto de la cartera es la fecha más reciente entre cuentas y Proyectos', () => {
+  const cartera = [cuenta(1, 'rojo', [], ['rojo']), cuenta(2, 'verde', [], ['verde'])]
+  cartera[0].cliente.fecha = '2026-09-10'
+  cartera[0].espacios[0].fecha = '2026-09-12'
+  cartera[1].cliente.fecha = '2026-09-11'
+  cartera[1].espacios[0].fecha = '2026-09-09'
+
+  assert.deepEqual(fotoDeLaCartera(cartera, '2026-09-12'), { fecha: '2026-09-12', obsoleta: false })
+})
+
+test('la foto es obsoleta solo si es anterior a hoy', () => {
+  const cartera = [cuenta(1, 'rojo', [], [])]
+
+  assert.equal(fotoDeLaCartera(cartera, '2026-09-15').obsoleta, true)
+  assert.equal(fotoDeLaCartera(cartera, '2026-09-14').obsoleta, false)
+  assert.equal(fotoDeLaCartera(cartera, '2026-09-13').obsoleta, false)
+})
+
+test('sin cuentas no hay foto que fechar', () => {
+  assert.equal(fotoDeLaCartera([], '2026-09-14'), null)
+})
+
+test('un Proyecto que coincide se marca solo cuando la cuenta no coincidía por sí misma', () => {
+  const [acme] = prepararCartera([cuenta(1, 'rojo', ['Ana'], ['rojo', 'verde'], 'Acme')])
+  acme.cuenta.espacios[0].espacio = 'Rediseño web'
+  const [preparada] = prepararCartera([acme.cuenta])
+
+  assert.deepEqual(proyectosCoincidentes(preparada, 'REDISEÑO'), [100])
+  assert.deepEqual(proyectosCoincidentes(preparada, 'rediseno'), [100])
+  assert.deepEqual(proyectosCoincidentes(preparada, 'proyecto 1-1'), [101])
+  // Coincide el cliente o el focal: la cuenta aparece por sí misma y los Proyectos no se marcan.
+  assert.deepEqual(proyectosCoincidentes(preparada, 'acme'), [])
+  assert.deepEqual(proyectosCoincidentes(preparada, 'ana'), [])
+})
+
+test('sin texto, o con un texto que nadie contiene, no se marca ningún Proyecto', () => {
+  const [preparada] = prepararCartera([cuenta(1, 'rojo', [], ['rojo'])])
+
+  assert.deepEqual(proyectosCoincidentes(preparada, ''), [])
+  assert.deepEqual(proyectosCoincidentes(preparada, '   '), [])
+  assert.deepEqual(proyectosCoincidentes(preparada, 'zzz'), [])
+})
+
+test('el vacío de la cartera propia admite que la foto del día aún no exista', () => {
+  const propia = textoDeCarteraVacia(false)
+
+  assert.match(propia.descripcion, /foto del día/)
+  assert.doesNotMatch(propia.titulo, /No eres/)
+  assert.match(textoDeCarteraVacia(true).descripcion, /corrida diaria/)
+})
+
+test('la descripción de la pantalla cierra igual con y sin alcance conocido', () => {
+  const cierre = /redacta Thinking Orb a partir de esas mismas señales\.$/
+
+  for (const alcance of [true, false, null]) assert.match(descripcionDeFocals(alcance), cierre)
+
+  assert.match(descripcionDeFocals(true), /con quien responde por cada una/)
+  assert.match(descripcionDeFocals(false), /de las que respondes/)
 })
