@@ -1,7 +1,7 @@
 'use client'
 
 import { useRouter } from 'next/navigation'
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useRef, useState, useTransition } from 'react'
 import { AvisoEnLinea } from '@/componentes/estado/Estados'
 import { useAviso } from '@/componentes/estado/useAviso'
 import { Boton } from '@/componentes/formularios/Boton'
@@ -14,9 +14,13 @@ import { ContenidoDialogo, Dialogo, DisparadorDialogo } from '@/componentes/supe
 import { escribirEnBff } from '@/componentes/datos/mutaciones'
 import { urlConParametro } from '@/componentes/datos/tabla'
 import { GLOSARIO } from '@/dominio/glosario'
-import { PARAMETRO_TICKET, avisarCambioDeTicket, falloDeTicket } from '@/dominio/ticket-vista'
+import { LARGO_MENSAJE_TICKET, contadorDeLargo } from '@/dominio/ticket-limites'
 import {
-  LARGO_ASUNTO, SIN_PRIORIDAD, cuerpoDeSolicitud, espacioPorDefecto, solicitudCompleta
+  PARAMETRO_TICKET, almacenDeSesion, avisarCambioDeTicket, falloDeTicket, guardarBorrador, leerBorrador
+} from '@/dominio/ticket-vista'
+import {
+  CLAVE_BORRADOR_SOLICITUD, LARGO_ASUNTO, SIN_PRIORIDAD, cuerpoDeSolicitud, espacioPorDefecto,
+  leerBorradorDeSolicitud, serializarBorradorDeSolicitud, solicitudCompleta
 } from '@/dominio/tickets-del-portal'
 import type { TicketPortalDetalle } from '@/datos/portal'
 import type { Referencia } from '@/datos/recursos'
@@ -41,6 +45,12 @@ import type { Referencia } from '@/datos/recursos'
  * tabla— en vez de pedirse al montar: un selector que aparece vacio y se puebla medio segundo despues
  * se usa mal.
  *
+ * Lo escrito se guarda como borrador en `sessionStorage` a cada cambio: cerrar el dialogo por error o
+ * recargar no pierde un mensaje largo. Se borra al crear la solicitud.
+ *
+ * Si los espacios no se pudieron cargar, en vez del boton se ofrece reintentar; si el contacto no
+ * tiene ninguno, se dice por que no puede pedir soporte.
+ *
  * Al crear, el formulario vuelve a cero (la proxima solicitud no nace con la anterior escrita) y la
  * bandeja abre la nueva en su modal **conservando filtros, orden y pagina**. Si la API contesta 200
  * en vez de 201 es el alta idempotente: la misma solicitud enviada dos veces en un minuto. No se creo
@@ -62,11 +72,14 @@ interface PropsNuevaSolicitud {
    * inicial del selector: quien tenga otro en mente lo cambia sin resistencia.
    */
   entradaId?: number | null
+  /** `true` si pedir los {espacios} fallo: sin lista no se puede distinguir de «no tiene ninguno». */
+  fallaronEspacios?: boolean
 }
 
-export function NuevaSolicitud ({ prioridades, espacios, entradaId = null }: PropsNuevaSolicitud) {
+export function NuevaSolicitud ({ prioridades, espacios, entradaId = null, fallaronEspacios = false }: PropsNuevaSolicitud) {
   const router = useRouter()
   const avisar = useAviso()
+  const [reintentando, reintentar] = useTransition()
   const [abierto, setAbierto] = useState(false)
   const [enviando, setEnviando] = useState(false)
   const [fallo, setFallo] = useState<string | null>(null)
@@ -74,10 +87,22 @@ export function NuevaSolicitud ({ prioridades, espacios, entradaId = null }: Pro
   const [espera, setEspera] = useState<number | null>(null)
   const enviandoAhora = useRef(false)
 
-  const [asunto, setAsunto] = useState('')
-  const [mensaje, setMensaje] = useState('')
-  const [espacio, setEspacio] = useState(() => espacioPorDefecto(espacios, entradaId))
-  const [prioridad, setPrioridad] = useState(SIN_PRIORIDAD)
+  const [inicial] = useState(() => leerBorradorDeSolicitud(
+    leerBorrador(almacenDeSesion(), CLAVE_BORRADOR_SOLICITUD), espacios, prioridades, entradaId
+  ))
+  const [asunto, setAsunto] = useState(inicial.asunto)
+  const [mensaje, setMensaje] = useState(inicial.mensaje)
+  const [espacio, setEspacio] = useState(inicial.espacio)
+  const [prioridad, setPrioridad] = useState(inicial.prioridad)
+
+  // El borrador sigue a lo escrito; al reiniciar el formulario queda vacio y esto lo borra.
+  useEffect(() => {
+    guardarBorrador(
+      almacenDeSesion(),
+      CLAVE_BORRADOR_SOLICITUD,
+      serializarBorradorDeSolicitud({ asunto, mensaje, espacio, prioridad })
+    )
+  }, [asunto, mensaje, espacio, prioridad])
 
   useEffect(() => {
     if (espera === null) return
@@ -87,9 +112,20 @@ export function NuevaSolicitud ({ prioridades, espacios, entradaId = null }: Pro
     return () => { window.clearTimeout(id) }
   }, [espera])
 
-  // Sin espacios no hay nada que abrir: el contrato exige `project_id`, asi que el boton no se ofrece
-  // en vez de ofrecer un formulario que la API va a rechazar siempre.
-  if (espacios.length === 0) return null
+  // Sin espacios no hay nada que abrir: el contrato exige `project_id`, asi que en vez del boton se
+  // explica por que falta —o se deja reintentar si fue la carga la que fallo—.
+  if (espacios.length === 0) {
+    return fallaronEspacios
+      ? (
+        <div className="flex items-center gap-2">
+          <p className="text-texto-tenue text-sm">No pudimos cargar tus {GLOSARIO.espacio.plural}.</p>
+          <Boton variante="sutil" cargando={reintentando} onClick={() => { reintentar(() => { router.refresh() }) }}>
+            Reintentar
+          </Boton>
+        </div>
+        )
+      : <p className="text-texto-tenue text-sm">No tienes {GLOSARIO.espacio.plural} habilitados para pedir soporte.</p>
+  }
 
   const borrador = { asunto, mensaje, espacio, prioridad }
 
@@ -207,12 +243,13 @@ export function NuevaSolicitud ({ prioridades, espacios, entradaId = null }: Pro
               </Campo>
             </div>
 
-            <Campo etiqueta="Mensaje" requerido>
+            <Campo etiqueta="Mensaje" requerido ayuda={contadorDeLargo(mensaje.length) ?? undefined}>
               {(props) => (
                 <AreaTexto
                   {...props}
                   rows={5}
                   value={mensaje}
+                  maxLength={LARGO_MENSAJE_TICKET}
                   placeholder="Cuéntanos qué pasa, desde cuándo y qué esperabas que ocurriera."
                   onChange={(evento) => { setMensaje(evento.target.value) }}
                 />

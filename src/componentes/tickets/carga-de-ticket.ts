@@ -70,16 +70,27 @@ async function catalogos (ruta: string): Promise<CatalogosDeTicket> {
 /**
  * Lee una ruta opcional del ticket: su falta no impide mostrar el resto.
  *
+ * Cualquier fallo —red caida, respuesta no JSON, estado de error— devuelve `vacio`, porque un
+ * adjunto que no carga no puede tumbar el ticket entero. El aborto si se relanza: lo provoca el
+ * modal al cerrarse y `cargarTicket` lo traduce a «cargando».
+ *
  * @returns el `data`, o `vacio` si la ruta no existe o fallo
+ * @throws el fallo de aborto, cuando `senal` esta abortada
  */
 async function opcional<T> (ruta: string | null, senal: AbortSignal, vacio: T): Promise<T> {
   if (ruta === null) return vacio
 
-  const respuesta = await pedirRespuesta(ruta, senal)
+  try {
+    const respuesta = await pedirRespuesta(ruta, senal)
 
-  if (!respuesta.ok) return vacio
+    if (!respuesta.ok) return vacio
 
-  return (await respuesta.json() as { data: T }).data
+    return (await respuesta.json() as { data: T }).data
+  } catch (fallo) {
+    if (senal.aborted) throw fallo
+
+    return vacio
+  }
 }
 
 /**

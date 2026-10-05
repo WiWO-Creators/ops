@@ -105,7 +105,7 @@ export interface FuenteDeTicket {
    */
   catalogoSinNombre: 'ocultar' | 'numero'
   /**
-   * Como se le dice al ticket en pantalla: el equipo dice «ticket»; el cliente, «solicitud». Es una
+   * Como se le dice al ticket en pantalla: «ticket», tanto para el equipo como para el cliente. Es una
    * clave de {@link NOMBRES_DE_TICKET} y no el objeto, para que la fuente siga siendo solo texto.
    */
   nombre: ClaveDeNombreDeTicket
@@ -113,11 +113,11 @@ export interface FuenteDeTicket {
 
 /** Las palabras con las que se nombra un ticket, ya concordadas en genero. */
 export interface NombreDeTicket {
-  /** Con mayuscula, para titulos: «Ticket», «Solicitud». */
+  /** Con mayuscula, para titulos: «Ticket». */
   titulo: string
-  /** Con articulo: «el ticket», «la solicitud». */
+  /** Con articulo: «el ticket». */
   el: string
-  /** Con demostrativo: «este ticket», «esta solicitud». */
+  /** Con demostrativo: «este ticket». */
   este: string
 }
 
@@ -138,7 +138,7 @@ export function nombreDelTicket (fuente: Pick<FuenteDeTicket, 'nombre'>): Nombre
   return NOMBRES_DE_TICKET[fuente.nombre]
 }
 
-/** Primera letra en mayuscula, para abrir una oracion con «este ticket» o «la solicitud». */
+/** Primera letra en mayuscula, para abrir una oracion con «este ticket». */
 function conMayuscula (texto: string): string {
   return texto.charAt(0).toUpperCase() + texto.slice(1)
 }
@@ -766,7 +766,7 @@ export function nombreEnCatalogo (
 }
 
 /**
- * Nombre accesible del modal: «Ticket #12 · No carga el logo», o «Solicitud #12 …» en el portal.
+ * Nombre accesible del modal: «Ticket #12 · No carga el logo», igual en el panel y en el portal.
  *
  * @param id el ticket
  * @param asunto el asunto, o `null` mientras carga
@@ -900,6 +900,23 @@ export function segundosParaReintentar (detalles: unknown, cabecera: string | nu
 
 /** Lo minimo de `Storage` que usa el borrador: asi se prueba sin navegador. */
 export type AlmacenDeBorrador = Pick<Storage, 'getItem' | 'setItem' | 'removeItem'>
+
+/**
+ * `sessionStorage`, o `null` si el navegador no lo deja tocar.
+ *
+ * En algunos modos privados leer la propiedad ya lanza, asi que ni siquiera se puede preguntar.
+ *
+ * @returns el almacen de la pestaña, o `null` fuera del navegador o si esta bloqueado
+ */
+export function almacenDeSesion (): AlmacenDeBorrador | null {
+  if (typeof window === 'undefined') return null
+
+  try {
+    return window.sessionStorage
+  } catch {
+    return null
+  }
+}
 
 /**
  * Clave del borrador de respuesta de un ticket: `ticket-borrador:{sujeto}:{id}`.

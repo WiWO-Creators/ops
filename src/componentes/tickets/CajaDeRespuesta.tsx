@@ -12,7 +12,9 @@ import {
 import { escribirEnBff } from '@/componentes/datos/mutaciones'
 import type { EstadoLookup, RespuestaPredefinida } from '@/datos/recursos'
 import { normalizar } from '@/dominio/salas'
+import { LARGO_MENSAJE_TICKET, contadorDeLargo } from '@/dominio/ticket-limites'
 import {
+  almacenDeSesion,
   avisoSinRespuesta,
   claveDeBorrador,
   cuerpoDeRespuesta,
@@ -24,7 +26,6 @@ import {
   leerBorrador,
   nombreDelTicket,
   rutaDeTicket,
-  type AlmacenDeBorrador,
   type FuenteDeTicket,
   type NombreDeTicket,
   type TicketVista
@@ -33,21 +34,6 @@ import { cargarPredefinidas } from './carga-de-ticket'
 
 /** Centinela de «no cambiar el estado al responder». Radix no admite un `value` vacio. */
 const SIN_CAMBIO = 'sin-cambio'
-
-/**
- * `sessionStorage`, o `null` si el navegador no lo deja tocar.
- *
- * En algunos modos privados leer la propiedad ya lanza, asi que ni siquiera se puede preguntar.
- */
-function almacenDeSesion (): AlmacenDeBorrador | null {
-  if (typeof window === 'undefined') return null
-
-  try {
-    return window.sessionStorage
-  } catch {
-    return null
-  }
-}
 
 /**
  * La caja para sumar una respuesta, o el aviso de por que no se puede.
@@ -115,10 +101,12 @@ export function CajaDeRespuesta ({
     return () => { window.clearTimeout(id) }
   }, [espera])
 
-  /** Guarda en pantalla y en el borrador. */
+  /** Guarda en pantalla y en el borrador, cortando en el tope (una predefinida puede pasarse). */
   function escribir (texto: string): void {
-    setMensaje(texto)
-    guardarBorrador(almacenDeSesion(), clave, texto)
+    const recortado = texto.slice(0, LARGO_MENSAJE_TICKET)
+
+    setMensaje(recortado)
+    guardarBorrador(almacenDeSesion(), clave, recortado)
   }
 
   /**
@@ -164,10 +152,11 @@ export function CajaDeRespuesta ({
   }
 
   const vacio = mensaje.trim() === ''
+  const contador = contadorDeLargo(mensaje.length)
 
   return (
     <form
-      className="flex flex-col gap-3"
+      className="border-linea-suave flex flex-col gap-3 border-t pt-4"
       aria-label="Responder"
       onSubmit={(evento) => {
         evento.preventDefault()
@@ -186,6 +175,7 @@ export function CajaDeRespuesta ({
         id={idCampo}
         rows={4}
         value={mensaje}
+        maxLength={LARGO_MENSAJE_TICKET}
         placeholder="Escribe tu respuesta."
         aria-describedby={`${idCampo}-atajo`}
         aria-invalid={fallo !== null || undefined}
@@ -204,6 +194,7 @@ export function CajaDeRespuesta ({
         <p id={`${idCampo}-atajo`} className="text-texto-sutil mr-auto text-xs">
           Ctrl o ⌘ + Enter para enviar
         </p>
+        {contador !== null && <p className="text-texto-tenue text-xs" aria-live="polite">{contador}</p>}
         {ofrecidos.length > 0 && (
           <Selector value={valorElegido} onValueChange={setElegido}>
             <DisparadorSelector aria-label="Estado al responder" className="w-auto min-w-48" />

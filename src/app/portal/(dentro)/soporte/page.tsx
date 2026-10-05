@@ -25,7 +25,7 @@ export const metadata: Metadata = { title: 'Tickets · Portal de clientes' }
 const TOPE_ESPACIOS = 200
 
 export default async function SoportePagina (props: PageProps<'/portal/soporte'>) {
-  const [lookups, espacios, entradaId] = await Promise.all([
+  const [lookups, { espacios, fallo: fallaronEspacios }, entradaId] = await Promise.all([
     cargarLookupsDelPortal(),
     espaciosDelContacto(),
     espacioDeEntrada()
@@ -41,6 +41,7 @@ export default async function SoportePagina (props: PageProps<'/portal/soporte'>
           <NuevaSolicitud
             prioridades={listaDe(lookups, 'ticket_priorities')}
             espacios={espacios}
+            fallaronEspacios={fallaronEspacios}
             entradaId={entradaId}
           />
         }
@@ -54,22 +55,33 @@ export default async function SoportePagina (props: PageProps<'/portal/soporte'>
   )
 }
 
+/** Los espacios del selector del alta, y si pedirlos fallo (distinto de «no tiene»). */
+interface EspaciosDelContacto {
+  espacios: Referencia[]
+  /** `true` si la API fallo; `false` si respondio, aunque sea con cero espacios. */
+  fallo: boolean
+}
+
 /**
  * Los espacios del contacto, reducidos a lo que el selector necesita.
  *
  * Un contacto puede tener soporte habilitado y proyectos no, y entonces esta llamada responde 403 o
- * 404. Eso no puede tumbar el listado de tickets, que es a lo que la persona vino: sin espacios el
- * boton de alta no se dibuja y la lectura sigue funcionando igual que antes.
+ * 404: eso es «no tiene espacios», no un fallo. Cualquier otro error de la API tampoco puede tumbar
+ * el listado de tickets, que es a lo que la persona vino, pero se devuelve como `fallo` para que el
+ * alta explique por que falta el boton y deje reintentar, en vez de desaparecer sin decir nada.
+ *
+ * Solo se atrapa `ErrorApi`: los redirects de sesion vencida y los errores de programacion siguen
+ * su camino.
  */
-async function espaciosDelContacto (): Promise<Referencia[]> {
+async function espaciosDelContacto (): Promise<EspaciosDelContacto> {
   try {
     const { data } = await pedirPortal<EspacioPortal[]>(`/portal/projects?per_page=${TOPE_ESPACIOS}`)
 
-    return data.map((espacio) => ({ id: espacio.id, name: espacio.name }))
+    return { espacios: data.map((espacio) => ({ id: espacio.id, name: espacio.name })), fallo: false }
   } catch (error) {
-    if (error instanceof ErrorApi && (error.estado === 403 || error.estado === 404)) return []
+    if (!(error instanceof ErrorApi)) throw error
 
-    throw error
+    return { espacios: [], fallo: error.estado !== 403 && error.estado !== 404 }
   }
 }
 
