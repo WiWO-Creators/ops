@@ -34,12 +34,18 @@ import { cn } from '@/lib/clases'
  * un semáforo son dos semáforos que pueden terminar pintando distinto el mismo número.
  */
 
-/** Cómo se lee y se pinta cada tramo. Vive una sola vez: el mapa es la definición del semáforo. */
-export const TRAMOS: Record<Tramo, { etiqueta: string, tono: TonoInsignia, numero: string }> = {
-  verde: { etiqueta: 'Al día', tono: 'exito', numero: 'text-texto' },
-  amarillo: { etiqueta: 'Atención', tono: 'aviso', numero: 'text-texto-aviso' },
-  rojo: { etiqueta: 'Crítico', tono: 'peligro', numero: 'text-texto-peligro' },
-  sin_datos: { etiqueta: 'Sin datos', tono: 'contorno', numero: 'text-texto-tenue' }
+/**
+ * Cómo se lee y se pinta cada tramo. Vive una sola vez: el mapa es la definición del semáforo.
+ *
+ * `fondo` es el color lleno del tramo (la barra de reparto y el punto de las fichas de Focals). Las
+ * palabras para contar —"críticos", "al día"— están aparte en `PALABRAS_DE_TRAMO`, en `dominio/`, y
+ * `etiqueta` no cambia: es la que lee la ficha del cliente.
+ */
+export const TRAMOS: Record<Tramo, { etiqueta: string, tono: TonoInsignia, numero: string, fondo: string }> = {
+  verde: { etiqueta: 'Al día', tono: 'exito', numero: 'text-texto', fondo: 'bg-texto-exito' },
+  amarillo: { etiqueta: 'Atención', tono: 'aviso', numero: 'text-texto-aviso', fondo: 'bg-texto-aviso' },
+  rojo: { etiqueta: 'Crítico', tono: 'peligro', numero: 'text-texto-peligro', fondo: 'bg-texto-peligro' },
+  sin_datos: { etiqueta: 'Sin datos', tono: 'contorno', numero: 'text-texto-tenue', fondo: 'bg-linea-fuerte' }
 }
 
 /** Las tres señales, tal como viajan tanto en el score de un cliente como en el de un Proyecto. */
@@ -106,15 +112,36 @@ export function Puntaje (
 
   return (
     <div className="flex items-center gap-2">
-      <span
-        className={cn('text-2xl leading-none font-semibold tabular-nums', tramo.numero)}
-        title={score === null ? 'Todavía no hay datos para calcular el score' : 'Score de 1 a 100'}
-      >
-        {score ?? '—'}
-      </span>
+      <NumeroDeScore score={score} semaforo={semaforo} className="text-2xl" />
       <Insignia tono={tramo.tono} tamano="chico">{tramo.etiqueta}</Insignia>
       <Variacion puntos={variacion} />
     </div>
+  )
+}
+
+/**
+ * El número del score, con el color de su tramo y la explicación al pasar el puntero.
+ *
+ * Es la pieza que repetían el puntaje de la ficha, la fila de la cuenta y la del Proyecto. Trae lo
+ * que las tres comparten —cifras tabulares, peso, color y `title`— y deja el tamaño al que lo usa:
+ * cada superficie tiene su escala (`text-2xl` en la cabecera, `text-cifra` en la fila de una cuenta).
+ *
+ * @param score el número de 1 a 100, o `null` si no hay nada que puntuar (se dibuja "—")
+ * @param semaforo el tramo que decide el color
+ * @param className tamaño y disposición propios de la superficie
+ */
+export function NumeroDeScore (
+  { score, semaforo, className }: { score: number | null, semaforo: Tramo, className?: string }
+) {
+  const tramo = TRAMOS[semaforo] ?? TRAMOS.sin_datos
+
+  return (
+    <span
+      className={cn('leading-none font-semibold tabular-nums', tramo.numero, className)}
+      title={score === null ? 'Todavía no hay datos para calcular el score' : 'Score de 1 a 100'}
+    >
+      {score ?? '—'}
+    </span>
   )
 }
 

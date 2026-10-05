@@ -7,7 +7,7 @@ import { PaginacionTabla } from '@/componentes/datos/PaginacionTabla'
 import { TituloModulo } from '@/componentes/estructura/TituloModulo'
 import { AccionesPapelera } from '@/componentes/papelera/AccionesPapelera'
 import { ErrorApi } from '@/datos/errores'
-import { pedir } from '@/datos/servidor'
+import { cargarYo, pedir } from '@/datos/servidor'
 import {
   VISTAS_DE_PAPELERA,
   nombreDeEntidad,
@@ -18,7 +18,7 @@ import {
   type VistaDePapelera
 } from '@/dominio/papelera'
 import type { ElementoEnPapelera } from '@/datos/recursos'
-import type { Paginacion, Yo } from '@/datos/tipos'
+import type { Paginacion } from '@/datos/tipos'
 import { cn } from '@/lib/clases'
 
 export const metadata = { title: 'Papelera · WiWO Ops' }
@@ -85,7 +85,7 @@ function enlacesDePagina (vista: VistaDePapelera, paginacion: Paginacion | undef
  * purgar a cualquier administrador. Revisarlo antes de pedir ahorra un viaje que vuelve 403.
  */
 export default async function PapeleraPage (props: PageProps<'/papelera'>) {
-  const { data: yo } = await pedir<Yo>('/me')
+  const { data: yo } = await cargarYo()
 
   if (!yo.is_admin && !yo.is_superadmin) return <SinPermiso className="mt-10" />
 

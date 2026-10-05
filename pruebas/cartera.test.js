@@ -12,11 +12,30 @@ import { test } from 'node:test'
 import assert from 'node:assert/strict'
 
 import {
-  filtrarCartera,
+  FILTROS,
+  ORDENES,
+  descripcionDeFocals,
+  esSinFocal,
+  fotoDeLaCartera,
+  filtrarCartera as filtrarPreparada,
   nombreDeCuenta,
-  ordenarCartera,
-  resumirCartera
+  ordenarCartera as ordenarPreparada,
+  prepararCartera,
+  proyectosCoincidentes,
+  resumirCartera,
+  textoDeCarteraVacia,
+  textoDeRecuento
 } from '../src/dominio/cartera.ts'
+
+/** Filtra una cartera cruda: la prepara y devuelve las cuentas que quedaron. */
+function filtrarCartera (cuentas, texto, filtro) {
+  return filtrarPreparada(prepararCartera(cuentas), texto, filtro).map((preparada) => preparada.cuenta)
+}
+
+/** Ordena una cartera cruda: la prepara y devuelve las cuentas en su nuevo orden. */
+function ordenarCartera (cuentas, orden) {
+  return ordenarPreparada(prepararCartera(cuentas), orden).map((preparada) => preparada.cuenta)
+}
 
 /** Las tres señales, con la forma mínima que el tipo exige. */
 function senales () {
@@ -177,4 +196,143 @@ test('un cliente sin nombre se muestra con su id y se puede buscar igual', () =>
 
   assert.equal(nombreDeCuenta(sinNombre), 'Cliente #7')
   assert.equal(filtrarCartera([sinNombre], '#7', 'todas').length, 1)
+})
+
+test('ordenar por críticos desempata por el orden del servidor y no por el nombre', () => {
+  // El servidor ya puso a estas tres en un orden por una razón (su score): con los mismos Proyectos
+  // críticos, reordenarlas por nombre mostraría otro orden del que el listado declara.
+  const cartera = [
+    cuenta(1, 'rojo', [], ['rojo'], 'Zeta'),
+    cuenta(2, 'rojo', [], ['rojo'], 'Alfa'),
+    cuenta(3, 'verde', [], ['rojo', 'rojo'], 'Medio')
+  ]
+
+  assert.deepEqual(
+    ordenarCartera(cartera, 'criticos').map(nombreDeCuenta),
+    ['Medio', 'Zeta', 'Alfa']
+  )
+})
+
+test('ordenar una cartera vacía devuelve una lista vacía con cualquier criterio', () => {
+  for (const orden of ORDENES) assert.deepEqual(ordenarCartera([], orden), [])
+})
+
+test('filtrar y ordenar no tocan la cartera preparada', () => {
+  const preparadas = prepararCartera([cuenta(1, 'rojo', [], ['rojo']), cuenta(2, 'verde', [], [])])
+  const copia = [...preparadas]
+
+  filtrarPreparada(preparadas, 'cliente', 'rojo')
+  ordenarPreparada(preparadas, 'criticos')
+
+  assert.deepEqual(preparadas, copia)
+})
+
+test('preparar calcula una vez el texto comparable y los tramos de cada cuenta', () => {
+  const cartera = [cuenta(1, 'rojo', ['Ana Pérez'], ['rojo', 'verde', 'sin_datos'], 'Analítica Sur')]
+
+  const [preparada] = prepararCartera(cartera)
+
+  assert.equal(preparada.cuenta, cartera[0])
+  assert.match(preparada.textoNormalizado, /analitica sur ana perez/)
+  assert.deepEqual(preparada.tramos, { verde: 1, amarillo: 0, rojo: 1, sin_datos: 1 })
+  assert.deepEqual(prepararCartera([]), [])
+})
+
+test('"todas" y un texto vacío no recortan nada, y "sin focal" no mira el semáforo', () => {
+  const cartera = [cuenta(1, 'rojo', []), cuenta(2, 'sin_datos', ['Ana'])]
+
+  assert.equal(filtrarCartera(cartera, '', 'todas').length, 2)
+  assert.deepEqual(filtrarCartera(cartera, '', 'sin_focal').map(nombreDeCuenta), ['Cliente 1'])
+  assert.deepEqual(filtrarCartera([], 'x', 'rojo'), [])
+})
+
+test('buscar algo que no está da lista vacía', () => {
+  assert.deepEqual(filtrarCartera([cuenta(1, 'rojo')], 'zzz', 'todas'), [])
+})
+
+test('esSinFocal es verdadero sin focales, con la lista ausente o con nombres en blanco', () => {
+  assert.equal(esSinFocal(cuenta(1, 'verde', [])), true)
+  assert.equal(esSinFocal(cuenta(1, 'verde', ['  '])), true)
+  assert.equal(esSinFocal(cuenta(1, 'verde', ['Ana'])), false)
+
+  const vieja = cuenta(1, 'verde', ['Ana'])
+  delete vieja.cliente.focales
+
+  assert.equal(esSinFocal(vieja), true)
+})
+
+test('los filtros y órdenes válidos son los que declara el dominio', () => {
+  assert.deepEqual([...FILTROS], ['verde', 'amarillo', 'rojo', 'sin_datos', 'sin_focal', 'todas'])
+  assert.deepEqual([...ORDENES], ['peor', 'nombre', 'criticos'])
+})
+
+test('el recuento escrito sigue el orden de urgencia y singulariza el uno', () => {
+  const { espacios } = cuenta(1, 'rojo', [], ['rojo', 'rojo', 'amarillo', 'verde', 'sin_datos'])
+
+  assert.equal(textoDeRecuento(espacios), '5 Proyectos · 2 críticos · 1 en atención · 1 al día · 1 sin datos')
+  assert.equal(textoDeRecuento(cuenta(1, 'rojo', [], ['rojo']).espacios), '1 Proyecto · 1 crítico')
+})
+
+test('el recuento de una cuenta sin Proyectos lo dice con palabras', () => {
+  assert.equal(textoDeRecuento([]), 'Sin proyectos: no hay nada que abrir todavía.')
+})
+
+test('la foto de la cartera es la fecha más reciente entre cuentas y Proyectos', () => {
+  const cartera = [cuenta(1, 'rojo', [], ['rojo']), cuenta(2, 'verde', [], ['verde'])]
+  cartera[0].cliente.fecha = '2026-09-10'
+  cartera[0].espacios[0].fecha = '2026-09-12'
+  cartera[1].cliente.fecha = '2026-09-11'
+  cartera[1].espacios[0].fecha = '2026-09-09'
+
+  assert.deepEqual(fotoDeLaCartera(cartera, '2026-09-12'), { fecha: '2026-09-12', obsoleta: false })
+})
+
+test('la foto es obsoleta solo si es anterior a hoy', () => {
+  const cartera = [cuenta(1, 'rojo', [], [])]
+
+  assert.equal(fotoDeLaCartera(cartera, '2026-09-15').obsoleta, true)
+  assert.equal(fotoDeLaCartera(cartera, '2026-09-14').obsoleta, false)
+  assert.equal(fotoDeLaCartera(cartera, '2026-09-13').obsoleta, false)
+})
+
+test('sin cuentas no hay foto que fechar', () => {
+  assert.equal(fotoDeLaCartera([], '2026-09-14'), null)
+})
+
+test('un Proyecto que coincide se marca solo cuando la cuenta no coincidía por sí misma', () => {
+  const [acme] = prepararCartera([cuenta(1, 'rojo', ['Ana'], ['rojo', 'verde'], 'Acme')])
+  acme.cuenta.espacios[0].espacio = 'Rediseño web'
+  const [preparada] = prepararCartera([acme.cuenta])
+
+  assert.deepEqual(proyectosCoincidentes(preparada, 'REDISEÑO'), [100])
+  assert.deepEqual(proyectosCoincidentes(preparada, 'rediseno'), [100])
+  assert.deepEqual(proyectosCoincidentes(preparada, 'proyecto 1-1'), [101])
+  // Coincide el cliente o el focal: la cuenta aparece por sí misma y los Proyectos no se marcan.
+  assert.deepEqual(proyectosCoincidentes(preparada, 'acme'), [])
+  assert.deepEqual(proyectosCoincidentes(preparada, 'ana'), [])
+})
+
+test('sin texto, o con un texto que nadie contiene, no se marca ningún Proyecto', () => {
+  const [preparada] = prepararCartera([cuenta(1, 'rojo', [], ['rojo'])])
+
+  assert.deepEqual(proyectosCoincidentes(preparada, ''), [])
+  assert.deepEqual(proyectosCoincidentes(preparada, '   '), [])
+  assert.deepEqual(proyectosCoincidentes(preparada, 'zzz'), [])
+})
+
+test('el vacío de la cartera propia admite que la foto del día aún no exista', () => {
+  const propia = textoDeCarteraVacia(false)
+
+  assert.match(propia.descripcion, /foto del día/)
+  assert.doesNotMatch(propia.titulo, /No eres/)
+  assert.match(textoDeCarteraVacia(true).descripcion, /corrida diaria/)
+})
+
+test('la descripción de la pantalla cierra igual con y sin alcance conocido', () => {
+  const cierre = /redacta Thinking Orb a partir de esas mismas señales\.$/
+
+  for (const alcance of [true, false, null]) assert.match(descripcionDeFocals(alcance), cierre)
+
+  assert.match(descripcionDeFocals(true), /con quien responde por cada una/)
+  assert.match(descripcionDeFocals(false), /de las que respondes/)
 })

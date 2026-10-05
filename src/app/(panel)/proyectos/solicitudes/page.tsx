@@ -7,10 +7,10 @@ import { Insignia } from '@/componentes/presentadores/Insignia'
 import { TituloModulo } from '@/componentes/estructura/TituloModulo'
 import { ResolverSolicitud } from '@/componentes/proyecto/ResolverSolicitud'
 import { ErrorApi } from '@/datos/errores'
-import { pedir } from '@/datos/servidor'
+import { cargarYo, pedir } from '@/datos/servidor'
 import { GLOSARIO } from '@/dominio/glosario'
 import type { EstadoDeSolicitud, SolicitudDeEliminacion } from '@/datos/recursos'
-import type { Paginacion, Yo } from '@/datos/tipos'
+import type { Paginacion } from '@/datos/tipos'
 import { cn } from '@/lib/clases'
 import { SIN_DATO } from '@/lib/presentacion'
 
@@ -112,7 +112,7 @@ async function cargar (vista: ClaveDeVista, pagina: number): Promise<Cargado | E
  * lectura con dos pestañas, la página que trajo el servidor alcanza y la paginación son dos enlaces.
  */
 export default async function SolicitudesDeEliminacionPage (props: PageProps<'/proyectos/solicitudes'>) {
-  const { data: yo } = await pedir<Yo>('/me')
+  const { data: yo } = await cargarYo()
 
   if (!yo.is_admin) return <SinPermiso className="mt-10" />
 

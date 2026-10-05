@@ -22,7 +22,7 @@ import { Cargando, ErrorEstado, SinPermiso, Vacio } from '@/componentes/estado/E
 import { listaDe } from '@/datos/catalogos'
 import { ErrorApi } from '@/datos/errores'
 import { cargarLookups } from '@/datos/lookups'
-import { pedir } from '@/datos/servidor'
+import { cargarYo, pedir } from '@/datos/servidor'
 import type { Yo } from '@/datos/tipos'
 import type {
   ClienteConEnvio, ContactoCompleto, EstadoLookup, Lookups, Moneda, ScoreCliente
@@ -111,7 +111,7 @@ async function cargarDetalle (id: string): Promise<Detalle | ErrorApi> {
       // Con los dados de baja incluidos: la pestaña los muestra atenuados para poder reactivarlos.
       pedir<ContactoCompleto[]>(`/clients/${id}/contacts`),
       cargarLookups(),
-      pedir<Yo>('/me'),
+      cargarYo(),
       traerScore(id)
     ])
 

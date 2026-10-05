@@ -4,8 +4,7 @@ import { SinPermiso } from '@/componentes/estado/Estados'
 import { Segmentado, type OpcionSegmentada } from '@/componentes/formularios/Segmentado'
 import { TituloModulo } from '@/componentes/estructura/TituloModulo'
 import { paramsDeUrl } from '@/datos/consulta'
-import { pedir } from '@/datos/servidor'
-import type { Yo } from '@/datos/tipos'
+import { cargarYo } from '@/datos/servidor'
 import { GLOSARIO } from '@/dominio/glosario'
 import {
   VISTAS_DE_AUDITORIA,
@@ -50,7 +49,7 @@ const DESCRIPCIONES: Record<VistaAuditoria, string> = {
  * un filtro que no declara—, así que cada pestaña arranca con su vista limpia.
  */
 export default async function AuditoriaPage (props: PageProps<'/auditoria'>) {
-  const { data: yo } = await pedir<Yo>('/me')
+  const { data: yo } = await cargarYo()
 
   const permitidas = vistasPermitidas(yo)
   const params = paramsDeUrl(await props.searchParams)

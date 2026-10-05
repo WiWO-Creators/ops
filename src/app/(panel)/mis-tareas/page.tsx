@@ -7,7 +7,7 @@ import { TareasAsignadas } from '@/componentes/mis-tareas/TareasAsignadas'
 import { TareasPrivadas } from '@/componentes/mis-tareas/TareasPrivadas'
 import { paramsDeUrl } from '@/datos/consulta'
 import { cargarLookups, listaDe } from '@/datos/lookups'
-import { pedir, pedirOpcional } from '@/datos/servidor'
+import { cargarYo, pedirOpcional } from '@/datos/servidor'
 import type { Licitacion } from '@/datos/recursos'
 import type { Yo } from '@/datos/tipos'
 import { GLOSARIO } from '@/dominio/glosario'
@@ -47,7 +47,7 @@ const LICITACIONES_A_TRAER = 500
  * creo, se lo haya asignado a quien sea. Los filtros de vencimiento y completadas siguen valiendo.
  */
 export default async function MisTareasPage (props: PageProps<'/mis-tareas'>) {
-  const { data: yo } = await pedir<Yo>('/me')
+  const { data: yo } = await cargarYo()
   const [lookups, licitaciones] = await Promise.all([cargarLookups(), licitacionesDeLaCasa(yo)])
   const estados = listaDe(lookups, 'task_statuses')
   const params = paramsDeUrl(await props.searchParams)

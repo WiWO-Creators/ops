@@ -223,6 +223,7 @@ export function DetalleTicket ({
             valor={vista.estado}
             catalogo={estados}
             rutaEditar={rutaEditar}
+            rutaResponder={rutaDeTicket(fuente.responder, vista.id)}
             puedeEditar={puedeEditar}
             sinNombre={fuente.catalogoSinNombre}
             onCambiado={alEscribir}

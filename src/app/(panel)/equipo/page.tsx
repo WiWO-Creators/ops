@@ -6,9 +6,8 @@ import { TotalDelListado } from '@/componentes/datos/TotalDelListado'
 import { TituloModulo } from '@/componentes/estructura/TituloModulo'
 import { construirConsulta, leerConsulta, paramsDeUrl } from '@/datos/consulta'
 import { cargarLookups, opcionesDeFiltros } from '@/datos/lookups'
-import { pedir } from '@/datos/servidor'
+import { cargarYo, pedir } from '@/datos/servidor'
 import type { MiembroEquipo } from '@/datos/recursos'
-import type { Yo } from '@/datos/tipos'
 import { EQUIPO } from '@/definiciones/equipo'
 
 export const metadata = { title: 'Equipo · WiWO Ops' }
@@ -29,7 +28,7 @@ export default async function EquipoPage (props: PageProps<'/equipo'>) {
   const [lista, lookups, yo] = await Promise.all([
     pedir<MiembroEquipo[]>(`/staff${consulta === '' ? '' : `?${consulta}`}`),
     cargarLookups(),
-    pedir<Yo>('/me')
+    cargarYo()
   ])
 
   return (

@@ -11,9 +11,8 @@ import { iaHabilitada } from '@/datos/ajustes'
 import { construirConsulta, leerConsulta, paramsDeUrl } from '@/datos/consulta'
 import { cargarLookups, opcionesDeFiltroDeEspacio, opcionesDeFiltros } from '@/datos/lookups'
 import { RUTA_DE_ASIGNABLES } from '@/datos/asignables'
-import { pedir, pedirOpcional } from '@/datos/servidor'
+import { cargarYo, pedir, pedirOpcional } from '@/datos/servidor'
 import type { Espacio, PersonaAsignable, Proceso } from '@/datos/recursos'
-import type { Yo } from '@/datos/tipos'
 import { PROCESOS } from '@/definiciones/procesos'
 import { opcionesDeCliente } from './opciones-de-cliente'
 import { opcionesDeHito } from './opciones-de-hito'
@@ -41,7 +40,7 @@ export default async function ProcesosPage (props: PageProps<'/tareas'>) {
   const [lista, lookups, yo, equipo, espacios, clientes, hitos, conIa] = await Promise.all([
     pedir<Proceso[]>(`/tasks${consulta === '' ? '' : `?${consulta}`}`),
     cargarLookups(),
-    pedir<Yo>('/me'),
+    cargarYo(),
     // Catalogos del alta rapida: son para resolver `@` y `#` mientras se escribe, no para paginar,
     // asi que se piden ENTEROS. Con el tope anterior de 100 entraba poco mas de la mitad de las 184
     // personas y de los 275 Espacios, y todo lo que quedaba fuera se veia como "no existe": `#Test`

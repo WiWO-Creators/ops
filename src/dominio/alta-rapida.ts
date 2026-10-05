@@ -1,4 +1,5 @@
 import { hoyLocal } from '../lib/fechas.ts'
+import { sinAcentos } from '../lib/texto.ts'
 
 /**
  * Alta rapida de un Proceso: de una linea de texto a un cuerpo de `POST /tasks`.
@@ -45,7 +46,7 @@ function partesDeFecha (fecha: string): [number, number, number] {
 
 /** Minusculas y sin acentos: `Colbún` y `colbun` tienen que ser la misma palabra. */
 function normalizar (texto: string): string {
-  return texto.toLowerCase().normalize('NFD').replace(/\p{Diacritic}/gu, '')
+  return sinAcentos(texto)
 }
 
 /**

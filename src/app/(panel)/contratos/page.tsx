@@ -7,9 +7,8 @@ import { TituloModulo } from '@/componentes/estructura/TituloModulo'
 import { construirConsulta, leerConsulta, paramsDeUrl } from '@/datos/consulta'
 import { listaDe } from '@/datos/catalogos'
 import { cargarLookups } from '@/datos/lookups'
-import { pedir } from '@/datos/servidor'
+import { cargarYo, pedir } from '@/datos/servidor'
 import type { AccesoContratos, ClienteMinimo, Contrato } from '@/datos/recursos'
-import type { Yo } from '@/datos/tipos'
 import { CONTRATOS } from '@/definiciones/contratos'
 
 export const metadata = { title: 'Contratos · WiWO Ops' }
@@ -25,7 +24,7 @@ export default async function ContratosPage (props: PageProps<'/contratos'>) {
   const params = paramsDeUrl(await props.searchParams)
   const consulta = construirConsulta(leerConsulta(params, CONTRATOS), CONTRATOS)
 
-  const yo = await pedir<Yo>('/me')
+  const yo = await cargarYo()
   if (yo.data.ve_contratos !== true) return <SinSeccion />
 
   const [lista, tipos, clientes, lookups, acceso] = await Promise.all([

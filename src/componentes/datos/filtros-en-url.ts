@@ -94,6 +94,38 @@ export function urlConParametroPropio (
   return `?${siguientes.toString()}`
 }
 
+/**
+ * La URL con varios parametros propios de esta instancia puestos o quitados de una sola vez,
+ * conservando el resto.
+ *
+ * Existe porque dos escrituras seguidas desde la misma `params` obsoleta se pisan: la segunda
+ * parte de una URL que ya no tiene la primera y la deshace. Con todos los cambios en un solo
+ * objeto sale una unica URL.
+ *
+ * @param params Los parametros vigentes de la URL completa.
+ * @param cambios Clave (sin prefijo) y valor nuevo; `null` o cadena vacia quita el parametro.
+ * @param prefijo Prefijo de esta instancia.
+ * @returns La URL relativa, siempre con `?` adelante aunque quede vacia.
+ */
+export function urlConParametros (
+  params: URLSearchParams,
+  cambios: Record<string, string | null>,
+  prefijo: string | undefined
+): string {
+  const siguientes = new URLSearchParams(params.toString())
+
+  for (const [clave, valor] of Object.entries(cambios)) {
+    const completa = agregarPrefijo(clave, prefijo)
+
+    if (valor === null || valor === '') siguientes.delete(completa)
+    else siguientes.set(completa, valor)
+  }
+
+  const texto = siguientes.toString()
+
+  return texto === '' ? '?' : `?${texto}`
+}
+
 /** Un parametro suelto propio de esta instancia, leido de la URL completa. */
 export function parametroPropio (params: URLSearchParams, clave: string, prefijo: string | undefined): string | null {
   return params.get(agregarPrefijo(clave, prefijo))

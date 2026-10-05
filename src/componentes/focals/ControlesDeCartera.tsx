@@ -17,27 +17,23 @@
  * no es un tramo: es una cuenta a la que le falta un dato.
  *
  * El buscador filtra a cada tecla y sin pedirle nada al servidor: la cartera entera ya está en el
- * navegador desde que la página se resolvió, así que esperar un envío sería lentitud regalada.
+ * navegador desde que la página se resolvió, así que esperar un envío sería lentitud regalada. El
+ * texto se vuelca a la URL con una pausa y por `history.replaceState`, que tampoco pide nada.
  */
+import { useId } from 'react'
 import { Search, X } from 'lucide-react'
+import { FOCO_EXTERIOR } from './clases-de-foco'
 import { Entrada } from '@/componentes/formularios/Entrada'
+import { ContenidoSelector, DisparadorSelector, Opcion, Selector } from '@/componentes/formularios/Selector'
+import { Insignia } from '@/componentes/presentadores/Insignia'
 import { GLOSARIO } from '@/dominio/glosario'
 import { cn } from '@/lib/clases'
-import type { FiltroDeCartera, OrdenDeCartera, ResumenDeCartera } from '@/dominio/cartera'
-import type { SemaforoCliente } from '@/datos/recursos'
-
-/**
- * Las fichas de tramo, en orden de urgencia.
- *
- * Rojo primero y no el orden alfabético ni el del tipo: la pantalla existe para encontrar lo que
- * está mal, y lo primero que se lee tiene que ser eso.
- */
-const TRAMOS: readonly { valor: SemaforoCliente, etiqueta: string, punto: string }[] = [
-  { valor: 'rojo', etiqueta: 'Críticas', punto: 'bg-texto-peligro' },
-  { valor: 'amarillo', etiqueta: 'En atención', punto: 'bg-texto-aviso' },
-  { valor: 'verde', etiqueta: 'Al día', punto: 'bg-texto-exito' },
-  { valor: 'sin_datos', etiqueta: 'Sin datos', punto: 'bg-linea-fuerte' }
-]
+import { formatearFecha } from '@/lib/fechas'
+import { TRAMOS } from '@/componentes/clientes/SemaforoCliente'
+import type { FiltroDeCartera, FotoDeLaCartera, OrdenDeCartera, ResumenDeCartera } from '@/dominio/cartera'
+import { ORDEN_DE_TRAMOS, PALABRAS_DE_TRAMO, contarConPalabra } from '@/dominio/tramos-de-semaforo'
+import { LARGO_MAXIMO_DE_BUSQUEDA } from '@/dominio/recorte-de-cartera'
+import type { ControlDeRecorte } from './useRecorteDeCartera'
 
 /** Los tres criterios de orden, con el nombre que tienen en la pantalla. */
 const ORDENES: readonly { valor: OrdenDeCartera, etiqueta: string }[] = [
@@ -50,22 +46,23 @@ interface PropsControles {
   resumen: ResumenDeCartera
   /** Cuántas cuentas quedaron después de filtrar, para decirlo cuando no son todas. */
   visibles: number
-  texto: string
-  filtro: FiltroDeCartera
-  orden: OrdenDeCartera
-  onTexto: (texto: string) => void
-  onFiltro: (filtro: FiltroDeCartera) => void
-  onOrden: (orden: OrdenDeCartera) => void
+  /** Si la pantalla es la cartera entera: sólo ahí hay cuentas sin focal que buscar. */
+  mostrarFocal: boolean
+  /** De qué día es la foto que se está mirando; `null` si no hay ninguna cuenta. */
+  foto: FotoDeLaCartera | null
+  recorte: ControlDeRecorte
 }
 
 /**
  * Dibuja el resumen, el buscador y el orden.
  *
- * @param props los totales ya contados y el estado de los tres controles
+ * @param props los totales ya contados, si la cartera es la entera, la fecha de la foto y el estado
+ *   de los tres controles
  */
-export function ControlesDeCartera (
-  { resumen, visibles, texto, filtro, orden, onTexto, onFiltro, onOrden }: PropsControles
-) {
+export function ControlesDeCartera ({ resumen, visibles, mostrarFocal, foto, recorte }: PropsControles) {
+  const { texto, filtro, orden, onTexto, onFiltro, onOrden, onLimpiar } = recorte
+  const idOrden = useId()
+
   /** Pulsar la ficha que ya está puesta la saca: es la forma de volver a ver todo sin buscar un botón. */
   function alternar (valor: FiltroDeCartera): void {
     onFiltro(filtro === valor ? 'todas' : valor)
@@ -81,25 +78,29 @@ export function ControlesDeCartera (
           onPulsar={() => onFiltro('todas')}
         />
 
-        {TRAMOS.map((tramo) => (
+        {ORDEN_DE_TRAMOS.map((tramo) => (
           <Ficha
-            key={tramo.valor}
-            etiqueta={tramo.etiqueta}
-            punto={tramo.punto}
-            cuantas={resumen.porTramo[tramo.valor]}
-            puesta={filtro === tramo.valor}
-            onPulsar={() => alternar(tramo.valor)}
+            key={tramo}
+            etiqueta={PALABRAS_DE_TRAMO[tramo].deCuentas}
+            punto={TRAMOS[tramo].fondo}
+            cuantas={resumen.porTramo[tramo]}
+            puesta={filtro === tramo}
+            onPulsar={() => alternar(tramo)}
           />
         ))}
 
-        <span aria-hidden="true" className="bg-linea mx-1 hidden h-6 w-px sm:block" />
+        {mostrarFocal && (
+          <>
+            <span aria-hidden="true" className="bg-linea mx-1 hidden h-6 w-px sm:block" />
 
-        <Ficha
-          etiqueta={`Sin ${GLOSARIO.focal.singular.toLowerCase()}`}
-          cuantas={resumen.sinFocal}
-          puesta={filtro === 'sin_focal'}
-          onPulsar={() => alternar('sin_focal')}
-        />
+            <Ficha
+              etiqueta={`Sin ${GLOSARIO.focal.singular.toLowerCase()}`}
+              cuantas={resumen.sinFocal}
+              puesta={filtro === 'sin_focal'}
+              onPulsar={() => alternar('sin_focal')}
+            />
+          </>
+        )}
       </div>
 
       <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
@@ -111,45 +112,45 @@ export function ControlesDeCartera (
           <Entrada
             type="search"
             value={texto}
+            maxLength={LARGO_MAXIMO_DE_BUSQUEDA}
             aria-label={`Buscar una cuenta por nombre, por ${GLOSARIO.focal.singular.toLowerCase()} o por ${GLOSARIO.espacio.singular.toLowerCase()}`}
             placeholder="Busca una cuenta, un focal, un proyecto…"
-            className="ps-9"
+            className="ps-9 pointer-coarse:h-11"
             onChange={(evento) => onTexto(evento.target.value)}
           />
         </div>
 
-        <label className="text-texto-sutil flex items-center gap-2 text-xs">
-          Ordenar por
-          <select
-            value={orden}
-            onChange={(evento) => onOrden(evento.target.value as OrdenDeCartera)}
-            className={cn(
-              'border-linea bg-superficie-elevada text-texto rounded-control h-9 border px-2 text-sm',
-              'focus-visible:outline-foco focus-visible:outline-2 focus-visible:outline-offset-2'
-            )}
-          >
-            {ORDENES.map((una) => (
-              <option key={una.valor} value={una.valor}>{una.etiqueta}</option>
-            ))}
-          </select>
-        </label>
+        <div className="flex items-center gap-2">
+          <label htmlFor={idOrden} className="text-texto-sutil text-xs">Ordenar por</label>
+          <Selector value={orden} onValueChange={(valor) => onOrden(valor as OrdenDeCartera)}>
+            <DisparadorSelector id={idOrden} className="w-48 pointer-coarse:h-11" />
+            <ContenidoSelector>
+              {ORDENES.map((una) => (
+                <Opcion key={una.valor} value={una.valor}>{una.etiqueta}</Opcion>
+              ))}
+            </ContenidoSelector>
+          </Selector>
+        </div>
 
         {/* Se anuncia: quien filtra sin ver la lista necesita saber cuánto quedó, y es la única
             señal de que una letra más la dejó en cero. */}
         <p role="status" aria-live="polite" className="text-texto-sutil text-xs tabular-nums">
           {visibles === resumen.cuentas
-            ? `${resumen.espacios} ${GLOSARIO.espacio.plural.toLowerCase()}, ${resumen.espaciosCriticos} en rojo`
+            ? `${resumen.espacios} ${GLOSARIO.espacio.plural.toLowerCase()}, ${contarConPalabra('rojo', resumen.espaciosCriticos)}`
             : `${visibles} de ${resumen.cuentas} cuentas`}
         </p>
+
+        {foto !== null && <FotoDelDia foto={foto} />}
 
         {(filtro !== 'todas' || texto !== '') && (
           <button
             type="button"
-            onClick={() => { onFiltro('todas'); onTexto('') }}
+            onClick={onLimpiar}
             className={cn(
               'text-texto-tenue hover:text-texto hover:bg-hover rounded-control ease-neo',
               'duration-rapida flex h-7 items-center gap-1 px-2 text-xs transition-colors',
-              'focus-visible:outline-foco focus-visible:outline-2 focus-visible:outline-offset-2'
+              'pointer-coarse:h-11 pointer-coarse:px-3',
+              FOCO_EXTERIOR
             )}
           >
             <X aria-hidden="true" className="size-3.5" />
@@ -168,7 +169,9 @@ export function ControlesDeCartera (
  * después del texto obliga a saltar de renglón cuatro veces para armar la misma foto.
  *
  * Una ficha en cero se dibuja apagada y sigue pulsable: esconderla movería las demás de lugar cada
- * vez que una cuenta cambia de tramo, y ese salto vale más que los pocos píxeles que ahorra.
+ * vez que una cuenta cambia de tramo, y ese salto vale más que los pocos píxeles que ahorra. Se
+ * apaga el fondo y el punto, no el texto: bajarle la opacidad al número lo dejaba bajo el contraste
+ * mínimo justo en la ficha que dice que todo está bien.
  */
 function Ficha (
   { etiqueta, cuantas, puesta, punto, onPulsar }: {
@@ -179,6 +182,8 @@ function Ficha (
     onPulsar: () => void
   }
 ) {
+  const apagada = cuantas === 0 && !puesta
+
   return (
     <button
       type="button"
@@ -186,18 +191,35 @@ function Ficha (
       onClick={onPulsar}
       className={cn(
         'rounded-tarjeta ease-neo duration-rapida flex items-center gap-2 border px-3 py-1.5',
-        'transition-colors focus-visible:outline-foco focus-visible:outline-2 focus-visible:outline-offset-2',
+        'transition-colors pointer-coarse:min-h-11',
+        FOCO_EXTERIOR,
         puesta
           ? 'border-linea-fuerte bg-seleccionado text-texto'
           : 'border-linea bg-superficie-elevada hover:bg-hover',
-        cuantas === 0 && !puesta && 'opacity-55'
+        apagada && 'bg-transparent'
       )}
     >
       {punto !== undefined && (
-        <span aria-hidden="true" className={cn('size-2 shrink-0 rounded-full', punto)} />
+        <span aria-hidden="true" className={cn('size-2 shrink-0 rounded-full', punto, apagada && 'opacity-40')} />
       )}
       <span className="text-texto text-sm font-semibold tabular-nums">{cuantas}</span>
       <span className="text-texto-tenue text-xs">{etiqueta}</span>
     </button>
+  )
+}
+
+/**
+ * "Foto del 2 oct 2026", y una insignia cuando esa fecha no es la de hoy.
+ *
+ * El puntaje se calcula una vez al día: si la corrida no pasó, los números son de otro día y nada más
+ * en la pantalla lo diría. La insignia lleva palabras y no solo color, para que se lea igual sin
+ * distinguir el tono.
+ */
+function FotoDelDia ({ foto }: { foto: FotoDeLaCartera }) {
+  return (
+    <p className="text-texto-sutil flex items-center gap-1.5 text-xs">
+      Foto del {formatearFecha(foto.fecha)}
+      {foto.obsoleta && <Insignia tono="aviso" tamano="chico">No es de hoy</Insignia>}
+    </p>
   )
 }

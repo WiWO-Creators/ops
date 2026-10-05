@@ -31,7 +31,7 @@ import { ErrorApi } from '@/datos/errores'
 import { estadoIa } from '@/datos/ajustes'
 import type { EstadoIa } from '@/dominio/ajustes'
 import { cargarLookups } from '@/datos/lookups'
-import { pedir } from '@/datos/servidor'
+import { cargarYo, pedir } from '@/datos/servidor'
 import type { Espacio, Lookups } from '@/datos/recursos'
 import type { Capacidad, Yo } from '@/datos/tipos'
 import { ASISTENTE, GLOSARIO } from '@/dominio/glosario'
@@ -116,7 +116,7 @@ async function cargarDetalle (id: string): Promise<Detalle | ErrorApi> {
     const [proyecto, lookups, yo, ia] = await Promise.all([
       traerProyecto(id),
       cargarLookups(),
-      pedir<Yo>('/me'),
+      cargarYo(),
       estadoIa()
     ])
 

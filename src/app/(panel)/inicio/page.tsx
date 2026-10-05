@@ -4,7 +4,7 @@ import { unstable_rethrow } from 'next/navigation'
 import { ArrowRight, Star, TriangleAlert } from 'lucide-react'
 import { AvisoEnLinea } from '@/componentes/estado/Estados'
 import { cn } from '@/lib/clases'
-import { pedir, pedirOpcional } from '@/datos/servidor'
+import { cargarYo, pedir, pedirOpcional } from '@/datos/servidor'
 import { ErrorApi, mensajeParaPantalla } from '@/datos/errores'
 import type { Yo } from '@/datos/tipos'
 import type { Espacio, Proceso } from '@/datos/recursos'
@@ -59,7 +59,7 @@ const PROCESOS_A_TRAER = 60
  * por una seccion que ni siquiera le corresponde.
  */
 export default async function InicioPage () {
-  const { data: yo } = await pedir<Yo>('/me')
+  const { data: yo } = await cargarYo()
 
   // Los dos viajes salen juntos: el recordatorio de jornada no tiene por que esperar a los procesos
   // ni al reves. Va por `pedirOpcional` porque un fallo leyendo la jornada no puede tumbar la

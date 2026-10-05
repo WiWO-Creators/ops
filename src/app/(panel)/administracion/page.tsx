@@ -12,11 +12,10 @@ import { TituloModulo } from '@/componentes/estructura/TituloModulo'
 import { leerAjustes } from '@/datos/ajustes'
 import { ErrorApi } from '@/datos/errores'
 import { cargarLookups } from '@/datos/lookups'
-import { pedir } from '@/datos/servidor'
+import { cargarYo } from '@/datos/servidor'
 import { clavesDelGrupo, dominiosDeAjustes } from '@/dominio/ajustes'
 import { ASISTENTE, GLOSARIO } from '@/dominio/glosario'
 import type { Ajustes, Lookups } from '@/datos/recursos'
-import type { Yo } from '@/datos/tipos'
 
 export const metadata = { title: 'Administración · WiWO Ops' }
 
@@ -143,7 +142,7 @@ async function cargar (): Promise<{ ajustes: Ajustes, lookups: Lookups } | Error
  * nada.
  */
 export default async function AdministracionPage () {
-  const { data: yo } = await pedir<Yo>('/me')
+  const { data: yo } = await cargarYo()
 
   if (!yo.is_superadmin) return <SinPermiso className="mt-10" />
 

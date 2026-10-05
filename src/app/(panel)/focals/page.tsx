@@ -11,11 +11,12 @@ import {
   type ScoreEspacio
 } from '@/datos/focals'
 import { ErrorApi } from '@/datos/errores'
-import { pedir } from '@/datos/servidor'
+import { cargarYo, pedir } from '@/datos/servidor'
 import type { ScoreCliente } from '@/datos/recursos'
-import type { Yo } from '@/datos/tipos'
+import { descripcionDeFocals, textoDeCarteraVacia } from '@/dominio/cartera'
 import { puedeVerTodosLosFocals } from '@/dominio/permisos'
-import { ASISTENTE, GLOSARIO } from '@/dominio/glosario'
+import { GLOSARIO } from '@/dominio/glosario'
+import { hoyEnSantiago } from '@/dominio/supervision'
 
 export const metadata = { title: `${GLOSARIO.focal.plural} · WiWO Ops` }
 
@@ -51,7 +52,7 @@ export const metadata = { title: `${GLOSARIO.focal.plural} · WiWO Ops` }
  * para decidir quién entra; sin él la ruta mostraría el límite de error genérico.
  */
 export default async function FocalsPage () {
-  const yo = await pedir<Yo>('/me')
+  const yo = await cargarYo()
   const todas = puedeVerTodosLosFocals(yo.data)
   const [cuentas, error] = await cargarCartera(todas)
 
@@ -68,48 +69,26 @@ export default async function FocalsPage () {
     <section className="flex flex-col gap-4">
       <TituloModulo
         titulo={GLOSARIO.focal.plural}
-        descripcion={
-          (todas
-            ? 'Todas las cuentas, de la que peor está a la que mejor, con quien responde por cada una. '
-            : 'Las cuentas de las que respondes, de la que peor está a la que mejor. ') +
-          'El puntaje sale de la fórmula —cumplimiento de plazos, carga y vencimientos—; el estado ' +
-          `en palabras lo redacta ${ASISTENTE} a partir de esas mismas señales.`
-        }
+        descripcion={descripcionDeFocals(todas)}
       />
 
       {cuentas.length === 0
         ? <CarteraVacia todas={todas} />
-        : <PanelFocals cuentas={cuentas} mostrarFocal={todas} />}
+        : <PanelFocals cuentas={cuentas} hoy={hoyEnSantiago()} mostrarFocal={todas} />}
     </section>
   )
 }
 
 /**
- * El vacío dice cosas distintas según quién mire: a un Focal, que no responde por ninguna cuenta; a
- * una gerencia, que no hay ni un cliente con semáforo calculado, que es un problema del cron y no
- * suyo. Un solo texto para los dos mandaría a la gerencia a buscarse en una pestaña de cliente.
+ * El vacío dice cosas distintas según quién mire: a una gerencia, que no hay ni un cliente con
+ * semáforo calculado, que es un problema del cron y no suyo; a un Focal, que o no responde por
+ * ninguna cuenta o la foto del día todavía no existe. Un solo texto para los dos mandaría a la
+ * gerencia a buscarse en una pestaña de cliente. El texto lo arma `textoDeCarteraVacia`.
  */
 function CarteraVacia ({ todas }: { todas: boolean }) {
-  const focal = GLOSARIO.focal.singular.toLowerCase()
+  const { titulo, descripcion } = textoDeCarteraVacia(todas)
 
-  if (todas) {
-    return (
-      <Vacio
-        titulo="Todavía no hay cuentas con semáforo"
-        descripcion={
-          'El puntaje lo calcula una corrida diaria. Si la lista sigue vacía mañana, es que esa ' +
-          'corrida no está pasando.'
-        }
-      />
-    )
-  }
-
-  return (
-    <Vacio
-      titulo={`No eres ${focal} de ningún cliente`}
-      descripcion={`El ${focal} de una cuenta se nombra desde la ficha del cliente, en su pestaña ${GLOSARIO.focal.plural}.`}
-    />
-  )
+  return <Vacio titulo={titulo} descripcion={descripcion} />
 }
 
 /**
