@@ -136,7 +136,7 @@ export function ControlesDeCartera ({ resumen, visibles, mostrarFocal, foto, rec
             señal de que una letra más la dejó en cero. */}
         <p role="status" aria-live="polite" className="text-texto-sutil text-xs tabular-nums">
           {visibles === resumen.cuentas
-            ? `${resumen.espacios} ${GLOSARIO.espacio.plural.toLowerCase()}, ${contarConPalabra('rojo', resumen.espaciosCriticos)}`
+            ? `${resumen.cuentas} cuentas · ${resumen.espacios} ${GLOSARIO.espacio.plural.toLowerCase()}, ${contarConPalabra('rojo', resumen.espaciosCriticos)}`
             : `${visibles} de ${resumen.cuentas} cuentas`}
         </p>
 

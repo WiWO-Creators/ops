@@ -53,6 +53,13 @@ export const ROTULO_TIPO: Record<TipoNovedad, string> = {
  */
 export const NOVEDADES: Novedad[] = [
   {
+    fecha: '2026-10-05',
+    tipo: 'mejora',
+    titulo: 'Focals más limpio y con salida para las cuentas sin focal',
+    detalle: 'Si una cuenta tiene un solo Proyecto, su desglose ya no se repite. «Sin cambio» reemplaza al «– 0», las señales que no aplican dicen «No aplica» y una nota explica qué señales cuentan en el puntaje. En las cuentas sin focal aparece «Asignar focal», que lleva a la pestaña Focales del Cliente.',
+    commits: []
+  },
+  {
     fecha: '2026-10-02',
     tipo: 'nuevo',
     titulo: 'Seguimiento de lo que hacen los clientes en el portal',

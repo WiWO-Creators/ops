@@ -328,16 +328,35 @@ export function textoDeCarteraVacia (todas: boolean): TextoDeVacio {
  * La descripción de la pantalla de Focals.
  *
  * @param todas si es la cartera entera, la propia, o `null` cuando todavía no se sabe (mientras carga)
- * @returns la frase, que cierra igual en los tres casos para que el encabezado no salte al cargar
+ * @returns una sola frase de alcance; la fórmula va en {@link EXPLICACION_DE_FORMULA}, junto al desglose
  */
 export function descripcionDeFocals (todas: boolean | null): string {
-  const alcance = todas === null
-    ? 'Las cuentas de la cartera, de la que peor está a la que mejor. '
-    : todas
-      ? 'Todas las cuentas, de la que peor está a la que mejor, con quien responde por cada una. '
-      : 'Las cuentas de las que respondes, de la que peor está a la que mejor. '
+  if (todas === null) return 'Las cuentas de la cartera, de la que peor está a la que mejor.'
 
-  return alcance +
-    'El puntaje sale de la fórmula —cumplimiento de plazos, carga y vencimientos—; el estado ' +
-    `en palabras lo redacta ${ASISTENTE} a partir de esas mismas señales.`
+  return todas
+    ? 'Todas las cuentas, de la que peor está a la que mejor, con quien responde por cada una.'
+    : 'Las cuentas de las que respondes, de la que peor está a la que mejor.'
+}
+
+/** La fórmula del puntaje, dicha una vez, junto al desglose que la muestra. */
+export const EXPLICACION_DE_FORMULA =
+  'Cumplimiento de plazos 45 %, carga 30 %, vencimientos 25 %; ' +
+  `el estado en palabras lo redacta ${ASISTENTE} a partir de esas mismas señales.`
+
+/**
+ * El Proyecto de una cuenta cuando es el único y su desglose es el mismo que el de la cuenta.
+ *
+ * Con un solo Proyecto, el score del cliente se calcula sobre las mismas Tareas y el desglose sale
+ * idéntico: mostrarlo dos veces es ruido. Si algún día difieren, devuelve `null` y se muestra cada
+ * uno, porque esconder una diferencia sería esconder un dato.
+ *
+ * @param cuenta la cuenta con sus Proyectos
+ * @returns el único Proyecto, o `null` si hay otra cantidad o sus señales no coinciden
+ */
+export function esProyectoUnico (cuenta: CuentaFocal): ScoreEspacio | null {
+  const [espacio] = cuenta.espacios
+
+  if (cuenta.espacios.length !== 1 || espacio === undefined) return null
+
+  return JSON.stringify(espacio.senales) === JSON.stringify(cuenta.cliente.senales) ? espacio : null
 }

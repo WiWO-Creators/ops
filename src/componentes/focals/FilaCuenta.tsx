@@ -1,16 +1,23 @@
 'use client'
 
 import { memo, useState } from 'react'
+import Link from 'next/link'
 import { ChevronRight } from 'lucide-react'
 import { CLASES_DE_ENLACE_DE_FICHA, EnlaceDeFicha } from './EnlaceDeFicha'
 import { FOCO_INTERIOR } from './clases-de-foco'
-import { FilaEspacio, type EstadosRedactados } from './FilaEspacio'
+import { FilaEspacio, ProyectoUnico, type EstadosRedactados } from './FilaEspacio'
 import { BarraDeReparto, RecuentoDeTramos } from './ResumenDeTramos'
 import { EnlaceCliente } from '@/componentes/presentadores/EnlaceCliente'
 import { Insignia } from '@/componentes/presentadores/Insignia'
 import { DesgloseSenales, NumeroDeScore, TRAMOS, Variacion } from '@/componentes/clientes/SemaforoCliente'
-import { nombresDeFocales, type CuentaFocal, type EstadoDeSalud, type ScoreEspacio } from '@/datos/focals'
-import { nombreDeCuenta } from '@/dominio/cartera'
+import {
+  nombresDeFocales,
+  rutaDeFocalesDelCliente,
+  type CuentaFocal,
+  type EstadoDeSalud,
+  type ScoreEspacio
+} from '@/datos/focals'
+import { EXPLICACION_DE_FORMULA, esProyectoUnico, nombreDeCuenta } from '@/dominio/cartera'
 import type { ScoreCliente } from '@/datos/recursos'
 import { GLOSARIO } from '@/dominio/glosario'
 import { cn } from '@/lib/clases'
@@ -55,6 +62,7 @@ export const FilaCuenta = memo(function FilaCuenta (
   const { cliente, espacios } = cuenta
   const tramo = TRAMOS[cliente.semaforo] ?? TRAMOS.sin_datos
   const nombre = nombreDeCuenta(cuenta)
+  const proyectoUnico = esProyectoUnico(cuenta)
 
   return (
     <article
@@ -71,12 +79,12 @@ export const FilaCuenta = memo(function FilaCuenta (
           'ease-neo duration-rapida grid w-full grid-cols-[3rem_minmax(0,1fr)_auto] items-center',
           'gap-x-3 gap-y-1 p-3 text-start transition-colors hover:bg-hover',
           FOCO_INTERIOR,
-          'sm:grid-cols-[3rem_minmax(0,1fr)_auto_auto]'
+          mostrarFocal ? 'sm:grid-cols-[3rem_minmax(0,1fr)_12rem_1rem]' : 'sm:grid-cols-[3rem_minmax(0,1fr)_1rem]'
         )}
       >
         <span className="flex flex-col items-end gap-0.5">
           <NumeroDeScore score={cliente.score} semaforo={cliente.semaforo} className="text-cifra" />
-          <Variacion puntos={cliente.variacion} />
+          <Variacion puntos={cliente.variacion} ocultarSinCambio />
         </span>
 
         <span className="flex min-w-0 flex-col gap-1">
@@ -102,7 +110,7 @@ export const FilaCuenta = memo(function FilaCuenta (
           aria-hidden="true"
           className={cn(
             'text-texto-sutil ease-neo duration-rapida col-start-3 row-start-1 justify-self-end',
-            'transition-transform sm:col-start-4',
+            mostrarFocal ? 'transition-transform sm:col-start-4' : 'transition-transform sm:col-start-3',
             abierta && 'rotate-90'
           )}
         />
@@ -126,14 +134,21 @@ export const FilaCuenta = memo(function FilaCuenta (
             </div>
 
             <DesgloseSenales senales={cliente.senales} />
+            <p className="text-texto-tenue text-xs">{EXPLICACION_DE_FORMULA}</p>
+            {mostrarFocal && nombresDeFocales(cliente).length === 0 && (
+              <SinFocalAccion clienteId={cliente.client_id} />
+            )}
           </section>
 
           <section className="flex flex-col gap-2">
             <h3 className="text-texto-tenue text-xs antetitulo">
-              Sus {GLOSARIO.espacio.plural.toLowerCase()}
+              {proyectoUnico === null
+                ? `Sus ${GLOSARIO.espacio.plural.toLowerCase()}`
+                : `Su ${GLOSARIO.espacio.singular.toLowerCase()}`}
             </h3>
             <ListaEspacios
               espacios={espacios}
+              proyectoUnico={proyectoUnico}
               estados={estados}
               onEstado={onEstado}
               coincidencias={coincidencias}
@@ -178,8 +193,10 @@ function QuienResponde ({ cliente }: { cliente: ScoreCliente }) {
 
 /** Los {@link GLOSARIO.espacio} de una cuenta, del peor al mejor. */
 function ListaEspacios (
-  { espacios, estados, onEstado, coincidencias }: {
+  { espacios, proyectoUnico, estados, onEstado, coincidencias }: {
     espacios: ScoreEspacio[]
+    /** El Proyecto cuyo desglose ya se mostró en la cuenta; con él no hay lista que desplegar. */
+    proyectoUnico: ScoreEspacio | null
     estados: EstadosRedactados
     onEstado: (proyecto: number, estado: EstadoDeSalud) => void
     coincidencias: readonly number[]
@@ -191,6 +208,17 @@ function ListaEspacios (
         Este cliente no tiene ningún {GLOSARIO.espacio.singular.toLowerCase()}, así que no hay nada
         que puntuar acá abajo.
       </p>
+    )
+  }
+
+  if (proyectoUnico !== null) {
+    return (
+      <ProyectoUnico
+        espacio={proyectoUnico}
+        estado={estados[proyectoUnico.project_id] ?? proyectoUnico.estado}
+        onEstado={onEstado}
+        coincide={coincidencias.includes(proyectoUnico.project_id)}
+      />
     )
   }
 
@@ -207,5 +235,27 @@ function ListaEspacios (
         </li>
       ))}
     </ul>
+  )
+}
+
+/**
+ * Lo que se puede hacer con una cuenta de la que nadie responde: ir a nombrar al focal.
+ *
+ * Es un enlace dentro del detalle y no en la insignia de la fila porque la fila entera es un botón y
+ * un enlace adentro de un botón no es HTML válido.
+ *
+ * @param clienteId el cliente sin focal
+ */
+function SinFocalAccion ({ clienteId }: { clienteId: number }) {
+  return (
+    <p className="text-texto-tenue flex flex-wrap items-center gap-x-2 text-sm">
+      Nadie responde por esta cuenta.
+      <Link
+        href={rutaDeFocalesDelCliente(clienteId)}
+        className={cn(CLASES_DE_ENLACE_DE_FICHA, 'pointer-coarse:flex pointer-coarse:min-h-11 pointer-coarse:items-center')}
+      >
+        Asignar {GLOSARIO.focal.singular.toLowerCase()}
+      </Link>
+    </p>
   )
 }

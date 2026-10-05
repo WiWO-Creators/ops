@@ -46,3 +46,35 @@ export function contarConPalabra (tramo: SemaforoCliente, cantidad: number): str
 
   return `${cantidad} ${cantidad === 1 ? palabras.singular : palabras.plural}`
 }
+
+/** Las tres señales del score, reducidas a lo que importa para explicar los pesos. */
+export interface PesosDeSenales {
+  plazos: { score: number | null }
+  carga: { score: number | null }
+  vencimientos: { score: number | null }
+}
+
+const NOMBRES_DE_SENAL: ReadonlyArray<readonly [keyof PesosDeSenales, string]> = [
+  ['plazos', 'Cumplimiento de plazos'],
+  ['carga', 'Carga y actividad'],
+  ['vencimientos', 'Vencimientos próximos']
+]
+
+/**
+ * La nota que explica por qué un puntaje sale de pocas señales.
+ *
+ * Una señal sin sub-score no aplica y su peso quedó fuera del promedio: sin esta nota, un 0 en
+ * plazos junto a dos "No aplica" se lee como un puntaje que no cuadra.
+ *
+ * @param senales las tres señales del score de una cuenta o de un Proyecto
+ * @returns la frase, o `null` si todas aplican o ninguna aplica (ahí no hay nada que aclarar)
+ */
+export function notaDePesos (senales: PesosDeSenales): string | null {
+  const cuentan = NOMBRES_DE_SENAL.filter(([clave]) => senales[clave].score !== null).map(([, nombre]) => nombre)
+
+  if (cuentan.length === 0 || cuentan.length === NOMBRES_DE_SENAL.length) return null
+
+  const quedan = cuentan.length === 1 ? `Solo cuenta ${cuentan[0]}` : `Solo cuentan ${cuentan.join(' y ')}`
+
+  return `${quedan}: ${cuentan.length === 1 ? 'las otras no tienen' : 'la otra no tiene'} nada que medir.`
+}

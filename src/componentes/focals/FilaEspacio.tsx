@@ -42,18 +42,111 @@ export type EstadosRedactados = Record<number, EstadoDeSalud>
  * @param coincide `true` si este Proyecto es el que hizo aparecer a su cuenta en la búsqueda
  */
 export function FilaEspacio (
-  { espacio, estado, onEstado, coincide }: {
-    espacio: ScoreEspacio
-    estado: EstadoDeSalud | null
-    onEstado: (proyecto: number, estado: EstadoDeSalud) => void
-    coincide: boolean
-  }
+  { espacio, estado, onEstado, coincide }: PropsDeEspacio
 ) {
   const [abierto, setAbierto] = useState(false)
+
+  return (
+    <article
+      className={cn('rounded-medio overflow-hidden border', coincide ? 'border-acento' : 'border-linea')}
+    >
+      <button
+        type="button"
+        onClick={() => { setAbierto(!abierto) }}
+        aria-expanded={abierto}
+        className={cn(
+          'hover:bg-hover ease-neo duration-rapida flex w-full items-center gap-2 px-3 py-2 text-start',
+          'transition-colors pointer-coarse:min-h-11',
+          FOCO_INTERIOR
+        )}
+      >
+        <CabeceraDeEspacio espacio={espacio} coincide={coincide} />
+        <ChevronRight
+          size={16}
+          aria-hidden="true"
+          className={cn(
+            'text-texto-sutil ease-neo duration-rapida ms-auto shrink-0 transition-transform',
+            abierto && 'rotate-90'
+          )}
+        />
+      </button>
+
+      {abierto && (
+        <div className="border-linea border-t px-3 py-3">
+          <DetalleEspacio espacio={espacio} estado={estado} onEstado={onEstado} />
+        </div>
+      )}
+    </article>
+  )
+}
+
+/**
+ * El único Proyecto de una cuenta cuyo desglose es el mismo que el de la cuenta.
+ *
+ * Sin acordeón: el desglose ya está arriba, así que acá solo queda lo que es propio del Proyecto —su
+ * puntaje, su ficha y el estado en palabras—, a la vista y sin un clic de por medio.
+ *
+ * @param espacio el Proyecto
+ * @param estado el estado a mostrar: el redactado en esta sesión o el que trajo el servidor
+ * @param onEstado recibe el estado recién redactado, para que el panel lo conserve
+ * @param coincide `true` si este Proyecto es el que hizo aparecer a su cuenta en la búsqueda
+ */
+export function ProyectoUnico (
+  { espacio, estado, onEstado, coincide }: PropsDeEspacio
+) {
+  return (
+    <article
+      className={cn(
+        'rounded-medio flex flex-col gap-3 border px-3 py-3',
+        coincide ? 'border-acento' : 'border-linea'
+      )}
+    >
+      <div className="flex items-center gap-2">
+        <CabeceraDeEspacio espacio={espacio} coincide={coincide} />
+      </div>
+      <DetalleEspacio espacio={espacio} estado={estado} onEstado={onEstado} />
+    </article>
+  )
+}
+
+interface PropsDeEspacio {
+  espacio: ScoreEspacio
+  estado: EstadoDeSalud | null
+  onEstado: (proyecto: number, estado: EstadoDeSalud) => void
+  coincide: boolean
+}
+
+/** El número, el nombre y las insignias de un Proyecto: lo que ven la fila y el Proyecto único. */
+function CabeceraDeEspacio ({ espacio, coincide }: { espacio: ScoreEspacio, coincide: boolean }) {
+  const tramo = TRAMOS[espacio.semaforo] ?? TRAMOS.sin_datos
+
+  return (
+    <>
+      <NumeroDeScore
+        score={espacio.score}
+        semaforo={espacio.semaforo}
+        className="w-8 shrink-0 text-end text-base"
+      />
+      <span className="text-texto min-w-0 truncate text-sm">{nombreDe(espacio)}</span>
+      <Insignia tono={tramo.tono} tamano="chico" className="shrink-0">{tramo.etiqueta}</Insignia>
+      {coincide && <Insignia tono="acento" tamano="chico" className="shrink-0">Coincide</Insignia>}
+    </>
+  )
+}
+
+/**
+ * Lo que hay dentro de un Proyecto: su ficha, su desglose y el estado en palabras.
+ *
+ * @param espacio el Proyecto
+ * @param estado el estado a mostrar
+ * @param onEstado recibe el estado recién redactado
+ * @param conDesglose `false` cuando el desglose idéntico ya se mostró arriba, en la cuenta
+ */
+function DetalleEspacio (
+  { espacio, estado, onEstado, conDesglose = true }: Omit<PropsDeEspacio, 'coincide'> & { conDesglose?: boolean }
+) {
   const [redactando, setRedactando] = useState(false)
   const [error, setError] = useState<ErrorDeEstado | null>(null)
-
-  const tramo = TRAMOS[espacio.semaforo] ?? TRAMOS.sin_datos
 
   /** Pide el párrafo. Con las mismas señales el servidor devuelve el que ya estaba, sin cobrar. */
   async function redactar (): Promise<void> {
@@ -72,58 +165,24 @@ export function FilaEspacio (
   }
 
   return (
-    <article
-      className={cn('rounded-medio overflow-hidden border', coincide ? 'border-acento' : 'border-linea')}
-    >
-      <button
-        type="button"
-        onClick={() => { setAbierto(!abierto) }}
-        aria-expanded={abierto}
-        className={cn(
-          'hover:bg-hover ease-neo duration-rapida flex w-full items-center gap-2 px-3 py-2 text-start',
-          'transition-colors pointer-coarse:min-h-11',
-          FOCO_INTERIOR
-        )}
-      >
-        <NumeroDeScore
-          score={espacio.score}
-          semaforo={espacio.semaforo}
-          className="w-8 shrink-0 text-end text-base"
+    <div className="flex flex-col gap-3">
+      <EnlaceDeFicha etiqueta={`Ficha del ${GLOSARIO.espacio.singular}`}>
+        <EnlaceProyecto
+          id={espacio.project_id}
+          nombre={nombreDe(espacio)}
+          className={CLASES_DE_ENLACE_DE_FICHA}
         />
-        <span className="text-texto min-w-0 truncate text-sm">{nombreDe(espacio)}</span>
-        <Insignia tono={tramo.tono} tamano="chico" className="shrink-0">{tramo.etiqueta}</Insignia>
-        {coincide && <Insignia tono="acento" tamano="chico" className="shrink-0">Coincide</Insignia>}
-        <ChevronRight
-          size={16}
-          aria-hidden="true"
-          className={cn(
-            'text-texto-sutil ease-neo duration-rapida ms-auto shrink-0 transition-transform',
-            abierto && 'rotate-90'
-          )}
-        />
-      </button>
+      </EnlaceDeFicha>
 
-      {abierto && (
-        <div className="border-linea flex flex-col gap-3 border-t px-3 py-3">
-          <EnlaceDeFicha etiqueta={`Ficha del ${GLOSARIO.espacio.singular}`}>
-            <EnlaceProyecto
-              id={espacio.project_id}
-              nombre={nombreDe(espacio)}
-              className={CLASES_DE_ENLACE_DE_FICHA}
-            />
-          </EnlaceDeFicha>
+      {conDesglose && <DesgloseSenales senales={espacio.senales} conNota={false} />}
 
-          <DesgloseSenales senales={espacio.senales} />
-
-          <EstadoEnPalabras
-            estado={estado}
-            error={error}
-            redactando={redactando}
-            onRedactar={() => { void redactar() }}
-          />
-        </div>
-      )}
-    </article>
+      <EstadoEnPalabras
+        estado={estado}
+        error={error}
+        redactando={redactando}
+        onRedactar={() => { void redactar() }}
+      />
+    </div>
   )
 }
 
