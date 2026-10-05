@@ -5,8 +5,20 @@ import { ErrorApi } from '@/datos/errores'
 import { cargarLookupsDelPortal, opcionesDeFiltros } from '@/datos/lookups'
 import { pedirPortal } from '@/datos/servidor'
 import type { Referencia } from '@/datos/recursos'
-import type { DefinicionRecurso, ResultadoLista } from '@/definiciones/tipos'
-import { TablaPortal, type SeccionPortalListado } from './TablaPortal'
+import type { DefinicionRecurso, OpcionFiltro, ResultadoLista } from '@/definiciones/tipos'
+
+/**
+ * Lo que la pagina del servidor le entrega a la tabla cliente de una seccion.
+ *
+ * Todo es serializable: la definicion (con sus funciones) se resuelve del lado del cliente.
+ */
+export interface DatosDeTablaDelPortal<T> {
+  /** La primera pagina, resuelta en el servidor. */
+  inicial: ResultadoLista<T>
+  /** La consulta con la que el servidor armo `inicial`; ver `TablaRecurso`. */
+  consultaDelInicial?: string
+  opcionesDeFiltro?: Record<string, OpcionFiltro[]>
+}
 
 /** La primera pagina del listado, o la pantalla que explica por que no hay. */
 type LecturaDelListado<T> = { lista: ResultadoLista<T> } | { pantalla: ReactElement }
@@ -36,8 +48,9 @@ async function leerListado<T> (ruta: string): Promise<LecturaDelListado<T>> {
 /**
  * Una seccion de listado del portal.
  *
- * Soporte y Proyectos son la misma pagina con otra definicion, asi que se escribe una vez. Cada
- * `page.tsx` queda en tres lineas: su metadata y una llamada aca.
+ * Soporte y Proyectos son la misma pagina con otra definicion y otra tabla, asi que se escribe una
+ * vez. Cada `page.tsx` pasa su definicion y la funcion `tabla` que dibuja los datos con su tabla
+ * cliente (`TablaSolicitudes`, `TablaProyectos`).
  *
  * La primera pagina se resuelve en el servidor para que la tabla no parpadee al montar; de ahi en
  * adelante el motor pide al BFF. El `Suspense` no es decorativo: `TablaRecurso` usa
@@ -51,15 +64,20 @@ async function leerListado<T> (ruta: string): Promise<LecturaDelListado<T>> {
  * entera en vez de explicar que no hay acceso.
  */
 export async function SeccionDePortal<T extends { id: number }> ({
-  seccion,
   definicion,
   parametrosDeUrl,
+  tabla,
   acciones,
   espacios
 }: {
-  seccion: SeccionPortalListado
   definicion: DefinicionRecurso<T>
   parametrosDeUrl: Record<string, string | string[] | undefined>
+  /**
+   * Dibuja la tabla cliente de la seccion con los datos del servidor. Es una funcion porque se llama
+   * en el servidor: solo viaja al cliente el elemento que devuelve, con datos serializables. Recibe
+   * ademas los {espacios} del contacto, para el listado que los nombra (Soporte).
+   */
+  tabla: (datos: DatosDeTablaDelPortal<T>, espacios: Referencia[] | undefined) => ReactNode
   /**
    * Lo que se puede hacer en esta seccion, al lado del titulo. Solo Soporte tiene: Proyectos no se
    * crean desde el portal. Va acá y no en cada `page.tsx` porque el titulo lo dibuja este componente,
@@ -92,13 +110,14 @@ export async function SeccionDePortal<T extends { id: number }> ({
       <Suspense
         fallback={<Cargando alto="min-h-36" mensaje={`Cargando ${definicion.titulo.plural.toLowerCase()}…`} />}
       >
-        <TablaPortal
-          seccion={seccion}
-          inicial={lectura.lista}
-          consultaDelInicial={consulta}
-          opcionesDeFiltro={opcionesDeFiltros(definicion, lookups)}
-          espacios={espaciosDelContacto}
-        />
+        {tabla(
+          {
+            inicial: lectura.lista,
+            consultaDelInicial: consulta,
+            opcionesDeFiltro: opcionesDeFiltros(definicion, lookups)
+          },
+          espaciosDelContacto
+        )}
       </Suspense>
     </section>
   )

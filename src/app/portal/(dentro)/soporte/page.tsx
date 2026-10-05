@@ -10,6 +10,7 @@ import { pedirPortal, yoDelPortal } from '@/datos/servidor'
 import type { EspacioPortal } from '@/datos/portal'
 import type { Referencia } from '@/datos/recursos'
 import { SeccionDePortal } from '../seccion'
+import { TablaSolicitudes } from '../TablaSolicitudes'
 import { NuevaSolicitud } from './NuevaSolicitud'
 
 export const metadata: Metadata = { title: 'Tickets · Portal de clientes' }
@@ -36,10 +37,10 @@ export default async function SoportePagina (props: PageProps<'/portal/soporte'>
   return (
     <>
       <SeccionDePortal
-        seccion="soporte"
         definicion={PORTAL_TICKETS}
         parametrosDeUrl={await props.searchParams}
         espacios={espacios.then((resuelto) => resuelto.espacios)}
+        tabla={(datos, nombres) => <TablaSolicitudes {...datos} espacios={nombres} />}
         acciones={
           <Suspense fallback={null}>
             <AltaDeSolicitud />
