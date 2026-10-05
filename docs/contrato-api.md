@@ -1913,7 +1913,8 @@ la respuesta sigue siendo el de siempre, con su interruptor.
   `maximum_allowed_ticket_attachments` de Perfex (defecto **4**), con techo `TICKETS_ADJUNTOS_MAX_ARCHIVOS`
   (defecto 10). Ambas variables van en el `.env` del módulo, no en el código.
 - **Nombre**: lo decide el servidor (`sanitize_file_name()` + `unique_filename()`); el del cliente es
-  sólo una semilla, sin camino y con la extensión en minúsculas. Un nombre repetido suma `-1`.
+  sólo una semilla: queda únicamente `[A-Za-z0-9_-]` más la extensión validada en minúsculas (`shell.php.png`
+  → `shell-php.png`). Un nombre repetido suma `-1`. Imágenes y PDF con `<?php`/`<?=` son `content_mismatch`.
 
 | Situación | Respuesta |
 |---|---|
@@ -1928,7 +1929,8 @@ El `message` del 422 nombra el archivo y el límite («“foto.exe”: ese tipo 
 permitido.»). En el portal rigen además las reglas de siempre —`409` por regla de respuesta, `429` por
 tope por hora (los archivos no cuentan aparte: una respuesta con archivos es una respuesta), `20000`
 caracteres en el mensaje—, y una **alta repetida** (60 s, mismo asunto y mensaje) devuelve el ticket
-ya creado y descarta los archivos.
+ya creado, **salvo que traiga archivos**: un alta con archivos nunca es repetición y crea un ticket nuevo
+(devolver el anterior los descartaría en silencio).
 
 **Lectura en el portal.** `GET /portal/tickets/{id}` suma `attachments` (los del mensaje de apertura) y
 cada elemento de `replies` suma los suyos, con la forma del equipo:
@@ -1948,7 +1950,10 @@ tickets del Espacio); si no, `404`. Responde siempre `Content-Disposition: attac
 **Cómo lo usa `ops-v2`.** `CajaDeRespuesta` y `NuevaSolicitud` eligen archivos con un tope local (los
 mismos 10 MB / 4 archivos / extensiones por defecto, en `dominio/ticket-adjuntos.ts`), los listan antes
 de enviar y mandan multipart sólo si hay archivos. Es un adelanto de la validación, no la validación:
-si la instalación cambia sus límites, manda el `422` del servidor. El hilo del portal pinta
+si la instalación cambia sus límites, manda el `422` del servidor. **Hay que mantenerlos sincronizados a mano**
+con `maximum_allowed_ticket_attachments` y `ticket_attachments_file_extensions` de Perfex, con
+`TICKETS_ADJUNTOS_MAX_MB`/`TICKETS_ADJUNTOS_MAX_ARCHIVOS` del `.env` y con `Adjunto::MIMES` (el backend
+acepta la **intersección** de las dos listas de extensiones). El hilo del portal pinta
 `attachments` con el mismo componente `Adjuntos` que el panel.
 
 ### Lectura de venta desde el portal
