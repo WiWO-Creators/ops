@@ -5,7 +5,7 @@
 
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
-import { cabecerasDeSalida, esRutaDeDescarga, interpretarCuerpoJson } from '../src/datos/proxy-bff.ts'
+import { cabecerasDeSalida, disposicionDeDescarga, esRutaDeDescarga, interpretarCuerpoJson } from '../src/datos/proxy-bff.ts'
 
 /** Respuesta de la API con las cabeceras dadas. */
 function respuestaCon (cabeceras) {
@@ -24,6 +24,28 @@ test('una descarga reenvia content-disposition y nosniff de la API', () => {
 
   assert.equal(salida.get('content-disposition'), 'attachment; filename="a.pdf"')
   assert.equal(salida.get('x-content-type-options'), 'nosniff')
+})
+
+test('una descarga sin content-disposition de la API sale como attachment con sandbox', () => {
+  const salida = cabecerasDeSalida(respuestaCon({ 'content-type': 'text/html' }), true)
+
+  assert.equal(salida.get('content-disposition'), 'attachment')
+  assert.equal(salida.get('content-security-policy'), 'sandbox')
+})
+
+test('una disposicion inline se convierte en attachment conservando el nombre', () => {
+  assert.equal(disposicionDeDescarga('inline; filename="a.html"'), 'attachment; filename="a.html"')
+  assert.equal(disposicionDeDescarga('INLINE'), 'attachment')
+  assert.equal(disposicionDeDescarga('attachment; filename="a.pdf"'), 'attachment; filename="a.pdf"')
+  assert.equal(disposicionDeDescarga(''), 'attachment')
+  assert.equal(disposicionDeDescarga('otra-cosa'), 'attachment')
+})
+
+test('fuera de las descargas no se fuerza la disposicion', () => {
+  const salida = cabecerasDeSalida(respuestaCon({ 'content-type': 'application/json' }))
+
+  assert.equal(salida.get('content-disposition'), null)
+  assert.equal(salida.get('content-security-policy'), null)
 })
 
 test('una descarga fuerza nosniff aunque la API no lo mande', () => {

@@ -30,6 +30,12 @@ export const CABECERAS_REENVIADAS = [
 /** Valor de `x-content-type-options` que se fuerza en toda descarga, la mande o no la API. */
 const NOSNIFF = 'nosniff'
 
+/** `content-security-policy` de toda descarga: aunque algo la abra en una pestaña, no ejecuta script. */
+const CSP_DESCARGA = 'sandbox'
+
+/** Disposicion por defecto de una descarga: nunca se muestra en el origen de la app. */
+const DISPOSICION_ADJUNTO = 'attachment'
+
 /** Primer segmento de las rutas de descarga de adjuntos. */
 const PREFIJO_DESCARGAS = 'files'
 
@@ -39,11 +45,29 @@ export function esRutaDeDescarga (segmentos: readonly string[]): boolean {
 }
 
 /**
+ * La `content-disposition` que se le entrega al navegador en una descarga.
+ *
+ * Un archivo subido por un cliente nunca puede abrirse «en linea» en el origen de la app: ahi
+ * ejecutaria script con la sesion de quien lo abre. Si la API no la manda, o manda `inline`, se
+ * fuerza `attachment` (conservando el nombre de archivo si venia); si ya es `attachment`, pasa igual.
+ *
+ * @param valor la cabecera de la API, o `null` si no vino
+ * @returns la cabecera a enviar
+ */
+export function disposicionDeDescarga (valor: string | null): string {
+  if (valor === null || valor.trim() === '') return DISPOSICION_ADJUNTO
+  if (/^\s*attachment\b/i.test(valor)) return valor
+  if (/^\s*inline\b/i.test(valor)) return valor.replace(/^\s*inline/i, DISPOSICION_ADJUNTO)
+
+  return DISPOSICION_ADJUNTO
+}
+
+/**
  * Arma las cabeceras de la respuesta del BFF a partir de las de la API.
  *
  * @param respuesta la respuesta de la API v1
- * @param descarga `true` si la ruta pedida es una descarga de adjuntos: fuerza `nosniff` y reenvia
- *        `content-length` cuando el cuerpo viaja sin recodificar
+ * @param descarga `true` si la ruta pedida es una descarga de adjuntos: fuerza `attachment`,
+ *        `nosniff` y CSP `sandbox`, y reenvia `content-length` cuando el cuerpo viaja sin recodificar
  * @returns el `content-type` mas las cabeceras de la lista que la API haya emitido
  */
 export function cabecerasDeSalida (respuesta: Response, descarga = false): Headers {
@@ -60,6 +84,8 @@ export function cabecerasDeSalida (respuesta: Response, descarga = false): Heade
   if (!descarga) return salida
 
   salida.set('x-content-type-options', NOSNIFF)
+  salida.set('content-security-policy', CSP_DESCARGA)
+  salida.set('content-disposition', disposicionDeDescarga(respuesta.headers.get('content-disposition')))
 
   const largo = respuesta.headers.get('content-length')
 
