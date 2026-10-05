@@ -116,8 +116,18 @@ export function solicitudCompleta (borrador: BorradorDeSolicitud): boolean {
     borrador.espacio !== SIN_ESPACIO
 }
 
-/** Clave de `sessionStorage` del borrador del alta. No lleva id: solo hay un alta abierta a la vez. */
-export const CLAVE_BORRADOR_SOLICITUD = 'ticket-borrador:contacto:nuevo'
+/**
+ * Clave de `sessionStorage` del borrador del alta de un contacto.
+ *
+ * Lleva el id del contacto porque la pestaña sobrevive a cerrar sesion: sin el, quien entra despues
+ * en el mismo navegador veria el borrador de la persona anterior.
+ *
+ * @param contactoId el contacto que esta escribiendo
+ * @returns la clave de `sessionStorage`
+ */
+export function claveDeBorradorDeSolicitud (contactoId: number): string {
+  return `ticket-borrador:contacto:${contactoId}:nuevo`
+}
 
 /**
  * Serializa el borrador del alta para guardarlo.

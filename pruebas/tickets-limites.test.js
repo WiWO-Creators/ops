@@ -5,10 +5,11 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import { readdirSync, readFileSync } from 'node:fs'
-import { LARGO_MENSAJE_TICKET, contadorDeLargo } from '../src/dominio/ticket-limites.ts'
+import { LARGO_MENSAJE_TICKET, contadorDeLargo, topeDeMensaje } from '../src/dominio/ticket-limites.ts'
 import {
   LARGO_ASUNTO,
   SIN_PRIORIDAD,
+  claveDeBorradorDeSolicitud,
   leerBorradorDeSolicitud,
   serializarBorradorDeSolicitud
 } from '../src/dominio/tickets-del-portal.ts'
@@ -24,6 +25,16 @@ test('el contador no aparece mientras queda margen', () => {
 test('el contador aparece cerca del tope, con formato es-CL', () => {
   assert.equal(contadorDeLargo(19_500), '19.500 de 20.000 caracteres')
   assert.equal(contadorDeLargo(LARGO_MENSAJE_TICKET), '20.000 de 20.000 caracteres')
+})
+
+test('el tope de mensaje aplica al portal y no al equipo', () => {
+  assert.equal(topeDeMensaje('portal'), LARGO_MENSAJE_TICKET)
+  assert.equal(topeDeMensaje('panel'), undefined)
+})
+
+test('la clave del borrador del alta distingue contactos', () => {
+  assert.notEqual(claveDeBorradorDeSolicitud(1), claveDeBorradorDeSolicitud(2))
+  assert.match(claveDeBorradorDeSolicitud(7), /:7:/)
 })
 
 test('un borrador sin texto no se guarda, aunque haya espacio o prioridad elegidos', () => {

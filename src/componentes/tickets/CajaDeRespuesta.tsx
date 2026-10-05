@@ -12,7 +12,7 @@ import {
 import { escribirEnBff } from '@/componentes/datos/mutaciones'
 import type { EstadoLookup, RespuestaPredefinida } from '@/datos/recursos'
 import { normalizar } from '@/dominio/salas'
-import { LARGO_MENSAJE_TICKET, contadorDeLargo } from '@/dominio/ticket-limites'
+import { contadorDeLargo, topeDeMensaje } from '@/dominio/ticket-limites'
 import {
   almacenDeSesion,
   avisoSinRespuesta,
@@ -69,6 +69,7 @@ export function CajaDeRespuesta ({
   const clave = claveDeBorrador(fuente, ticket.id)
   const idCampo = `respuesta-${ticket.id}`
   const ofrecidos = estadosParaResponder(estados, ticket.estado)
+  const tope = topeDeMensaje(fuente.sujeto)
 
   const [mensaje, setMensaje] = useState(() => leerBorrador(almacenDeSesion(), clave))
   const [elegido, setElegido] = useState<string | null>(null)
@@ -101,9 +102,9 @@ export function CajaDeRespuesta ({
     return () => { window.clearTimeout(id) }
   }, [espera])
 
-  /** Guarda en pantalla y en el borrador, cortando en el tope (una predefinida puede pasarse). */
+  /** Guarda en pantalla y en el borrador; en el portal corta en el tope (una predefinida puede pasarse). */
   function escribir (texto: string): void {
-    const recortado = texto.slice(0, LARGO_MENSAJE_TICKET)
+    const recortado = tope === undefined ? texto : texto.slice(0, tope)
 
     setMensaje(recortado)
     guardarBorrador(almacenDeSesion(), clave, recortado)
@@ -152,7 +153,7 @@ export function CajaDeRespuesta ({
   }
 
   const vacio = mensaje.trim() === ''
-  const contador = contadorDeLargo(mensaje.length)
+  const contador = tope === undefined ? null : contadorDeLargo(mensaje.length, tope)
 
   return (
     <form
@@ -175,7 +176,7 @@ export function CajaDeRespuesta ({
         id={idCampo}
         rows={4}
         value={mensaje}
-        maxLength={LARGO_MENSAJE_TICKET}
+        maxLength={tope}
         placeholder="Escribe tu respuesta."
         aria-describedby={`${idCampo}-atajo`}
         aria-invalid={fallo !== null || undefined}

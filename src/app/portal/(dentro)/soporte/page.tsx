@@ -25,10 +25,10 @@ export const metadata: Metadata = { title: 'Tickets · Portal de clientes' }
 const TOPE_ESPACIOS = 200
 
 export default async function SoportePagina (props: PageProps<'/portal/soporte'>) {
-  const [lookups, { espacios, fallo: fallaronEspacios }, entradaId] = await Promise.all([
+  const [lookups, { espacios, fallo: fallaronEspacios }, { entradaId, contactoId }] = await Promise.all([
     cargarLookupsDelPortal(),
     espaciosDelContacto(),
-    espacioDeEntrada()
+    datosDelContacto()
   ])
 
   return (
@@ -43,6 +43,7 @@ export default async function SoportePagina (props: PageProps<'/portal/soporte'>
             espacios={espacios}
             fallaronEspacios={fallaronEspacios}
             entradaId={entradaId}
+            contactoId={contactoId}
           />
         }
       />
@@ -85,19 +86,27 @@ async function espaciosDelContacto (): Promise<EspaciosDelContacto> {
   }
 }
 
+/** Lo que el alta toma de `/portal/me`: a donde apuntar y de quien es el borrador. */
+interface DatosDelContacto {
+  entradaId: number | null
+  contactoId: number | null
+}
+
 /**
- * El {espacio} al que entra este contacto, para que el alta nazca apuntando ahi.
+ * El {espacio} al que entra este contacto y su id, para que el alta nazca apuntando ahi y guarde
+ * su borrador bajo su nombre.
  *
  * Es una preferencia de la pantalla y nada mas: si `/portal/me` falla, el selector arranca sin
- * elegir y la persona elige. Por eso el fallo se traga entero en vez de filtrarse por codigo — no
- * hay ningun estado de error que valga la pena mostrarle al cliente por un valor inicial.
+ * elegir, la persona elige y no hay borrador. Por eso el fallo se traga entero en vez de filtrarse
+ * por codigo — no hay ningun estado de error que valga la pena mostrarle al cliente por un valor
+ * inicial.
  */
-async function espacioDeEntrada (): Promise<number | null> {
+async function datosDelContacto (): Promise<DatosDelContacto> {
   try {
     const { data } = await pedirPortal<YoPortal>('/portal/me')
 
-    return data.proyecto_de_entrada?.id ?? null
+    return { entradaId: data.proyecto_de_entrada?.id ?? null, contactoId: data.id }
   } catch {
-    return null
+    return { entradaId: null, contactoId: null }
   }
 }

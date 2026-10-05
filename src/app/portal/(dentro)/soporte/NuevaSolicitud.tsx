@@ -19,7 +19,7 @@ import {
   PARAMETRO_TICKET, almacenDeSesion, avisarCambioDeTicket, falloDeTicket, guardarBorrador, leerBorrador
 } from '@/dominio/ticket-vista'
 import {
-  CLAVE_BORRADOR_SOLICITUD, LARGO_ASUNTO, SIN_PRIORIDAD, cuerpoDeSolicitud, espacioPorDefecto,
+  LARGO_ASUNTO, claveDeBorradorDeSolicitud, SIN_PRIORIDAD, cuerpoDeSolicitud, espacioPorDefecto,
   leerBorradorDeSolicitud, serializarBorradorDeSolicitud, solicitudCompleta
 } from '@/dominio/tickets-del-portal'
 import type { TicketPortalDetalle } from '@/datos/portal'
@@ -72,11 +72,13 @@ interface PropsNuevaSolicitud {
    * inicial del selector: quien tenga otro en mente lo cambia sin resistencia.
    */
   entradaId?: number | null
+  /** El contacto que escribe; `null` si no se pudo saber, y entonces no se guarda borrador. */
+  contactoId?: number | null
   /** `true` si pedir los {espacios} fallo: sin lista no se puede distinguir de «no tiene ninguno». */
   fallaronEspacios?: boolean
 }
 
-export function NuevaSolicitud ({ prioridades, espacios, entradaId = null, fallaronEspacios = false }: PropsNuevaSolicitud) {
+export function NuevaSolicitud ({ prioridades, espacios, entradaId = null, contactoId = null, fallaronEspacios = false }: PropsNuevaSolicitud) {
   const router = useRouter()
   const avisar = useAviso()
   const [reintentando, reintentar] = useTransition()
@@ -87,8 +89,10 @@ export function NuevaSolicitud ({ prioridades, espacios, entradaId = null, falla
   const [espera, setEspera] = useState<number | null>(null)
   const enviandoAhora = useRef(false)
 
+  // Sin saber de quien es, no se lee ni se guarda: un borrador ajeno es peor que ninguno.
+  const claveBorrador = contactoId === null ? null : claveDeBorradorDeSolicitud(contactoId)
   const [inicial] = useState(() => leerBorradorDeSolicitud(
-    leerBorrador(almacenDeSesion(), CLAVE_BORRADOR_SOLICITUD), espacios, prioridades, entradaId
+    claveBorrador === null ? '' : leerBorrador(almacenDeSesion(), claveBorrador), espacios, prioridades, entradaId
   ))
   const [asunto, setAsunto] = useState(inicial.asunto)
   const [mensaje, setMensaje] = useState(inicial.mensaje)
@@ -97,12 +101,14 @@ export function NuevaSolicitud ({ prioridades, espacios, entradaId = null, falla
 
   // El borrador sigue a lo escrito; al reiniciar el formulario queda vacio y esto lo borra.
   useEffect(() => {
+    if (claveBorrador === null) return
+
     guardarBorrador(
       almacenDeSesion(),
-      CLAVE_BORRADOR_SOLICITUD,
+      claveBorrador,
       serializarBorradorDeSolicitud({ asunto, mensaje, espacio, prioridad })
     )
-  }, [asunto, mensaje, espacio, prioridad])
+  }, [claveBorrador, asunto, mensaje, espacio, prioridad])
 
   useEffect(() => {
     if (espera === null) return
