@@ -8,9 +8,9 @@
 
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
+import { EVENTO_TICKETS_CAMBIADOS } from '../src/dominio/ticket-estados.ts'
 import { EVENTO_TICKETS_CAMBIADOS as EVENTO_DEL_MODAL } from '../src/dominio/ticket-vista.ts'
 import {
-  EVENTO_TICKETS_CAMBIADOS,
   alternarEsperandoAlEquipo,
   esperaDelTicket,
   esperaTuRespuesta,
@@ -231,6 +231,6 @@ test('el solicitante cae del contacto al nombre, al correo y a la empresa', () =
   assert.equal(nombreDelSolicitante({}), 'Sin solicitante')
 })
 
-test('los listados escuchan el mismo evento que emite el modal', () => {
+test('el evento que emite el modal es el mismo que escuchan las listas', () => {
   assert.equal(EVENTO_TICKETS_CAMBIADOS, EVENTO_DEL_MODAL)
 })

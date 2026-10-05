@@ -1,7 +1,7 @@
 import type { Columna, DefinicionRecurso, Filtro, OpcionFiltro } from './tipos.ts'
 import type { TicketEspacio } from '../datos/recursos.ts'
 import { GLOSARIO } from '../dominio/glosario.ts'
-import { ESTADOS_TICKET_ABIERTOS } from '../dominio/ticket-vista.ts'
+import { ESTADOS_TICKET_ABIERTOS } from '../dominio/ticket-estados.ts'
 import { esperaDelTicket, ultimaActividad } from '../dominio/tickets-listados.ts'
 import { formatearFecha, formatearRelativo } from '../lib/fechas.ts'
 

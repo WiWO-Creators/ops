@@ -41,7 +41,7 @@ import type {
 } from '@/datos/portal'
 import { saludar, seccionesDelPortal, type SeccionPortal } from '@/dominio/portal'
 import { GLOSARIO } from '@/dominio/glosario'
-import { PARAMETRO_TICKET } from '@/dominio/ticket-vista'
+import { PARAMETRO_TICKET } from '@/dominio/ticket-estados'
 import { sinFallar } from './detalle'
 
 export const metadata: Metadata = { title: 'Inicio · Portal de clientes' }

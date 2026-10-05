@@ -1,4 +1,5 @@
 import { formatearRelativo } from '../lib/fechas.ts'
+import { ESTADO_TICKET_CERRADO } from './ticket-estados.ts'
 
 /**
  * Reglas de los listados de tickets: la pestaña del Proyecto, la bandeja global del equipo y la
@@ -10,13 +11,6 @@ import { formatearRelativo } from '../lib/fechas.ts'
  *
  * Fuente: `CONTRATO2.md`, secciones E (portal) y F (listados del equipo).
  */
-
-// El evento que avisa que un ticket cambio vive junto a quien lo emite (`avisarCambioDeTicket`, en
-// `ticket-vista.ts`). Se reexporta aca para que los listados lo nombren desde su propio modulo.
-export { EVENTO_TICKETS_CAMBIADOS } from './ticket-vista.ts'
-
-/** Estado «Cerrado» de Perfex (`tbltickets_status`, id 5). Un ticket cerrado no espera a nadie. */
-const CERRADO = 5
 
 /** Quien escribio el ultimo mensaje del hilo, tal como lo manda la API (`ultimo_de`). */
 export type LadoDelTicket = 'equipo' | 'cliente'
@@ -56,7 +50,7 @@ export interface EsperaDeTicket {
  * @returns la espera, o `null`
  */
 export function esperaDelTicket (fila: FilaConEspera, ahora: Date = new Date()): EsperaDeTicket | null {
-  if (fila.status === CERRADO) return null
+  if (fila.status === ESTADO_TICKET_CERRADO) return null
   if (fila.ultimo_de !== 'equipo' && fila.ultimo_de !== 'cliente') return null
 
   const lado: LadoDelTicket = fila.ultimo_de === 'cliente' ? 'equipo' : 'cliente'
@@ -176,7 +170,7 @@ export function noLeidoPorElCliente (fila: Pick<FilaDelPortal, 'no_leido'>): boo
  * @returns `true` si hay que mostrar "Esperando tu respuesta"
  */
 export function esperaTuRespuesta (fila: FilaDelPortal): boolean {
-  if (fila.status === CERRADO) return false
+  if (fila.status === ESTADO_TICKET_CERRADO) return false
   if (fila.ultimo_de === 'equipo' || fila.ultimo_de === 'cliente') return fila.ultimo_de === 'equipo'
 
   return noLeidoPorElCliente(fila)

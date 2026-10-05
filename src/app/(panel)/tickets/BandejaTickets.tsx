@@ -13,7 +13,8 @@ import {
   opcionesDeProyectoDeTickets
 } from '@/definiciones/tickets'
 import { GLOSARIO } from '@/dominio/glosario'
-import { PARAMETRO_TICKET, TICKET_DEL_PANEL, type ProyectoElegible } from '@/dominio/ticket-vista'
+import { PARAMETRO_TICKET } from '@/dominio/ticket-estados'
+import { TICKET_DEL_PANEL, type ProyectoElegible } from '@/dominio/ticket-vista'
 
 /**
  * Capacidades del equipo sobre un ticket: las mismas que en la pestaña del Proyecto. La API decide por

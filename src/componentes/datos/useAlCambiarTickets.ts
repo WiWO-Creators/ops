@@ -5,7 +5,7 @@ import { useSearchParams } from 'next/navigation'
 import { idDeParametro } from '@/componentes/datos/tabla'
 import { agruparAvisos } from '@/lib/agrupar-avisos'
 import { ESPERA_AVISOS_DE_TICKET_MS, selectorDeTicketSinLeer } from '@/dominio/ticket-sondeo'
-import { EVENTO_TICKETS_CAMBIADOS, PARAMETRO_TICKET } from '@/dominio/ticket-vista'
+import { EVENTO_TICKETS_CAMBIADOS, PARAMETRO_TICKET } from '@/dominio/ticket-estados'
 
 /**
  * Llama a `alCambiar` cuando alguien avisa que un ticket cambio (`ops:tickets-cambiados`).

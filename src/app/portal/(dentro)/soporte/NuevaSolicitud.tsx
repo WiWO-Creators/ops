@@ -15,8 +15,9 @@ import { escribirEnBff } from '@/componentes/datos/mutaciones'
 import { urlConParametro } from '@/componentes/datos/tabla'
 import { GLOSARIO } from '@/dominio/glosario'
 import { LARGO_MENSAJE_TICKET, contadorDeLargo } from '@/dominio/ticket-limites'
+import { PARAMETRO_TICKET } from '@/dominio/ticket-estados'
 import {
-  PARAMETRO_TICKET, almacenDeSesion, avisarCambioDeTicket, falloDeTicket, guardarBorrador, leerBorrador
+  almacenDeSesion, avisarCambioDeTicket, falloDeTicket, guardarBorrador, leerBorrador
 } from '@/dominio/ticket-vista'
 import {
   LARGO_ASUNTO, claveDeBorradorDeSolicitud, SIN_PRIORIDAD, cuerpoDeSolicitud, espacioPorDefecto,

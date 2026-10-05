@@ -18,7 +18,7 @@ import type { TicketPortal } from '@/datos/portal'
 import type { Referencia } from '@/datos/recursos'
 import { GLOSARIO } from '@/dominio/glosario'
 import { ultimaActividad } from '@/dominio/tickets-listados'
-import { PARAMETRO_TICKET } from '@/dominio/ticket-vista'
+import { PARAMETRO_TICKET } from '@/dominio/ticket-estados'
 
 /**
  * Las tablas del portal, del lado del cliente.

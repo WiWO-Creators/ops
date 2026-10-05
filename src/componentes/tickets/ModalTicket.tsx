@@ -8,7 +8,8 @@ import { Cargando } from '@/componentes/estado/Estados'
 import { CerrarDialogo, ContenidoDialogo, Dialogo } from '@/componentes/superposiciones/Dialogo'
 import { idDeParametro, urlConParametro } from '@/componentes/datos/tabla'
 import type { Capacidad } from '@/datos/tipos'
-import { PARAMETRO_TICKET, nombreDelTicket, tituloDelModal, type FuenteDeTicket, type ProyectoElegible } from '@/dominio/ticket-vista'
+import { PARAMETRO_TICKET } from '@/dominio/ticket-estados'
+import { nombreDelTicket, tituloDelModal, type FuenteDeTicket, type ProyectoElegible } from '@/dominio/ticket-vista'
 import { cargarDetalleTicket } from './precarga-detalle-ticket'
 
 /**

@@ -3,7 +3,7 @@
 import type { MouseEvent, ReactElement, ReactNode } from 'react'
 import { useUrlDeDetalle } from '@/componentes/datos/url-de-detalle'
 import { ATRIBUTO_TICKET_SIN_LEER } from '@/dominio/ticket-sondeo'
-import { PARAMETRO_TICKET } from '@/dominio/ticket-vista'
+import { PARAMETRO_TICKET } from '@/dominio/ticket-estados'
 import { precargarDetalleTicket } from './precarga-detalle-ticket'
 
 /**

@@ -8,7 +8,8 @@ import { useAlCambiarTickets, useAlCerrarTicket } from '@/componentes/datos/useA
 import { ModalTicket } from '@/componentes/tickets/ModalTicket'
 import { definicionDeTicketsDelProyecto } from '@/definiciones/tickets'
 import type { Capacidad } from '@/datos/tipos'
-import { PARAMETRO_TICKET, TICKET_DEL_PANEL } from '@/dominio/ticket-vista'
+import { PARAMETRO_TICKET } from '@/dominio/ticket-estados'
+import { TICKET_DEL_PANEL } from '@/dominio/ticket-vista'
 
 /**
  * Pestaña Tickets de la ficha del Proyecto: la lista y, encima, el modal del ticket abierto.

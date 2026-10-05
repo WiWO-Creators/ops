@@ -12,9 +12,8 @@ import {
 import { escribirEnBff } from '@/componentes/datos/mutaciones'
 import { useAviso } from '@/componentes/estado/useAviso'
 import type { EstadoLookup } from '@/datos/recursos'
-import {
-  cuerpoDeRespuesta, ESTADO_TICKET_EN_ESPERA, falloDeTicket, nombreEnCatalogo, type FuenteDeTicket
-} from '@/dominio/ticket-vista'
+import { ESTADO_TICKET_EN_ESPERA } from '@/dominio/ticket-estados'
+import { cuerpoDeRespuesta, falloDeTicket, nombreEnCatalogo, type FuenteDeTicket } from '@/dominio/ticket-vista'
 import { cn } from '@/lib/clases'
 
 /**
