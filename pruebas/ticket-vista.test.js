@@ -13,6 +13,8 @@ import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import {
   agregarRespuestaAlHilo,
+  buscarProyectos,
+  proyectosElegibles,
   avisarCambioDeTicket,
   avisoSinRespuesta,
   claveDeBorrador,
@@ -350,4 +352,46 @@ test('el aviso de cambio lleva el id del ticket', () => {
   assert.equal(eventos[0].type, 'ops:tickets-cambiados')
   assert.deepEqual(eventos[0].detail, { id: 12 })
   assert.doesNotThrow(() => { avisarCambioDeTicket(12, null) })
+})
+
+test('proyectosElegibles: solo los del cliente del ticket y nunca el actual', () => {
+  const proyectos = [
+    { id: 1, name: 'Sitio', clienteId: 10 },
+    { id: 2, name: 'App', clienteId: 10 },
+    { id: 3, name: 'Otra marca', clienteId: 20 },
+    { id: 4, name: 'Interno', clienteId: null },
+    { id: 5, name: 'Sin dato' }
+  ]
+
+  assert.deepEqual(proyectosElegibles(proyectos, { proyectoId: 1, clienteId: 10 }).map((p) => p.id), [2, 5])
+  assert.deepEqual(proyectosElegibles(proyectos, { proyectoId: null, clienteId: 20 }).map((p) => p.id), [3, 5])
+})
+
+test('proyectosElegibles: sin cliente conocido se ofrece todo y la API explica el 422', () => {
+  const proyectos = [{ id: 1, name: 'Sitio', clienteId: 10 }, { id: 3, name: 'Otra', clienteId: 20 }]
+
+  assert.deepEqual(proyectosElegibles(proyectos, { proyectoId: null, clienteId: null }).map((p) => p.id), [1, 3])
+})
+
+test('la ficha del panel trae el cliente del ticket para filtrar los Proyectos', () => {
+  const conCliente = { ...fichaDelPanel, solicitante: { ...fichaDelPanel.solicitante, client: { id: 10, name: 'Acme' } } }
+
+  assert.equal(ticketDelPanel(conCliente, []).clienteId, 10)
+  assert.equal(ticketDelPanel(fichaDelPanel, []).clienteId, null)
+})
+
+test('buscarProyectos ignora mayusculas y tildes', () => {
+  const proyectos = [{ id: 1, name: 'Rediseño Web' }, { id: 2, name: 'Campaña' }]
+
+  assert.deepEqual(buscarProyectos(proyectos, 'REDISENO').map((p) => p.id), [1])
+  assert.deepEqual(buscarProyectos(proyectos, '  ').map((p) => p.id), [1, 2])
+  assert.deepEqual(buscarProyectos(proyectos, 'zzz'), [])
+})
+
+test('falloDeTicket explica los 422 de mover un ticket de Proyecto', () => {
+  const base = { mensaje: 'Mensaje de la API.', estado: 422, codigo: 'validation_failed' }
+
+  assert.match(falloDeTicket({ ...base, detalles: { project_id: ['otro_cliente'] } }, 'editar').texto, /otro cliente/)
+  assert.match(falloDeTicket({ ...base, detalles: { project_id: ['ticket_sin_cliente'] } }, 'editar').texto, /no tiene cliente/)
+  assert.match(falloDeTicket({ ...base, detalles: { project_id: ['no_visible'] } }, 'editar').texto, /No tienes acceso/)
 })

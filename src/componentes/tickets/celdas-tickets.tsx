@@ -1,15 +1,17 @@
 import type { ReactElement, ReactNode } from 'react'
-import { EnlaceATicket } from '@/componentes/tickets/EnlaceATicket'
+import { EnlaceATicket } from './EnlaceATicket'
 import { Insignia } from '@/componentes/presentadores/Insignia'
 import type { DefinicionRecurso, OpcionFiltro } from '@/definiciones/tipos'
 import type { TicketEspacio } from '@/datos/recursos'
 import type { TicketPortal } from '@/datos/portal'
 import { nombreDelSolicitante } from '@/definiciones/tickets'
 import { GLOSARIO } from '@/dominio/glosario'
+import { PARAMETRO_TICKET } from '@/dominio/ticket-estados'
 import { resolverEstado } from '@/dominio/estados-tarea'
 import {
   esperaDelTicket,
   esperaTuRespuesta,
+  nombreDeEspacio,
   noLeidoPorElCliente,
   noLeidoPorElEquipo,
   ultimaActividad
@@ -25,6 +27,16 @@ import { cn } from '@/lib/clases'
  * si una pantalla lo pintara en negrita y otra con una insignia, la persona tendria que aprender dos
  * codigos para lo mismo.
  */
+
+/**
+ * Como una lista abre el modal de un ticket: la URL gana `?ticket={id}` sin navegar (`superficial`),
+ * que es lo que lee `ModalTicket`. Es el `abrirEn` de las tres listas de tickets.
+ */
+export const ABRIR_TICKET_EN_MODAL = {
+  clave: PARAMETRO_TICKET,
+  valor: (fila: { id: number }) => fila.id,
+  superficial: true
+} as const
 
 /** Fondo de una fila con algo sin leer. Suave: marca la fila sin competir con las insignias. */
 export const CLASE_FILA_SIN_LEER = 'bg-acento-suave/40'
@@ -42,7 +54,7 @@ export const CLASE_FILA_SIN_LEER = 'bg-acento-suave/40'
 export function AsuntoDeTicket ({ id, asunto, marca }: { id: number, asunto: string, marca: string | null }): ReactElement {
   return (
     <span className="inline-flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1">
-      <EnlaceATicket id={id}>{asunto}</EnlaceATicket>
+      <EnlaceATicket id={id} sinLeer={marca !== null}>{asunto}</EnlaceATicket>
       {marca !== null && <Insignia tono="acento" tamano="chico">{marca}</Insignia>}
     </span>
   )
@@ -55,8 +67,10 @@ export function AsuntoDeTicket ({ id, asunto, marca }: { id: number, asunto: str
  * de contorno porque informa y no pide nada.
  *
  * @param props.ticket la fila del listado
+ * @param props.conContexto `true` donde no hay encabezado «Esperando a» (la tarjeta): la insignia dice
+ *        «Esperando al equipo» en vez de solo «Equipo»
  */
-export function EsperaDeTicket ({ ticket }: { ticket: TicketEspacio }): ReactElement | null {
+export function EsperaDeTicket ({ ticket, conContexto = false }: { ticket: TicketEspacio, conContexto?: boolean }): ReactElement | null {
   const espera = esperaDelTicket(ticket)
 
   if (espera === null) return null
@@ -64,7 +78,7 @@ export function EsperaDeTicket ({ ticket }: { ticket: TicketEspacio }): ReactEle
   return (
     <span className="inline-flex flex-wrap items-center gap-x-1.5 gap-y-0.5">
       <Insignia tono={espera.lado === 'equipo' ? 'aviso' : 'contorno'} tamano="chico">
-        {espera.lado === 'equipo' ? 'Equipo' : 'Cliente'}
+        {conContexto ? espera.etiqueta : espera.lado === 'equipo' ? 'Equipo' : 'Cliente'}
       </Insignia>
       {espera.desde !== null && espera.instante !== null && (
         <time dateTime={espera.instante} title={formatearFecha(espera.instante, true)} className="text-texto-tenue text-xs">
@@ -127,11 +141,11 @@ export function conCeldasDeTickets (
 
   if (nombreDeProyecto !== undefined) {
     presentadores.project = (t) => {
-      if (t.project_id === null || t.project_id === undefined) {
-        return <span className="text-texto-sutil">Sin {GLOSARIO.espacio.singular.toLowerCase()}</span>
-      }
+      const nombre = nombreDeEspacio(t.project_id, nombreDeProyecto)
 
-      return nombreDeProyecto(t.project_id) ?? `#${t.project_id}`
+      return t.project_id === null || t.project_id === undefined
+        ? <span className="text-texto-sutil">{nombre}</span>
+        : nombre
     }
   }
 
@@ -191,7 +205,7 @@ export function TarjetaDeTicket ({
       <div className="flex flex-wrap items-center gap-1.5">
         <InsigniaDeCatalogo valor={ticket.status} catalogo={catalogos?.ticket_statuses} />
         <InsigniaDeCatalogo valor={ticket.priority} catalogo={catalogos?.ticket_priorities} />
-        <EsperaDeTicket ticket={ticket} />
+        <EsperaDeTicket ticket={ticket} conContexto />
       </div>
 
       <dl className="text-texto-tenue grid grid-cols-[auto_1fr] gap-x-3 gap-y-1 text-sm">

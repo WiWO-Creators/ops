@@ -6,6 +6,7 @@ import { tableroDePresets } from './presets'
 import { claveDeCatalogo } from '@/datos/catalogos'
 import { operadoresCampo } from '@/definiciones/filtros'
 import type { TableroDePreset } from '@/datos/recursos'
+import { mismosValores, seApartaDelReposo, valoresPorDefecto } from '@/datos/consulta'
 import type { DefinicionRecurso, EstadoConsulta, Filtro, OpcionFiltro } from '@/definiciones/tipos'
 import { Boton } from '@/componentes/formularios/Boton'
 import { Entrada } from '@/componentes/formularios/Entrada'
@@ -174,6 +175,7 @@ export function ControlesTabla<T> ({
           valores={estado.filtros[filtro.clave] ?? []}
           opcionesDeFiltro={opcionesDeFiltro}
           esperaA={dependenciaPendiente(filtro, definicion.filtros, estado.filtros)}
+          textoDelDefecto={etiquetaDelDefectoVigente(filtro, definicion, estado.filtros[filtro.clave] ?? [])}
           onCambiar={(valores) => cambiarFiltro(filtro.clave, valores)}
         />
           <Boton tamano="chico" variante="sutil" aria-label={`Quitar filtro ${filtro.etiqueta}`} onClick={() => {
@@ -183,7 +185,7 @@ export function ControlesTabla<T> ({
         </div>
       ))}
 
-      {(activos.length > 0 || estado.busqueda !== '') && (
+      {(agregados.length > 0 || seApartaDelReposo(estado, definicion)) && (
         <Boton tamano="chico" variante="sutil" onClick={() => {
           setAgregados([])
           onCambiar({ filtros: {}, busqueda: '', pagina: 1 })
@@ -229,7 +231,25 @@ interface PropsControlFiltro {
   opcionesDeFiltro?: Record<string, OpcionFiltro[]>
   /** El filtro que hay que elegir antes de poder usar este. Ver `dependenciaPendiente`. */
   esperaA?: Filtro | null
+  /** Lo que dice el disparador mientras el filtro vale su default. Ver `Filtro.etiquetaDelDefecto`. */
+  textoDelDefecto?: string
   onCambiar: (valores: string[]) => void
+}
+
+/**
+ * El texto que reemplaza al resumen del disparador cuando el filtro vale su default.
+ *
+ * @param filtro El filtro que se dibuja.
+ * @param definicion El recurso, que declara los defaults.
+ * @param valores Lo que el filtro vale ahora.
+ * @returns La etiqueta del default, o `undefined` si no aplica (sin etiqueta, sin default o cambiado).
+ */
+function etiquetaDelDefectoVigente<T> (filtro: Filtro, definicion: DefinicionRecurso<T>, valores: string[]): string | undefined {
+  const defecto = valoresPorDefecto(definicion, filtro.clave)
+
+  if (filtro.etiquetaDelDefecto === undefined || defecto === null || valores.length === 0) return undefined
+
+  return mismosValores(valores, defecto) ? filtro.etiquetaDelDefecto : undefined
 }
 
 /** Un filtro, con el control que corresponde a su `tipo`. */
@@ -238,6 +258,7 @@ function ControlFiltro ({
   valores,
   opcionesDeFiltro = {},
   esperaA = null,
+  textoDelDefecto,
   onCambiar
 }: PropsControlFiltro) {
   if (filtro.tipo === 'campo') return <FiltroCampo key={JSON.stringify(valores)} filtro={filtro} valores={valores} onCambiar={onCambiar} />
@@ -259,7 +280,7 @@ function ControlFiltro ({
   if (opciones.length === 0) return <FiltroEnEspera filtro={filtro} esperaA={null} />
 
   if (filtro.tipo === 'multiple') {
-    return <FiltroMultiple filtro={filtro} opciones={opciones} valores={valores} onCambiar={onCambiar} />
+    return <FiltroMultiple filtro={filtro} opciones={opciones} valores={valores} textoDelDefecto={textoDelDefecto} onCambiar={onCambiar} />
   }
 
   return <FiltroSimple filtro={filtro} opciones={opciones} valores={valores} onCambiar={onCambiar} />
@@ -462,8 +483,9 @@ function FiltroSimple ({ filtro, opciones, valores, onCambiar }: PropsFiltroConO
  * usa; el menu no se cierra al marcar para que no haya que reabrirlo en cada uno. La fila "Todos"
  * marca el catalogo entero de una vez (WIW-0496).
  */
-function FiltroMultiple ({ filtro, opciones, valores, onCambiar }: PropsFiltroConOpciones) {
-  const { texto, extra } = resumenDeFiltro(filtro.etiqueta, opciones, valores, filtro.etiquetaSinFiltro)
+function FiltroMultiple ({ filtro, opciones, valores, textoDelDefecto, onCambiar }: PropsFiltroConOpciones) {
+  const resumen = resumenDeFiltro(filtro.etiqueta, opciones, valores, filtro.etiquetaSinFiltro)
+  const { texto, extra } = textoDelDefecto === undefined ? resumen : { texto: textoDelDefecto, extra: null }
 
   return (
     <MenuBuscable

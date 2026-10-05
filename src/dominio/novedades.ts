@@ -55,6 +55,48 @@ export const NOVEDADES: Novedad[] = [
   {
     fecha: '2026-10-05',
     tipo: 'mejora',
+    titulo: 'La bandeja de Tickets muestra solo los abiertos',
+    detalle: 'Al entrar a Tickets ya no ves los cerrados: el filtro Estado dice «Abiertos». Para verlos todos, abre Estado y marca «Todos»; «Limpiar filtros» vuelve a los abiertos.',
+    commits: []
+  },
+  {
+    fecha: '2026-10-05',
+    tipo: 'nuevo',
+    titulo: 'Cambia un ticket de Proyecto desde su ficha',
+    detalle: 'Junto al nombre del Proyecto hay una flecha para mover el ticket a otro Proyecto de su mismo cliente, o dejarlo sin Proyecto. Si el cambio no es posible, te explica por qué.',
+    commits: []
+  },
+  {
+    fecha: '2026-10-05',
+    tipo: 'mejora',
+    titulo: 'La conversación del ticket abre en el último mensaje',
+    detalle: 'Al abrir un ticket largo ya estás en el mensaje más reciente. Si llega uno nuevo mientras lees más arriba, aparece «Nuevos mensajes» para ir a él sin que se te mueva la pantalla.',
+    commits: []
+  },
+  {
+    fecha: '2026-10-05',
+    tipo: 'mejora',
+    titulo: 'Portal: tus tickets muestran su Proyecto',
+    detalle: 'En la lista de tickets del portal hay una columna nueva con el Proyecto de cada ticket.',
+    commits: []
+  },
+  {
+    fecha: '2026-10-05',
+    tipo: 'mejora',
+    titulo: 'Tickets más claros y sin perder lo que escribes',
+    detalle: 'Al crear un ticket desde el portal, lo que escribes se guarda como borrador hasta que lo envías, y cuando te acercas al largo máximo del mensaje aparece un contador. En la lista del portal la última columna ahora dice «Última actividad», el estado y la prioridad editables muestran una flecha y en el móvil se ve a quién espera cada ticket.',
+    commits: []
+  },
+  {
+    fecha: '2026-10-05',
+    tipo: 'arreglo',
+    titulo: 'Portal: los tickets cargan aunque falle la lista de Proyectos',
+    detalle: 'Si no se pueden cargar tus Proyectos, la página de tickets sigue funcionando y el botón «Nuevo ticket» se reemplaza por un aviso con la opción de reintentar. Un adjunto que no carga ya no impide abrir el ticket.',
+    commits: []
+  },
+  {
+    fecha: '2026-10-05',
+    tipo: 'mejora',
     titulo: 'Focals en tarjetas, con el logo del cliente y por páginas',
     detalle: 'Cada cuenta es una tarjeta con su logo, su puntaje y quien responde por ella, de a doce por página. Al hacer clic en una se abre el detalle en un panel lateral.',
     commits: []

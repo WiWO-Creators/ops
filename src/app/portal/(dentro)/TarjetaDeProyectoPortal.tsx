@@ -1,6 +1,6 @@
 import Link from 'next/link'
 import type { ReactElement } from 'react'
-import { InsigniaDeCatalogo } from '@/componentes/datos/celdas-tickets'
+import { InsigniaDeCatalogo } from '@/componentes/tickets/celdas-tickets'
 import { BarraProgreso } from '@/componentes/presentadores/BarraProgreso'
 import type { EspacioPortal } from '@/datos/portal'
 import type { OpcionFiltro } from '@/definiciones/tipos'

@@ -4,8 +4,7 @@ import { SelectorTema } from '@/componentes/estructura/SelectorTema'
 import { Avatar } from '@/componentes/presentadores/Avatar'
 import { Logo } from '@/componentes/estructura/Logo'
 import { ProveedorEnlaces } from '@/componentes/presentadores/ProveedorEnlaces'
-import { pedirOpcional, pedirPortal, proyectoUnicoDelPortal } from '@/datos/servidor'
-import type { YoPortal } from '@/datos/tipos'
+import { pedirOpcional, proyectoUnicoDelPortal, yoDelPortal } from '@/datos/servidor'
 import { navegacionDelPortal } from '@/dominio/portal'
 import { BarraVerComoCliente } from '../BarraVerComoCliente'
 import { BotonSalirPortal } from '../BotonSalirPortal'
@@ -34,7 +33,7 @@ import { RastreadorPortal } from '@/componentes/portal/rastreo/RastreadorPortal'
  */
 export default async function PortalLayout ({ children }: { children: React.ReactNode }) {
   const [{ data: yo }, capacidades] = await Promise.all([
-    pedirPortal<YoPortal>('/portal/me'),
+    yoDelPortal(),
     pedirOpcional<{ habilitado?: boolean }>('/portal/ia/capacidades', 'contacto')
   ])
   const conOrbe = capacidades.datos?.habilitado === true

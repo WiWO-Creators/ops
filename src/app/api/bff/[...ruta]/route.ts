@@ -3,7 +3,10 @@ import { llamarApi } from '@/datos/api'
 import { ErrorApi, incidenteDe, recorteDelCuerpo } from '@/datos/errores'
 import { registrarIncidente } from '@/datos/incidentes'
 import { cabecerasDeOrigen } from '@/datos/origen'
-import { rutaCompartida, rutaPermitida } from '@/datos/rutas'
+import {
+  cabecerasDeSalida, elegirSujeto, esRutaDeDescarga, interpretarCuerpoJson, llamarConRefresco, type CuerpoLeido
+} from '@/datos/proxy-bff'
+import { rutaPermitida } from '@/datos/rutas'
 import { borrarSesion, guardarSesion, leerSesion } from '@/datos/sesion'
 import { refrescar } from '@/datos/refresco'
 import type { Sesion, Sujeto } from '@/datos/sobre-sesion'
@@ -56,19 +59,9 @@ export async function DELETE (peticion: NextRequest, ctx: RouteContext<'/api/bff
 async function reenviar (peticion: NextRequest, ctx: RouteContext<'/api/bff/[...ruta]'>): Promise<Response> {
   const { ruta } = await ctx.params
 
-  // El prefijo decide de que sujeto es la peticion, y con eso que cookie leer y contra que lista
-  // blanca validar. Un contacto no puede pedir `clients` ni un staff pedir `portal`, y el pedido ni
-  // siquiera sale hacia la API.
-  //
-  // La descarga de adjuntos es la excepcion: vive fuera de `/portal` y sirve a los dos, asi que el
-  // prefijo no alcanza y hay que mirar que sesion existe. Se prueba primero la del panel, igual que
-  // hace la API, para que alguien del equipo con las dos sesiones abiertas siga descargando como
-  // staff y no como el cliente que estaba mirando.
-  const sujeto: Sujeto = ruta[0] === 'portal'
-    ? 'contacto'
-    : rutaCompartida(ruta) && await leerSesion('staff') === null
-      ? 'contacto'
-      : 'staff'
+  // El prefijo decide de que sujeto es la peticion (ver `elegirSujeto`): con eso, que cookie leer y
+  // contra que lista blanca validar. El pedido fuera de la lista ni siquiera sale hacia la API.
+  const sujeto = await elegirSujeto(ruta, async () => await leerSesion('staff') !== null)
 
   if (!rutaPermitida(ruta, sujeto)) {
     return NextResponse.json(
@@ -88,41 +81,43 @@ async function reenviar (peticion: NextRequest, ctx: RouteContext<'/api/bff/[...
 
   const consulta = peticion.nextUrl.search
   const destino = `/${ruta.join('/')}${consulta}`
-  const cuerpo = await leerCuerpo(peticion)
+  const leido = await leerCuerpo(peticion)
+
+  if (!leido.legible) {
+    return NextResponse.json(
+      { error: { code: 'invalid_body', message: 'El cuerpo de la peticion no se pudo leer' } },
+      { status: 400 }
+    )
+  }
+
+  const cuerpo = leido.cuerpo
+  const descarga = esRutaDeDescarga(ruta)
 
   // De que maquina es esta persona. Va en toda llamada porque la API lo necesita en dos momentos
   // distintos: al emitir o rotar una sesion, y en cada latido de presencia.
   const origen = cabecerasDeOrigen(peticion.headers)
   const cabeceras = { ...origen, ...cabecerasDeEntrada(peticion) }
 
-  let respuesta = await llamarApi(destino, {
-    metodo: peticion.method as 'GET',
-    cuerpo,
-    cabeceras,
-    token: sesion.acceso
-  })
-
-  if (respuesta.status === 401 && await esTokenVencido(respuesta)) {
-    const renovada = await intentarRefrescar(sesion, origen)
-
-    if (renovada === null) {
-      await borrarSesion(sujeto)
-
-      return NextResponse.json(
-        { error: { code: 'token_revoked', message: 'La sesion se cerro' } },
-        { status: 401 }
-      )
-    }
-
-    await guardarSesion(renovada)
-
-    respuesta = await llamarApi(destino, {
+  const llamada = await llamarConRefresco(sesion, {
+    llamar: async (token) => await llamarApi(destino, {
       metodo: peticion.method as 'GET',
       cuerpo,
       cabeceras,
-      token: renovada.acceso
-    })
+      token
+    }),
+    refrescar: async () => await intentarRefrescar(sesion, origen),
+    guardar: guardarSesion,
+    borrar: async () => { await borrarSesion(sujeto) }
+  })
+
+  if ('sesionCerrada' in llamada) {
+    return NextResponse.json(
+      { error: { code: 'token_revoked', message: 'La sesion se cerro' } },
+      { status: 401 }
+    )
   }
+
+  const { respuesta } = llamada
 
   if (!respuesta.ok) {
     return await conIncidente(respuesta, destino, peticion.method, sujeto)
@@ -130,7 +125,7 @@ async function reenviar (peticion: NextRequest, ctx: RouteContext<'/api/bff/[...
 
   return new NextResponse(respuesta.body, {
     status: respuesta.status,
-    headers: cabecerasDeSalida(respuesta)
+    headers: cabecerasDeSalida(respuesta, descarga)
   })
 }
 
@@ -291,68 +286,23 @@ export function cabecerasDeEntrada (peticion: NextRequest): Record<string, strin
 }
 
 /**
- * Cabeceras que el BFF copia de la API, ademas del `content-type`.
+ * Lee JSON o multipart de los metodos que llevan cuerpo.
  *
- * `cache-control` porque un `no-cache, no-transform` que se pierde deja la respuesta a merced de
- * cualquier cache intermedia. `x-accel-buffering` porque es la unica forma de decirle a Nginx que
- * no acumule un `text/event-stream`: sin ella el proxy junta la respuesta entera y la entrega de
- * una sola vez, asi que el streaming desaparece **sin dar ningun error** — el front recibe todo el
- * texto junto al final y parece un backend lento.
- *
- * Es una lista corta y explicita, no un reenvio de todo: `content-length` y `content-encoding`
- * describen el cuerpo que Node ya recodifico, y copiarlos rompe la respuesta.
+ * Un metodo sin cuerpo, o con el cuerpo vacio, da `cuerpo` indefinido; un cuerpo que no se puede
+ * leer ni parsear es `legible: false`, para que el llamador responda 400 en vez de reenviar la
+ * peticion como si no hubiera mandado nada.
  */
-const CABECERAS_REENVIADAS = ['cache-control', 'x-accel-buffering', 'content-disposition'] as const
-
-/**
- * Arma las cabeceras de la respuesta del BFF a partir de las de la API.
- *
- * @param respuesta la respuesta de la API v1
- * @returns el `content-type` mas las cabeceras de la lista que la API haya emitido
- */
-function cabecerasDeSalida (respuesta: Response): Headers {
-  const salida = new Headers({
-    'content-type': respuesta.headers.get('content-type') ?? 'application/json'
-  })
-
-  for (const nombre of CABECERAS_REENVIADAS) {
-    const valor = respuesta.headers.get(nombre)
-
-    if (valor !== null) salida.set(nombre, valor)
-  }
-
-  return salida
-}
-
-/** Lee JSON o multipart de los metodos que llevan cuerpo. Un cuerpo ausente o ilegible es `undefined`. */
-async function leerCuerpo (peticion: NextRequest): Promise<unknown> {
-  if (!METODOS_CON_CUERPO.has(peticion.method)) return undefined
+async function leerCuerpo (peticion: NextRequest): Promise<CuerpoLeido> {
+  if (!METODOS_CON_CUERPO.has(peticion.method)) return { legible: true, cuerpo: undefined }
 
   try {
     if (peticion.headers.get('content-type')?.startsWith('multipart/form-data')) {
-      return await peticion.formData()
+      return { legible: true, cuerpo: await peticion.formData() }
     }
 
-    const texto = await peticion.text()
-
-    return texto === '' ? undefined : JSON.parse(texto) as unknown
+    return interpretarCuerpoJson(await peticion.text())
   } catch {
-    return undefined
-  }
-}
-
-/**
- * Distingue el `401` que se arregla refrescando de los que no.
- *
- * Consume el cuerpo de la respuesta, asi que solo se llama cuando esa respuesta ya se va a descartar.
- */
-async function esTokenVencido (respuesta: Response): Promise<boolean> {
-  try {
-    const cuerpo = await respuesta.clone().json() as { error?: { code?: string } }
-
-    return cuerpo.error?.code === 'token_expired'
-  } catch {
-    return false
+    return { legible: false }
   }
 }
 

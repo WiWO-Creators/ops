@@ -12,7 +12,9 @@ import {
 import { escribirEnBff } from '@/componentes/datos/mutaciones'
 import type { EstadoLookup, RespuestaPredefinida } from '@/datos/recursos'
 import { normalizar } from '@/dominio/busqueda'
+import { contadorDeLargo, topeDeMensaje } from '@/dominio/ticket-limites'
 import {
+  almacenDeSesion,
   avisoSinRespuesta,
   claveDeBorrador,
   cuerpoDeRespuesta,
@@ -24,30 +26,15 @@ import {
   leerBorrador,
   nombreDelTicket,
   rutaDeTicket,
-  type AlmacenDeBorrador,
   type FuenteDeTicket,
   type NombreDeTicket,
   type TicketVista
 } from '@/dominio/ticket-vista'
 import { cargarPredefinidas } from './carga-de-ticket'
+import { useListaPerezosa, type ListaPerezosa } from './useListaPerezosa'
 
 /** Centinela de «no cambiar el estado al responder». Radix no admite un `value` vacio. */
 const SIN_CAMBIO = 'sin-cambio'
-
-/**
- * `sessionStorage`, o `null` si el navegador no lo deja tocar.
- *
- * En algunos modos privados leer la propiedad ya lanza, asi que ni siquiera se puede preguntar.
- */
-function almacenDeSesion (): AlmacenDeBorrador | null {
-  if (typeof window === 'undefined') return null
-
-  try {
-    return window.sessionStorage
-  } catch {
-    return null
-  }
-}
 
 /**
  * La caja para sumar una respuesta, o el aviso de por que no se puede.
@@ -83,6 +70,7 @@ export function CajaDeRespuesta ({
   const clave = claveDeBorrador(fuente, ticket.id)
   const idCampo = `respuesta-${ticket.id}`
   const ofrecidos = estadosParaResponder(estados, ticket.estado)
+  const tope = topeDeMensaje(fuente.sujeto)
 
   const [mensaje, setMensaje] = useState(() => leerBorrador(almacenDeSesion(), clave))
   const [elegido, setElegido] = useState<string | null>(null)
@@ -115,10 +103,12 @@ export function CajaDeRespuesta ({
     return () => { window.clearTimeout(id) }
   }, [espera])
 
-  /** Guarda en pantalla y en el borrador. */
+  /** Guarda en pantalla y en el borrador; en el portal corta en el tope (una predefinida puede pasarse). */
   function escribir (texto: string): void {
-    setMensaje(texto)
-    guardarBorrador(almacenDeSesion(), clave, texto)
+    const recortado = tope === undefined ? texto : texto.slice(0, tope)
+
+    setMensaje(recortado)
+    guardarBorrador(almacenDeSesion(), clave, recortado)
   }
 
   /**
@@ -164,10 +154,11 @@ export function CajaDeRespuesta ({
   }
 
   const vacio = mensaje.trim() === ''
+  const contador = tope === undefined ? null : contadorDeLargo(mensaje.length, tope)
 
   return (
     <form
-      className="flex flex-col gap-3"
+      className="border-linea-suave flex flex-col gap-3 border-t pt-4"
       aria-label="Responder"
       onSubmit={(evento) => {
         evento.preventDefault()
@@ -186,6 +177,7 @@ export function CajaDeRespuesta ({
         id={idCampo}
         rows={4}
         value={mensaje}
+        maxLength={tope}
         placeholder="Escribe tu respuesta."
         aria-describedby={`${idCampo}-atajo`}
         aria-invalid={fallo !== null || undefined}
@@ -204,6 +196,7 @@ export function CajaDeRespuesta ({
         <p id={`${idCampo}-atajo`} className="text-texto-sutil mr-auto text-xs">
           Ctrl o ⌘ + Enter para enviar
         </p>
+        {contador !== null && <p className="text-texto-tenue text-xs" aria-live="polite">{contador}</p>}
         {ofrecidos.length > 0 && (
           <Selector value={valorElegido} onValueChange={setElegido}>
             <DisparadorSelector aria-label="Estado al responder" className="w-auto min-w-48" />
@@ -255,11 +248,7 @@ function SinRespuesta ({ ticket, nombre, escrito, fallo }: { ticket: TicketVista
   )
 }
 
-type Predefinidas =
-  | { fase: 'sinPedir' }
-  | { fase: 'cargando' }
-  | { fase: 'error', mensaje: string }
-  | { fase: 'listo', lista: RespuestaPredefinida[] }
+type Predefinidas = ListaPerezosa<RespuestaPredefinida>
 
 /**
  * Menu para insertar una respuesta predefinida en la caja.
@@ -267,7 +256,7 @@ type Predefinidas =
  * Se piden al abrirlo, una vez por pestaña. Insertar suma al final de lo escrito, no lo reemplaza.
  */
 function MenuPredefinidas ({ ruta, onElegir }: { ruta: string, onElegir: (predefinida: RespuestaPredefinida) => void }): ReactElement {
-  const [predefinidas, setPredefinidas] = useState<Predefinidas>({ fase: 'sinPedir' })
+  const { estado: predefinidas, pedir } = useListaPerezosa(() => cargarPredefinidas(ruta), 'No se pudieron cargar.')
   const [busqueda, setBusqueda] = useState('')
 
   /** Pide la lista al abrir por primera vez, o de nuevo si la anterior fallo. */
@@ -277,14 +266,7 @@ function MenuPredefinidas ({ ruta, onElegir }: { ruta: string, onElegir: (predef
       return
     }
 
-    if (predefinidas.fase === 'listo' || predefinidas.fase === 'cargando') return
-
-    setPredefinidas({ fase: 'cargando' })
-    cargarPredefinidas(ruta)
-      .then((lista) => { setPredefinidas({ fase: 'listo', lista }) })
-      .catch((fallo: unknown) => {
-        setPredefinidas({ fase: 'error', mensaje: fallo instanceof Error ? fallo.message : 'No se pudieron cargar.' })
-      })
+    pedir()
   }
 
   return (

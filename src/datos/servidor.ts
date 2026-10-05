@@ -8,7 +8,7 @@ import { llamarApiTipado } from './api'
 import { ErrorApi } from './errores'
 import { leerSesion } from './sesion'
 import type { Sujeto } from './sobre-sesion'
-import type { Sobre, Yo } from './tipos'
+import type { Sobre, Yo, YoPortal } from './tipos'
 
 /**
  * Pide un recurso a la API desde el servidor, con el token de quien mira.
@@ -65,6 +65,18 @@ export const cargarYo = cache(async (): Promise<Sobre<Yo>> => pedir<Yo>('/me'))
 export async function pedirPortal<T> (ruta: string): Promise<Sobre<T>> {
   return await pedir<T>(ruta, 'contacto')
 }
+
+/**
+ * `/portal/me`, una sola vez por navegacion.
+ *
+ * El armazon, la pagina y la ficha de Soporte lo necesitan en el mismo render; envuelto en `cache`
+ * comparten un solo viaje en vez de repetirlo cada uno. Un fallo no se guarda: `cache` solo dura lo
+ * que dura el render.
+ *
+ * @returns el sobre de `/portal/me`
+ * @throws ErrorApi en cualquier error que no sea de autenticacion
+ */
+export const yoDelPortal = cache(async (): Promise<Sobre<YoPortal>> => await pedirPortal<YoPortal>('/portal/me'))
 
 /**
  * Pide un recurso tolerando el fallo.

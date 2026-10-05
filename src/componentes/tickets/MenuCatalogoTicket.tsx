@@ -1,5 +1,6 @@
 'use client'
 
+import { ChevronDown } from 'lucide-react'
 import { useState, type ReactElement } from 'react'
 import { Boton } from '@/componentes/formularios/Boton'
 import { AreaTexto } from '@/componentes/formularios/Entrada'
@@ -9,12 +10,11 @@ import {
   ContenidoMenu, DisparadorMenu, GrupoRadioMenu, ItemMenuRadio, MenuContextual
 } from '@/componentes/superposiciones/MenuContextual'
 import { escribirEnBff } from '@/componentes/datos/mutaciones'
-import { useAviso } from '@/componentes/estado/useAviso'
 import type { EstadoLookup } from '@/datos/recursos'
-import {
-  cuerpoDeRespuesta, ESTADO_TICKET_EN_ESPERA, falloDeTicket, nombreEnCatalogo, type FuenteDeTicket
-} from '@/dominio/ticket-vista'
+import { ESTADO_TICKET_EN_ESPERA } from '@/dominio/ticket-estados'
+import { cuerpoDeRespuesta, nombreEnCatalogo, type FuenteDeTicket } from '@/dominio/ticket-vista'
 import { cn } from '@/lib/clases'
+import { useEdicionOptimista } from './useEdicionOptimista'
 
 /**
  * Estado o prioridad de un ticket: una insignia que, si se puede editar, abre un menu.
@@ -59,19 +59,9 @@ export function MenuCatalogoTicket ({
   sinNombre: FuenteDeTicket['catalogoSinNombre']
   onCambiado: () => void
 }): ReactElement | null {
-  const avisar = useAviso()
-  const [pintado, setPintado] = useState(valor)
-  const [ultimoDeLaApi, setUltimoDeLaApi] = useState(valor)
-  const [enCurso, setEnCurso] = useState(false)
+  const { pintado, enCurso, aplicar: aplicarOptimista } = useEdicionOptimista(valor)
   const [pidiendoMotivo, setPidiendoMotivo] = useState(false)
   const [motivo, setMotivo] = useState('')
-
-  // Se realinea cuando la ficha recargada trae otro valor. `setState` en el render, como en
-  // `MenuEstadoTarea`, en vez de encadenar renders desde un efecto.
-  if (ultimoDeLaApi !== valor) {
-    setUltimoDeLaApi(valor)
-    setPintado(valor)
-  }
 
   const opcion = catalogo.find((item) => item.id === pintado)
   const nombre = nombreEnCatalogo(catalogo, pintado, rotulo, sinNombre)
@@ -111,26 +101,15 @@ export function MenuCatalogoTicket ({
    * @param texto el motivo escrito, o `null` para el `PATCH` simple
    */
   async function aplicar (destino: number, texto: string | null): Promise<void> {
-    const previo = pintado
     const cuerpo = texto === null ? null : cuerpoDeRespuesta(texto, destino)
 
-    setPintado(destino)
-    setEnCurso(true)
-
-    const resultado = cuerpo !== null && rutaResponder !== undefined
-      ? await escribirEnBff<unknown>(rutaResponder, 'POST', cuerpo)
-      : await escribirEnBff<unknown>(rutaEditar, 'PATCH', { [campo]: destino })
-
-    setEnCurso(false)
-
-    if (!resultado.ok) {
-      setPintado(previo)
-      avisar.error(falloDeTicket(resultado, 'editar').texto)
-
-      return
-    }
-
-    onCambiado()
+    await aplicarOptimista(
+      destino,
+      () => cuerpo !== null && rutaResponder !== undefined
+        ? escribirEnBff<unknown>(rutaResponder, 'POST', cuerpo)
+        : escribirEnBff<unknown>(rutaEditar, 'PATCH', { [campo]: destino }),
+      onCambiado
+    )
   }
 
   if (!puedeEditar || catalogo.length === 0) return insignia
@@ -176,11 +155,12 @@ export function MenuCatalogoTicket ({
             disabled={enCurso}
             aria-label={`${rotulo}: ${nombre}. Cambiar ${rotulo.toLowerCase()}.`}
             className={cn(
-              'rounded-control cursor-pointer transition-opacity duration-rapida ease-neo',
+              'rounded-control inline-flex cursor-pointer items-center gap-1 transition-opacity duration-rapida ease-neo',
               enCurso ? 'cursor-progress opacity-60' : 'hover:opacity-80'
             )}
           >
             {insignia}
+            <ChevronDown size={14} strokeWidth={2} aria-hidden="true" className="text-texto-sutil shrink-0" />
           </button>
         </DisparadorMenu>
 
