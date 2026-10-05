@@ -55,8 +55,10 @@ export function AsuntoDeTicket ({ id, asunto, marca }: { id: number, asunto: str
  * de contorno porque informa y no pide nada.
  *
  * @param props.ticket la fila del listado
+ * @param props.conContexto `true` donde no hay encabezado «Esperando a» (la tarjeta): la insignia dice
+ *        «Esperando al equipo» en vez de solo «Equipo»
  */
-export function EsperaDeTicket ({ ticket }: { ticket: TicketEspacio }): ReactElement | null {
+export function EsperaDeTicket ({ ticket, conContexto = false }: { ticket: TicketEspacio, conContexto?: boolean }): ReactElement | null {
   const espera = esperaDelTicket(ticket)
 
   if (espera === null) return null
@@ -64,7 +66,7 @@ export function EsperaDeTicket ({ ticket }: { ticket: TicketEspacio }): ReactEle
   return (
     <span className="inline-flex flex-wrap items-center gap-x-1.5 gap-y-0.5">
       <Insignia tono={espera.lado === 'equipo' ? 'aviso' : 'contorno'} tamano="chico">
-        {espera.lado === 'equipo' ? 'Equipo' : 'Cliente'}
+        {conContexto ? espera.etiqueta : espera.lado === 'equipo' ? 'Equipo' : 'Cliente'}
       </Insignia>
       {espera.desde !== null && espera.instante !== null && (
         <time dateTime={espera.instante} title={formatearFecha(espera.instante, true)} className="text-texto-tenue text-xs">
@@ -191,7 +193,7 @@ export function TarjetaDeTicket ({
       <div className="flex flex-wrap items-center gap-1.5">
         <InsigniaDeCatalogo valor={ticket.status} catalogo={catalogos?.ticket_statuses} />
         <InsigniaDeCatalogo valor={ticket.priority} catalogo={catalogos?.ticket_priorities} />
-        <EsperaDeTicket ticket={ticket} />
+        <EsperaDeTicket ticket={ticket} conContexto />
       </div>
 
       <dl className="text-texto-tenue grid grid-cols-[auto_1fr] gap-x-3 gap-y-1 text-sm">

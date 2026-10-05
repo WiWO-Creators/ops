@@ -4,6 +4,7 @@ import Link from 'next/link'
 import { useCallback, useMemo, useState } from 'react'
 import { TablaRecurso } from '@/componentes/datos/TablaRecurso'
 import {
+  ActividadDeTicket,
   AsuntoDeTicket,
   TarjetaDeSolicitud,
   claseDeFilaDeSolicitud,
@@ -14,6 +15,7 @@ import type { DefinicionRecurso, OpcionFiltro, ResultadoLista } from '@/definici
 import { PORTAL_TICKETS } from '@/definiciones/portal-soporte'
 import { PORTAL_PROYECTOS } from '@/definiciones/portal-proyectos'
 import type { TicketPortal } from '@/datos/portal'
+import { ultimaActividad } from '@/dominio/tickets-listados'
 import { PARAMETRO_TICKET } from '@/dominio/ticket-vista'
 
 /**
@@ -34,6 +36,9 @@ const DEFINICIONES = {
   soporte: PORTAL_TICKETS,
   proyectos: PORTAL_PROYECTOS
 } as const
+
+/** La columna de ultima actividad del listado de soporte, que se pinta como en la bandeja del equipo. */
+const CLAVE_ACTIVIDAD = 'last_reply'
 
 export type SeccionPortalListado = keyof typeof DEFINICIONES
 
@@ -97,10 +102,15 @@ export function TablaPortal<T extends { id: number }> ({
                     )
               )
             }
-          : columna
+          : esSoporte && columna.clave === CLAVE_ACTIVIDAD
+            ? {
+                ...columna,
+                presentar: (fila: T) => <ActividadDeTicket instante={ultimaActividad(fila as unknown as TicketPortal)} />
+              }
+            : columna
       ))
     }
-  }, [seccion])
+  }, [seccion, esSoporte])
 
   return (
     <TablaRecurso

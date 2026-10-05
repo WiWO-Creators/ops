@@ -1,5 +1,6 @@
 'use client'
 
+import { ChevronDown } from 'lucide-react'
 import { useState, type ReactElement } from 'react'
 import { Boton } from '@/componentes/formularios/Boton'
 import { AreaTexto } from '@/componentes/formularios/Entrada'
@@ -176,11 +177,12 @@ export function MenuCatalogoTicket ({
             disabled={enCurso}
             aria-label={`${rotulo}: ${nombre}. Cambiar ${rotulo.toLowerCase()}.`}
             className={cn(
-              'rounded-control cursor-pointer transition-opacity duration-150',
+              'rounded-control inline-flex cursor-pointer items-center gap-1 transition-opacity duration-150',
               enCurso ? 'cursor-progress opacity-60' : 'hover:opacity-80'
             )}
           >
             {insignia}
+            <ChevronDown size={14} strokeWidth={2} aria-hidden="true" className="text-texto-sutil shrink-0" />
           </button>
         </DisparadorMenu>
 

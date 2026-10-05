@@ -53,6 +53,20 @@ export const ROTULO_TIPO: Record<TipoNovedad, string> = {
  */
 export const NOVEDADES: Novedad[] = [
   {
+    fecha: '2026-10-05',
+    tipo: 'mejora',
+    titulo: 'Tickets más claros y sin perder lo que escribes',
+    detalle: 'Al crear un ticket desde el portal, lo que escribes se guarda como borrador hasta que lo envías, y cuando te acercas al largo máximo del mensaje aparece un contador. En la lista del portal la última columna ahora dice «Última actividad», el estado y la prioridad editables muestran una flecha y en el móvil se ve a quién espera cada ticket.',
+    commits: []
+  },
+  {
+    fecha: '2026-10-05',
+    tipo: 'arreglo',
+    titulo: 'Portal: los tickets cargan aunque falle la lista de Proyectos',
+    detalle: 'Si no se pueden cargar tus Proyectos, la página de tickets sigue funcionando y el botón «Nuevo ticket» se reemplaza por un aviso con la opción de reintentar. Un adjunto que no carga ya no impide abrir el ticket.',
+    commits: []
+  },
+  {
     fecha: '2026-09-30',
     tipo: 'nuevo',
     titulo: 'Adjuntar archivos al crear una Tarea',
