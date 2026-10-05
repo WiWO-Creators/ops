@@ -12,6 +12,7 @@ import {
 import { escribirEnBff } from '@/componentes/datos/mutaciones'
 import type { EstadoLookup, RespuestaPredefinida } from '@/datos/recursos'
 import { normalizar } from '@/dominio/busqueda'
+import { cuerpoConArchivos } from '@/dominio/ticket-adjuntos'
 import { contadorDeLargo, topeDeMensaje } from '@/dominio/ticket-limites'
 import {
   almacenDeSesion,
@@ -30,6 +31,7 @@ import {
   type NombreDeTicket,
   type TicketVista
 } from '@/dominio/ticket-vista'
+import { ArchivosParaAdjuntar } from './ArchivosParaAdjuntar'
 import { cargarPredefinidas } from './carga-de-ticket'
 import { useListaPerezosa, type ListaPerezosa } from './useListaPerezosa'
 
@@ -43,6 +45,10 @@ const SIN_CAMBIO = 'sin-cambio'
  * aparecer en otro. Lo escrito se guarda en `sessionStorage` (`ticket-borrador:{sujeto}:{id}`) a
  * cada tecla, asi cerrar el modal por error, recargar o ir a mirar otra cosa no lo pierde; se borra
  * cuando la API confirma el envio.
+ *
+ * Los archivos se eligen aca y viajan **con** el mensaje (`multipart/form-data`, ver
+ * `cuerpoConArchivos`); sin archivos el envio es JSON, igual que antes. No entran al borrador: se
+ * conservan mientras la caja siga montada y se vacian cuando la API confirma.
  *
  * Sin estado optimista: el mensaje aparece en el hilo cuando la API lo confirmo. Un rechazo deja lo
  * escrito intacto, lo explica por su codigo (`falloDeTicket`) y pide la ficha de nuevo: si la regla
@@ -74,6 +80,7 @@ export function CajaDeRespuesta ({
 
   const [mensaje, setMensaje] = useState(() => leerBorrador(almacenDeSesion(), clave))
   const [elegido, setElegido] = useState<string | null>(null)
+  const [archivos, setArchivos] = useState<File[]>([])
   const [enviando, setEnviando] = useState(false)
   const [fallo, setFallo] = useState<string | null>(null)
   // Segundos que pidio esperar un 429; mientras no es `null` el envio queda bloqueado.
@@ -128,7 +135,11 @@ export function CajaDeRespuesta ({
     setEnviando(true)
     setFallo(null)
 
-    const resultado = await escribirEnBff<unknown>(rutaDeTicket(fuente.responder, ticket.id), 'POST', cuerpo)
+    const resultado = await escribirEnBff<unknown>(
+      rutaDeTicket(fuente.responder, ticket.id),
+      'POST',
+      cuerpoConArchivos(cuerpo, archivos)
+    )
 
     enviandoAhora.current = false
     setEnviando(false)
@@ -145,6 +156,7 @@ export function CajaDeRespuesta ({
 
     escribir('')
     setElegido(null)
+    setArchivos([])
     onRespondido(resultado.datos)
     document.getElementById(idCampo)?.focus({ preventScroll: true })
   }
@@ -189,6 +201,8 @@ export function CajaDeRespuesta ({
           void responder()
         }}
       />
+
+      <ArchivosParaAdjuntar archivos={archivos} onCambiar={setArchivos} deshabilitado={enviando} />
 
       {fallo !== null && <AvisoEnLinea variante="error" mensaje={fallo} className="text-sm" />}
 

@@ -26,7 +26,7 @@ export interface MensajeDeTicket {
   lado: 'equipo' | 'cliente'
   fecha: string | null
   texto: string
-  /** Adjuntos del mensaje, solo lectura. Vacio donde el sujeto no los recibe. */
+  /** Adjuntos del mensaje, para bajar. Vacio si el mensaje no tiene o el backend aun no los manda. */
   adjuntos: AdjuntoVista[]
 }
 
@@ -218,7 +218,7 @@ export function ticketDelPortal (detalle: TicketPortalDetalle): TicketVista {
         lado: 'cliente',
         fecha: detalle.date,
         texto: textoDe(detalle.message, detalle.message_texto),
-        adjuntos: []
+        adjuntos: (detalle.attachments ?? []).map(adjuntoVista)
       },
       ...detalle.replies.map(mensajeDelPortal)
     ],
@@ -252,7 +252,7 @@ function mensajeDelPortal (respuesta: RespuestaTicketPortal): MensajeDeTicket {
     lado: autor?.tipo ?? respuesta.from,
     fecha: respuesta.date,
     texto: textoDe(respuesta.message, respuesta.message_texto),
-    adjuntos: []
+    adjuntos: (respuesta.attachments ?? []).map(adjuntoVista)
   }
 }
 

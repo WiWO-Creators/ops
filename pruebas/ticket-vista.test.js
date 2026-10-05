@@ -124,6 +124,27 @@ test('la ficha del panel lleva la asignacion y los adjuntos; nunca acciones del 
   assert.deepEqual(ticketDelPanel(fichaDelPanel, []).asignacion, { asignado: null })
 })
 
+test('la ficha del portal trae los adjuntos de la apertura y de cada respuesta', () => {
+  const adjunto = (id, replyId, nombre) => ({ id, ticket_id: 7, reply_id: replyId, file_name: nombre, filetype: 'application/pdf', date_added: null, download_path: `files/ticket/${id}/download` })
+  const vista = ticketDelPortal({
+    ...fichaDelPortal,
+    attachments: [adjunto(3, null, 'captura.png')],
+    replies: [
+      { ...fichaDelPortal.replies[0], attachments: [adjunto(4, 1, 'informe.pdf'), { ...adjunto(5, 1, '../raro'), download_path: '../../etc/passwd' }] },
+      { id: 2, message: 'Gracias', date: '2026-09-16 11:00:00', from: 'cliente', name: 'Yo' }
+    ]
+  })
+
+  assert.deepEqual(vista.hilo[0].adjuntos, [{ id: 3, nombre: 'captura.png', ruta: '/api/bff/files/ticket/3/download' }])
+  assert.deepEqual(vista.hilo[1].adjuntos, [
+    { id: 4, nombre: 'informe.pdf', ruta: '/api/bff/files/ticket/4/download' },
+    { id: 5, nombre: '../raro', ruta: null }
+  ])
+  assert.deepEqual(vista.hilo[2].adjuntos, [])
+  // Un backend anterior a los adjuntos no manda la clave: no es un error, es un hilo sin archivos.
+  assert.deepEqual(ticketDelPortal(fichaDelPortal).hilo.map((m) => m.adjuntos), [[], []])
+})
+
 test('la ficha del portal respeta la tarea interna sin nombre', () => {
   const vista = ticketDelPortal(fichaDelPortal)
 

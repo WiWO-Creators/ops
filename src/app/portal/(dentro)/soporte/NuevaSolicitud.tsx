@@ -13,7 +13,9 @@ import {
 import { ContenidoDialogo, Dialogo, DisparadorDialogo } from '@/componentes/superposiciones/Dialogo'
 import { escribirEnBff } from '@/componentes/datos/mutaciones'
 import { urlConParametro } from '@/componentes/datos/tabla'
+import { ArchivosParaAdjuntar } from '@/componentes/tickets/ArchivosParaAdjuntar'
 import { GLOSARIO } from '@/dominio/glosario'
+import { cuerpoConArchivos } from '@/dominio/ticket-adjuntos'
 import { LARGO_MENSAJE_TICKET, contadorDeLargo } from '@/dominio/ticket-limites'
 import { PARAMETRO_TICKET } from '@/dominio/ticket-estados'
 import {
@@ -48,6 +50,10 @@ import type { Referencia } from '@/datos/recursos'
  *
  * Lo escrito se guarda como borrador en `sessionStorage` a cada cambio: cerrar el dialogo por error o
  * recargar no pierde un mensaje largo. Se borra al crear la solicitud.
+ *
+ * Los archivos se eligen en el mismo formulario y viajan **con** la solicitud (`multipart/form-data`;
+ * sin archivos es JSON, como siempre). Quedan en el estado del componente, asi que cerrar el dialogo
+ * no los pierde, pero un `F5` si: el borrador guarda texto y un archivo se vuelve a elegir.
  *
  * Si los espacios no se pudieron cargar, en vez del boton se ofrece reintentar; si el contacto no
  * tiene ninguno, se dice por que no puede pedir soporte.
@@ -99,6 +105,7 @@ export function NuevaSolicitud ({ prioridades, espacios, entradaId = null, conta
   const [mensaje, setMensaje] = useState(inicial.mensaje)
   const [espacio, setEspacio] = useState(inicial.espacio)
   const [prioridad, setPrioridad] = useState(inicial.prioridad)
+  const [archivos, setArchivos] = useState<File[]>([])
 
   // El borrador sigue a lo escrito; al reiniciar el formulario queda vacio y esto lo borra.
   useEffect(() => {
@@ -153,7 +160,7 @@ export function NuevaSolicitud ({ prioridades, espacios, entradaId = null, conta
     const resultado = await escribirEnBff<TicketPortalDetalle>(
       'portal/tickets',
       'POST',
-      cuerpoDeSolicitud(borrador)
+      cuerpoConArchivos(cuerpoDeSolicitud(borrador), archivos)
     )
 
     enviandoAhora.current = false
@@ -187,6 +194,7 @@ export function NuevaSolicitud ({ prioridades, espacios, entradaId = null, conta
     setMensaje('')
     setEspacio(espacioPorDefecto(espacios, entradaId))
     setPrioridad(SIN_PRIORIDAD)
+    setArchivos([])
     setFallo(null)
   }
 
@@ -262,6 +270,8 @@ export function NuevaSolicitud ({ prioridades, espacios, entradaId = null, conta
                 />
               )}
             </Campo>
+
+            <ArchivosParaAdjuntar archivos={archivos} onCambiar={setArchivos} deshabilitado={enviando} />
 
             {fallo !== null && <AvisoEnLinea variante="error" mensaje={fallo} className="text-sm" />}
 
