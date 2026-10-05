@@ -2,15 +2,18 @@
 
 import { Suspense, useCallback, useMemo, useState } from 'react'
 import { ControlesDeCartera } from './ControlesDeCartera'
-import { FilaCuenta } from './FilaCuenta'
+import { DetalleDeCuenta } from './DetalleDeCuenta'
+import { TablaDeCuentas } from './TablaDeCuentas'
 import type { EstadosRedactados } from './FilaEspacio'
 import { useRecorteDeCartera } from './useRecorteDeCartera'
 import { Cargando, Vacio } from '@/componentes/estado/Estados'
 import { Boton } from '@/componentes/formularios/Boton'
+import { Cajon, ContenidoCajon } from '@/componentes/superposiciones/Cajon'
 import type { CuentaFocal, EstadoDeSalud } from '@/datos/focals'
 import {
   filtrarCartera,
   fotoDeLaCartera,
+  nombreDeCuenta,
   ordenarCartera,
   prepararCartera,
   proyectosCoincidentes,
@@ -79,6 +82,7 @@ function CuerpoDePanelFocals ({
 }) {
   const recorte = useRecorteDeCartera(mostrarFocal)
   const [estados, setEstados] = useState<EstadosRedactados>({})
+  const [abierta, setAbierta] = useState<number | null>(null)
 
   const guardarEstado = useCallback((proyecto: number, estado: EstadoDeSalud): void => {
     setEstados((previos) => ({ ...previos, [proyecto]: estado }))
@@ -90,6 +94,12 @@ function CuerpoDePanelFocals ({
   const visibles = useMemo(
     () => ordenarCartera(filtrarCartera(preparadas, recorte.textoDiferido, recorte.filtro), recorte.orden),
     [preparadas, recorte.textoDiferido, recorte.filtro, recorte.orden]
+  )
+  const filas = useMemo(() => visibles.map(({ cuenta }) => cuenta), [visibles])
+  // Se busca entre todas y no entre las visibles: filtrar con el panel abierto no debe cerrarlo.
+  const cuentaAbierta = useMemo(
+    () => cuentas.find((cuenta) => cuenta.cliente.client_id === abierta) ?? null,
+    [cuentas, abierta]
   )
   const coincidencias = useMemo(() => {
     const porCuenta = new Map<number, readonly number[]>()
@@ -107,7 +117,7 @@ function CuerpoDePanelFocals ({
     // El ancho se corta a propósito: en una pantalla de 1440 una fila estirada de borde a borde deja
     // medio metro de vacío entre el nombre de la cuenta y quien responde por ella, y leer los dos
     // extremos de la misma fila obliga a barrer la pantalla entera con los ojos.
-    <div className="flex max-w-5xl flex-col gap-4">
+    <div className="flex max-w-6xl flex-col gap-4">
       <ControlesDeCartera
         resumen={resumen}
         visibles={visibles.length}
@@ -129,20 +139,28 @@ function CuerpoDePanelFocals ({
           />
           )
         : (
-          <ul className="flex flex-col gap-2">
-            {visibles.map(({ cuenta }) => (
-              <li key={cuenta.cliente.client_id}>
-                <FilaCuenta
-                  cuenta={cuenta}
-                  mostrarFocal={mostrarFocal}
-                  estados={estados}
-                  onEstado={guardarEstado}
-                  coincidencias={coincidencias.get(cuenta.cliente.client_id) ?? SIN_COINCIDENCIAS}
-                />
-              </li>
-            ))}
-          </ul>
+          <TablaDeCuentas
+            cuentas={filas}
+            mostrarFocal={mostrarFocal}
+            abierta={abierta}
+            onAbrir={setAbierta}
+            coincidencias={coincidencias}
+          />
           )}
+
+      <Cajon open={cuentaAbierta !== null} onOpenChange={(abierto) => { if (!abierto) setAbierta(null) }}>
+        {cuentaAbierta !== null && (
+          <ContenidoCajon titulo={nombreDeCuenta(cuentaAbierta)} aria-describedby={undefined}>
+            <DetalleDeCuenta
+              cuenta={cuentaAbierta}
+              mostrarFocal={mostrarFocal}
+              estados={estados}
+              onEstado={guardarEstado}
+              coincidencias={coincidencias.get(cuentaAbierta.cliente.client_id) ?? SIN_COINCIDENCIAS}
+            />
+          </ContenidoCajon>
+        )}
+      </Cajon>
     </div>
   )
 }
