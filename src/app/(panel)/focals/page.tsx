@@ -11,12 +11,15 @@ import {
   type ScoreEspacio
 } from '@/datos/focals'
 import { ErrorApi } from '@/datos/errores'
-import { cargarYo, pedir } from '@/datos/servidor'
-import type { ScoreCliente } from '@/datos/recursos'
+import { cargarYo, pedir, pedirOpcional } from '@/datos/servidor'
+import type { ClienteMinimo, ScoreCliente } from '@/datos/recursos'
 import { descripcionDeFocals, textoDeCarteraVacia } from '@/dominio/cartera'
 import { puedeVerTodosLosFocals } from '@/dominio/permisos'
 import { GLOSARIO } from '@/dominio/glosario'
 import { hoyEnSantiago } from '@/dominio/supervision'
+
+/** Todos los clientes con su logo; `per_page` cubre la cartera entera de una vez. */
+const RUTA_LOGOS = '/clients/minimos?per_page=500'
 
 export const metadata = { title: `${GLOSARIO.focal.plural} · WiWO Ops` }
 
@@ -54,7 +57,7 @@ export const metadata = { title: `${GLOSARIO.focal.plural} · WiWO Ops` }
 export default async function FocalsPage () {
   const yo = await cargarYo()
   const todas = puedeVerTodosLosFocals(yo.data)
-  const [cuentas, error] = await cargarCartera(todas)
+  const [[cuentas, error], logos] = await Promise.all([cargarCartera(todas), cargarLogos()])
 
   if (error !== null) {
     return (
@@ -74,7 +77,7 @@ export default async function FocalsPage () {
 
       {cuentas.length === 0
         ? <CarteraVacia todas={todas} />
-        : <PanelFocals cuentas={cuentas} hoy={hoyEnSantiago()} mostrarFocal={todas} />}
+        : <PanelFocals cuentas={cuentas} hoy={hoyEnSantiago()} mostrarFocal={todas} logos={logos} />}
     </section>
   )
 }
@@ -114,4 +117,24 @@ async function cargarCartera (todas: boolean): Promise<[CuentaFocal[], ErrorApi 
 
     throw fallo
   }
+}
+
+/**
+ * El logo de cada cliente, por id, para ponerle cara a su tarjeta.
+ *
+ * Sale de `/clients/minimos`, la ruta que no exige permiso de clientes y devuelve solo id, nombre,
+ * logo y si está activo. Es opcional: si falla o el cliente no tiene logo, la tarjeta cae a sus
+ * iniciales, y la pantalla no tiene por qué romperse por una imagen.
+ *
+ * @returns el logo por id de cliente; vacío si no se pudo pedir
+ */
+async function cargarLogos (): Promise<Record<number, string>> {
+  const { datos } = await pedirOpcional<ClienteMinimo[]>(RUTA_LOGOS)
+  const logos: Record<number, string> = {}
+
+  for (const cliente of datos ?? []) {
+    if (cliente.image_url !== null && cliente.image_url !== '') logos[cliente.id] = cliente.image_url
+  }
+
+  return logos
 }
