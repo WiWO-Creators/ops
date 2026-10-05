@@ -49,8 +49,9 @@ export interface FuenteDeTicket {
   /** Pagina de la Tarea vinculada. Plantilla con `:proyecto` y `:id`. */
   paginaTarea: string
   /**
-   * Adjuntos del mensaje de apertura. Plantilla con `:id`. `null` en el portal: sus adjuntos quedan
-   * fuera de esta ronda y el contrato no los publica.
+   * Adjuntos del mensaje de apertura. Plantilla con `:id`. `null` en el portal: la ficha del contacto
+   * ya trae `attachments` (y los de cada respuesta), asi que no hace falta un viaje aparte. La API
+   * tambien responde `GET /portal/tickets/:id/archivos`, pero el modal no lo pide.
    */
   archivos: string | null
   /** Respuestas predefinidas para insertar. `null` donde no se ofrecen (el portal). */

@@ -372,7 +372,15 @@ const YA_DICHOS_POR_EL_MENSAJE = new Set([
   // permitida", "ya están en esa carpeta").
   'file:too_large',
   'file:extension_not_allowed',
-  'parent_id:same_folder'
+  'parent_id:same_folder',
+  // Adjuntos de ticket: el mensaje nombra el archivo y el limite («“a.exe”: ese tipo de archivo no
+  // esta permitido.»), y el codigo pelado no suma nada a esa frase.
+  'attachments:extension_not_allowed',
+  'attachments:content_mismatch',
+  'attachments:empty',
+  'attachments:too_large',
+  'attachments:max_files',
+  'attachments:upload_failed'
 ])
 
 /**

@@ -4,7 +4,7 @@ import { Paperclip } from 'lucide-react'
 import { memo, type ReactElement } from 'react'
 import type { MensajeDeTicket } from '@/dominio/ticket-vista'
 
-/** Los adjuntos de un mensaje, para bajar. Solo lectura: subir queda fuera de esta pantalla. */
+/** Los adjuntos de un mensaje, para bajar. Se suben desde la caja de respuesta (`ArchivosParaAdjuntar`). */
 export const Adjuntos = memo(function Adjuntos ({ adjuntos }: { adjuntos: MensajeDeTicket['adjuntos'] }): ReactElement {
   return (
     <ul className="mt-1 flex flex-wrap gap-1.5" aria-label="Adjuntos">

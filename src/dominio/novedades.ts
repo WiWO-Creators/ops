@@ -54,6 +54,13 @@ export const ROTULO_TIPO: Record<TipoNovedad, string> = {
 export const NOVEDADES: Novedad[] = [
   {
     fecha: '2026-10-05',
+    tipo: 'nuevo',
+    titulo: 'Adjunta archivos al abrir o responder un ticket',
+    detalle: 'En la caja de respuesta del ticket y en «Nuevo ticket» del portal, el botón «Adjuntar archivos» deja subir hasta 4 archivos (imágenes, PDF, Word, ZIP o RAR, de hasta 10 MB cada uno). Los ves en el hilo junto al mensaje y se descargan con un clic.',
+    commits: []
+  },
+  {
+    fecha: '2026-10-05',
     tipo: 'mejora',
     titulo: 'La bandeja de Tickets muestra solo los abiertos',
     detalle: 'Al entrar a Tickets ya no ves los cerrados: el filtro Estado dice «Abiertos». Para verlos todos, abre Estado y marca «Todos»; «Limpiar filtros» vuelve a los abiertos.',
