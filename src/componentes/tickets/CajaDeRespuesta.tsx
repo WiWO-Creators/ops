@@ -31,6 +31,7 @@ import {
   type TicketVista
 } from '@/dominio/ticket-vista'
 import { cargarPredefinidas } from './carga-de-ticket'
+import { useListaPerezosa, type ListaPerezosa } from './useListaPerezosa'
 
 /** Centinela de «no cambiar el estado al responder». Radix no admite un `value` vacio. */
 const SIN_CAMBIO = 'sin-cambio'
@@ -247,11 +248,7 @@ function SinRespuesta ({ ticket, nombre, escrito, fallo }: { ticket: TicketVista
   )
 }
 
-type Predefinidas =
-  | { fase: 'sinPedir' }
-  | { fase: 'cargando' }
-  | { fase: 'error', mensaje: string }
-  | { fase: 'listo', lista: RespuestaPredefinida[] }
+type Predefinidas = ListaPerezosa<RespuestaPredefinida>
 
 /**
  * Menu para insertar una respuesta predefinida en la caja.
@@ -259,7 +256,7 @@ type Predefinidas =
  * Se piden al abrirlo, una vez por pestaña. Insertar suma al final de lo escrito, no lo reemplaza.
  */
 function MenuPredefinidas ({ ruta, onElegir }: { ruta: string, onElegir: (predefinida: RespuestaPredefinida) => void }): ReactElement {
-  const [predefinidas, setPredefinidas] = useState<Predefinidas>({ fase: 'sinPedir' })
+  const { estado: predefinidas, pedir } = useListaPerezosa(() => cargarPredefinidas(ruta), 'No se pudieron cargar.')
   const [busqueda, setBusqueda] = useState('')
 
   /** Pide la lista al abrir por primera vez, o de nuevo si la anterior fallo. */
@@ -269,14 +266,7 @@ function MenuPredefinidas ({ ruta, onElegir }: { ruta: string, onElegir: (predef
       return
     }
 
-    if (predefinidas.fase === 'listo' || predefinidas.fase === 'cargando') return
-
-    setPredefinidas({ fase: 'cargando' })
-    cargarPredefinidas(ruta)
-      .then((lista) => { setPredefinidas({ fase: 'listo', lista }) })
-      .catch((fallo: unknown) => {
-        setPredefinidas({ fase: 'error', mensaje: fallo instanceof Error ? fallo.message : 'No se pudieron cargar.' })
-      })
+    pedir()
   }
 
   return (
