@@ -1,5 +1,5 @@
 import { Coffee, FolderKanban, Users, type LucideIcon } from 'lucide-react'
-import { pedir } from '@/datos/servidor'
+import { cargarYo, pedir } from '@/datos/servidor'
 import { ErrorApi } from '@/datos/errores'
 import { SALAS_COMUNES, salaDeEspacio } from '@/dominio/teletrabajo'
 import { ocupacionDeSalas } from '@/datos/teletrabajo'
@@ -9,7 +9,6 @@ import { Tarjeta } from '@/componentes/estructura/Tarjeta'
 import { Insignia } from '@/componentes/presentadores/Insignia'
 import { TituloModulo } from '@/componentes/estructura/TituloModulo'
 import type { Espacio } from '@/datos/recursos'
-import type { Yo } from '@/datos/tipos'
 
 export const metadata = { title: 'Teletrabajo · WiWO Ops' }
 
@@ -44,7 +43,7 @@ export default async function TeletrabajoPage () {
   // encadenada a `/me` dentro del segundo brazo del `Promise.all`.
   const [ocupacion, espacios] = await Promise.all([
     ocupacionDeSalas(),
-    pedir<Yo>('/me').then(({ data: yo }) => espaciosDe(yo.id))
+    cargarYo().then(({ data: yo }) => espaciosDe(yo.id))
   ])
 
   return (

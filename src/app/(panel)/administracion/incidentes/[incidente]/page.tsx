@@ -6,10 +6,9 @@ import { Fecha } from '@/componentes/presentadores/Fecha'
 import { FirmaDeMarca } from '@/componentes/estructura/TituloModulo'
 import { Insignia } from '@/componentes/presentadores/Insignia'
 import { ErrorApi } from '@/datos/errores'
-import { pedir } from '@/datos/servidor'
+import { cargarYo, pedir } from '@/datos/servidor'
 import { describirFalla, describirOrigen, describirPeticion, describirSujeto } from '@/dominio/incidentes'
 import type { IncidenteConTraza } from '@/datos/recursos'
-import type { Yo } from '@/datos/tipos'
 
 export const metadata = { title: 'Incidente · WiWO Ops' }
 
@@ -73,7 +72,7 @@ function VolverAlListado () {
  * superadministrador, y entrar por URL directa tampoco tiene que pintar nada.
  */
 export default async function IncidentePage (props: PageProps<'/administracion/incidentes/[incidente]'>) {
-  const { data: yo } = await pedir<Yo>('/me')
+  const { data: yo } = await cargarYo()
 
   if (!yo.is_superadmin) return <SinPermiso className="mt-10" />
 

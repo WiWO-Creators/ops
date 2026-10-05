@@ -6,9 +6,9 @@ import { TituloModulo } from '@/componentes/estructura/TituloModulo'
 import { ErrorApi } from '@/datos/errores'
 import { intervaloDeLive, type EstadoDeJornada, type FilaDeLive } from '@/datos/live'
 import type { Lookups } from '@/datos/recursos'
-import { pedir } from '@/datos/servidor'
+import { cargarYo, pedir } from '@/datos/servidor'
 import { opcionesDeEstados } from '@/dominio/estados-tarea'
-import type { Sobre, Yo } from '@/datos/tipos'
+import type { Sobre } from '@/datos/tipos'
 import { alcanceDeLive, recibeElResumenDelEquipo } from '@/dominio/live'
 
 export const metadata = { title: 'En vivo · WiWO Ops' }
@@ -53,7 +53,7 @@ function mensaje (resultado: unknown): string | null {
  * de arranque, y con ella la segunda forma de que los numeros no coincidan.
  */
 export default async function LivePage () {
-  const { data: yo } = await pedir<Yo>('/me')
+  const { data: yo } = await cargarYo()
   const alcance = alcanceDeLive(yo)
   const segundos = intervaloDeLive()
 

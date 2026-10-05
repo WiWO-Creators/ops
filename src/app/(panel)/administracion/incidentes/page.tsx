@@ -6,10 +6,10 @@ import { Insignia } from '@/componentes/presentadores/Insignia'
 import { PaginacionTabla } from '@/componentes/datos/PaginacionTabla'
 import { TituloModulo } from '@/componentes/estructura/TituloModulo'
 import { ErrorApi } from '@/datos/errores'
-import { pedir } from '@/datos/servidor'
+import { cargarYo, pedir } from '@/datos/servidor'
 import { describirFalla, describirOrigen, describirPeticion, describirSujeto } from '@/dominio/incidentes'
 import type { Incidente } from '@/datos/recursos'
-import type { Paginacion, Yo } from '@/datos/tipos'
+import type { Paginacion } from '@/datos/tipos'
 
 export const metadata = { title: 'Incidentes · WiWO Ops' }
 
@@ -89,7 +89,7 @@ async function cargar (pagina: number): Promise<Cargado | ErrorApi> {
  * está la compuerta real— pero pedirla igual gastaría un viaje que sabemos que vuelve 403.
  */
 export default async function IncidentesPage (props: PageProps<'/administracion/incidentes'>) {
-  const { data: yo } = await pedir<Yo>('/me')
+  const { data: yo } = await cargarYo()
 
   if (!yo.is_superadmin) return <SinPermiso className="mt-10" />
 

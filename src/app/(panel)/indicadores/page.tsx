@@ -2,9 +2,8 @@ import { ErrorEstado, SinPermiso } from '@/componentes/estado/Estados'
 import { TableroDeIndicadores } from '@/componentes/indicadores/TableroDeIndicadores'
 import { TituloModulo } from '@/componentes/estructura/TituloModulo'
 import { paramsDeUrl } from '@/datos/consulta'
-import { pedir, pedirOpcional } from '@/datos/servidor'
+import { cargarYo, pedirOpcional } from '@/datos/servidor'
 import type { ComparacionDeIndicadores } from '@/datos/recursos'
-import type { Yo } from '@/datos/tipos'
 
 export const metadata = { title: 'Indicadores · WiWO Ops' }
 
@@ -34,7 +33,7 @@ export const metadata = { title: 'Indicadores · WiWO Ops' }
  * tal cual, porque lo que hay que hacer es esperar al cron, no reintentar.
  */
 export default async function IndicadoresPage (props: PageProps<'/indicadores'>) {
-  const { data: yo } = await pedir<Yo>('/me')
+  const { data: yo } = await cargarYo()
 
   if (!yo.is_superadmin && yo.escalon !== 'gerencia') return <SinPermiso className="mt-10" />
 

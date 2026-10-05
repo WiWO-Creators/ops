@@ -16,7 +16,7 @@ import { Cargando, ErrorEstado, SinPermiso, Vacio } from '@/componentes/estado/E
 import { listaDe } from '@/datos/catalogos'
 import { ErrorApi } from '@/datos/errores'
 import { cargarLookups } from '@/datos/lookups'
-import { pedir } from '@/datos/servidor'
+import { cargarYo, pedir } from '@/datos/servidor'
 import type { EstadoLookup, Lookups, ProspectoDetalle } from '@/datos/recursos'
 import type { Yo } from '@/datos/tipos'
 import { etiquetaDeEstadoDeProspecto } from '@/definiciones/prospectos'
@@ -73,7 +73,7 @@ async function cargarDetalle (id: string): Promise<Detalle | ErrorApi> {
     const [prospecto, lookups, yo] = await Promise.all([
       traerProspecto(id),
       cargarLookups(),
-      pedir<Yo>('/me')
+      cargarYo()
     ])
 
     return { prospecto: prospecto.data, lookups, yo: yo.data }

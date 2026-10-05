@@ -11,9 +11,8 @@ import { iaHabilitada } from '@/datos/ajustes'
 import { construirConsulta, leerConsulta, paramsDeUrl } from '@/datos/consulta'
 import { cargarLookups, opcionesDeFiltroDeEspacio, opcionesDeFiltros } from '@/datos/lookups'
 import { RUTA_DE_ASIGNABLES } from '@/datos/asignables'
-import { pedir, pedirOpcional } from '@/datos/servidor'
+import { cargarYo, pedir, pedirOpcional } from '@/datos/servidor'
 import type { Espacio, PersonaAsignable } from '@/datos/recursos'
-import type { Yo } from '@/datos/tipos'
 import { PROCESOS } from '@/definiciones/procesos'
 import { opcionesDeCliente } from '../opciones-de-cliente'
 import { opcionesDeHito } from '../opciones-de-hito'
@@ -39,7 +38,7 @@ export default async function TableroProcesosPage (props: PageProps<'/tareas/tab
 
   const [lookups, yo, equipo, espacios, clientes, hitos, conIa] = await Promise.all([
     cargarLookups(),
-    pedir<Yo>('/me'),
+    cargarYo(),
     // Catalogos del alta rapida, iguales a los de la lista: el boton tiene que estar en las dos
     // pantallas, porque la tarea se anota donde uno esta parado. El equipo sale de la misma unica
     // fuente que el selector de la tarea, `/staff/asignables`, que solo pide sesion.

@@ -1,9 +1,8 @@
 import { Suspense } from 'react'
 import { Cargando } from '@/componentes/estado/Estados'
 import { TituloModulo } from '@/componentes/estructura/TituloModulo'
-import { pedir, pedirOpcional } from '@/datos/servidor'
+import { cargarYo, pedirOpcional } from '@/datos/servidor'
 import type { Espacio } from '@/datos/recursos'
-import type { Yo } from '@/datos/tipos'
 import { GLOSARIO } from '@/dominio/glosario'
 import { BandejaTickets } from './BandejaTickets'
 
@@ -28,7 +27,7 @@ const TOPE_PROYECTOS = 500
  */
 export default async function TicketsPage () {
   const [yo, proyectos] = await Promise.all([
-    pedir<Yo>('/me'),
+    cargarYo(),
     pedirOpcional<Espacio[]>(`/projects?per_page=${TOPE_PROYECTOS}`)
   ])
 
