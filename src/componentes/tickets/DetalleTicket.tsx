@@ -1,8 +1,9 @@
 'use client'
 
 import Link from 'next/link'
-import { Paperclip } from 'lucide-react'
+import { ArrowDown, Paperclip } from 'lucide-react'
 import { useCallback, useEffect, useRef, useState, type ReactElement, type ReactNode } from 'react'
+import { Boton } from '@/componentes/formularios/Boton'
 import { Avatar } from '@/componentes/presentadores/Avatar'
 import { EnlacePersona } from '@/componentes/presentadores/EnlacePersona'
 import { Fecha } from '@/componentes/presentadores/Fecha'
@@ -11,16 +12,17 @@ import { BarraProgreso } from '@/componentes/proyecto/CabeceraProyecto'
 import { Cargando, ErrorEstado, Vacio } from '@/componentes/estado/Estados'
 import { escribirEnBff } from '@/componentes/datos/mutaciones'
 import { observarLista } from '@/datos/refresco-lista'
-import type { Referencia } from '@/datos/recursos'
 import type { Capacidad } from '@/datos/tipos'
 import { GLOSARIO } from '@/dominio/glosario'
 import {
   avisarCambioDeTicket,
   nombreDelTicket,
+  proyectosElegibles,
   rutaDeTicket,
   vistaTrasResponder,
   type FuenteDeTicket,
   type MensajeDeTicket,
+  type ProyectoElegible,
   type TicketVista
 } from '@/dominio/ticket-vista'
 import { cn } from '@/lib/clases'
@@ -29,6 +31,8 @@ import { CajaDeRespuesta } from './CajaDeRespuesta'
 import { cargarTicket, type CargaDeTicket } from './carga-de-ticket'
 import { MenuAsignadoTicket } from './MenuAsignadoTicket'
 import { MenuCatalogoTicket } from './MenuCatalogoTicket'
+import { MenuProyectoTicket } from './MenuProyectoTicket'
+import { useSeguimientoDelHilo } from './useSeguimientoDelHilo'
 
 /**
  * El detalle de un ticket: cabecera con estado y prioridad, datos, hilo y caja de respuesta.
@@ -61,10 +65,11 @@ export function DetalleTicket ({
   fuente: FuenteDeTicket
   capacidades: Capacidad[]
   /**
-   * Nombres de los Proyectos que quien mira ya tiene a mano, para no mostrar un numero pelado.
-   * La ficha del ticket solo trae `project_id`; un Proyecto que no este aca se nombra por su id.
+   * Los Proyectos que quien mira ya tiene a mano: nombran el del ticket sin mostrar un numero pelado
+   * (la ficha solo trae `project_id`) y, si puede editar, son los que ofrece el menu para moverlo.
+   * Un Proyecto que no este aca se nombra por su id.
    */
-  proyectos?: Referencia[]
+  proyectos?: ProyectoElegible[]
   /** Informa el asunto cuando llega, para el titulo accesible del modal. */
   onAsunto?: (asunto: string) => void
   /** La API devolvio el ticket principal de una fusion: quien monta cambia la URL a ese id. */
@@ -283,12 +288,23 @@ function DatosDelTicket ({
 }: {
   ticket: TicketVista
   fuente: FuenteDeTicket
-  proyectos: Referencia[]
+  proyectos: ProyectoElegible[]
   rutaEditar: string
   puedeEditar: boolean
   onCambiado: () => void
 }): ReactElement {
-  const proyectoId = ticket.proyectoId
+  // El Proyecto que se pinta: el de la ficha, salvo mientras un cambio optimista espera a la API. Se
+  // realinea cuando la ficha recargada trae otro, como `MenuAsignadoTicket`.
+  const [proyectoPintado, setProyectoPintado] = useState(ticket.proyectoId)
+  const [ultimoDeLaApi, setUltimoDeLaApi] = useState(ticket.proyectoId)
+
+  if (ultimoDeLaApi !== ticket.proyectoId) {
+    setUltimoDeLaApi(ticket.proyectoId)
+    setProyectoPintado(ticket.proyectoId)
+  }
+
+  const proyectoId = proyectoPintado
+  const elegibles = puedeEditar ? proyectosElegibles(proyectos, { proyectoId, clienteId: ticket.clienteId }) : []
   const nombreProyecto = proyectoId === null
     ? null
     : (proyectos.find((p) => p.id === proyectoId)?.name ?? `${GLOSARIO.espacio.singular} #${proyectoId}`)
@@ -296,9 +312,20 @@ function DatosDelTicket ({
   return (
     <dl className="border-linea-suave grid gap-x-6 gap-y-3 border-t pt-3 sm:grid-cols-2">
       <Dato etiqueta={GLOSARIO.espacio.singular}>
-        {proyectoId === null || nombreProyecto === null
-          ? <span className="text-texto-sutil">Sin {GLOSARIO.espacio.singular.toLowerCase()}</span>
-          : <Enlace href={rutaDeTicket(fuente.paginaProyecto, proyectoId)}>{nombreProyecto}</Enlace>}
+        <span className="flex items-center gap-1">
+          {proyectoId === null || nombreProyecto === null
+            ? <span className="text-texto-sutil">Sin {GLOSARIO.espacio.singular.toLowerCase()}</span>
+            : <Enlace href={rutaDeTicket(fuente.paginaProyecto, proyectoId)}>{nombreProyecto}</Enlace>}
+          {elegibles.length > 0 && (
+            <MenuProyectoTicket
+              actual={proyectoId}
+              opciones={elegibles}
+              rutaEditar={rutaEditar}
+              onElegido={setProyectoPintado}
+              onCambiado={onCambiado}
+            />
+          )}
+        </span>
       </Dato>
 
       <Dato etiqueta={`${GLOSARIO.proceso.singular} vinculada`}>
@@ -364,13 +391,19 @@ function TareaVinculada ({ ticket, fuente }: { ticket: TicketVista, fuente: Fuen
  * acento suave porque es el que casi siempre se busca al volver a un ticket.
  *
  * `aria-live="polite"` sobre la lista: lo que llega por el hilo en vivo se anuncia sin interrumpir.
+ *
+ * Al abrir lleva la vista al ultimo mensaje; si llegan otros mientras se lee mas arriba, no mueve
+ * nada y ofrece «Nuevos mensajes» (ver `useSeguimientoDelHilo`).
  */
 function Hilo ({ mensajes }: { mensajes: MensajeDeTicket[] }): ReactElement {
+  const lista = useRef<HTMLOListElement>(null)
+  const { hayNuevos, irAlUltimo } = useSeguimientoDelHilo(lista, mensajes.length)
+
   return (
     <section className="flex flex-col gap-3" aria-label="Conversación">
       <h4 className="text-texto-tenue text-sm font-semibold">Conversación</h4>
 
-      <ol className="flex flex-col gap-3" aria-live="polite" aria-relevant="additions">
+      <ol ref={lista} className="flex flex-col gap-3" aria-live="polite" aria-relevant="additions">
         {mensajes.map((mensaje) => (
           <li
             key={mensaje.clave}
@@ -403,6 +436,17 @@ function Hilo ({ mensajes }: { mensajes: MensajeDeTicket[] }): ReactElement {
           </li>
         ))}
       </ol>
+
+      {hayNuevos && (
+        // Pegado al borde inferior del panel mientras el hilo se recorre: es lo que se ve al leer
+        // mas arriba, que es justo cuando hace falta.
+        <div className="sticky bottom-3 z-10 flex justify-center">
+          <Boton variante="primario" tamano="chico" onClick={irAlUltimo}>
+            Nuevos mensajes
+            <ArrowDown size={14} strokeWidth={2} aria-hidden="true" />
+          </Boton>
+        </div>
+      )}
     </section>
   )
 }

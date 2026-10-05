@@ -32,7 +32,7 @@ export default async function TicketsPage () {
     pedirOpcional<Espacio[]>(`/projects?per_page=${TOPE_PROYECTOS}`)
   ])
 
-  const referencias = (proyectos.datos ?? []).map((p) => ({ id: p.id, name: p.name }))
+  const referencias = (proyectos.datos ?? []).map((p) => ({ id: p.id, name: p.name, clienteId: p.client?.id ?? null }))
 
   return (
     <section className="flex flex-col gap-4">

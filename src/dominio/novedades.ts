@@ -61,6 +61,20 @@ export const NOVEDADES: Novedad[] = [
   },
   {
     fecha: '2026-10-05',
+    tipo: 'nuevo',
+    titulo: 'Cambia un ticket de Proyecto desde su ficha',
+    detalle: 'Junto al nombre del Proyecto hay una flecha para mover el ticket a otro Proyecto de su mismo cliente, o dejarlo sin Proyecto. Si el cambio no es posible, te explica por qué.',
+    commits: []
+  },
+  {
+    fecha: '2026-10-05',
+    tipo: 'mejora',
+    titulo: 'La conversación del ticket abre en el último mensaje',
+    detalle: 'Al abrir un ticket largo ya estás en el mensaje más reciente. Si llega uno nuevo mientras lees más arriba, aparece «Nuevos mensajes» para ir a él sin que se te mueva la pantalla.',
+    commits: []
+  },
+  {
+    fecha: '2026-10-05',
     tipo: 'mejora',
     titulo: 'Portal: tus tickets muestran su Proyecto',
     detalle: 'En la lista de tickets del portal hay una columna nueva con el Proyecto de cada ticket.',

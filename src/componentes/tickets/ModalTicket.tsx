@@ -6,9 +6,8 @@ import { useCallback, useState, type ReactElement } from 'react'
 import { Boton } from '@/componentes/formularios/Boton'
 import { CerrarDialogo, ContenidoDialogo, Dialogo } from '@/componentes/superposiciones/Dialogo'
 import { idDeParametro, urlConParametro } from '@/componentes/datos/tabla'
-import type { Referencia } from '@/datos/recursos'
 import type { Capacidad } from '@/datos/tipos'
-import { PARAMETRO_TICKET, nombreDelTicket, tituloDelModal, type FuenteDeTicket } from '@/dominio/ticket-vista'
+import { PARAMETRO_TICKET, nombreDelTicket, tituloDelModal, type FuenteDeTicket, type ProyectoElegible } from '@/dominio/ticket-vista'
 import { DetalleTicket } from './DetalleTicket'
 
 /** Como se llego al ticket abierto, que decide como se sale. */
@@ -60,8 +59,8 @@ export function ModalTicket ({
 }: {
   fuente: FuenteDeTicket
   capacidades: Capacidad[]
-  /** Nombres de Proyectos a mano, para nombrar el del ticket sin otra peticion. */
-  proyectos?: Referencia[]
+  /** Proyectos a mano: nombran el del ticket sin otra peticion y son los que se ofrecen para moverlo. */
+  proyectos?: ProyectoElegible[]
 }): ReactElement {
   const params = useSearchParams()
   const abierto = idDeParametro(params.get(PARAMETRO_TICKET))

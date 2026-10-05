@@ -1,4 +1,4 @@
-import type { AdjuntoTicket, EstadoLookup, RespuestaTicket, TicketDetalle } from '../datos/recursos.ts'
+import type { AdjuntoTicket, EstadoLookup, Referencia, RespuestaTicket, TicketDetalle } from '../datos/recursos.ts'
 import type { RespuestaTicketPortal, TicketPortalDetalle } from '../datos/portal.ts'
 
 /**
@@ -258,6 +258,8 @@ export interface TicketVista {
   estado: number
   prioridad: number
   proyectoId: number | null
+  /** El cliente del ticket, para ofrecer solo sus Proyectos. `null` sin cliente o donde no se sabe (portal). */
+  clienteId: number | null
   abierto: string | null
   ultimaRespuesta: string | null
   /** Quien lo abrio. `null` en el portal: es el propio contacto. */
@@ -336,6 +338,7 @@ export function ticketDelPanel (
     estado: detalle.status,
     prioridad: detalle.priority,
     proyectoId: detalle.project_id ?? null,
+    clienteId: detalle.solicitante.client?.id ?? null,
     abierto: detalle.date,
     ultimaRespuesta: detalle.lastreply,
     solicitante,
@@ -390,6 +393,7 @@ export function ticketDelPortal (detalle: TicketPortalDetalle): TicketVista {
     estado: detalle.status,
     prioridad: detalle.priority,
     proyectoId: detalle.project_id,
+    clienteId: null,
     abierto: detalle.date,
     ultimaRespuesta: detalle.last_reply,
     solicitante: null,
@@ -796,6 +800,48 @@ export function tituloDelModal (id: number, asunto: string | null, nombre: Nombr
   const recortado = asunto?.trim() ?? ''
 
   return recortado === '' ? base : `${base} · ${recortado}`
+}
+
+/** Un Proyecto a mano del modal; `clienteId` permite ofrecer solo los del cliente del ticket. */
+export interface ProyectoElegible extends Referencia {
+  /** El cliente del Proyecto. Ausente donde la lista no lo trae: ahi no se descarta por cliente. */
+  clienteId?: number | null
+}
+
+/**
+ * Los Proyectos a los que se puede mover un ticket: los de su cliente.
+ *
+ * `PATCH /tickets/{id}` rechaza con 422 `otro_cliente` un Proyecto de otro cliente, asi que ofrecerlo
+ * es ofrecer un error. Se filtra aca para que no aparezca; la API sigue siendo quien decide, por eso
+ * un ticket sin cliente conocido (`ticket_sin_cliente`) o un Proyecto sin cliente en la lista no se
+ * descartan: la persona recibe la explicacion del 422 en vez de una lista vacia que no dice por que.
+ *
+ * @param proyectos los Proyectos que quien mira tiene a mano
+ * @param ticket el ticket que se quiere mover
+ * @returns los Proyectos elegibles, sin repetir el actual, en el orden recibido
+ */
+export function proyectosElegibles (
+  proyectos: ProyectoElegible[],
+  ticket: Pick<TicketVista, 'proyectoId' | 'clienteId'>
+): ProyectoElegible[] {
+  return proyectos.filter((proyecto) => (
+    proyecto.id !== ticket.proyectoId &&
+    (ticket.clienteId === null || proyecto.clienteId === undefined || proyecto.clienteId === ticket.clienteId)
+  ))
+}
+
+/**
+ * Los Proyectos cuyo nombre contiene lo buscado, sin distinguir mayusculas ni tildes.
+ *
+ * @param proyectos la lista a recorrer
+ * @param busqueda lo tipeado; vacio devuelve la lista entera
+ * @returns los que coinciden, en el orden recibido
+ */
+export function buscarProyectos (proyectos: ProyectoElegible[], busqueda: string): ProyectoElegible[] {
+  const quitarTildes = (texto: string): string => texto.normalize('NFD').replace(/\p{Diacritic}/gu, '').toLowerCase()
+  const buscado = quitarTildes(busqueda.trim())
+
+  return buscado === '' ? proyectos : proyectos.filter((p) => quitarTildes(p.name).includes(buscado))
 }
 
 /** Que se estaba haciendo cuando la API dijo que no. Cambia como se explica el mismo codigo. */

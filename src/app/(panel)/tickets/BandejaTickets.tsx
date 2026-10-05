@@ -6,7 +6,6 @@ import { TarjetaDeTicket, claseDeFilaDeTicket, conCeldasDeTickets } from '@/comp
 import { useAlCambiarTickets, useAlCerrarTicket } from '@/componentes/datos/useAlCambiarTickets'
 import { PanelRecurso } from '@/componentes/proyecto/PanelRecurso'
 import { ModalTicket } from '@/componentes/tickets/ModalTicket'
-import type { Referencia } from '@/datos/recursos'
 import type { Capacidad } from '@/datos/tipos'
 import {
   CATALOGO_PROYECTOS_DE_TICKETS,
@@ -14,7 +13,7 @@ import {
   opcionesDeProyectoDeTickets
 } from '@/definiciones/tickets'
 import { GLOSARIO } from '@/dominio/glosario'
-import { PARAMETRO_TICKET, TICKET_DEL_PANEL } from '@/dominio/ticket-vista'
+import { PARAMETRO_TICKET, TICKET_DEL_PANEL, type ProyectoElegible } from '@/dominio/ticket-vista'
 
 /**
  * Capacidades del equipo sobre un ticket: las mismas que en la pestaña del Proyecto. La API decide por
@@ -31,9 +30,9 @@ const TICKETS_DEL_EQUIPO: Capacidad[] = ['edit']
  * asignado.
  *
  * @param props.esAdmin si quien mira administra; sin eso la API rechaza departamento y asignado
- * @param props.proyectos los Proyectos visibles, para nombrarlos y filtrar
+ * @param props.proyectos los Proyectos visibles, para nombrarlos, filtrar y mover un ticket de uno a otro
  */
-export function BandejaTickets ({ esAdmin, proyectos }: { esAdmin: boolean, proyectos: Referencia[] }): ReactElement {
+export function BandejaTickets ({ esAdmin, proyectos }: { esAdmin: boolean, proyectos: ProyectoElegible[] }): ReactElement {
   const [revision, setRevision] = useState(0)
 
   const nombres = useMemo(() => new Map(proyectos.map((p) => [p.id, p.name])), [proyectos])
