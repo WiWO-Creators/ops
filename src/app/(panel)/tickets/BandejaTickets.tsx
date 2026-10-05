@@ -2,8 +2,8 @@
 
 import { Suspense, useMemo, type ReactElement } from 'react'
 import { FiltroEsperandoAlEquipo } from '@/componentes/datos/FiltroEsperandoAlEquipo'
-import { ABRIR_TICKET_EN_MODAL, TarjetaDeTicket, claseDeFilaDeTicket, conCeldasDeTickets } from '@/componentes/datos/celdas-tickets'
-import { useRefrescoDeTickets } from '@/componentes/datos/useAlCambiarTickets'
+import { ABRIR_TICKET_EN_MODAL, TarjetaDeTicket, claseDeFilaDeTicket, conCeldasDeTickets } from '@/componentes/tickets/celdas-tickets'
+import { useRefrescoDeTickets } from '@/componentes/tickets/useAlCambiarTickets'
 import { PanelRecurso } from '@/componentes/proyecto/PanelRecurso'
 import { ModalTicket } from '@/componentes/tickets/ModalTicket'
 import type { Capacidad } from '@/datos/tipos'

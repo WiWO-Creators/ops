@@ -1,5 +1,5 @@
 import type { ReactElement, ReactNode } from 'react'
-import { EnlaceATicket } from '@/componentes/tickets/EnlaceATicket'
+import { EnlaceATicket } from './EnlaceATicket'
 import { Insignia } from '@/componentes/presentadores/Insignia'
 import type { DefinicionRecurso, OpcionFiltro } from '@/definiciones/tipos'
 import type { TicketEspacio } from '@/datos/recursos'

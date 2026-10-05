@@ -9,8 +9,8 @@ import {
   TarjetaDeSolicitud,
   claseDeFilaDeSolicitud,
   marcaDeSolicitud
-} from '@/componentes/datos/celdas-tickets'
-import { useRefrescoDeTickets } from '@/componentes/datos/useAlCambiarTickets'
+} from '@/componentes/tickets/celdas-tickets'
+import { useRefrescoDeTickets } from '@/componentes/tickets/useAlCambiarTickets'
 import type { DefinicionRecurso } from '@/definiciones/tipos'
 import { PORTAL_TICKETS } from '@/definiciones/portal-soporte'
 import type { TicketPortal } from '@/datos/portal'
