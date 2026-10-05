@@ -3,10 +3,11 @@
 import { Suspense, useCallback, useMemo, useState } from 'react'
 import { ControlesDeCartera } from './ControlesDeCartera'
 import { DetalleDeCuenta } from './DetalleDeCuenta'
-import { TablaDeCuentas } from './TablaDeCuentas'
+import { CuadriculaDeCuentas } from './CuadriculaDeCuentas'
 import type { EstadosRedactados } from './FilaEspacio'
 import { useRecorteDeCartera } from './useRecorteDeCartera'
 import { Cargando, Vacio } from '@/componentes/estado/Estados'
+import { PaginacionTabla } from '@/componentes/datos/PaginacionTabla'
 import { Boton } from '@/componentes/formularios/Boton'
 import { Cajon, ContenidoCajon } from '@/componentes/superposiciones/Cajon'
 import type { CuentaFocal, EstadoDeSalud } from '@/datos/focals'
@@ -14,6 +15,7 @@ import {
   filtrarCartera,
   fotoDeLaCartera,
   nombreDeCuenta,
+  paginar,
   ordenarCartera,
   prepararCartera,
   proyectosCoincidentes,
@@ -22,6 +24,7 @@ import {
 
 /** Lo que reciben las cuentas sin ningún Proyecto marcado: una sola referencia, para no romper su `memo`. */
 const SIN_COINCIDENCIAS: readonly number[] = []
+const SIN_LOGOS: Readonly<Record<number, string>> = {}
 
 /**
  * La cartera de un Focal: sus clientes, y dentro de cada uno sus Proyectos.
@@ -62,7 +65,15 @@ const SIN_COINCIDENCIAS: readonly number[] = []
  * cualquier otra vista con filtros, y recargar no la pierde. El estado de IA redactado vive acá y no en
  * cada fila, para que cerrar una cuenta o filtrar no lo pierda.
  */
-export function PanelFocals (props: { cuentas: CuentaFocal[], hoy: string, mostrarFocal?: boolean }) {
+interface PropsPanelFocals {
+  cuentas: CuentaFocal[]
+  hoy: string
+  mostrarFocal?: boolean
+  /** El logo de cada cliente, por id; sin entrada, la tarjeta usa las iniciales. */
+  logos?: Readonly<Record<number, string>>
+}
+
+export function PanelFocals (props: PropsPanelFocals) {
   // `useFiltrosEnUrl` lee `useSearchParams`: sin este limite de Suspense falla el build.
   return (
     <Suspense fallback={<Cargando alto="min-h-60" mensaje="Cargando la cartera…" />}>
@@ -71,18 +82,11 @@ export function PanelFocals (props: { cuentas: CuentaFocal[], hoy: string, mostr
   )
 }
 
-function CuerpoDePanelFocals ({
-  cuentas,
-  hoy,
-  mostrarFocal = false
-}: {
-  cuentas: CuentaFocal[]
-  hoy: string
-  mostrarFocal?: boolean
-}) {
+function CuerpoDePanelFocals ({ cuentas, hoy, mostrarFocal = false, logos = SIN_LOGOS }: PropsPanelFocals) {
   const recorte = useRecorteDeCartera(mostrarFocal)
   const [estados, setEstados] = useState<EstadosRedactados>({})
   const [abierta, setAbierta] = useState<number | null>(null)
+  const [paginaElegida, setPaginaElegida] = useState({ firma: '', pagina: 1 })
 
   const guardarEstado = useCallback((proyecto: number, estado: EstadoDeSalud): void => {
     setEstados((previos) => ({ ...previos, [proyecto]: estado }))
@@ -96,6 +100,12 @@ function CuerpoDePanelFocals ({
     [preparadas, recorte.textoDiferido, recorte.filtro, recorte.orden]
   )
   const filas = useMemo(() => visibles.map(({ cuenta }) => cuenta), [visibles])
+  // La página elegida vale para el recorte en que se eligió: filtrar, buscar u ordenar vuelve a la 1.
+  const firma = `${recorte.filtro}|${recorte.orden}|${recorte.textoDiferido}`
+  const pagina = useMemo(
+    () => paginar(filas, paginaElegida.firma === firma ? paginaElegida.pagina : 1),
+    [filas, paginaElegida, firma]
+  )
   // Se busca entre todas y no entre las visibles: filtrar con el panel abierto no debe cerrarlo.
   const cuentaAbierta = useMemo(
     () => cuentas.find((cuenta) => cuenta.cliente.client_id === abierta) ?? null,
@@ -139,13 +149,29 @@ function CuerpoDePanelFocals ({
           />
           )
         : (
-          <TablaDeCuentas
-            cuentas={filas}
-            mostrarFocal={mostrarFocal}
-            abierta={abierta}
-            onAbrir={setAbierta}
-            coincidencias={coincidencias}
-          />
+          <>
+            <CuadriculaDeCuentas
+              cuentas={pagina.items}
+              mostrarFocal={mostrarFocal}
+              logos={logos}
+              abierta={abierta}
+              onAbrir={setAbierta}
+              coincidencias={coincidencias}
+            />
+            <PaginacionTabla
+              etiqueta="Páginas de cuentas"
+              conPorPagina={false}
+              paginacion={{
+                page: pagina.pagina,
+                per_page: pagina.porPagina,
+                total: pagina.total,
+                total_pages: pagina.totalPaginas
+              }}
+              onCambiar={(cambio) => {
+                if (cambio.pagina !== undefined) setPaginaElegida({ firma, pagina: cambio.pagina })
+              }}
+            />
+          </>
           )}
 
       <Cajon open={cuentaAbierta !== null} onOpenChange={(abierto) => { if (!abierto) setAbierta(null) }}>

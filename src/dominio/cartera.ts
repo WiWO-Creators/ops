@@ -360,3 +360,46 @@ export function esProyectoUnico (cuenta: CuentaFocal): ScoreEspacio | null {
 
   return JSON.stringify(espacio.senales) === JSON.stringify(cuenta.cliente.senales) ? espacio : null
 }
+
+/** Cuántas cuentas lleva cada página: tres columnas por cuatro filas en una pantalla ancha. */
+export const CUENTAS_POR_PAGINA = 12
+
+/** Una página de una lista, con lo que hace falta para dibujar la paginación. */
+export interface PaginaDeLista<T> {
+  items: T[]
+  /** La página efectiva, ya acotada al rango existente. */
+  pagina: number
+  totalPaginas: number
+  total: number
+  porPagina: number
+}
+
+/**
+ * Corta una lista en páginas.
+ *
+ * Acota la página pedida al rango existente: filtrar puede dejar menos páginas que la que se estaba
+ * mirando, y una página fuera de rango se vería como una lista vacía que no existe.
+ *
+ * @param lista la lista completa, ya filtrada y ordenada
+ * @param pagina la página pedida, desde 1
+ * @param porPagina cuántos elementos caben en una; por defecto {@link CUENTAS_POR_PAGINA}
+ * @returns la página, con su número efectivo y el total de páginas (al menos 1)
+ * @throws RangeError si `porPagina` no es un entero mayor que 0
+ */
+export function paginar<T> (lista: readonly T[], pagina: number, porPagina = CUENTAS_POR_PAGINA): PaginaDeLista<T> {
+  if (!Number.isInteger(porPagina) || porPagina <= 0) {
+    throw new RangeError(`porPagina debe ser un entero mayor que 0, y llegó ${String(porPagina)}.`)
+  }
+
+  const totalPaginas = Math.max(1, Math.ceil(lista.length / porPagina))
+  const efectiva = Math.min(Math.max(1, Math.trunc(Number.isFinite(pagina) ? pagina : 1)), totalPaginas)
+  const desde = (efectiva - 1) * porPagina
+
+  return {
+    items: lista.slice(desde, desde + porPagina),
+    pagina: efectiva,
+    totalPaginas,
+    total: lista.length,
+    porPagina
+  }
+}

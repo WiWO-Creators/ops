@@ -14,6 +14,7 @@ import assert from 'node:assert/strict'
 import {
   FILTROS,
   ORDENES,
+  CUENTAS_POR_PAGINA,
   EXPLICACION_DE_FORMULA,
   descripcionDeFocals,
   esProyectoUnico,
@@ -21,6 +22,7 @@ import {
   fotoDeLaCartera,
   filtrarCartera as filtrarPreparada,
   nombreDeCuenta,
+  paginar,
   ordenarCartera as ordenarPreparada,
   prepararCartera,
   proyectosCoincidentes,
@@ -359,4 +361,28 @@ test('sin Proyectos, con varios o con señales distintas no hay Proyecto único'
   distinta.espacios[0].senales.plazos.valor = 99
 
   assert.equal(esProyectoUnico(distinta), null)
+})
+
+test('paginar corta la lista y dice cuántas páginas hay', () => {
+  const lista = Array.from({ length: 30 }, (_, i) => i + 1)
+  const segunda = paginar(lista, 2, 12)
+
+  assert.deepEqual(segunda.items, [13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24])
+  assert.equal(segunda.pagina, 2)
+  assert.equal(segunda.totalPaginas, 3)
+  assert.equal(segunda.total, 30)
+  assert.equal(paginar(lista, 3, 12).items.length, 6)
+})
+
+test('paginar acota una página fuera de rango y tolera una lista vacía', () => {
+  const lista = [1, 2, 3]
+
+  assert.equal(paginar(lista, 9, 2).pagina, 2)
+  assert.equal(paginar(lista, 0, 2).pagina, 1)
+  assert.equal(paginar(lista, Number.NaN, 2).pagina, 1)
+  assert.deepEqual(paginar([], 4), { items: [], pagina: 1, totalPaginas: 1, total: 0, porPagina: CUENTAS_POR_PAGINA })
+})
+
+test('paginar rechaza un tamaño de página que no sea un entero mayor que 0', () => {
+  for (const invalido of [0, -1, 2.5, Number.NaN]) assert.throws(() => paginar([1], 1, invalido), RangeError)
 })

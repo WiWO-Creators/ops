@@ -55,8 +55,8 @@ export const NOVEDADES: Novedad[] = [
   {
     fecha: '2026-10-05',
     tipo: 'mejora',
-    titulo: 'Focals ahora es una tabla',
-    detalle: 'Cada cuenta ocupa una sola línea con su puntaje, estado, Proyectos y quien responde. Al hacer clic se abre un panel a un costado con el desglose y los Proyectos, sin mover la lista.',
+    titulo: 'Focals en tarjetas, con el logo del cliente y por páginas',
+    detalle: 'Cada cuenta es una tarjeta con su logo, su puntaje y quien responde por ella, de a doce por página. Al hacer clic en una se abre el detalle en un panel lateral.',
     commits: []
   },
   {
