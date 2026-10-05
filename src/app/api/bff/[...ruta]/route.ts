@@ -3,6 +3,7 @@ import { llamarApi } from '@/datos/api'
 import { ErrorApi, incidenteDe, recorteDelCuerpo } from '@/datos/errores'
 import { registrarIncidente } from '@/datos/incidentes'
 import { cabecerasDeOrigen } from '@/datos/origen'
+import { cabecerasDeSalida, esRutaDeDescarga, interpretarCuerpoJson, type CuerpoLeido } from '@/datos/proxy-bff'
 import { rutaCompartida, rutaPermitida } from '@/datos/rutas'
 import { borrarSesion, guardarSesion, leerSesion } from '@/datos/sesion'
 import { refrescar } from '@/datos/refresco'
@@ -88,7 +89,17 @@ async function reenviar (peticion: NextRequest, ctx: RouteContext<'/api/bff/[...
 
   const consulta = peticion.nextUrl.search
   const destino = `/${ruta.join('/')}${consulta}`
-  const cuerpo = await leerCuerpo(peticion)
+  const leido = await leerCuerpo(peticion)
+
+  if (!leido.legible) {
+    return NextResponse.json(
+      { error: { code: 'invalid_body', message: 'El cuerpo de la peticion no se pudo leer' } },
+      { status: 400 }
+    )
+  }
+
+  const cuerpo = leido.cuerpo
+  const descarga = esRutaDeDescarga(ruta)
 
   // De que maquina es esta persona. Va en toda llamada porque la API lo necesita en dos momentos
   // distintos: al emitir o rotar una sesion, y en cada latido de presencia.
@@ -130,7 +141,7 @@ async function reenviar (peticion: NextRequest, ctx: RouteContext<'/api/bff/[...
 
   return new NextResponse(respuesta.body, {
     status: respuesta.status,
-    headers: cabecerasDeSalida(respuesta)
+    headers: cabecerasDeSalida(respuesta, descarga)
   })
 }
 
@@ -284,53 +295,23 @@ export function cabecerasDeEntrada (peticion: NextRequest): Record<string, strin
 }
 
 /**
- * Cabeceras que el BFF copia de la API, ademas del `content-type`.
+ * Lee JSON o multipart de los metodos que llevan cuerpo.
  *
- * `cache-control` porque un `no-cache, no-transform` que se pierde deja la respuesta a merced de
- * cualquier cache intermedia. `x-accel-buffering` porque es la unica forma de decirle a Nginx que
- * no acumule un `text/event-stream`: sin ella el proxy junta la respuesta entera y la entrega de
- * una sola vez, asi que el streaming desaparece **sin dar ningun error** — el front recibe todo el
- * texto junto al final y parece un backend lento.
- *
- * Es una lista corta y explicita, no un reenvio de todo: `content-length` y `content-encoding`
- * describen el cuerpo que Node ya recodifico, y copiarlos rompe la respuesta.
+ * Un metodo sin cuerpo, o con el cuerpo vacio, da `cuerpo` indefinido; un cuerpo que no se puede
+ * leer ni parsear es `legible: false`, para que el llamador responda 400 en vez de reenviar la
+ * peticion como si no hubiera mandado nada.
  */
-const CABECERAS_REENVIADAS = ['cache-control', 'x-accel-buffering'] as const
-
-/**
- * Arma las cabeceras de la respuesta del BFF a partir de las de la API.
- *
- * @param respuesta la respuesta de la API v1
- * @returns el `content-type` mas las cabeceras de la lista que la API haya emitido
- */
-function cabecerasDeSalida (respuesta: Response): Headers {
-  const salida = new Headers({
-    'content-type': respuesta.headers.get('content-type') ?? 'application/json'
-  })
-
-  for (const nombre of CABECERAS_REENVIADAS) {
-    const valor = respuesta.headers.get(nombre)
-
-    if (valor !== null) salida.set(nombre, valor)
-  }
-
-  return salida
-}
-
-/** Lee JSON o multipart de los metodos que llevan cuerpo. Un cuerpo ausente o ilegible es `undefined`. */
-async function leerCuerpo (peticion: NextRequest): Promise<unknown> {
-  if (!METODOS_CON_CUERPO.has(peticion.method)) return undefined
+async function leerCuerpo (peticion: NextRequest): Promise<CuerpoLeido> {
+  if (!METODOS_CON_CUERPO.has(peticion.method)) return { legible: true, cuerpo: undefined }
 
   try {
     if (peticion.headers.get('content-type')?.startsWith('multipart/form-data')) {
-      return await peticion.formData()
+      return { legible: true, cuerpo: await peticion.formData() }
     }
 
-    const texto = await peticion.text()
-
-    return texto === '' ? undefined : JSON.parse(texto) as unknown
+    return interpretarCuerpoJson(await peticion.text())
   } catch {
-    return undefined
+    return { legible: false }
   }
 }
 
