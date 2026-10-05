@@ -28,7 +28,7 @@ import { Insignia } from '@/componentes/presentadores/Insignia'
 import { Fecha } from '@/componentes/presentadores/Fecha'
 import { BarraProgreso } from '@/componentes/proyecto/CabeceraProyecto'
 import { PARAMETRO_TAREA } from '@/componentes/datos/tabla'
-import { pedirPortal, proyectoUnicoDelPortal } from '@/datos/servidor'
+import { proyectoUnicoDelPortal, yoDelPortal } from '@/datos/servidor'
 import { cn } from '@/lib/clases'
 import { formatearFecha } from '@/lib/fechas'
 import type {
@@ -39,7 +39,6 @@ import type {
   ResumenPortal,
   TicketDelResumen
 } from '@/datos/portal'
-import type { YoPortal } from '@/datos/tipos'
 import { saludar, seccionesDelPortal, type SeccionPortal } from '@/dominio/portal'
 import { GLOSARIO } from '@/dominio/glosario'
 import { PARAMETRO_TICKET } from '@/dominio/ticket-vista'
@@ -90,7 +89,7 @@ const FILAS_SECUNDARIAS = 5
  * lo que vence hoy se pinta con la primera respuesta en vez de esperar al mas lento.
  */
 export default async function PortalInicio () {
-  const { data: yo } = await pedirPortal<YoPortal>('/portal/me')
+  const { data: yo } = await yoDelPortal()
   const unico = yo.secciones_habilitadas.includes('projects') ? await proyectoUnicoDelPortal() : null
   const secciones = seccionesDelPortal(yo.secciones_habilitadas, unico)
   const resumen = await sinFallar<ResumenPortal>('/portal/resumen')

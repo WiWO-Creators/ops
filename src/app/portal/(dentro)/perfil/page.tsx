@@ -1,6 +1,6 @@
 import type { Metadata } from 'next'
-import { pedirPortal } from '@/datos/servidor'
-import type { EmpresaPortal, YoPortal } from '@/datos/tipos'
+import { pedirPortal, yoDelPortal } from '@/datos/servidor'
+import type { EmpresaPortal } from '@/datos/tipos'
 import { Bloque, Datos } from '../detalle'
 
 export const metadata: Metadata = { title: 'Mi perfil · Portal de clientes' }
@@ -17,7 +17,7 @@ export const metadata: Metadata = { title: 'Mi perfil · Portal de clientes' }
  */
 export default async function PerfilPagina () {
   const [yo, empresa] = await Promise.all([
-    pedirPortal<YoPortal>('/portal/me'),
+    yoDelPortal(),
     pedirPortal<EmpresaPortal>('/portal/company')
   ])
 

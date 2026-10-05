@@ -1,15 +1,14 @@
 import type { Metadata } from 'next'
-import { Suspense } from 'react'
+import { Suspense, cache, type ReactElement } from 'react'
 import { ModalTicket } from '@/componentes/tickets/ModalTicket'
 import { TICKET_DEL_PORTAL } from '@/dominio/ticket-vista'
 import { PORTAL_TICKETS } from '@/definiciones/portal-soporte'
 import { listaDe } from '@/datos/catalogos'
 import { cargarLookupsDelPortal } from '@/datos/lookups'
 import { ErrorApi } from '@/datos/errores'
-import { pedirPortal } from '@/datos/servidor'
+import { pedirPortal, yoDelPortal } from '@/datos/servidor'
 import type { EspacioPortal } from '@/datos/portal'
 import type { Referencia } from '@/datos/recursos'
-import type { YoPortal } from '@/datos/tipos'
 import { SeccionDePortal } from '../seccion'
 import { NuevaSolicitud } from './NuevaSolicitud'
 
@@ -24,12 +23,15 @@ export const metadata: Metadata = { title: 'Tickets · Portal de clientes' }
  */
 const TOPE_ESPACIOS = 200
 
+/**
+ * Soporte del portal: el listado y, al lado del titulo, el alta de solicitudes.
+ *
+ * Los {espacios} se piden desde ya, sin esperarlos aca, y el listado, los catalogos y los {espacios}
+ * viajan a la vez dentro de `SeccionDePortal`. El alta espera ademas a `/portal/me` (a donde apuntar
+ * y de quien es el borrador), asi que va en su propio `Suspense`: el titulo y la tabla no la esperan.
+ */
 export default async function SoportePagina (props: PageProps<'/portal/soporte'>) {
-  const [lookups, { espacios, fallo: fallaronEspacios }, { entradaId, contactoId }] = await Promise.all([
-    cargarLookupsDelPortal(),
-    espaciosDelContacto(),
-    datosDelContacto()
-  ])
+  const espacios = espaciosDelContacto()
 
   return (
     <>
@@ -37,23 +39,50 @@ export default async function SoportePagina (props: PageProps<'/portal/soporte'>
         seccion="soporte"
         definicion={PORTAL_TICKETS}
         parametrosDeUrl={await props.searchParams}
-        espacios={espacios}
+        espacios={espacios.then((resuelto) => resuelto.espacios)}
         acciones={
-          <NuevaSolicitud
-            prioridades={listaDe(lookups, 'ticket_priorities')}
-            espacios={espacios}
-            fallaronEspacios={fallaronEspacios}
-            entradaId={entradaId}
-            contactoId={contactoId}
-          />
+          <Suspense fallback={null}>
+            <AltaDeSolicitud />
+          </Suspense>
         }
       />
       {/* El mismo modal que ve el equipo, con la fuente del contacto y sin capacidades: estado y
           prioridad quedan como insignias, y responder lo decide la regla que manda la API. */}
       <Suspense fallback={null}>
-        <ModalTicket fuente={TICKET_DEL_PORTAL} capacidades={[]} proyectos={espacios} />
+        <ModalDeSolicitud />
       </Suspense>
     </>
+  )
+}
+
+/** El modal del ticket con los {espacios} que nombran el del ticket y se ofrecen para moverlo. */
+async function ModalDeSolicitud (): Promise<ReactElement> {
+  const { espacios } = await espaciosDelContacto()
+
+  return <ModalTicket fuente={TICKET_DEL_PORTAL} capacidades={[]} proyectos={espacios} />
+}
+
+/**
+ * El boton de nueva solicitud con lo que necesita del contacto.
+ *
+ * Los catalogos y los {espacios} son los mismos que pide el listado (`cache` los comparte en la
+ * navegacion): solo `/portal/me` es propio de esta pieza.
+ */
+async function AltaDeSolicitud (): Promise<ReactElement> {
+  const [lookups, { espacios, fallo }, { entradaId, contactoId }] = await Promise.all([
+    cargarLookupsDelPortal(),
+    espaciosDelContacto(),
+    datosDelContacto()
+  ])
+
+  return (
+    <NuevaSolicitud
+      prioridades={listaDe(lookups, 'ticket_priorities')}
+      espacios={espacios}
+      fallaronEspacios={fallo}
+      entradaId={entradaId}
+      contactoId={contactoId}
+    />
   )
 }
 
@@ -75,7 +104,7 @@ interface EspaciosDelContacto {
  * Solo se atrapa `ErrorApi`: los redirects de sesion vencida y los errores de programacion siguen
  * su camino.
  */
-async function espaciosDelContacto (): Promise<EspaciosDelContacto> {
+const espaciosDelContacto = cache(async (): Promise<EspaciosDelContacto> => {
   try {
     const { data } = await pedirPortal<EspacioPortal[]>(`/portal/projects?per_page=${TOPE_ESPACIOS}`)
 
@@ -85,7 +114,7 @@ async function espaciosDelContacto (): Promise<EspaciosDelContacto> {
 
     return { espacios: [], fallo: error.estado !== 403 && error.estado !== 404 }
   }
-}
+})
 
 /** Lo que el alta toma de `/portal/me`: a donde apuntar y de quien es el borrador. */
 interface DatosDelContacto {
@@ -104,7 +133,7 @@ interface DatosDelContacto {
  */
 async function datosDelContacto (): Promise<DatosDelContacto> {
   try {
-    const { data } = await pedirPortal<YoPortal>('/portal/me')
+    const { data } = await yoDelPortal()
 
     return { entradaId: data.proyecto_de_entrada?.id ?? null, contactoId: data.id }
   } catch {

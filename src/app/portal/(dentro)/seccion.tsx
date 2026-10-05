@@ -1,4 +1,4 @@
-import { Suspense } from 'react'
+import { Suspense, type ReactElement, type ReactNode } from 'react'
 import { Cargando, ErrorEstado, SinPermiso } from '@/componentes/estado/Estados'
 import { construirConsulta, leerConsulta, paramsDeUrl } from '@/datos/consulta'
 import { ErrorApi } from '@/datos/errores'
@@ -7,6 +7,31 @@ import { pedirPortal } from '@/datos/servidor'
 import type { Referencia } from '@/datos/recursos'
 import type { DefinicionRecurso, ResultadoLista } from '@/definiciones/tipos'
 import { TablaPortal, type SeccionPortalListado } from './TablaPortal'
+
+/** La primera pagina del listado, o la pantalla que explica por que no hay. */
+type LecturaDelListado<T> = { lista: ResultadoLista<T> } | { pantalla: ReactElement }
+
+/**
+ * Pide la primera pagina del listado.
+ *
+ * El 403 y los errores de la API se vuelven una pantalla; todo lo demas sigue su camino.
+ *
+ * @param ruta la ruta del recurso, ya con su consulta
+ * @returns la lista o la pantalla de error
+ * @throws lo que no sea `ErrorApi`, incluidos los redirects de sesion
+ */
+async function leerListado<T> (ruta: string): Promise<LecturaDelListado<T>> {
+  try {
+    const sobre = await pedirPortal<T[]>(ruta)
+
+    return { lista: { filas: sobre.data, paginacion: sobre.meta?.pagination } }
+  } catch (error) {
+    if (error instanceof ErrorApi && error.estado === 403) return { pantalla: <SinPermiso /> }
+    if (error instanceof ErrorApi) return { pantalla: <ErrorEstado detalle={error.message} /> }
+
+    throw error
+  }
+}
 
 /**
  * Una seccion de listado del portal.
@@ -17,6 +42,9 @@ import { TablaPortal, type SeccionPortalListado } from './TablaPortal'
  * La primera pagina se resuelve en el servidor para que la tabla no parpadee al montar; de ahi en
  * adelante el motor pide al BFF. El `Suspense` no es decorativo: `TablaRecurso` usa
  * `useSearchParams`, y sin el limite el build de la ruta falla.
+ *
+ * El listado, los catalogos y los {espacios} se piden **a la vez**: la tabla espera al mas lento, no a
+ * la suma de los tres.
  *
  * El 403 se trata como una pantalla y no como una excepcion. La navegacion ya esconde las secciones
  * que el contacto no tiene, pero la URL se puede escribir a mano. Dejarlo lanzar rompia la pagina
@@ -37,26 +65,23 @@ export async function SeccionDePortal<T extends { id: number }> ({
    * crean desde el portal. Va acá y no en cada `page.tsx` porque el titulo lo dibuja este componente,
    * y un boton afuera quedaria en una fila propia, leyendose como si no fuera del listado.
    */
-  acciones?: React.ReactNode
-  /** Los {espacios} del contacto, para nombrar la columna de un listado que la tiene (Soporte). */
-  espacios?: Referencia[]
+  acciones?: ReactNode
+  /**
+   * Los {espacios} del contacto, para nombrar la columna de un listado que la tiene (Soporte). Puede
+   * llegar como promesa ya iniciada, para que se pida junto con el listado y no despues de el.
+   */
+  espacios?: Referencia[] | Promise<Referencia[]>
 }) {
   const estado = leerConsulta(paramsDeUrl(parametrosDeUrl), definicion)
   const consulta = construirConsulta(estado, definicion)
 
-  let lista: ResultadoLista<T>
+  const [lectura, lookups, espaciosDelContacto] = await Promise.all([
+    leerListado<T>(`/${definicion.ruta}${consulta === '' ? '' : `?${consulta}`}`),
+    cargarLookupsDelPortal(),
+    espacios
+  ])
 
-  try {
-    const sobre = await pedirPortal<T[]>(`/${definicion.ruta}${consulta === '' ? '' : `?${consulta}`}`)
-    lista = { filas: sobre.data, paginacion: sobre.meta?.pagination }
-  } catch (error) {
-    if (error instanceof ErrorApi && error.estado === 403) return <SinPermiso />
-    if (error instanceof ErrorApi) return <ErrorEstado detalle={error.message} />
-
-    throw error
-  }
-
-  const lookups = await cargarLookupsDelPortal()
+  if ('pantalla' in lectura) return lectura.pantalla
 
   return (
     <section className="flex flex-col gap-4">
@@ -69,10 +94,10 @@ export async function SeccionDePortal<T extends { id: number }> ({
       >
         <TablaPortal
           seccion={seccion}
-          inicial={lista}
+          inicial={lectura.lista}
           consultaDelInicial={consulta}
           opcionesDeFiltro={opcionesDeFiltros(definicion, lookups)}
-          espacios={espacios}
+          espacios={espaciosDelContacto}
         />
       </Suspense>
     </section>
