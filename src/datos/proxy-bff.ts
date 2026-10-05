@@ -1,7 +1,102 @@
+import { rutaCompartida } from './rutas.ts'
+import type { Sesion, Sujeto } from './sobre-sesion.ts'
+
 /**
- * Piezas puras del proxy BFF: que cabeceras de la API llegan al navegador y como se interpreta el
- * cuerpo que este manda. Viven aparte de `route.ts` para poder probarse sin levantar Next.
+ * Piezas del proxy BFF: de que sujeto es una peticion, que cabeceras de la API llegan al navegador,
+ * como se interpreta el cuerpo que este manda y como se reintenta una llamada con el token vencido.
+ * Viven aparte de `route.ts` para poder probarse sin levantar Next: lo que toca cookies o la API
+ * entra por parametro.
  */
+
+/**
+ * Decide de que sujeto es una peticion al BFF, y con eso que cookie leer y contra que lista blanca
+ * validar.
+ *
+ * El prefijo `portal` es siempre del contacto: un contacto no puede pedir `clients` ni un staff pedir
+ * `portal`. La descarga de adjuntos (`files`) es la excepcion: vive fuera de `/portal` y sirve a los
+ * dos, asi que el prefijo no alcanza y hay que mirar que sesion existe. Se prueba primero la del
+ * panel, igual que hace la API, para que alguien del equipo con las dos sesiones abiertas siga
+ * descargando como staff.
+ *
+ * **Limite conocido (S4):** con las dos sesiones abiertas —un staff en «Ver como cliente»— la descarga
+ * del portal sale con los permisos del staff, no con los del contacto que se esta mirando. No hay
+ * fuga entre personas (la API sigue autorizando por token y es la misma persona con las dos cookies),
+ * pero esa vista no es fiel a lo que el cliente podria bajar. Distinguirlo exigiria otra senal
+ * (Referer o un parametro firmado); mientras tanto queda documentado y probado.
+ *
+ * @param ruta los segmentos de la ruta pedida
+ * @param haySesionDelPanel dice si existe la sesion del staff; solo se consulta en rutas compartidas
+ * @returns el sujeto de la peticion
+ */
+export async function elegirSujeto (ruta: string[], haySesionDelPanel: () => Promise<boolean>): Promise<Sujeto> {
+  if (ruta[0] === 'portal') return 'contacto'
+  if (rutaCompartida(ruta) && !await haySesionDelPanel()) return 'contacto'
+
+  return 'staff'
+}
+
+/** Lo que `llamarConRefresco` necesita de afuera: la llamada, el refresco y la cookie. */
+export interface DependenciasDeLlamada {
+  /** Hace la llamada a la API con ese token de acceso. */
+  llamar: (token: string) => Promise<Response>
+  /** Refresca la sesion; `null` si la API rechazo el refresco. Una excepcion no se traga. */
+  refrescar: () => Promise<Sesion | null>
+  /** Guarda la sesion renovada en la cookie. */
+  guardar: (sesion: Sesion) => Promise<void>
+  /** Borra la sesion cuando ya no se puede renovar. */
+  borrar: () => Promise<void>
+}
+
+/** La respuesta de la API, o el aviso de que la sesion se cerro al no poder renovarla. */
+export type LlamadaConRefresco = { respuesta: Response } | { sesionCerrada: true }
+
+/**
+ * `true` si la respuesta es el `401 token_expired`, el unico que se arregla refrescando.
+ *
+ * Trabaja sobre un clon, asi que la respuesta original sigue legible.
+ *
+ * @param respuesta la respuesta de la API
+ */
+export async function esTokenVencido (respuesta: Response): Promise<boolean> {
+  if (respuesta.status !== 401) return false
+
+  try {
+    const cuerpo = await respuesta.clone().json() as { error?: { code?: string } }
+
+    return cuerpo.error?.code === 'token_expired'
+  } catch {
+    return false
+  }
+}
+
+/**
+ * Llama a la API y, ante `401 token_expired`, refresca una vez, guarda la cookie nueva y reintenta.
+ *
+ * Si el refresco es rechazado borra la sesion y avisa que se cerro, para que el navegador vaya a
+ * entrar. Un error al refrescar que no sea un rechazo (red caida, bug) se propaga: tragarlo lo
+ * disfrazaria de sesion vencida. Un `401` con otro codigo no refresca.
+ *
+ * @param sesion la sesion con la que se llama
+ * @param dependencias la llamada, el refresco y la cookie
+ * @returns la respuesta de la API (la del reintento si hubo refresco) o `sesionCerrada`
+ */
+export async function llamarConRefresco (sesion: Sesion, dependencias: DependenciasDeLlamada): Promise<LlamadaConRefresco> {
+  const respuesta = await dependencias.llamar(sesion.acceso)
+
+  if (!await esTokenVencido(respuesta)) return { respuesta }
+
+  const renovada = await dependencias.refrescar()
+
+  if (renovada === null) {
+    await dependencias.borrar()
+
+    return { sesionCerrada: true }
+  }
+
+  await dependencias.guardar(renovada)
+
+  return { respuesta: await dependencias.llamar(renovada.acceso) }
+}
 
 /**
  * Cabeceras que el BFF copia de la API, ademas del `content-type`.

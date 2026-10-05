@@ -3,8 +3,10 @@ import { llamarApi } from '@/datos/api'
 import { ErrorApi, incidenteDe, recorteDelCuerpo } from '@/datos/errores'
 import { registrarIncidente } from '@/datos/incidentes'
 import { cabecerasDeOrigen } from '@/datos/origen'
-import { cabecerasDeSalida, esRutaDeDescarga, interpretarCuerpoJson, type CuerpoLeido } from '@/datos/proxy-bff'
-import { rutaCompartida, rutaPermitida } from '@/datos/rutas'
+import {
+  cabecerasDeSalida, elegirSujeto, esRutaDeDescarga, interpretarCuerpoJson, llamarConRefresco, type CuerpoLeido
+} from '@/datos/proxy-bff'
+import { rutaPermitida } from '@/datos/rutas'
 import { borrarSesion, guardarSesion, leerSesion } from '@/datos/sesion'
 import { refrescar } from '@/datos/refresco'
 import type { Sesion, Sujeto } from '@/datos/sobre-sesion'
@@ -57,19 +59,9 @@ export async function DELETE (peticion: NextRequest, ctx: RouteContext<'/api/bff
 async function reenviar (peticion: NextRequest, ctx: RouteContext<'/api/bff/[...ruta]'>): Promise<Response> {
   const { ruta } = await ctx.params
 
-  // El prefijo decide de que sujeto es la peticion, y con eso que cookie leer y contra que lista
-  // blanca validar. Un contacto no puede pedir `clients` ni un staff pedir `portal`, y el pedido ni
-  // siquiera sale hacia la API.
-  //
-  // La descarga de adjuntos es la excepcion: vive fuera de `/portal` y sirve a los dos, asi que el
-  // prefijo no alcanza y hay que mirar que sesion existe. Se prueba primero la del panel, igual que
-  // hace la API, para que alguien del equipo con las dos sesiones abiertas siga descargando como
-  // staff y no como el cliente que estaba mirando.
-  const sujeto: Sujeto = ruta[0] === 'portal'
-    ? 'contacto'
-    : rutaCompartida(ruta) && await leerSesion('staff') === null
-      ? 'contacto'
-      : 'staff'
+  // El prefijo decide de que sujeto es la peticion (ver `elegirSujeto`): con eso, que cookie leer y
+  // contra que lista blanca validar. El pedido fuera de la lista ni siquiera sale hacia la API.
+  const sujeto = await elegirSujeto(ruta, async () => await leerSesion('staff') !== null)
 
   if (!rutaPermitida(ruta, sujeto)) {
     return NextResponse.json(
@@ -106,34 +98,26 @@ async function reenviar (peticion: NextRequest, ctx: RouteContext<'/api/bff/[...
   const origen = cabecerasDeOrigen(peticion.headers)
   const cabeceras = { ...origen, ...cabecerasDeEntrada(peticion) }
 
-  let respuesta = await llamarApi(destino, {
-    metodo: peticion.method as 'GET',
-    cuerpo,
-    cabeceras,
-    token: sesion.acceso
-  })
-
-  if (respuesta.status === 401 && await esTokenVencido(respuesta)) {
-    const renovada = await intentarRefrescar(sesion, origen)
-
-    if (renovada === null) {
-      await borrarSesion(sujeto)
-
-      return NextResponse.json(
-        { error: { code: 'token_revoked', message: 'La sesion se cerro' } },
-        { status: 401 }
-      )
-    }
-
-    await guardarSesion(renovada)
-
-    respuesta = await llamarApi(destino, {
+  const llamada = await llamarConRefresco(sesion, {
+    llamar: async (token) => await llamarApi(destino, {
       metodo: peticion.method as 'GET',
       cuerpo,
       cabeceras,
-      token: renovada.acceso
-    })
+      token
+    }),
+    refrescar: async () => await intentarRefrescar(sesion, origen),
+    guardar: guardarSesion,
+    borrar: async () => { await borrarSesion(sujeto) }
+  })
+
+  if ('sesionCerrada' in llamada) {
+    return NextResponse.json(
+      { error: { code: 'token_revoked', message: 'La sesion se cerro' } },
+      { status: 401 }
+    )
   }
+
+  const { respuesta } = llamada
 
   if (!respuesta.ok) {
     return await conIncidente(respuesta, destino, peticion.method, sujeto)
@@ -312,21 +296,6 @@ async function leerCuerpo (peticion: NextRequest): Promise<CuerpoLeido> {
     return interpretarCuerpoJson(await peticion.text())
   } catch {
     return { legible: false }
-  }
-}
-
-/**
- * Distingue el `401` que se arregla refrescando de los que no.
- *
- * Consume el cuerpo de la respuesta, asi que solo se llama cuando esa respuesta ya se va a descartar.
- */
-async function esTokenVencido (respuesta: Response): Promise<boolean> {
-  try {
-    const cuerpo = await respuesta.clone().json() as { error?: { code?: string } }
-
-    return cuerpo.error?.code === 'token_expired'
-  } catch {
-    return false
   }
 }
 

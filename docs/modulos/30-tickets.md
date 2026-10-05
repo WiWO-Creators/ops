@@ -156,6 +156,12 @@ una transacción, y revierte.
   disco, y necesita whitelist de extensiones (`ticket_attachments_file_extensions`), tope de cantidad
   (`maximum_allowed_ticket_attachments`), `unique_filename`, `mkdir 0755` con su `index.html` y un
   `413` propio.
+- **Sujeto de la descarga de adjuntos con las dos sesiones.** `files/*` sirve a los dos sujetos y el BFF
+  decide mirando qué sesión existe (`elegirSujeto`, `src/datos/proxy-bff.ts`): con la sesión del panel
+  abierta sale como staff. Un staff en «Ver como cliente» baja, pues, con permisos de staff y no con los
+  del contacto que mira. No hay fuga entre personas (la API autoriza por token y es la misma persona),
+  pero esa vista no es fiel al portal. Distinguirlo pide otra señal (Referer o parámetro firmado); está
+  probado en `pruebas/bff-sujeto-y-refresco.test.js`.
 - **Todo aviso al cliente.** Ver *Acciones y escrituras*.
 - **Alta y borrado de tickets, fusión, y el hilo del portal del cliente.**
 
