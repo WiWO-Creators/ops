@@ -37,6 +37,8 @@ export interface ProgresoDelTrabajo {
   total: number
   /** Lo que el servidor dice que está haciendo; solo en la fase de proceso. */
   etiqueta: string | null
+  /** Etapa del servidor (`transcribiendo`, `redactando`...), para elegir qué dibujar. */
+  etapa: string | null
 }
 
 interface PlanDeSubida {
@@ -47,6 +49,7 @@ interface PlanDeSubida {
 
 interface EstadoDelTrabajo {
   estado: 'subiendo' | 'en_cola' | 'procesando' | 'listo' | 'error'
+  fase: string | null
   etiqueta: string | null
   acta_id: number | null
   error: { code: string | null, message: string | null } | null
@@ -92,7 +95,7 @@ export async function generarActaDeAudio (opciones: OpcionesDelTrabajo): Promise
   const ruta = `${base}/${trabajo}`
   let subidos = 0
 
-  onProgreso({ fase: 'subiendo', subidos, total, etiqueta: null })
+  onProgreso({ fase: 'subiendo', subidos, total, etiqueta: null, etapa: null })
 
   const pendientes: Array<{ archivo: number, trozo: number, blob: Blob }> = []
 
@@ -119,7 +122,7 @@ export async function generarActaDeAudio (opciones: OpcionesDelTrabajo): Promise
       }
 
       subidos += siguiente.blob.size
-      onProgreso({ fase: 'subiendo', subidos, total, etiqueta: null })
+      onProgreso({ fase: 'subiendo', subidos, total, etiqueta: null, etapa: null })
     }
   }
 
@@ -132,7 +135,7 @@ export async function generarActaDeAudio (opciones: OpcionesDelTrabajo): Promise
 
   if (!cerrado.ok) return { ok: false, mensaje: cerrado.mensaje, cancelado: senal.aborted }
 
-  onProgreso({ fase: 'procesando', subidos: total, total, etiqueta: cerrado.datos.etiqueta })
+  onProgreso({ fase: 'procesando', subidos: total, total, etiqueta: cerrado.datos.etiqueta, etapa: cerrado.datos.fase })
 
   return await esperarElActa(proyectoId, ruta, total, senal, onProgreso)
 }
@@ -236,7 +239,7 @@ async function esperarElActa (
       return await traerElActa(proyectoId, estado.acta_id)
     }
 
-    onProgreso({ fase: 'procesando', subidos: total, total, etiqueta: estado.etiqueta })
+    onProgreso({ fase: 'procesando', subidos: total, total, etiqueta: estado.etiqueta, etapa: estado.fase })
   }
 
   return { ok: false, mensaje: 'Cancelado.', cancelado: true }

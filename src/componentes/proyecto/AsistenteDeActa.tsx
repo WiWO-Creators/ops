@@ -14,6 +14,7 @@ import { cn } from '@/lib/clases'
 import { aTextoPlano } from './formatos'
 import { DatosDelActa, resumenDeDatos, type DatosDeActa } from './acta/DatosDelActa'
 import { FuenteDelActa } from './acta/FuenteDelActa'
+import { EscenaDelEscriba, type FaseDelEscriba } from './acta/EscenaDelEscriba'
 import { generarActaDeAudio } from './acta/subirAudioPorTrozos'
 import { Paso } from './acta/Paso'
 import type { Acta, PrefillActa } from '@/datos/recursos'
@@ -125,6 +126,8 @@ export function AsistenteDeActa ({ proyectoId, onCreada, onCancelar, transcripci
   const [segundos, setSegundos] = useState(0)
   // Bytes del audio que el servidor ya recibió: la subida por trozos sí sabe cuánto lleva.
   const [subidos, setSubidos] = useState(0)
+  // Qué etapa dice el servidor que va (`redactando`, `transcribiendo`...), para elegir qué dibuja el escriba.
+  const [etapa, setEtapa] = useState<string | null>(null)
 
   const enCurso = useRef<AbortController | null>(null)
 
@@ -199,6 +202,7 @@ export function AsistenteDeActa ({ proyectoId, onCreada, onCancelar, transcripci
     setError(null)
     setSegundos(0)
     setSubidos(0)
+    setEtapa(null)
 
     // El audio no viaja en una sola petición: sube por trozos y se procesa como trabajo, para que
     // ningún proxy lo corte con un 502 y para que cerrar la pestaña no pierda el acta.
@@ -302,6 +306,7 @@ export function AsistenteDeActa ({ proyectoId, onCreada, onCancelar, transcripci
         }
 
         setContestoElServidor(true)
+        setEtapa(progreso.etapa)
         setPaso(progreso.etiqueta === null
           ? null
           : { fase: 'inicio', herramienta: 'transcribir_audio', etiqueta: progreso.etiqueta, orbe: 'listening' })
@@ -327,12 +332,15 @@ export function AsistenteDeActa ({ proyectoId, onCreada, onCancelar, transcripci
   // Con subida por trozos se sabe cuánto lleva, y por eso se puede decir cuándo es seguro irse.
   const porTrozos = transcripcionId === undefined && esSoloAudio(archivos)
   const porcentaje = pesoSubido > 0 ? Math.min(100, (subidos / pesoSubido) * 100) : 0
+  const faseDelEscriba: FaseDelEscriba = subiendo ? 'subiendo' : (etapa === 'redactando' ? 'redactando' : 'escuchando')
 
   if (fase === 'generando') {
     return (
       <div className={cn(TARJETA, 'flex flex-col gap-4')}>
+        {porTrozos && <EscenaDelEscriba fase={faseDelEscriba} porcentaje={porcentaje} />}
+
         <div className="flex items-start gap-3">
-          <Orbe medida="2.5rem" estado={subiendo ? 'routing' : (paso?.orbe ?? 'generating')} />
+          {!porTrozos && <Orbe medida="2.5rem" estado={subiendo ? 'routing' : (paso?.orbe ?? 'generating')} />}
           <div className="flex min-w-0 flex-col gap-0.5">
             <p className="text-texto text-sm font-semibold">
               {subiendo
