@@ -14,6 +14,7 @@ import { sembrarFijados, useFijados } from '@/componentes/fijados/almacen'
 import { claveDeElemento, hrefDeElemento, type Fijado } from '@/componentes/fijados/fijados'
 import { abrirPaleta, textoDelAtajo } from '@/componentes/paleta/abrir'
 import { ICONOS_DE_SECCION } from '@/componentes/paleta/iconos'
+import { ContadorDePropuestas } from '@/componentes/propuestas/ContadorDePropuestas'
 import { agruparSecciones, alternarInvertido, estaAbierto, ID_BLOQUE_FIJADOS, seccionActiva, type Seccion } from '@/lib/navegacion'
 import { cn } from '@/lib/clases'
 import { EVENTO_ABRIR_SECCIONES } from '@/lib/navegacion-movil'
@@ -253,6 +254,7 @@ function EnlaceSeccion ({ href, etiqueta, Icono, activa, className, ...resto }: 
       )}
       <Icono size={20} strokeWidth={2} aria-hidden="true" className="shrink-0" />
       <span className="min-w-0 truncate">{etiqueta}</span>
+      {href === '/propuestas' && <ContadorDePropuestas />}
       <PuntoPendiente />
     </Link>
   )

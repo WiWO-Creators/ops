@@ -34,6 +34,7 @@ import { hoyLocal } from '@/lib/fechas'
 import { BloqueSla } from './BloqueSla'
 import { BloqueoDeProceso } from './BloqueoDeProceso'
 import { CabeceraFichaTarea } from './CabeceraFichaTarea'
+import { VinculoDeTarea } from './VinculoDeTarea'
 import { HiloDeComentarios } from './HiloDeComentarios'
 import {
   Dato, MarcasDeControl, SeccionDeAdjuntos, SeccionDeComentarios, SeccionDeLectura, SIN_DATO
@@ -237,6 +238,7 @@ export function DetalleTarea (
             codigo={tarea.patente ?? `#${tarea.id}`}
             nivel={3}
           />
+          <VinculoDeTarea vinculos={tarea.vinculos} />
           <div className="flex flex-wrap items-center gap-1.5">
             {/* La insignia de estado es ademas un menu cuando se puede editar: es el gesto mas
                 repetido de la ficha, y hasta ahora obligaba a abrir el formulario entero y guardarlo

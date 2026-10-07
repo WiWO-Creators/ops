@@ -73,6 +73,11 @@ export interface Proceso {
    * una API sin la migracion no los manda.
    */
   deliverable?: boolean
+  /**
+   * Con qué sistema de WiWO se originó la Tarea (`[{ system, external_id, url }]`). Opcional y sin
+   * tipar a fondo: una API anterior no lo manda, y quien lo lee pasa por `leerVinculos`.
+   */
+  vinculos?: unknown
   deliverable_url?: string | null
   recurring: boolean
   repeat_every?: number
