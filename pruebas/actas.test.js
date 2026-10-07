@@ -9,7 +9,9 @@ import {
   LIMITE_TOTAL_BYTES,
   MAXIMO_ARCHIVOS,
   MIME_DOCUMENTO,
+  cuantosTrozos,
   cuerpoDelActa,
+  esSoloAudio,
   extensionDe,
   formatoPeso,
   inferirMime,
@@ -356,4 +358,22 @@ test('el tope es el mismo 255 de la API y se mide sin los espacios de los extrem
 test('un titulo normal pasa, con acentos y con espacios de sobra', () => {
   assert.equal(motivoParaRechazarTitulo('Kickoff de la campaña'), null)
   assert.equal(motivoParaRechazarTitulo('  Reunión de avance  '), null)
+})
+
+test('esSoloAudio: solo cuando hay archivos y todos son audio', () => {
+  assert.equal(esSoloAudio([]), false)
+  assert.equal(esSoloAudio([{ name: 'reunion.m4a' }, { name: 'WhatsApp Audio.MP4' }]), true)
+  assert.equal(esSoloAudio([{ name: 'reunion.m4a' }, { name: 'pizarra.jpg' }]), false)
+  assert.equal(esSoloAudio([{ name: 'acta.pdf' }]), false)
+})
+
+test('cuantosTrozos: redondea hacia arriba y no inventa trozos', () => {
+  const tamano = 1536 * 1024
+
+  assert.equal(cuantosTrozos(1, tamano), 1)
+  assert.equal(cuantosTrozos(tamano, tamano), 1)
+  assert.equal(cuantosTrozos(tamano + 1, tamano), 2)
+  assert.equal(cuantosTrozos(59 * 1024 * 1024, tamano), 40)
+  assert.equal(cuantosTrozos(0, tamano), 0)
+  assert.equal(cuantosTrozos(10, 0), 0)
 })

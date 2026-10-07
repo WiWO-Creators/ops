@@ -417,3 +417,27 @@ const ENCABEZADO_SIN_IDENTIFICADOR =
 export function cuerpoDelActa (html: string): string {
   return html.replace(ENCABEZADO_SIN_IDENTIFICADOR, '')
 }
+
+/**
+ * Si todos los archivos son audio, o sea, si el Meeting Paper puede generarse como trabajo asíncrono.
+ *
+ * Solo el audio revienta los límites de una sola petición (decenas de MB, minutos de proceso). Un
+ * documento, una foto o los apuntes siguen por el camino de siempre.
+ *
+ * @param archivos los archivos elegidos
+ * @returns `true` si hay al menos uno y todos tienen extensión de audio
+ */
+export function esSoloAudio (archivos: readonly Pick<File, 'name'>[]): boolean {
+  return archivos.length > 0 && archivos.every((a) => MIME_AUDIO[extensionDe(a.name)] !== undefined)
+}
+
+/**
+ * Cuántos trozos de `tamano` bytes hacen falta para `bytes`.
+ *
+ * @param bytes peso del archivo
+ * @param tamano peso de un trozo, el que fijó la API al abrir el trabajo
+ * @returns al menos 1 si el archivo no está vacío
+ */
+export function cuantosTrozos (bytes: number, tamano: number): number {
+  return tamano > 0 ? Math.ceil(bytes / tamano) : 0
+}
