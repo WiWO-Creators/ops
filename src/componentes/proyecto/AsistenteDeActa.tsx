@@ -8,11 +8,12 @@ import { Orbe } from '@/componentes/estado/Orbe'
 import { pedirSobre } from '@/datos/cliente'
 import { leerSSE } from '@/datos/sse'
 import { leerEventoIA } from '@/dominio/ia'
-import { formatoPeso, validarArchivos } from '@/dominio/actas'
+import { esSoloAudio, formatoPeso, validarArchivos } from '@/dominio/actas'
 import { cn } from '@/lib/clases'
 import { aTextoPlano } from './formatos'
 import { DatosDelActa, resumenDeDatos, type DatosDeActa } from './acta/DatosDelActa'
 import { FuenteDelActa } from './acta/FuenteDelActa'
+import { generarActaDeAudio } from './acta/subirAudioPorTrozos'
 import { Paso } from './acta/Paso'
 import type { Acta, PrefillActa } from '@/datos/recursos'
 import type { PasoIA } from '@/dominio/ia'
@@ -121,6 +122,8 @@ export function AsistenteDeActa ({ proyectoId, onCreada, onCancelar, transcripci
   const [avance, setAvance] = useState('')
   const [error, setError] = useState<string | null>(null)
   const [segundos, setSegundos] = useState(0)
+  // Bytes del audio que el servidor ya recibió: la subida por trozos sí sabe cuánto lleva.
+  const [subidos, setSubidos] = useState(0)
 
   const enCurso = useRef<AbortController | null>(null)
 
@@ -194,6 +197,15 @@ export function AsistenteDeActa ({ proyectoId, onCreada, onCancelar, transcripci
     setAvance('')
     setError(null)
     setSegundos(0)
+    setSubidos(0)
+
+    // El audio no viaja en una sola petición: sube por trozos y se procesa como trabajo, para que
+    // ningún proxy lo corte con un 502 y para que cerrar la pestaña no pierda el acta.
+    if (transcripcionId === undefined && esSoloAudio(archivos)) {
+      await generarDesdeAudio(control)
+
+      return
+    }
 
     const cuerpo = new FormData()
     if (transcripcionId !== undefined) {
@@ -267,6 +279,46 @@ export function AsistenteDeActa ({ proyectoId, onCreada, onCancelar, transcripci
     }
   }
 
+  /**
+   * Genera el acta desde audio como trabajo asíncrono (`generarActaDeAudio`).
+   *
+   * @param control quien cancela el trabajo si el componente se desmonta
+   */
+  async function generarDesdeAudio (control: AbortController): Promise<void> {
+    const campos: Record<string, string> = { ...datos }
+    if (texto.trim() !== '') campos.texto = texto.trim()
+
+    const resultado = await generarActaDeAudio({
+      proyectoId,
+      archivos,
+      campos,
+      senal: control.signal,
+      onProgreso: (progreso) => {
+        if (progreso.fase === 'subiendo') {
+          setSubidos(progreso.subidos)
+
+          return
+        }
+
+        setContestoElServidor(true)
+        setPaso(progreso.etiqueta === null
+          ? null
+          : { fase: 'inicio', herramienta: 'transcribir_audio', etiqueta: progreso.etiqueta, orbe: 'listening' })
+      }
+    })
+
+    if (control.signal.aborted) return
+
+    if (!resultado.ok) {
+      setError(resultado.mensaje)
+      setFase('error')
+
+      return
+    }
+
+    onCreada(resultado.acta)
+  }
+
   // La subida termina cuando llega el primer byte del servidor, no cuando el archivo sale del
   // navegador: lo que importa es que del otro lado alguien lo recibió.
   const subiendo = archivos.length > 0 && !contestoElServidor
@@ -280,7 +332,7 @@ export function AsistenteDeActa ({ proyectoId, onCreada, onCancelar, transcripci
           <div className="flex min-w-0 flex-col gap-0.5">
             <p className="text-texto text-sm font-semibold">
               {subiendo
-                ? `${archivos.length === 1 ? 'Subiendo el archivo' : 'Subiendo los archivos'}… (${formatoPeso(pesoSubido)})`
+                ? `${archivos.length === 1 ? 'Subiendo el archivo' : 'Subiendo los archivos'}… (${formatoPeso(Math.min(subidos, pesoSubido))} de ${formatoPeso(pesoSubido)})`
                 : paso?.etiqueta ?? (modo === 'documento'
                   ? 'Leyendo el Meeting Paper y dejándolo en el formato del sistema…'
                   : 'Escribiendo el Meeting Paper…')}
