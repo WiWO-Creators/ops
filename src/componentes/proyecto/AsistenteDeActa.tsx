@@ -3,6 +3,7 @@
 import { useEffect, useId, useRef, useState, type ReactElement } from 'react'
 import { AvisoEnLinea } from '@/componentes/estado/Estados'
 import { Boton } from '@/componentes/formularios/Boton'
+import { BarraProgreso } from '@/componentes/presentadores/BarraProgreso'
 import { Insignia } from '@/componentes/presentadores/Insignia'
 import { Orbe } from '@/componentes/estado/Orbe'
 import { pedirSobre } from '@/datos/cliente'
@@ -323,6 +324,9 @@ export function AsistenteDeActa ({ proyectoId, onCreada, onCancelar, transcripci
   // navegador: lo que importa es que del otro lado alguien lo recibió.
   const subiendo = archivos.length > 0 && !contestoElServidor
   const pesoSubido = archivos.reduce((total, uno) => total + uno.size, 0)
+  // Con subida por trozos se sabe cuánto lleva, y por eso se puede decir cuándo es seguro irse.
+  const porTrozos = transcripcionId === undefined && esSoloAudio(archivos)
+  const porcentaje = pesoSubido > 0 ? Math.min(100, (subidos / pesoSubido) * 100) : 0
 
   if (fase === 'generando') {
     return (
@@ -351,12 +355,25 @@ export function AsistenteDeActa ({ proyectoId, onCreada, onCancelar, transcripci
           </p>
         )}
 
+        {porTrozos && subiendo && (
+          <div className="flex flex-col gap-1.5">
+            <BarraProgreso porcentaje={porcentaje} />
+            <p className="text-texto text-xs font-semibold">
+              {Math.floor(porcentaje)} %. No cierres esta pestaña hasta que llegue al 100 %.
+            </p>
+          </div>
+        )}
+
         <span role="status" className="sr-only">Generando el Meeting Paper</span>
 
-        <p className="text-texto-sutil text-xs">
-          {archivos.length === 0
-            ? 'Puedes cambiar de pestaña: el acta se guarda sola al terminar.'
-            : `Puedes cambiar de pestaña: el acta se guarda sola al terminar, con ${archivos.length === 1 ? 'el archivo adjunto' : 'los archivos adjuntos'}.`}
+        <p className={cn('text-xs', porTrozos && !subiendo ? 'text-texto font-semibold' : 'text-texto-sutil')}>
+          {porTrozos
+            ? (subiendo
+                ? 'Cuando termine de subir te avisamos aquí que puedes cerrar la pestaña.'
+                : 'Subida completa. Ya puedes cerrar la pestaña: el Meeting Paper se guarda solo al terminar.')
+            : archivos.length === 0
+              ? 'Puedes cambiar de pestaña: el acta se guarda sola al terminar.'
+              : `Puedes cambiar de pestaña: el acta se guarda sola al terminar, con ${archivos.length === 1 ? 'el archivo adjunto' : 'los archivos adjuntos'}.`}
         </p>
       </div>
     )
