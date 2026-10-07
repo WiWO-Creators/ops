@@ -7501,6 +7501,109 @@ Una fila trae `id`, `subject`, `description`, `client_id`, `client {id, company,
 `contract_value | null`, `signed`, `visible_to_client`, `trash`, `addedfrom {id, full_name} | null`
 y `dateadded`.
 
+## Servidor MCP externo — endpoints de administración y propuestas
+
+Otros sistemas de WiWO (Metriq, WiwoLab…) usan Ops en nombre de una persona identificada por su
+correo. Esta sección es el contrato de **lo que ve ops-v2**: la administración de los sistemas y la
+bandeja de propuestas. El protocolo MCP en sí (`POST /api/v1/mcp`) lo consumen esos sistemas y no
+pasa por el BFF.
+
+> **Quién lo implementa.** `GET /accesos/integraciones/{id}/mcp/llamadas`, `GET /ia/propuestas` y el
+> campo `vinculos` de `GET /tasks/{id}` los implementa el board en la rama `feat/mcp-externo`, la
+> misma de este cambio. Hasta que se desplieguen, ops-v2 los trata como ausentes: la bandeja se lee
+> vacía ante un `404`, el contador de la barra no se dibuja y la ficha de la Tarea no pinta vínculo.
+> El interruptor `wiwo_mcp_habilitado` nace apagado: nada de esto se anuncia en Novedades hasta
+> encenderlo.
+
+Todas las rutas de `/accesos/integraciones` exigen **superadministrador** (`403` al resto).
+
+### Integraciones (`/accesos/integraciones`)
+
+| Método y ruta | Cuerpo | Respuesta |
+|---|---|---|
+| `GET /accesos/integraciones` | — | `[{ id, name, scope, key_start, created_at, created_by, key_issued_at, last_used_at }]`. `scope` es `pantallas` o `mcp`. Las revocadas no salen. |
+| `POST /accesos/integraciones` | `{ nombre }` (alcance `pantallas`) o `{ nombre, sistema, alcance: "mcp" }` | `201`. El `data` trae `key` (64 hex) **en claro, esta única vez**. Con `alcance: "mcp"` trae además el sistema (ver abajo). `409` si el `sistema` ya existe, `422` si el slug no sirve (`^[a-z0-9][a-z0-9-]{1,30}$`). |
+| `POST /accesos/integraciones/{id}/llave` | — | `201` con `key` nueva; la anterior deja de servir al instante. |
+| `DELETE /accesos/integraciones/{id}` | — | `204`. Idempotente y definitivo. |
+
+### Sistema MCP (`/accesos/integraciones/{id}/mcp`)
+
+`GET` y `PUT` (parcial: lo que el cuerpo no trae no se toca). `404` si la integración no es de alcance `mcp`.
+
+```json
+{
+  "id": 7, "system": "metriq",
+  "keys": [{ "kid": "metriq-2026-10", "since": "2026-10-01T00:00:00Z", "until": null }],
+  "domains": ["nucleo", "procesos"],
+  "events": ["propuesta.aprobada", "tarea.completada"],
+  "proposal_ttl_hours": 72,
+  "updated_at": "2026-10-07T15:00:00Z"
+}
+```
+
+Cuerpo del `PUT` (todo opcional):
+
+```json
+{
+  "claves": [{ "kid": "metriq-2026-10", "pem": "-----BEGIN PUBLIC KEY-----…", "desde": "…", "hasta": null }],
+  "dominios": ["nucleo", "espacios", "personales", "procesos", "jornadas"],
+  "eventos": ["propuesta.aprobada", "propuesta.rechazada", "propuesta.fallida", "propuesta.expirada", "tarea.estado_cambiado", "tarea.completada"],
+  "ttl_propuesta_horas": 72
+}
+```
+
+- **`claves` reemplaza la lista entera**, y el `PEM` **no vuelve nunca** en el `GET` (solo `kid`,
+  `since`, `until`). Por eso una entrada con un `kid` que ya existe y **sin `pem` conserva la clave
+  registrada** y solo actualiza `desde`/`hasta`; con `pem`, la registra. Así ops-v2 puede agregar una
+  clave y retirar otra sin conocer los PEM guardados. Cada `pem` tiene que ser una clave **pública EC
+  P-256** (`422` con una privada, otra curva o texto que no es PEM); máximo 6 claves y 2 vigentes a la vez.
+- `dominios` y `eventos` solo admiten los valores listados (`422` con otro). `ttl_propuesta_horas`: entero de 1 a 720.
+- Las escrituras de un sistema **siempre** llegan como propuesta (ver abajo); no hay interruptor para saltarlo.
+
+### Últimas llamadas (`GET /accesos/integraciones/{id}/mcp/llamadas`)
+
+Las últimas 50, de la más nueva a la más vieja. De los argumentos solo se guarda una huella: no hay contenido.
+
+```json
+[{ "id": 912, "staff_id": 5, "method": "tools/call", "tool": "mis_tareas", "code": "ok", "ms": 38, "created_at": "2026-10-07T15:00:00Z" }]
+```
+
+### Webhook de la integración
+
+Rutas ya existentes, sin cambios: `GET|PUT|DELETE /accesos/integraciones/{id}/webhook` (el `PUT` toma
+`{ url }` y contesta `201` con `secret` en claro la primera vez), `POST …/webhook/secreto` (`201`, `secret`
+nuevo) y `POST …/webhook/prueba`. El `GET` no trae el secreto: trae `url`, `secret_start`, `last_attempt_at`,
+`last_status`, `last_error`, `last_success_at`, `consecutive_failures` y `enabled`. Sin webhook, `404`.
+
+### Propuestas de otros sistemas (`GET /ia/propuestas`)
+
+Las de **quien pregunta**; nunca las de otra persona. `?estado=pendiente` (por defecto: las que siguen
+esperando y no vencieron) o `?estado=todas` (las recientes, resueltas o no). Sin paginar.
+
+```json
+[{
+  "id": 41, "tool": "crear_tarea",
+  "summary": "Crear la tarea «Revisar métricas de octubre» en Nestlé",
+  "detail": ["Proyecto: Nestlé · Campañas"], "assumptions": ["Vence: viernes"],
+  "state": "pendiente", "result": null,
+  "expires_at": "2026-10-10T12:00:00Z", "created_at": "2026-10-07T12:00:00Z",
+  "origin": { "system": "metriq", "name": "Metriq" },
+  "link": { "external_id": "m-9", "url": "https://metriq.wiwo.me/alertas/9" }
+}]
+```
+
+`state`: `pendiente`, `ejecutando`, `ejecutada`, `rechazada`, `fallida` o `expirada`. `link` es `null`
+si el sistema no mandó vínculo; su `url` solo se abre si es `https`. **Confirmar o rechazar** usa el
+endpoint de siempre: `POST /ia/acciones/{id}` con `{ "decision": "confirmar" | "rechazar" }`; la
+respuesta es la tarjeta ya resuelta (`id`, `herramienta`, `resumen`, `detalle`, `supuestos`, `estado`,
+`resultado`, `expira_en`). A diferencia de las del chat (30 minutos), el plazo de estas lo fija
+`proposal_ttl_hours` del sistema.
+
+### Vínculo en la Tarea (`GET /tasks/{id}`)
+
+Campo nuevo y opcional: `vinculos: [{ "system": "metriq", "external_id": "m-9", "url": "https://…" | null }]`.
+Una API que no lo manda se lee como «sin vínculos». ops-v2 pinta «Vinculada con {sistema} ↗» en la ficha.
+
 ## Tiempo real
 
 `GET /config/realtime` → `{ "data": { "enabled": true, "key": "…", "cluster": "…" } }`

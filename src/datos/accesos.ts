@@ -211,3 +211,56 @@ export interface CambioDelHistorial {
   antes: string | null
   despues: string | null
 }
+
+// === Servidor MCP externo ===================================================================
+//
+// Integraciones: otros sistemas (pantallas de área, Metriq, WiwoLab…) que usan la API sin ser una
+// persona. Los de alcance `mcp` además actúan EN NOMBRE de una persona identificada por su correo.
+// Todo exige superadministrador. Contrato: `docs/contrato-api.md`, § «Servidor MCP externo».
+
+/** Lo que abre la llave de una integración. */
+export type AlcanceDeIntegracion = 'pantallas' | 'mcp'
+
+/** Una fila de `GET /accesos/integraciones`. La llave nunca viaja: solo sus primeros ocho caracteres. */
+export interface IntegracionDeAccesos {
+  id: number
+  name: string
+  scope: AlcanceDeIntegracion | string
+  key_start: string
+  created_at: string | null
+  created_by: number | null
+  key_issued_at: string | null
+  last_used_at: string | null
+}
+
+/** Una clave pública registrada para verificar aserciones; el PEM no vuelve nunca. */
+export interface ClaveJwtDeSistema {
+  kid: string
+  since: string | null
+  until: string | null
+}
+
+/** `GET|PUT /accesos/integraciones/{id}/mcp`. */
+export interface SistemaMcp {
+  id: number
+  system: string
+  keys: ClaveJwtDeSistema[]
+  domains: string[]
+  events: string[]
+  proposal_ttl_hours: number
+  updated_at: string | null
+}
+
+/** El alta de un sistema MCP: la llave en claro viaja esta única vez. */
+export type SistemaMcpNuevo = SistemaMcp & { key: string }
+
+/** Una fila de `GET /accesos/integraciones/{id}/mcp/llamadas`. */
+export interface LlamadaMcp {
+  id: number
+  staff_id: number | null
+  method: string
+  tool: string | null
+  code: string
+  ms: number
+  created_at: string | null
+}
