@@ -6412,11 +6412,17 @@ Thinking Orb pasa de leer a **proponer**. El modelo no ejecuta nada: deja una pr
 `tblapi_ia_acciones` y una persona la confirma o la rechaza en el chat. Se mergea **apagado**
 (`ia_escritura_habilitada` = `'0'`), y apagado el comportamiento es exactamente el de antes.
 
-**No es un servidor MCP: es function calling interno**, el mismo formato `tools` que `IA\Cliente` ya
+**Para el Orbe no es un servidor MCP: es function calling interno**, el mismo formato `tools` que `IA\Cliente` ya
 habla y las mismas diez herramientas de lectura que ya existían. MCP se paga cuando varios clientes
 ajenos consumen las mismas herramientas; acá el único cliente es este backend, y un proceso aparte
 obligaría a sacar `staffId`, `Acceso\Permisos` y `Acceso\Visibilidad` fuera de la petición que lleva
 la sesión, que es exactamente donde tienen que estar.
+
+> **Actualización.** Cuando otros sistemas de WiWO empezaron a necesitar las mismas herramientas, el
+> razonamiento de arriba se respetó: el servidor MCP externo **no es un proceso aparte**, vive en PHP
+> (`POST /api/v1/mcp`) y resuelve `staffId`, `Permisos` y `Visibilidad` dentro de la petición, a partir
+> de una aserción firmada con el correo de la persona. Ver «Servidor MCP externo» al final de este
+> documento. El worker del Orbe sigue igual.
 
 #### El invariante, y los tres greps que lo verifican
 
@@ -7514,6 +7520,31 @@ pasa por el BFF.
 > vacía ante un `404`, el contador de la barra no se dibuja y la ficha de la Tarea no pinta vínculo.
 > El interruptor `wiwo_mcp_habilitado` nace apagado: nada de esto se anuncia en Novedades hasta
 > encenderlo.
+
+### El protocolo para los otros sistemas (resumen)
+
+`POST /api/v1/mcp` — MCP «Streamable HTTP» mínimo: JSON-RPC 2.0, **un mensaje por petición**, respuesta
+en JSON, sin stream, sin lotes ni sesión (`GET` es `405`). Solo `tools`. No pasa por el BFF: lo llaman
+servidores, no navegadores (una petición con `Origin` es `403`).
+
+Cada petición lleva **dos credenciales**: `Authorization: Bearer <llave del sistema>` (integración de
+alcance `mcp`) y `X-Wiwo-Asercion: <JWT ES256>` de vida corta (`iss` = slug del sistema, `aud` =
+endpoint, `sub` = correo de la persona, `jti` único). La persona sale del correo y tiene que ser staff
+activo; actúa con sus permisos y su visibilidad. Ops guarda solo la clave **pública** de cada sistema.
+
+- **Lecturas**: las del Orbe sobre Espacios más `mis_tareas`, `mis_horas`, `comentarios_de_tarea`,
+  `personas_de_tarea`, `tarea_por_vinculo`, `estado_de_propuesta`, `mis_propuestas`. Lista blanca
+  filtrada por los dominios que cada sistema tiene encendidos.
+- **Escrituras** (`crear_tarea`, `comentar_tarea`, `cambiar_estado_de_tarea`, `registrar_horas`):
+  **solo dejan una propuesta**; la persona la confirma desde `/propuestas` con el mismo
+  `POST /ia/acciones/{id}`. Aceptan `_meta["wiwo/idempotency_key"]` y, las dos primeras, un `vinculo`
+  `{externo_id, url}` que se materializa al aprobar.
+- **Eventos** por webhook (cola con reintentos, mismo `id` en cada intento): `propuesta.aprobada|
+  rechazada|fallida|expirada`, `tarea.estado_cambiado`, `tarea.completada`.
+- **Interruptores**, todos apagados de fábrica: `wiwo_mcp_habilitado`, `wiwo_mcp_eventos`.
+
+El detalle para quien integra está en `modules/api/docs/mcp-consumidores.md` del board y la operación en
+`modules/api/README.md`.
 
 Todas las rutas de `/accesos/integraciones` exigen **superadministrador** (`403` al resto).
 
