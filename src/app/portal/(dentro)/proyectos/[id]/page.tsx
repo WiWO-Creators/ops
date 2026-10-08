@@ -226,6 +226,7 @@ function contenidoDePestania (
               estados={pagina.estadosDeTarea}
               mes={pagina.mes}
               mesesCerrados={pagina.mesesCerrados}
+              proyecto={proyecto.name}
             />
           )}
         </div>

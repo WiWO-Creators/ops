@@ -176,6 +176,19 @@ test('el tablero sirve el contrato nuevo: por estado, pendientes por hito, sin c
   assert.ok(datos.hitos.lista.some((hito) => hito.pendientes === 0 && hito.por_estado.length === 0))
 })
 
+test('el tablero con ?mes= es la foto al cierre: trae foto y cifras propias del mes', async () => {
+  const vivo = (await pedir(`/portal/projects/${COMPLETO}/tablero`)).datos
+  const { estado, datos } = await pedir(`/portal/projects/${COMPLETO}/tablero?mes=2026-08`)
+
+  assert.equal(estado, 200)
+  assert.equal(vivo.foto, undefined)
+  assert.deepEqual(datos.foto, { mes: '2026-08', cerrado: true, hasta: '2026-08-31', aproximado: true })
+  assert.notEqual(datos.avance.cerradas, vivo.avance.cerradas)
+  assert.equal(datos.avance.cerradas + datos.avance.abiertas, datos.avance.tareas)
+  assert.equal(datos.tareas.cerradas_mes, 9)
+  assert.ok(datos.actividad.every((linea) => linea.fecha.startsWith('2026-08-')))
+})
+
 test('el tablero poda por pestaña: sin tareas compartidas, tareas y próxima entrega no viajan', async () => {
   const { estado, datos } = await pedir(`/portal/projects/${SIN_TAREAS_COMPARTIDAS}/tablero`)
 

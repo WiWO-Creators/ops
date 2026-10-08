@@ -195,7 +195,7 @@ const FUENTE_DE_RESERVA = 'Roboto'
 const ANCHO_A4 = 595.28
 
 /** Margen izquierdo y derecho. */
-const MARGEN_LATERAL = 44
+export const MARGEN_LATERAL = 44
 
 /** Ancho útil entre márgenes: lo que miden los filetes y el separador. */
 const ANCHO_UTIL = ANCHO_A4 - MARGEN_LATERAL * 2
@@ -224,7 +224,7 @@ export async function descargarPdf (bloques: Bloque[], tema: TemaDeMarca, meta: 
 }
 
 /** La API de pdfmake tal como la declara `@types/pdfmake`. */
-type ApiPdfmake = typeof import('pdfmake/build/pdfmake')
+export type ApiPdfmake = typeof import('pdfmake/build/pdfmake')
 
 /**
  * pdfmake, cargado recién cuando hace falta.
@@ -232,7 +232,7 @@ type ApiPdfmake = typeof import('pdfmake/build/pdfmake')
  * Se pide el bundle de navegador (`build/pdfmake`) y no el paquete raíz, que apunta a la versión de
  * Node: esa lee fuentes del disco y en el navegador ni siquiera arranca.
  */
-async function pdfmakeDelNavegador (): Promise<ApiPdfmake> {
+export async function pdfmakeDelNavegador (): Promise<ApiPdfmake> {
   const modulo = await import('pdfmake/build/pdfmake')
 
   // El bundle es UMD y su `module.exports` ya es la instancia, pero un empaquetador que lo trate
@@ -251,7 +251,7 @@ const familiasRegistradas = new Set<string>()
  * Si algo falla —un TTF que no está, una red caída— el acta igual se exporta con Roboto: un PDF con
  * otra tipografía sirve; un botón que no hace nada, no.
  */
-async function registrarFuente (
+export async function registrarFuente (
   pdfMake: ApiPdfmake,
   tema: TemaDeMarca,
   idioma: IdiomaDelActa
@@ -416,10 +416,16 @@ function fichaDelActa (meta: MetaDelActa): string {
  * Va como tabla de una celda y no como rectángulo dibujado porque el alto tiene que salir del
  * contenido: un `canvas` obliga a fijarlo a mano y cada logotipo tiene su propia proporción.
  *
+ * `rotulo` es lo que la banda dice del documento: el Meeting Paper y el informe comparten cabecera.
+ *
  * Si el logotipo no se puede traer, la banda sale igual con el nombre de la marca escrito: un acta
  * sin firma se nota, pero es mejor que una exportación caída.
  */
-async function cabeceraDeMarca (tema: TemaDeMarca, colores: ColoresDeMarca): Promise<Content> {
+export async function cabeceraDeMarca (
+  tema: TemaDeMarca,
+  colores: ColoresDeMarca,
+  rotulo = 'MEETING PAPER'
+): Promise<Content> {
   const alto = Number.parseFloat(tema.altoLogo) * PUNTOS_POR_REM
   const marca = await logotipoDeMarca(tema, colores, alto)
 
@@ -430,7 +436,7 @@ async function cabeceraDeMarca (tema: TemaDeMarca, colores: ColoresDeMarca): Pro
         columns: [
           marca,
           {
-            text: 'MEETING PAPER',
+            text: rotulo,
             width: 'auto',
             alignment: 'right',
             color: colores.rotulo,
@@ -479,7 +485,7 @@ function bandaDeCabecera (colores: ColoresDeMarca): CustomTableLayout {
 }
 
 /** El pie firmado, repetido en cada página y con la numeración a la derecha. */
-function pieDelActa (tema: TemaDeMarca, colores: ColoresDeMarca, pagina: number, total: number): Content {
+export function pieDelActa (tema: TemaDeMarca, colores: ColoresDeMarca, pagina: number, total: number): Content {
   return {
     margin: [MARGEN_LATERAL, 12, MARGEN_LATERAL, 0],
     stack: [

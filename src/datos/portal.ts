@@ -949,6 +949,12 @@ export interface TareasDelTablero {
   sin_fecha: number
   cerradas_7: number
   cerradas_30: number
+  /**
+   * Cerradas dentro del mes que se mira (desde el día 1; en el mes en curso, hasta hoy).
+   *
+   * Opcional: un backend anterior no lo manda y la pantalla cae a `cerradas_7`.
+   */
+  cerradas_mes?: number
 }
 
 export interface PrioridadDelTablero {

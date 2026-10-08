@@ -6863,7 +6863,7 @@ async function resolverRuta (metodo, segmentos, parametros, token, cuerpo, petic
       // con la suya, igual que en la API.
       if (resto[2] === 'tablero' && resto.length === 3) {
         exigirPestania('overview')
-        return { estado: 200, cuerpo: conDatos(tableroParaContacto(pestanias)) }
+        return { estado: 200, cuerpo: conDatos(tableroParaContacto(pestanias, parametros.get('mes'))) }
       }
 
       if (resto[2] === 'timesheets' && resto.length === 3) {
@@ -9190,8 +9190,10 @@ const ACTIVIDAD_DEL_TABLERO = [
  * consigo mismo: las pendientes de los hitos no pueden sumar más que las abiertas del avance.
  *
  * @param {Array<string>} pestanias las pestañas que este contacto tiene en este Proyecto
+ * @param {string|null} mes `YYYY-MM` de un mes ya cerrado: devuelve la foto al cierre, con `foto` y
+ *   cifras propias del mes, como la API real. `null` es el tablero vivo.
  */
-function tableroParaContacto (pestanias) {
+function tableroParaContacto (pestanias, mes = null) {
   const hitos = HITOS_DEL_TABLERO.map(({ por_estado: porEstado, ...hito }) => {
     const pendientes = porEstado.reduce((suma, [, total]) => suma + total, 0)
     const cerradas = hito.tareas - pendientes
@@ -9243,7 +9245,8 @@ function tableroParaContacto (pestanias) {
       vencidas: 7,
       sin_fecha: 4,
       cerradas_7: 5,
-      cerradas_30: 19
+      cerradas_30: 19,
+      cerradas_mes: 12
     }
     tablero.proxima_entrega = { id: 518, name: 'Guion del reel de lanzamiento', duedate: '2026-09-25', dias: 3 }
   }
@@ -9254,7 +9257,51 @@ function tableroParaContacto (pestanias) {
     tablero.actividad = ACTIVIDAD_DEL_TABLERO.map(([fecha, clave]) => ({ fecha, clave }))
   }
 
-  return tablero
+  return mes === null ? tablero : comoFotoAlCierre(tablero, mes)
+}
+
+/**
+ * Convierte el tablero vivo en la foto al último día de un mes cerrado.
+ *
+ * No reconstruye nada: cambia lo justo para que el mes se note en pantalla y en el informe —`foto`,
+ * un avance menor, cifras del mes y la actividad acotada a ese mes— y marca el reparto como
+ * aproximado, que es lo que dice la API real mientras no haya historial de estados.
+ *
+ * @param {object} tablero el tablero vivo ya armado
+ * @param {string} mes `YYYY-MM`
+ */
+function comoFotoAlCierre (tablero, mes) {
+  const [anio, numero] = mes.split('-').map(Number)
+  const ultimo = new Date(Date.UTC(anio, numero, 0)).getUTCDate()
+  const hasta = `${mes}-${String(ultimo).padStart(2, '0')}`
+  const cerradas = Math.floor(tablero.avance.cerradas * 0.6)
+  const foto = {
+    ...tablero,
+    foto: { mes, cerrado: true, hasta, aproximado: true },
+    avance: {
+      ...tablero.avance,
+      cerradas,
+      abiertas: tablero.avance.tareas - cerradas,
+      porcentaje: tablero.avance.tareas === 0 ? null : Math.round((cerradas * 100) / tablero.avance.tareas)
+    }
+  }
+
+  if (tablero.tareas !== undefined) {
+    foto.tareas = { ...tablero.tareas, vencidas: 3, cerradas_mes: 9, cerradas_7: 2, cerradas_30: 9 }
+  }
+
+  if (tablero.proxima_entrega !== undefined) {
+    foto.proxima_entrega = { ...tablero.proxima_entrega, dias: 9 }
+  }
+
+  if (tablero.actividad !== undefined) {
+    foto.actividad = tablero.actividad.map((linea, i) => ({
+      ...linea,
+      fecha: `${mes}-${String(Math.min(ultimo, 3 + i * 4)).padStart(2, '0')} ${linea.fecha.slice(11)}`
+    }))
+  }
+
+  return foto
 }
 
 /**

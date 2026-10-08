@@ -5331,12 +5331,24 @@ El tablero de la pestaña Resumen (`overview`) del portal. Su puerta es esa pest
 adentro viaja sólo con la suya y, cuando no corresponde, **la clave no viaja** (ni en cero ni en
 `null`).
 
+`?mes=YYYY-MM` pide la foto del proyecto al último día de un mes ya cerrado (422 si está fuera de
+rango). Sin `mes` es el tablero vivo. Con mes cerrado la respuesta suma la clave `foto`, y las cifras
+se miden **a esa fecha**:
+
+```json
+"foto": { "mes": "2026-08", "cerrado": true, "hasta": "2026-08-31", "aproximado": true }
+```
+
+`aproximado` avisa que el reparto entre estados abiertos no se puede reconstruir (no se guarda el
+historial de estados). `vencidas` y `sin_fecha` pasadas usan las fechas de entrega vigentes hoy. En
+un mes cerrado la `actividad` se acota al mes y los `hitos` excluyen los creados después de su cierre.
+
 ```json
 { "avance": { "tareas": 64, "cerradas": 35, "abiertas": 29, "porcentaje": 55 },
   "tareas": {
     "por_prioridad": [ { "priority": 1, "name": "Baja", "total": 3 } ],
     "por_estado": [ { "status": 1, "total": 13 }, { "status": 4, "total": 6 }, { "status": 3, "total": 1 } ],
-    "vencidas": 7, "sin_fecha": 4, "cerradas_7": 5, "cerradas_30": 19 },
+    "vencidas": 7, "sin_fecha": 4, "cerradas_7": 5, "cerradas_30": 19, "cerradas_mes": 12 },
   "proxima_entrega": { "id": 518, "name": "Guion del reel", "duedate": "2026-09-25", "dias": 3 },
   "hitos": { "lista": [
     { "id": 103, "name": "Piezas de lanzamiento", "due_date": "2026-10-31", "tareas": 18, "cerradas": 6,
@@ -5352,6 +5364,9 @@ adentro viaja sólo con la suya y, cuando no corresponde, **la clave no viaja** 
 | `hitos` | sólo con la pestaña `milestones` |
 | `actividad` | sólo con la pestaña `activity` |
 
+- **`tareas.cerradas_mes`** cuenta las tareas con `datefinished` dentro del mes que se mira (del día 1
+  al último; en el mes en curso, hasta hoy). `cerradas_7` y `cerradas_30` son ventanas hacia atrás
+  desde la fecha de la foto y se mantienen por compatibilidad.
 - **`tareas.por_estado`** cuenta todas las tareas visibles, abiertas y cerradas: `{status, total}` en
   el **orden del catálogo**, con los ceros incluidos, y los estados fuera de catálogo (una tarea
   histórica en el `3`) **al final**. No viajan nombre ni color: salen de `task_statuses` de

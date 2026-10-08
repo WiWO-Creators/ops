@@ -2,6 +2,7 @@ import { Activity, CalendarClock, ChartBarBig, Flag, SignalHigh, TriangleAlert }
 import type { CSSProperties } from 'react'
 import { GLOSARIO } from '@/dominio/glosario'
 import { cn } from '@/lib/clases'
+import { formatearFecha } from '@/lib/fechas'
 import { Clave, Panel, SinDatos } from './GraficosDelTablero'
 import {
   FILAS_VISIBLES,
@@ -242,14 +243,19 @@ export function CifrasDeContexto ({ cifras }: { cifras: Cifra[] }) {
  * que venció», que no es una próxima entrega.
  */
 export function ProximaEntregaDelProyecto (
-  { entrega }: { entrega: { name: string, duedate: string, dias: number } | null }
+  { entrega, alCierre = false }:
+  { entrega: { name: string, duedate: string, dias: number } | null, alCierre?: boolean }
 ) {
   if (entrega === null) return null
 
+  // Al cierre de un mes, «N días» se contaría desde el último día del mes y se leería como si fuera
+  // desde hoy: se muestra la fecha, que no depende de cuándo se mira.
   return (
     <TarjetaDeCifra
-      etiqueta="Próxima entrega"
-      valor={entrega.dias === 0 ? 'Hoy' : `${entrega.dias} ${entrega.dias === 1 ? 'día' : 'días'}`}
+      etiqueta={alCierre ? 'Próxima entrega al cierre' : 'Próxima entrega'}
+      valor={alCierre
+        ? formatearFecha(entrega.duedate)
+        : entrega.dias === 0 ? 'Hoy' : `${entrega.dias} ${entrega.dias === 1 ? 'día' : 'días'}`}
       nota={entrega.name}
     />
   )
