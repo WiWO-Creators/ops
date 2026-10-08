@@ -2,6 +2,8 @@ import { useRouter } from 'next/navigation'
 import { useRef, useState, type RefObject } from 'react'
 import { subirAdjuntosATarea } from '@/componentes/archivos/subir-adjuntos-tarea'
 import { escribirEnBff } from '@/componentes/datos/mutaciones'
+import { servidorIdempotente } from '@/datos/reintento'
+import { claveDeIdempotencia } from '@/datos/red'
 import { mensajeDeAdjuntosFallidos } from '@/dominio/adjuntos-alta'
 import {
   cuerpoDeCamposPersonalizados, esquemaDeCamposPersonalizados, valoresPorDefecto,
@@ -78,6 +80,7 @@ export function useEnvioAlta (opciones: OpcionesEnvio): EnvioDelAlta {
   const { definiciones, personalizados, onOcupado } = opciones
   const router = useRouter()
   const enviando = useRef(false)
+  const claveAlta = useRef<{ huella: string, clave: string } | null>(null)
   const [enCurso, setEnCurso] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [errorDescripcion, setErrorDescripcion] = useState<string | null>(null)
@@ -162,6 +165,35 @@ export function useEnvioAlta (opciones: OpcionesEnvio): EnvioDelAlta {
   }
 
   /**
+   * Clave de idempotencia del alta en curso.
+   *
+   * Es la misma mientras el cuerpo no cambie: si la respuesta se pierde y la persona vuelve a pulsar
+   * «Crear», el servidor reconoce la clave y devuelve la tarea ya creada en vez de hacer otra. Si
+   * editó el formulario entre medio, es otra intención y lleva clave nueva.
+   *
+   * @param cuerpo el cuerpo que se va a enviar
+   * @returns la clave a usar en este envío
+   */
+  function claveDelAlta (cuerpo: unknown): string {
+    const huella = JSON.stringify(cuerpo)
+
+    if (claveAlta.current?.huella !== huella) claveAlta.current = { huella, clave: claveDeIdempotencia() }
+
+    return claveAlta.current.clave
+  }
+
+  /**
+   * Mensaje de un alta de la que no llegó respuesta, según si repetir es seguro.
+   *
+   * @param mensaje el mensaje genérico de la escritura incierta
+   */
+  function mensajeDeAltaIncierta (mensaje: string): string {
+    return servidorIdempotente()
+      ? 'No pudimos confirmar si se creó. Pulsa Crear de nuevo: no se duplicará.'
+      : mensaje
+  }
+
+  /**
    * Manda el alta de UNA tarea. Es el camino de todos los días y no cambió.
    *
    * @param cuerpo el cuerpo de `POST /tasks`, ya sin campos vacios
@@ -171,8 +203,12 @@ export function useEnvioAlta (opciones: OpcionesEnvio): EnvioDelAlta {
     await conEnvioEnCurso(async () => {
       let id = creadaId
       if (id === null) {
-        const resultado = await escribirEnBff<{ id: number }>('tasks', 'POST', cuerpo)
-        if (!resultado.ok) { setError(resultado.mensaje); return }
+        const resultado = await escribirEnBff<{ id: number }>('tasks', 'POST', cuerpo, { idempotencia: claveDelAlta(cuerpo) })
+        if (!resultado.ok) {
+          setError(resultado.incierta === true ? mensajeDeAltaIncierta(resultado.mensaje) : resultado.mensaje)
+          return
+        }
+        claveAlta.current = null
         if (!Number.isInteger(resultado.datos?.id)) {
           setError('El servidor no devolvió el identificador. Revisa la lista antes de volver a crear la tarea.')
           return
@@ -252,15 +288,18 @@ export function useEnvioAlta (opciones: OpcionesEnvio): EnvioDelAlta {
   async function enviarEnVariosEspacios (cuerpo: Record<string, unknown>, destinos: number[]): Promise<void> {
     if (!puedeEnviar()) return
     await conEnvioEnCurso(async () => {
-      const respuesta = await escribirEnBff<ParteMulti>(RUTA_MULTI, 'POST', { ...cuerpo, espacios: destinos })
+      const cuerpoMulti = { ...cuerpo, espacios: destinos }
+      const respuesta = await escribirEnBff<ParteMulti>(RUTA_MULTI, 'POST', cuerpoMulti, { idempotencia: claveDelAlta(cuerpoMulti) })
 
       if (!respuesta.ok) {
         // Incluye la caída de red: `escribirEnBff` no lanza. No se creó nada o no se sabe, y por eso
         // el formulario queda intacto con su selección completa.
-        setError(respuesta.mensaje)
+        setError(respuesta.incierta === true ? mensajeDeAltaIncierta(respuesta.mensaje) : respuesta.mensaje)
 
         return
       }
+
+      claveAlta.current = null
 
       const parte = respuesta.datos
 

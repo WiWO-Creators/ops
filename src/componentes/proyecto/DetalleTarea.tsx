@@ -129,7 +129,9 @@ export function DetalleTarea (
   }: PropsDetalleTarea
 ): ReactElement {
   useUbicacionTarea(procesoId)
-  const [carga, setCarga] = useState<Carga>({ fase: 'cargando' })
+  // Una ficha ya vista se muestra al instante mientras se revalida: con red lenta, reabrir una tarea
+  // no debe volver a esperar el viaje completo.
+  const [carga, setCarga] = useState<Carga>(() => fichaEnMemoria(fuente, procesoId) ?? { fase: 'cargando' })
   const [intento, setIntento] = useState(0)
   const [editando, setEditando] = useState(false)
   const [confirmandoBorrado, setConfirmandoBorrado] = useState(false)
@@ -183,9 +185,11 @@ export function DetalleTarea (
   // Tras escribir, la ficha se vuelve a pedir y quien la monta se entera: sin el aviso, una tarea
   // recien completada sigue "En curso" en el listado que quedo debajo del modal.
   const alCambiar = useCallback(() => {
-    reintentar()
+    // Sin vaciar la ficha: ponerla en `cargando` desmontaba los seis subpaneles y los volvia a pedir
+    // uno por uno tras cada cambio, que con red lenta se leia como que el cambio no se habia guardado.
+    setIntento((n) => n + 1)
     onCambiada?.()
-  }, [reintentar, onCambiada])
+  }, [onCambiada])
 
   useEffect(() => {
     const control = new AbortController()
@@ -871,6 +875,44 @@ function valorDeCatalogo (lista: EstadoLookup[], id: number): { nombre: string, 
 }
 
 
+/** Cuanto vale un catalogo guardado antes de volver a pedirlo: estados y prioridades casi no cambian. */
+const VIGENCIA_DE_LOOKUPS_MS = 5 * 60_000
+/** Cuantas fichas se recuerdan para reabrirlas al instante. */
+const MAXIMO_DE_FICHAS_EN_MEMORIA = 30
+
+const lookupsGuardados = new Map<string, { datos: Lookups, en: number }>()
+const fichasGuardadas = new Map<string, Extract<Carga, { fase: 'listo' }>>()
+
+/** Catalogos vigentes de esta fuente, o `null` si hay que pedirlos. */
+function lookupsEnMemoria (fuente: FuenteDeTarea): Lookups | null {
+  const guardado = lookupsGuardados.get(fuente.lookups)
+
+  return guardado !== undefined && Date.now() - guardado.en < VIGENCIA_DE_LOOKUPS_MS ? guardado.datos : null
+}
+
+/** Recuerda los catalogos recien traidos. */
+function guardarLookups (fuente: FuenteDeTarea, datos: Lookups): void {
+  lookupsGuardados.set(fuente.lookups, { datos, en: Date.now() })
+}
+
+/** La ficha de esta tarea si ya se vio en esta sesion; se revalida igual al abrir. */
+function fichaEnMemoria (fuente: FuenteDeTarea, procesoId: number): Carga | null {
+  return fichasGuardadas.get(conId(fuente.tarea, procesoId)) ?? null
+}
+
+/** Recuerda una ficha cargada, descartando la mas vieja al pasar el limite. */
+function guardarFicha (fuente: FuenteDeTarea, procesoId: number, ficha: Extract<Carga, { fase: 'listo' }>): void {
+  const clave = conId(fuente.tarea, procesoId)
+
+  fichasGuardadas.delete(clave)
+  fichasGuardadas.set(clave, ficha)
+
+  if (fichasGuardadas.size > MAXIMO_DE_FICHAS_EN_MEMORIA) {
+    const masVieja = fichasGuardadas.keys().next().value
+    if (masVieja !== undefined) fichasGuardadas.delete(masVieja)
+  }
+}
+
 /**
  * Trae la tarea y los catalogos.
  *
@@ -883,20 +925,27 @@ function valorDeCatalogo (lista: EstadoLookup[], id: number): { nombre: string, 
  */
 async function cargar (fuente: FuenteDeTarea, procesoId: number, senal: AbortSignal): Promise<Carga> {
   try {
+    const guardados = lookupsEnMemoria(fuente)
     const [tarea, lookups] = await Promise.all([
       pedirRespuesta(conId(fuente.tarea, procesoId), senal),
-      pedirRespuesta(fuente.lookups, senal)
+      guardados === null ? pedirRespuesta(fuente.lookups, senal) : Promise.resolve(null)
     ])
 
     if (tarea.status === 404) return { fase: 'noEncontrada' }
 
     if (!tarea.ok) return { fase: 'error', mensaje: await mensajeDeLectura(tarea) }
-    if (!lookups.ok) return { fase: 'error', mensaje: await mensajeDeLectura(lookups) }
+    if (lookups !== null && !lookups.ok) return { fase: 'error', mensaje: await mensajeDeLectura(lookups) }
 
     const sobreTarea = await tarea.json() as Sobre<ProcesoDeFicha>
-    const sobreLookups = await lookups.json() as Sobre<Lookups>
+    const catalogos = lookups === null ? guardados : (await lookups.json() as Sobre<Lookups>).data
 
-    return { fase: 'listo', tarea: sobreTarea.data, lookups: sobreLookups.data }
+    if (catalogos === null) return { fase: 'error', mensaje: 'No se pudo cargar la tarea.' }
+
+    guardarLookups(fuente, catalogos)
+    const listo: Carga = { fase: 'listo', tarea: sobreTarea.data, lookups: catalogos }
+    guardarFicha(fuente, procesoId, listo)
+
+    return listo
   } catch (fallo) {
     if (senal.aborted) return { fase: 'cargando' }
 

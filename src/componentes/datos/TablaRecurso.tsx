@@ -249,7 +249,9 @@ export function TablaRecurso<T> ({
   const { estado, params, cambiar: cambiarEnUrl, escribirParametro, leerParametro } = useFiltrosEnUrl<EstadoConsulta>({
     leer: leerEstado,
     construir: construirParaUrl,
-    prefijo: prefijoUrl
+    prefijo: prefijoUrl,
+    // Una tabla que se pide sola desde el navegador no necesita esperar al servidor para filtrar.
+    superficial: datos === undefined
   })
   const consulta = useMemo(() => construirQuery(estado), [estado, construirQuery])
 

@@ -144,6 +144,7 @@ export function ModalTarea (
 
         {tareaAbierta !== null && (
           <DetalleTarea
+            key={tareaAbierta}
             procesoId={tareaAbierta}
             fuente={fuente}
             puedeEditar={puedeEditar}
