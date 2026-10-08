@@ -6,6 +6,7 @@ import { ArrowRight } from 'lucide-react'
 import { escucharMedidor } from '@/componentes/live/medidor'
 import type { EstadoDeJornada, MedidorEnVivo } from '@/datos/live'
 import { GLOSARIO } from '@/dominio/glosario'
+import { avisarCambioDeJornada } from '@/lib/puente-app'
 
 /**
  * Lo que le falta a la jornada de hoy para que el tiempo quede imputado.
@@ -144,6 +145,10 @@ export function AvisoJornada ({ inicial }: { inicial: EstadoDeJornada | null }) 
       // Red caída o petición abortada al desmontar: se conserva lo último que se supo.
     }
   }, [])
+
+  // Al cargar el Inicio la tarjeta de la app nativa se vuelve a leer: es la pantalla a la que se llega
+  // al abrir la app, y la jornada pudo cambiar (o cerrarse sola) mientras estaba en segundo plano.
+  useEffect(() => { avisarCambioDeJornada() }, [])
 
   useEffect(() => {
     const control = new AbortController()

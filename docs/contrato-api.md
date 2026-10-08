@@ -5686,6 +5686,69 @@ prórroga exige a una persona frente a la pantalla diciendo que sigue trabajando
 el cierre automático quiere comprobar. Un tope de N cerraría la jornada de quien de verdad está
 trabajando, que es el único error que este mecanismo existe para no cometer.
 
+## App nativa: vínculo del teléfono y tarjeta en vivo
+
+La app `ops-mobile` envuelve esta misma PWA en un WebView (`User-Agent` con `WiwoOpsApp/<versión>`) y
+dibuja la **tarjeta en vivo** de la jornada en la pantalla bloqueada. El login es el de la PWA; la app
+obtiene su propia credencial de dispositivo canjeando un código de un solo uso (PKCE).
+
+### `POST /mobile/link-codes` → `201`
+
+Emite el código de vínculo. **Auth: acceso web de staff** (no de contacto ni de sesión suplantada).
+
+```json
+{ "reto": "<base64url(sha256(verifier)), 43 caracteres>" }
+```
+```json
+{ "data": { "code": "<43 caracteres base64url>", "expires_in": 60 } }
+```
+
+El código dura 60 segundos como máximo, sirve una sola vez y queda ligado a la persona y al `reto`; el
+`verifier` solo lo conoce la app. Cada código nuevo revoca los vivos de esa persona.
+
+| Situación | Respuesta |
+|---|---|
+| Sin sesión | `401` |
+| Sesión suplantada | `403` — `impersonation_forbidden` |
+| `reto` ausente o con otro formato | `422` |
+| Demasiados códigos en poco tiempo | `429` |
+
+**No está en la lista blanca del BFF (`datos/rutas.ts`) a propósito**, igual que `/impersonate`: el
+navegador no puede pedirlo por su cuenta. Solo lo llama la ruta de servidor de Next
+`POST /api/sesion/vinculo-movil` (`{ reto }` → `{ codigo, expiraEn }`, sin caché), que además exige el
+`User-Agent` de la app (`403`), rechaza con `409` si hay suplantación en curso y valida el reto con
+`^[A-Za-z0-9_-]{43}$` (`400`). La PWA le entrega el `codigo` a la app por el puente (`auth`).
+
+El resto de `/mobile/*` (`session`, `session/refresh`, `devices`, `live-cards/{id}/token`,
+`me/jornada`) lo habla la app directamente con su credencial de dispositivo y no pasa por ops-v2; el
+contrato completo vive en `wiwo-board/modules/api/README.md`.
+
+### `GET /me/jornada/tarjeta` → `200`
+
+Auth: acceso web de staff (entra por el BFF: `GET /api/bff/me/jornada/tarjeta`). Devuelve la tarjeta
+de la jornada abierta de quien llama, o `null` si no hay.
+
+```json
+{ "data": { "card": {
+  "cardId": "<uuid opaco>", "tipo": "jornada", "titulo": "Jornada",
+  "origen": { "label": "Inicio", "hora": "09:00" },
+  "destino": { "label": "Cierre", "hora": "18:00" },
+  "inicio": 1790000000, "finEstimado": 1790032400,
+  "estado": "en_curso", "chip": "", "discreto": true, "actualizadoEn": 1790000100
+} } }
+```
+
+- Las horas de `origen` y `destino` son `HH:mm` en America/Santiago. `inicio`, `finEstimado` y
+  `actualizadoEn` son epoch en **segundos** (UTC); el orden por `actualizadoEn` descarta lo que llega
+  tarde.
+- `estado`: `en_curso` → `atrasada` (pasó `finEstimado`) → `completada`. `pausada` existe en el tipo
+  pero la jornada no la usa. `hitos` (lista de `{label, hora}`) se omite en el MVP.
+- `chip` va vacío, `Cierre` o `Fin` (máximo 6 caracteres). `discreto` es la preferencia del dispositivo.
+- **Nunca** lleva cliente, nota, proyecto, nombre ni identificador de persona.
+- Sin jornada abierta: `{ "data": { "card": null } }`.
+
+El tipo en ops-v2 es `LiveCardState` (`src/datos/live.ts`).
+
 ## Jerarquías del equipo
 
 El árbol de dependencias: `tblareas` (`area_superior_id`, `jefe_staffid`) más `tblstaff.area_id`. No

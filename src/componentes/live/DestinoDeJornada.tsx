@@ -6,6 +6,7 @@ import { LogOut, Play, UserRound } from 'lucide-react'
 import { Boton } from '@/componentes/formularios/Boton'
 import { ContenidoDialogo, Dialogo } from '@/componentes/superposiciones/Dialogo'
 import { GLOSARIO } from '@/dominio/glosario'
+import { enviarAlApp, mensajeLogout } from '@/lib/puente-app'
 import { SelectorEspacio } from './SelectorEspacio'
 import { SelectorTarea } from './SelectorTarea'
 
@@ -382,6 +383,8 @@ function SalidaDeEmergencia ({
   /** Misma salida que el menú de la cuenta: la cookie se borra en el servidor y se va a entrar. */
   async function salir (): Promise<void> {
     setSaliendo(true)
+    // Antes del DELETE: la app termina la tarjeta y desvincula el teléfono mientras aún hay sesión.
+    enviarAlApp(mensajeLogout())
 
     try {
       await fetch('/api/sesion', { method: 'DELETE' })

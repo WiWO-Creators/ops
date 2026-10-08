@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { Download, X } from 'lucide-react'
 import { Boton } from '@/componentes/formularios/Boton'
+import { enAppNativa } from '@/lib/app-nativa'
 import { cn } from '@/lib/clases'
 import {
   CLAVE_APP_INSTALADA,
@@ -49,6 +50,9 @@ export function RecordatorioInstalar (): React.ReactNode {
   const eventoRef = useRef<EventoDeInstalacion | null>(null)
 
   useEffect(() => {
+    // Dentro de la app nativa no hay nada que instalar. El layout ya no lo monta ahí; esto cubre
+    // el WebView que no mande el `User-Agent` y solo defina `window.WiwoOpsApp`.
+    if (enAppNativa()) return
     if (corriendoInstalada()) {
       anotar(CLAVE_APP_INSTALADA, '1')
       return

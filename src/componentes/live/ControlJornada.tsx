@@ -34,6 +34,7 @@ import { DestinoDeJornada } from './DestinoDeJornada'
 import { RecordatorioDeDestino } from './RecordatorioDeDestino'
 import { AvisoDeCierre } from './AvisoDeCierre'
 import { SelectorCliente } from './SelectorCliente'
+import { avisarCambioDeJornada } from '@/lib/puente-app'
 import { avisarCambioDeMedidor, escucharMedidor } from './medidor'
 
 /**
@@ -341,6 +342,9 @@ export function ControlJornada ({
   /** Vuelve a pedirle el estado al servidor: es el unico que sabe como quedo. */
   function recargar (): void {
     setIntento((previo) => previo + 1)
+    // Todo lo que llama a esta funcion acaba de abrir, editar, cerrar o prorrogar la jornada (o de
+    // enterarse de que otra pestaña lo hizo): la tarjeta de la app nativa tiene que volver a leerse.
+    avisarCambioDeJornada()
   }
 
   /**
