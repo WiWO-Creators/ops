@@ -13,6 +13,7 @@ import { ScrollSuave } from '@/componentes/estructura/ScrollSuave'
 import { IndicadorDeRed } from '@/componentes/estado/IndicadorDeRed'
 import { OrbeChatIA } from '@/componentes/ia/OrbeChatIA'
 import { RastreadorPortal } from '@/componentes/portal/rastreo/RastreadorPortal'
+import { RefrescoDelPortal } from '@/componentes/portal/RefrescoDelPortal'
 
 /**
  * Armazon del portal del cliente.
@@ -46,6 +47,7 @@ export default async function PortalLayout ({ children }: { children: React.Reac
     // sea la capacidad. Ver `ProveedorEnlaces`.
     <ProveedorEnlaces permisos={{}} esPortal>
     <Suspense fallback={null}><IndicadorDeRed /></Suspense>
+    <RefrescoDelPortal />
     {/* Primero, para que sus efectos corran antes que los de la pagina. `useSearchParams` pide
         `Suspense`. Con `rastreo` ausente o apagado no registra nada. */}
     <Suspense fallback={null}>
