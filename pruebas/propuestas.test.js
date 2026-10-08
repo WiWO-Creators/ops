@@ -4,7 +4,7 @@
  */
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
-import { aAccionIA, contarPendientes, leerPropuestas, leerVinculos, textoDeRestante, urlHttps } from '../src/dominio/propuestas.ts'
+import { aAccionIA, contarPendientes, leerProcedencia, leerPropuestas, leerVinculos, textoDeRestante, urlHttps } from '../src/dominio/propuestas.ts'
 
 const buena = {
   id: 4, tool: 'crear_tarea', summary: 'Crear «Revisar métricas»', detail: ['Proyecto: Nestlé'], assumptions: [],
@@ -68,4 +68,49 @@ test('el contador solo cuenta las pendientes que no vencieron', () => {
   assert.equal(contarPendientes([a], Date.parse('2026-10-11T00:00:00Z')), 0)
   assert.equal(contarPendientes([{ ...a, state: 'ejecutada' }], ahora), 0)
   assert.equal(contarPendientes([{ ...a, expires_at: null }], ahora), 1)
+})
+
+test('una propuesta sin los campos nuevos se lee sin huella, sin enlace, no visible y sin procedencia', () => {
+  const [p] = leerPropuestas([buena])
+
+  assert.equal(p.args_hash, null)
+  assert.equal(p.url_ops, null)
+  assert.equal(p.visible_to_client, false)
+  assert.equal(p.provenance, null)
+})
+
+test('huella, enlace profundo y visibilidad al cliente se leen; solo `true` cuenta como visible', () => {
+  const [p] = leerPropuestas([{ ...buena, args_hash: 'abc123', url_ops: 'https://ops.wiwo.me/propuestas/4', visible_to_client: true }])
+
+  assert.equal(p.args_hash, 'abc123')
+  assert.equal(p.url_ops, 'https://ops.wiwo.me/propuestas/4')
+  assert.equal(p.visible_to_client, true)
+
+  for (const raro of [1, 'true', null, undefined, {}]) {
+    assert.equal(leerPropuestas([{ ...buena, visible_to_client: raro }])[0].visible_to_client, false, String(raro))
+  }
+
+  assert.equal(leerPropuestas([{ ...buena, url_ops: 'javascript:alert(1)' }])[0].url_ops, null)
+  assert.equal(leerPropuestas([{ ...buena, args_hash: '' }])[0].args_hash, null)
+})
+
+test('la procedencia nunca es de confianza, aunque la API diga lo contrario', () => {
+  const leida = leerProcedencia({ trusted: true, data: { alerta: 'Caída', n: 3, ok: false } })
+
+  assert.equal(leida.trusted, false)
+  assert.deepEqual(leida.data, { alerta: 'Caída', n: '3', ok: 'false' })
+})
+
+test('la procedencia descarta lo que no es texto plano y queda en null si no sobra nada', () => {
+  assert.deepEqual(leerProcedencia({ data: { a: 'x', b: { anidado: 1 }, c: ['l'], d: null } }).data, { a: 'x' })
+
+  for (const vacia of [null, undefined, 'texto', [], {}, { data: null }, { data: [] }, { data: {} }, { data: { b: { x: 1 } } }]) {
+    assert.equal(leerProcedencia(vacia), null, JSON.stringify(vacia))
+  }
+})
+
+test('la procedencia con marcas HTML queda como texto, sin interpretar', () => {
+  const leida = leerProcedencia({ data: { nota: '<img src=x onerror=alert(1)>' } })
+
+  assert.equal(leida.data.nota, '<img src=x onerror=alert(1)>')
 })

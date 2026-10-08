@@ -9,13 +9,14 @@ import { AvisoEnLinea, Vacio } from '@/componentes/estado/Estados'
 import { useAviso } from '@/componentes/estado/useAviso'
 import { Boton } from '@/componentes/formularios/Boton'
 import { Campo } from '@/componentes/formularios/Campo'
-import { Entrada } from '@/componentes/formularios/Entrada'
+import { CLASES_CASILLA, Entrada } from '@/componentes/formularios/Entrada'
 import { Segmentado } from '@/componentes/formularios/Segmentado'
 import { Fecha } from '@/componentes/presentadores/Fecha'
 import { ConfiguracionMcp } from '@/componentes/administracion/ConfiguracionMcp'
 import { LlamadasMcp } from '@/componentes/administracion/LlamadasMcp'
 import { WebhookDeIntegracion } from '@/componentes/administracion/WebhookDeIntegracion'
-import { motivoDeSlugInvalido } from '@/dominio/mcp-externo'
+import { formatearFecha } from '@/lib/fechas'
+import { cuerpoDeRegenerarLlave, leerLlaveAnteriorVigenteHasta, motivoDeSlugInvalido } from '@/dominio/mcp-externo'
 import type { IntegracionDeAccesos } from '@/datos/accesos'
 
 interface Props {
@@ -26,6 +27,8 @@ interface Props {
 interface LlaveEmitida {
   nombre: string
   llave: string
+  /** Hasta cuándo sigue sirviendo la llave anterior (periodo de gracia de un sistema MCP), si sigue sirviendo. */
+  anteriorHasta?: string | null
 }
 
 const TIPOS = [
@@ -72,7 +75,7 @@ export function IntegracionesAdmin ({ inicial }: Props): ReactElement {
               <FilaDeIntegracion
                 key={fila.id}
                 fila={fila}
-                onLlave={(llave) => { setEmitida({ nombre: fila.name, llave }) }}
+                onLlave={(llave, anteriorHasta) => { setEmitida({ nombre: fila.name, llave, anteriorHasta }) }}
                 onRevocada={quitar}
               />
             ))}
@@ -179,6 +182,11 @@ function LlaveVisible ({ emitida, onCerrar }: { emitida: LlaveEmitida, onCerrar:
       <p className="text-texto-tenue text-sm">
         Guárdala ahora en el otro sistema. Ops solo conserva una huella: si la pierdes, tendrás que regenerarla y la anterior dejará de servir.
       </p>
+      {emitida.anteriorHasta != null && (
+        <p className="text-texto text-sm">
+          La llave anterior sigue válida hasta <strong className="font-medium">{formatearFecha(emitida.anteriorHasta, true)}</strong>: usa ese margen para poner la nueva en el otro sistema sin cortar el servicio.
+        </p>
+      )}
       <div className="flex gap-2">
         <BotonCopiar valor={() => emitida.llave} etiqueta="Copiar llave" etiquetaCopiado="Copiada" mensajeError="No pudimos copiar. Selecciona la llave y cópiala a mano." />
         <Boton variante="sutil" tamano="chico" onClick={onCerrar}>Ya la guardé</Boton>
@@ -191,22 +199,29 @@ type Panel = 'configuracion' | 'webhook' | 'llamadas' | null
 
 function FilaDeIntegracion ({ fila, onLlave, onRevocada }: {
   fila: IntegracionDeAccesos
-  onLlave: (llave: string) => void
+  onLlave: (llave: string, anteriorHasta: string | null) => void
   onRevocada: (id: number) => void
 }): ReactElement {
   const aviso = useAviso()
   const revocar = useConfirmarBorrado()
   const regenerar = useConfirmarBorrado()
   const [panel, setPanel] = useState<Panel>(null)
+  const [sinGracia, setSinGracia] = useState(false)
   const esMcp = fila.scope === 'mcp'
 
   async function emitirOtraLlave (): Promise<void> {
-    const resultado = await escribirEnBff<{ key: string }>(`accesos/integraciones/${fila.id}/llave`, 'POST')
+    const resultado = await escribirEnBff<{ key: string }>(`accesos/integraciones/${fila.id}/llave`, 'POST', cuerpoDeRegenerarLlave(esMcp && sinGracia))
 
     if (!resultado.ok) throw new Error(resultado.mensaje)
 
-    onLlave(resultado.datos.key)
-    aviso.exito('Llave regenerada. La anterior ya no sirve.')
+    setSinGracia(false)
+
+    const anteriorHasta = leerLlaveAnteriorVigenteHasta(resultado.datos)
+
+    onLlave(resultado.datos.key, anteriorHasta)
+    aviso.exito(anteriorHasta === null
+      ? 'Llave regenerada. La anterior ya no sirve.'
+      : `Llave regenerada. La anterior sigue válida hasta ${formatearFecha(anteriorHasta, true)}.`)
   }
 
   async function revocarIntegracion (): Promise<void> {
@@ -263,10 +278,21 @@ function FilaDeIntegracion ({ fila, onLlave, onRevocada }: {
 
       <ConfirmarBorrado
         abierto={regenerar.abierto}
-        onCerrar={regenerar.cerrar}
+        onCerrar={() => { setSinGracia(false); regenerar.cerrar() }}
         titulo="Regenerar la llave"
-        advertencia={`La llave actual de «${fila.name}» dejará de servir en el mismo instante. El otro sistema fallará hasta que le pongas la nueva.`}
+        advertencia={esMcp
+          ? `La llave actual de «${fila.name}» seguirá sirviendo un rato corto, el que fija el servidor, para que alcances a poner la nueva en el otro sistema. Pasado ese plazo dejará de servir.`
+          : `La llave actual de «${fila.name}» dejará de servir en el mismo instante. El otro sistema fallará hasta que le pongas la nueva.`}
         etiquetaConfirmar="Regenerar"
+        contenidoExtra={esMcp && (
+          <label className="flex items-start gap-2 text-sm">
+            <input type="checkbox" className={`${CLASES_CASILLA} mt-0.5`} checked={sinGracia} onChange={(e) => { setSinGracia(e.target.checked) }} />
+            <span>
+              <span className="text-texto font-medium">Invalidar la anterior ahora</span>
+              <span className="text-texto-tenue block text-xs">Úsalo si la llave se filtró: el otro sistema fallará hasta que le pongas la nueva.</span>
+            </span>
+          </label>
+        )}
         onConfirmar={emitirOtraLlave}
       />
       <ConfirmarBorrado

@@ -25,6 +25,23 @@ export interface PropuestaExterna {
   created_at: string | null
   origin: { system: string, name: string }
   link: { external_id: string, url: string } | null
+  /** Huella de lo que se propuso; la decisión remota va ligada a ella. */
+  args_hash: string | null
+  /** Enlace profundo a esta propuesta en Ops (`/propuestas/{id}`), si el board conoce la URL pública. */
+  url_ops: string | null
+  /** `true` si lo que la propuesta hace lo va a poder leer el cliente. */
+  visible_to_client: boolean
+  /** Lo que el sistema dijo de dónde sacó la propuesta: nunca verificado por Ops. */
+  provenance: Procedencia | null
+}
+
+/**
+ * La procedencia declarada por el sistema de origen. `trusted` es siempre `false`: Ops no la verifica,
+ * y por eso se muestra como texto plano y rotulada, jamás como HTML ni como enlace.
+ */
+export interface Procedencia {
+  trusted: false
+  data: Record<string, string>
 }
 
 /** Un vínculo de una tarea con el sistema que la originó (`vinculos` de `GET /tasks/{id}`). */
@@ -57,6 +74,26 @@ export function urlHttps (valor: unknown): string | null {
   } catch {
     return null
   }
+}
+
+/**
+ * Lee la procedencia declarada: pares clave-valor de texto plano, o `null` si no hay ninguno.
+ *
+ * Aunque la API la marque, `trusted` se fuerza a `false`; los valores que no son texto, número o
+ * booleano se descartan.
+ *
+ * @param valor `provenance` de la fila
+ */
+export function leerProcedencia (valor: unknown): Procedencia | null {
+  if (!esObjeto(valor) || !esObjeto(valor.data)) return null
+
+  const data: Record<string, string> = {}
+
+  for (const [clave, dato] of Object.entries(valor.data)) {
+    if (typeof dato === 'string' || typeof dato === 'number' || typeof dato === 'boolean') data[clave] = String(dato)
+  }
+
+  return Object.keys(data).length === 0 ? null : { trusted: false, data }
 }
 
 /**
@@ -95,7 +132,11 @@ export function leerPropuestas (valor: unknown): PropuestaExterna[] {
         system: typeof origen.system === 'string' ? origen.system : '',
         name: typeof origen.name === 'string' && origen.name !== '' ? origen.name : String(origen.system ?? 'Otro sistema')
       },
-      link: enlace
+      link: enlace,
+      args_hash: typeof fila.args_hash === 'string' && fila.args_hash !== '' ? fila.args_hash : null,
+      url_ops: urlHttps(fila.url_ops),
+      visible_to_client: fila.visible_to_client === true,
+      provenance: leerProcedencia(fila.provenance)
     })
   }
 

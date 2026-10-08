@@ -233,11 +233,30 @@ export interface IntegracionDeAccesos {
   last_used_at: string | null
 }
 
-/** Una clave pública registrada para verificar aserciones; el PEM no vuelve nunca. */
+/** Para qué sirve una clave pública: firmar las llamadas MCP o firmar decisiones remotas. */
+export type PropositoDeClave = 'mcp' | 'decision'
+
+/** Cómo está una clave según sus fechas: `expiring` es la que vence pronto, `scheduled` la que aún no empieza. */
+export type EstadoDeClave = 'active' | 'expiring' | 'expired' | 'scheduled'
+
+/** Una clave pública registrada para verificar aserciones; el PEM no vuelve nunca, solo su huella. */
 export interface ClaveJwtDeSistema {
   kid: string
+  purpose: PropositoDeClave
   since: string | null
   until: string | null
+  status: EstadoDeClave
+  /** Días que le quedan; `null` si no vence o ya venció. */
+  expires_in_days: number | null
+  fingerprint: string
+}
+
+/** Una cuota por sistema: lo configurado (`null` = usa el valor por defecto) y lo que rige de verdad. */
+export interface CuotasDeSistema {
+  rpm_person: number | null
+  rpm_system: number | null
+  max_pending: number | null
+  effective: { rpm_person: number | null, rpm_system: number | null, max_pending: number | null }
 }
 
 /** `GET|PUT /accesos/integraciones/{id}/mcp`. */
@@ -245,9 +264,17 @@ export interface SistemaMcp {
   id: number
   system: string
   keys: ClaveJwtDeSistema[]
+  /** Claves vigentes (`active` o `expiring`), de cualquier propósito. */
+  active_keys: number
+  keys_expiring_soon: boolean
   domains: string[]
   events: string[]
   proposal_ttl_hours: number
+  /** Dominios de los que se acepta la URL de un vínculo: «dom.com» o «*.dom.com». */
+  link_domains: string[]
+  /** Herramientas que el sistema puede aprobar de forma remota; vacía = ruta desactivada. */
+  decision_tools: string[]
+  limits: CuotasDeSistema
   updated_at: string | null
 }
 
@@ -258,9 +285,16 @@ export type SistemaMcpNuevo = SistemaMcp & { key: string }
 export interface LlamadaMcp {
   id: number
   staff_id: number | null
+  /** `tools/call`, `initialize`…, o `rechazo` (401/403/429 antes de llegar a una herramienta) o `decision`. */
   method: string
   tool: string | null
   code: string
+  /** Motivo interno de un rechazo; `null` en las llamadas que pasaron. */
+  reason: string | null
+  /** `X-Request-Id` que mandó el sistema, solo para correlacionar. */
+  request_id: string | null
+  /** Sesión del sistema (`sid`), solo para correlacionar. */
+  sid: string | null
   ms: number
   created_at: string | null
 }

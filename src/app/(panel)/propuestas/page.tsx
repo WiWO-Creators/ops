@@ -3,10 +3,9 @@ import { BandejaDePropuestas } from '@/componentes/propuestas/BandejaDePropuesta
 import { ErrorEstado } from '@/componentes/estado/Estados'
 import { Segmentado, type OpcionSegmentada } from '@/componentes/formularios/Segmentado'
 import { TituloModulo } from '@/componentes/estructura/TituloModulo'
-import { esRutaAusente, propuestasDe, rutaDePropuestas, type FiltroDePropuestas } from '@/datos/propuestas'
+import type { FiltroDePropuestas } from '@/datos/propuestas'
+import { cargarPropuestas } from '@/datos/propuestas-servidor'
 import { ErrorApi } from '@/datos/errores'
-import { pedir } from '@/datos/servidor'
-import type { PropuestaExterna } from '@/dominio/propuestas'
 
 export const metadata = { title: 'Propuestas · WiWO Ops' }
 
@@ -25,7 +24,7 @@ const OPCIONES: OpcionSegmentada[] = [
 export default async function PropuestasPage (props: PageProps<'/propuestas'>): Promise<ReactElement> {
   const { estado } = await props.searchParams
   const filtro: FiltroDePropuestas = estado === 'todas' ? 'todas' : 'pendiente'
-  const cargado = await cargar(filtro)
+  const cargado = await cargarPropuestas(filtro)
 
   return (
     <section className="flex flex-col gap-4">
@@ -41,16 +40,4 @@ export default async function PropuestasPage (props: PageProps<'/propuestas'>): 
         : <BandejaDePropuestas key={filtro} inicial={cargado} filtro={filtro} />}
     </section>
   )
-}
-
-/** Trae las propuestas, o el error de la API como valor. Una ruta ausente es «ninguna». */
-async function cargar (filtro: FiltroDePropuestas): Promise<PropuestaExterna[] | ErrorApi> {
-  try {
-    return propuestasDe((await pedir<unknown>(`/${rutaDePropuestas(filtro)}`)).data)
-  } catch (error) {
-    if (esRutaAusente(error)) return []
-    if (error instanceof ErrorApi) return error
-
-    throw error
-  }
 }
