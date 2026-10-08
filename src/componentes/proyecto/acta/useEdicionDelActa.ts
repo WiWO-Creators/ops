@@ -22,6 +22,8 @@ export interface EdicionDelActa {
   descartar: () => void
   cambiar: (siguiente: string) => void
   guardar: () => Promise<void>
+  /** Una reescritura de la IA se aplicó en esta edición: el historial rotula la versión como `ia`. */
+  marcarIa: () => void
 }
 
 /**
@@ -35,6 +37,7 @@ export function useEdicionDelActa ({ htmlActivo, escribirEnLoVisible, setError }
   const [html, setHtml] = useState(htmlActivo)
   const [sucio, setSucio] = useState(false)
   const [guardando, setGuardando] = useState(false)
+  const [huboIa, setHuboIa] = useState(false)
   const aviso = useAviso()
 
   /**
@@ -43,6 +46,7 @@ export function useEdicionDelActa ({ htmlActivo, escribirEnLoVisible, setError }
    */
   function corregir (): void {
     setHtml(htmlActivo)
+    setHuboIa(false)
     setEditando(true)
   }
 
@@ -50,6 +54,7 @@ export function useEdicionDelActa ({ htmlActivo, escribirEnLoVisible, setError }
   function descartar (): void {
     setHtml(htmlActivo)
     setSucio(false)
+    setHuboIa(false)
     setEditando(false)
   }
 
@@ -68,7 +73,7 @@ export function useEdicionDelActa ({ htmlActivo, escribirEnLoVisible, setError }
     setGuardando(true)
     setError(null)
 
-    const fallo = await escribirEnLoVisible({ content: html })
+    const fallo = await escribirEnLoVisible(huboIa ? { content: html, origen: 'ia' } : { content: html })
 
     setGuardando(false)
 
@@ -79,9 +84,15 @@ export function useEdicionDelActa ({ htmlActivo, escribirEnLoVisible, setError }
     }
 
     setSucio(false)
+    setHuboIa(false)
     setEditando(false)
     aviso.exito(`Correcciones del ${GLOSARIO.acta.singular} guardadas.`)
   }
 
-  return { editando, html, sucio, guardando, corregir, descartar, cambiar, guardar }
+  /** Marca que la IA cambió algo en esta edición. */
+  function marcarIa (): void {
+    setHuboIa(true)
+  }
+
+  return { editando, html, sucio, guardando, corregir, descartar, cambiar, guardar, marcarIa }
 }

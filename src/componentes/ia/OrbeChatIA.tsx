@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useId, useRef, useState, type PointerEvent as EventoPuntero, type KeyboardEvent as EventoTeclado, type CSSProperties, type ReactElement } from 'react'
 import { usePathname } from 'next/navigation'
+import { EVENTO_ABRIR_ORBE } from '@/dominio/pantalla'
 import { Orbe } from '@/componentes/estado/Orbe'
 import { cn } from '@/lib/clases'
 import { usePresencia } from '@/lib/usePresencia'
@@ -123,6 +124,19 @@ export function OrbeChatIA ({ sujeto = 'staff' }: { sujeto?: SujetoOrbe } = {}):
   const tamanoElegido = useRef<TamanoChat>(tamano)
 
   const tamanoVisible = acotarTamanoChat(tamano, ventana)
+
+  // Otras pantallas piden abrir el chat (p. ej. "Preguntar" en un Meeting Paper) con un evento de
+  // ventana, sin tener que conocer el estado de este componente.
+  useEffect(() => {
+    const alPedirApertura = (): void => {
+      setApertura((n) => n + 1)
+      setAbierto(true)
+    }
+
+    window.addEventListener(EVENTO_ABRIR_ORBE, alPedirApertura)
+
+    return () => { window.removeEventListener(EVENTO_ABRIR_ORBE, alPedirApertura) }
+  }, [])
 
   // Cerrar con Escape es lo que espera cualquiera que abra algo flotante, y aca no lo da Radix.
   useEffect(() => {

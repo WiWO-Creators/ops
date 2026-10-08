@@ -12,12 +12,15 @@ import { AdjuntosDelActa } from './acta/AdjuntosDelActa'
 import { CabeceraDelActa } from './acta/CabeceraDelActa'
 import { ConfirmacionDelActa } from './acta/ConfirmacionDelActa'
 import { DialogoDeRenombre } from './acta/DialogoDeRenombre'
+import { HistorialDelActa } from './acta/HistorialDelActa'
+import { OriginalDelActa } from './acta/OriginalDelActa'
 import { TareasPropuestas } from './acta/TareasPropuestas'
 import { useEdicionDelActa } from './acta/useEdicionDelActa'
 import { useEscriturasDelActa } from './acta/useEscriturasDelActa'
 import { useExportacionDelActa } from './acta/useExportacionDelActa'
 import { useIdiomaDelActa } from './acta/useIdiomaDelActa'
 import type { Acta } from '@/datos/recursos'
+import { EVENTO_ABRIR_ORBE } from '@/dominio/pantalla'
 
 /**
  * Un Meeting Paper: se lee, se corrige y se imprime.
@@ -123,6 +126,8 @@ interface PropsDetalle {
   puedeCrearTareas?: boolean
   /** El acta se acaba de generar: sus tareas propuestas se abren y se traen a la vista. */
   destacarTareas?: boolean
+  /** Quien mira es superadmin: ve el original de la reunión. La API lo vuelve a exigir con un 403. */
+  esSuperadmin?: boolean
   onCambiada: (acta: Acta) => void
   onBorrada: () => void
   onVolver: () => void
@@ -137,13 +142,16 @@ export function DetalleActa ({
   conIa = false,
   puedeCrearTareas = false,
   destacarTareas = false,
+  esSuperadmin = false,
   onCambiada,
   onBorrada,
   onVolver
 }: PropsDetalle): ReactElement {
   const [confirmando, setConfirmando] = useState(false)
   const [confirmandoSalida, setConfirmandoSalida] = useState(false)
+  const [confirmandoDescarte, setConfirmandoDescarte] = useState(false)
   const [renombrando, setRenombrando] = useState(false)
+  const [verHistorial, setVerHistorial] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
   const marco = useRef<HTMLIFrameElement>(null)
@@ -183,6 +191,17 @@ export function DetalleActa ({
    * que se guardaron las dos.
    */
   const puedeRenombrar = puedeEditar && !edicion.editando
+
+  /** Descartar con correcciones sin guardar (incluidas las de la IA) pierde trabajo: se pregunta antes. */
+  function descartar (): void {
+    if (edicion.sucio) {
+      setConfirmandoDescarte(true)
+
+      return
+    }
+
+    edicion.descartar()
+  }
 
   /** Salir sin guardar pierde las correcciones, así que se pregunta antes. */
   function volver (): void {
@@ -228,7 +247,11 @@ export function DetalleActa ({
           puedeEditar={puedeEditar}
           puedeRenombrar={puedeRenombrar}
           puedeBorrar={puedeBorrar}
-          onDescartar={edicion.descartar}
+          puedeVerHistorial={puedeEditar && traduccionActiva === null && !edicion.editando}
+          onHistorial={() => { setVerHistorial(true) }}
+          puedePreguntar={conIa}
+          onPreguntar={() => { window.dispatchEvent(new Event(EVENTO_ABRIR_ORBE)) }}
+          onDescartar={descartar}
           onGuardar={() => { void edicion.guardar() }}
           onExportar={(formato) => { void exportar(formato) }}
           onImprimir={() => { marco.current?.contentWindow?.print() }}
@@ -242,6 +265,12 @@ export function DetalleActa ({
         <AvisoEnLinea variante="error" mensaje={error} className="bg-superficie-peligro rounded-chico px-3 py-2 text-sm" />
       )}
 
+      {edicion.editando && conIa && traduccionActiva !== null && (
+        <p className="text-texto-tenue text-xs">
+          La reescritura con IA solo está disponible en el idioma original del acta.
+        </p>
+      )}
+
       {edicion.editando
         ? (
           <EditorDeActa
@@ -253,6 +282,8 @@ export function DetalleActa ({
             // de verdad se necesita ahi, que es corregir a mano una palabra que el modelo erro.
             conIa={conIa && traduccionActiva === null}
             marca={acta.brand}
+            actaId={acta.id}
+            onReescrituraIa={edicion.marcarIa}
             onCambio={edicion.cambiar}
           />
           )
@@ -277,6 +308,10 @@ export function DetalleActa ({
           />
           )}
 
+      {esSuperadmin && (
+        <OriginalDelActa ruta={`${conId(fuente.acta, acta.id)}/fuente`} marca={acta.brand} />
+      )}
+
       {fuente.actaTareas !== null && (
         <TareasPropuestas
           ruta={conId(fuente.actaTareas, acta.id)}
@@ -293,6 +328,15 @@ export function DetalleActa ({
 
       {/* Montado solo mientras está abierto: cerrarlo desmonta el borrador, así que cancelar o
           pulsar `Escape` descarta lo tecleado sin una línea que lo limpie. */}
+      {verHistorial && (
+        <HistorialDelActa
+          ruta={ruta}
+          revision={acta.date_updated}
+          onRestaurada={onCambiada}
+          onCerrar={() => { setVerHistorial(false) }}
+        />
+      )}
+
       {renombrando && (
         <DialogoDeRenombre
           titulo={tituloActivo}
@@ -322,6 +366,16 @@ export function DetalleActa ({
         etiquetaConfirmar="Volver a traducir"
         cargando={lectura.cambiandoIdioma}
         onConfirmar={() => { lectura.setConfirmandoRetraduccion(false); void lectura.traducir(idioma) }}
+      />
+
+      <ConfirmacionDelActa
+        abierto={confirmandoDescarte}
+        onCambiar={setConfirmandoDescarte}
+        titulo="Descartar los cambios"
+        descripcion="Los cambios que hiciste en este Meeting Paper, también los de la IA, no se guardarán."
+        etiquetaCancelar="Seguir editando"
+        etiquetaConfirmar="Descartar cambios"
+        onConfirmar={() => { setConfirmandoDescarte(false); edicion.descartar() }}
       />
 
       <ConfirmacionDelActa

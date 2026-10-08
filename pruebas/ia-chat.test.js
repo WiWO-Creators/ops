@@ -79,12 +79,12 @@ test('la cita es una ruta absoluta: el chat ya no esta dentro de la ficha de un 
   assert.equal(hrefDeCita({ tipo: 'espacio', id: 44, titulo: 'Colbun' }), '/proyectos/44')
 })
 
-test('el Meeting Paper citado abre la pestaña de actas de SU Espacio', () => {
+test('el Meeting Paper citado abre ESA acta en la pestaña de actas de SU Espacio', () => {
   // El acta no tiene pantalla propia: vive en una pestaña de la ficha. Por eso el enlace se arma con
   // el `espacio_id` que trae la cita y nunca con la URL vigente, que seria la ficha equivocada.
   assert.equal(
     hrefDeCita({ tipo: 'acta', id: 9, titulo: 'Kickoff', espacio_id: 44 }),
-    '/proyectos/44?tab=actas'
+    '/proyectos/44?tab=actas&acta=9'
   )
   assert.equal(hrefDeCita({ tipo: 'acta', id: 9, titulo: 'Kickoff' }), null, 'sin Espacio no hay a donde ir')
 })

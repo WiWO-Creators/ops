@@ -125,9 +125,12 @@ export function useIdiomaDelActa ({
    * @returns el mensaje de error de la API, o `null` si quedo guardado
    */
   async function escribirEnLoVisible (cuerpo: Record<string, string>): Promise<string | null> {
+    // `origen` y `revision` son del acta original: la traducción tiene su propio PATCH y los rechaza.
+    const { origen: _origen, ...paraTraduccion } = cuerpo
+
     if (traduccionActiva !== null) {
       const enIdioma = await escribirEnBff<TraduccionActa>(
-        conIdioma(rutaTraducciones, idioma), 'PATCH', cuerpo
+        conIdioma(rutaTraducciones, idioma), 'PATCH', paraTraduccion
       )
 
       if (!enIdioma.ok) return enIdioma.mensaje
@@ -137,7 +140,13 @@ export function useIdiomaDelActa ({
       return null
     }
 
-    const resultado = await escribirEnBff<Acta>(ruta, 'PATCH', cuerpo)
+    // Al reescribir el contenido se manda la versión que se tenía a la vista: si otra persona (o la
+    // IA desde el chat) cambió el acta mientras tanto, la API contesta 409 en vez de pisarla.
+    const conRevision = cuerpo.content !== undefined && acta.date_updated !== null && acta.date_updated !== undefined
+      ? { ...cuerpo, revision: acta.date_updated }
+      : cuerpo
+
+    const resultado = await escribirEnBff<Acta>(ruta, 'PATCH', conRevision)
 
     if (!resultado.ok) return resultado.mensaje
 

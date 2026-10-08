@@ -78,12 +78,13 @@ async function traer<T> (ruta: string, senal: AbortSignal): Promise<Resultado<T>
  *
  * @param ruta ruta sin la base del BFF ni barra inicial. Ej: `projects/93/overview`
  * @param mensajeGenerico que decir cuando el fallo no trae mensaje propio
- * @returns el estado y una funcion para volver a pedir
+ * @returns el estado, una funcion para volver a pedir y otra para reemplazar los datos con los que ya
+ *   devolvio una escritura, sin pasar por `cargando`
  */
 export function useRecurso<T> (
   ruta: string,
   mensajeGenerico: string
-): { estado: EstadoCarga<T>, recargar: () => void } {
+): { estado: EstadoCarga<T>, recargar: () => void, reemplazar: (datos: T) => void } {
   const [estado, setEstado] = useState<EstadoCarga<T>>({ fase: 'cargando' })
   const [intento, setIntento] = useState(0)
   const [peticion, setPeticion] = useState(`${ruta}|0`)
@@ -94,6 +95,13 @@ export function useRecurso<T> (
   const ultimaRespuesta = useRef(0)
 
   const recargar = useCallback(() => { setIntento((n) => n + 1) }, [])
+
+  // Una escritura que ya devuelve el recurso entero no necesita otro GET: volver a `cargando`
+  // desmontaba el detalle abierto —el iframe, el idioma elegido, las propuestas— por un dato que ya
+  // estaba en la mano.
+  const reemplazar = useCallback((datos: T) => {
+    setEstado((previo) => previo.fase === 'listo' ? { ...previo, datos } : previo)
+  }, [])
 
   // Volver a "cargando" en el render y no en el efecto: cambiar de ruta con los datos viejos todavia
   // en pantalla mostraria por un instante el resultado de otra peticion. React admite este `setState`
@@ -193,5 +201,5 @@ export function useRecurso<T> (
     }
   }, [ruta, mensajeGenerico])
 
-  return { estado, recargar }
+  return { estado, recargar, reemplazar }
 }
