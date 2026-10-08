@@ -4,7 +4,7 @@ import type { ReactElement } from 'react'
 import { Pencil, Trash2, type LucideIcon } from 'lucide-react'
 import { Boton } from '@/componentes/formularios/Boton'
 import { ContenidoMenu, DisparadorMenu, ItemMenu, MenuContextual } from '@/componentes/superposiciones/MenuContextual'
-import { ConfirmarBorrado, useConfirmarBorrado } from '@/componentes/datos/ConfirmarBorrado'
+import { ConfirmarBorrado, useConfirmarBorrado, type PropsConfirmarBorrado } from '@/componentes/datos/ConfirmarBorrado'
 
 /** Una accion cualquiera del menu, para lo que no es ni "Editar" ni "Eliminar". */
 export interface AccionDeFila {
@@ -18,13 +18,18 @@ export interface AccionDeFila {
   onSeleccionar: () => void
 }
 
-/** Lo que hace falta para que el menu agregue el item "Eliminar" y su confirmacion. */
-export interface AccionDeBorrado {
-  advertencia: string
-  /** Ver `confirmacionEscrita` de `ConfirmarBorrado`. */
-  confirmacionEscrita?: string
-  onConfirmar: () => Promise<void> | void
-  titulo?: string
+/**
+ * Lo que hace falta para que el menu agregue el item "Eliminar" y su confirmacion.
+ *
+ * Es el mismo contrato que `ConfirmarBorrado`: el menu solo decide cuando se abre. `titulo` nombra
+ * tambien el item del menu.
+ */
+export interface AccionDeBorrado extends Pick<
+  PropsConfirmarBorrado,
+  'advertencia' | 'confirmacionEscrita' | 'onConfirmar' | 'titulo' | 'etiquetaConfirmar' | 'contenidoExtra' | 'deshabilitadoExtra' | 'tamano'
+> {
+  /** Se llama al abrir la confirmacion, por ejemplo para traer lo que pide `contenidoExtra`. */
+  alAbrir?: () => void
 }
 
 export interface PropsMenuAccionesFila {
@@ -97,7 +102,7 @@ export function MenuAccionesFila ({
               // Radix cierra el menu y le devuelve el foco al disparador al seleccionar un item; sin
               // `preventDefault` esa devolucion de foco gana la carrera contra la apertura del
               // dialogo y el `ConfirmarBorrado` nace y se cierra en el mismo instante.
-              onSelect={(evento) => { evento.preventDefault(); confirmarBorrado.abrir() }}
+              onSelect={(evento) => { evento.preventDefault(); confirmarBorrado.abrir(); borrado.alAbrir?.() }}
             >
               <Trash2 size={14} aria-hidden="true" />
               {borrado.titulo ?? 'Eliminar'}
@@ -113,6 +118,10 @@ export function MenuAccionesFila ({
           titulo={borrado.titulo ?? 'Eliminar'}
           advertencia={borrado.advertencia}
           confirmacionEscrita={borrado.confirmacionEscrita}
+          etiquetaConfirmar={borrado.etiquetaConfirmar}
+          contenidoExtra={borrado.contenidoExtra}
+          deshabilitadoExtra={borrado.deshabilitadoExtra}
+          tamano={borrado.tamano}
           onConfirmar={borrado.onConfirmar}
         />
       )}

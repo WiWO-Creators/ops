@@ -2,17 +2,22 @@
 
 import { useCallback, useEffect, useId, useRef, useState, useSyncExternalStore } from 'react'
 import { Clock, Play, Square, Timer } from 'lucide-react'
+import { AvisoEnLinea } from '@/componentes/estado/Estados'
 import { Boton } from '@/componentes/formularios/Boton'
 import {
   ContenidoMenu,
   DisparadorMenu,
   MenuContextual
 } from '@/componentes/superposiciones/MenuContextual'
+import { escribirEnBff } from '@/componentes/datos/mutaciones'
 import { formatearDuracion } from '@/componentes/proyecto/cronometro'
+import { conLimite, esTiempoAgotado, TIEMPO_LECTURA_MS } from '@/datos/red'
+import { sondeoSinApilar } from '@/datos/sondeo'
 import type { ClienteDeJornada, EstadoDeJornada } from '@/datos/live'
 import { GLOSARIO } from '@/dominio/glosario'
 import {
   clienteDeJornada,
+  ESTADO_INCIERTO,
   faltaAbrirJornada,
   fijarRecordatorioDeDestino,
   fraseDeJornadaSinDestino,
@@ -233,7 +238,7 @@ export function ControlJornada ({
   }, [])
 
   const refrescar = useCallback(async (senal: AbortSignal): Promise<void> => {
-    const respuesta = await fetch('/api/bff/me/jornada', { signal: senal })
+    const respuesta = await fetch('/api/bff/me/jornada', { signal: conLimite(senal, TIEMPO_LECTURA_MS) })
 
     if (!respuesta.ok) throw new Error('La API no respondió a la consulta de la jornada.')
 
@@ -245,24 +250,42 @@ export function ControlJornada ({
   useEffect(() => {
     const control = new AbortController()
 
-    function tic (): void {
+    const consultar = sondeoSinApilar(async () => {
+      try {
+        await refrescar(control.signal)
+      } catch (fallo) {
+        if (control.signal.aborted) return
+
+        setErrorDeRed(
+          esTiempoAgotado(fallo)
+            ? 'La jornada tardó en responder. Se vuelve a intentar sola.'
+            : fallo instanceof Error ? fallo.message : 'No se pudo actualizar la jornada.'
+        )
+      }
+    })
+
+    /**
+     * Pregunta por el estado de la jornada.
+     *
+     * @param descartable `true` en el intervalo: si ya hay una consulta en camino no se apila otra.
+     */
+    function preguntar (descartable: boolean): void {
       // Con la pestaña oculta no se pregunta: nadie esta mirando, y el control se pone al dia solo
       // en cuanto vuelve al frente. Mismo criterio que `auditoria/PanelEnVivo`.
       if (document.hidden) return
 
-      refrescar(control.signal).catch((fallo: unknown) => {
-        if (control.signal.aborted) return
-
-        setErrorDeRed(fallo instanceof Error ? fallo.message : 'No se pudo actualizar la jornada.')
-      })
+      consultar(descartable)
     }
+
+    const tic = (): void => { preguntar(false) }
+    const ticPeriodico = (): void => { preguntar(true) }
 
     // Un cambio propio ya trae su refresco: esto sirve para el primer pintado del cliente cuando el
     // servidor no pudo resolver el estado, y para volver a leer tras una accion.
     if (intento > 0) tic()
 
-    const intervalo = globalThis.setInterval(tic, segundos * 1000)
-    document.addEventListener('visibilitychange', tic)
+    const intervalo = globalThis.setInterval(ticPeriodico, segundos * 1000)
+    document.addEventListener('visibilitychange', ticPeriodico)
     // El medidor tambien se toca desde la ficha del proceso y desde el panel de tiempos. Sin esta
     // suscripcion, detenerlo alla dejaria el contador de la cabecera corriendo hasta el proximo
     // intervalo: dos numeros distintos sobre el mismo hecho, en la misma pantalla.
@@ -270,7 +293,7 @@ export function ControlJornada ({
 
     return () => {
       globalThis.clearInterval(intervalo)
-      document.removeEventListener('visibilitychange', tic)
+      document.removeEventListener('visibilitychange', ticPeriodico)
       dejarDeEscuchar()
       control.abort()
     }
@@ -363,8 +386,9 @@ export function ControlJornada ({
   /**
    * Llama al BFF y devuelve el codigo de estado.
    *
-   * `0` significa que la peticion no llego a salir: sin respuesta no hay codigo, y
-   * `mensajeDeFalloDe*` lo traduce a "revisa la conexion" en vez de a un numero inventado.
+   * `0` significa que la peticion no llego a salir. `ESTADO_INCIERTO` significa que salio y no volvio
+   * respuesta (red lenta o caida): el servidor pudo aplicarla, y `mensajeDeFalloDe*` lo dice asi en
+   * vez de afirmar que no se guardo. Quien lo recibe vuelve a leer el estado real.
    */
   async function llamar (
     ruta: string,
@@ -373,19 +397,12 @@ export function ControlJornada ({
   ): Promise<number> {
     // El `DELETE` queda sin cuerpo a proposito: las dos rutas que lo usan detienen algo por su id en
     // la URL, y mandarles un `{}` con `content-type` solo le daria al proxy un cuerpo que reenviar.
-    const conCuerpo = metodo !== 'DELETE'
+    const resultado = await escribirEnBff<unknown>(ruta, metodo, metodo === 'DELETE' ? undefined : cuerpo)
 
-    try {
-      const respuesta = await fetch(`/api/bff/${ruta}`, {
-        method: metodo,
-        headers: conCuerpo ? { 'content-type': 'application/json' } : undefined,
-        body: conCuerpo ? JSON.stringify(cuerpo) : undefined
-      })
+    if (resultado.ok) return resultado.estado ?? 200
+    if (resultado.incierta === true) return ESTADO_INCIERTO
 
-      return respuesta.status
-    } catch {
-      return 0
-    }
+    return resultado.estado ?? 0
   }
 
   /** `true` si la API acepto la escritura. `201` en las altas, `200` o `204` en el resto. */
@@ -437,7 +454,7 @@ export function ControlJornada ({
     // El 409 al abrir significa que ya hay una jornada abierta y esta pantalla quedo vieja: otra
     // pestaña la abrio. Se vuelve a leer para que el control lo muestre ahora y no en el proximo
     // intervalo, con la persona mirando un boton que ya no corresponde.
-    if (respuesta === 409) recargar()
+    if (respuesta === 409 || respuesta === ESTADO_INCIERTO) recargar()
   }
 
   /**
@@ -494,7 +511,7 @@ export function ControlJornada ({
       // El 409 aca es "no tienes ninguna jornada abierta": el dia se cerro solo a la hora de corte,
       // o desde otra pestaña. Volver a leer hace que el control pase a pedir la apertura en vez de
       // dejar a la vista un selector sobre una jornada que ya no existe.
-      if (respuesta === 409) recargar()
+      if (respuesta === 409 || respuesta === ESTADO_INCIERTO) recargar()
       return
     }
 
@@ -522,6 +539,7 @@ export function ControlJornada ({
 
     if (!acepto(respuesta)) {
       setAviso(mensajeDeFalloDeJornada(respuesta, false))
+      if (respuesta === ESTADO_INCIERTO) recargar()
       return
     }
 
@@ -557,7 +575,7 @@ export function ControlJornada ({
    */
   async function revisarVencimiento (): Promise<void> {
     try {
-      const respuesta = await fetch('/api/bff/me/jornada')
+      const respuesta = await fetch('/api/bff/me/jornada', { signal: conLimite(undefined, TIEMPO_LECTURA_MS) })
 
       if (respuesta.ok) {
         const sobre = await respuesta.json() as { data: EstadoDeJornada }
@@ -616,6 +634,8 @@ export function ControlJornada ({
     if (respuesta === 404 || respuesta === 409) {
       setAvisandoCierre(false)
       recargar()
+    } else if (respuesta === ESTADO_INCIERTO) {
+      recargar()
     }
   }
 
@@ -648,7 +668,7 @@ export function ControlJornada ({
     // pestaña— se resuelve volviendo a leer: el control pasa a exigir la apertura otra vez. No se
     // reintenta aca: una cadena de reintentos convierte un 409 legitimo (ya hay un medidor
     // corriendo) en un bucle silencioso.
-    if (respuesta === 409) recargar()
+    if (respuesta === 409 || respuesta === ESTADO_INCIERTO) recargar()
   }
 
   async function detenerMedidor (): Promise<void> {
@@ -663,6 +683,7 @@ export function ControlJornada ({
 
     if (!acepto(respuesta)) {
       setAviso(mensajeDeFalloDeMedidor(respuesta, false))
+      if (respuesta === ESTADO_INCIERTO) recargar()
       return
     }
 
@@ -791,7 +812,7 @@ export function ControlJornada ({
         aria-label="Jornada y medidor"
         className={cn(
           'rounded-control border-control-borde bg-control text-texto inline-flex h-8 max-w-44 items-center gap-2 border px-2.5 text-xs font-semibold',
-          'hover:bg-hover transition-colors duration-150',
+          'hover:bg-hover transition-colors duration-rapida ease-neo',
           className
         )}
       >
@@ -1115,7 +1136,7 @@ function CuerpoControl ({
       </div>
       )}
 
-      {aviso !== null && <p role="alert" className="text-texto-peligro text-pretty text-xs">{aviso}</p>}
+      {aviso !== null && <AvisoEnLinea variante="error" mensaje={aviso} className="text-pretty" />}
       {errorDeRed !== null && (
         <p role="status" className="text-texto-sutil text-pretty text-xs">{errorDeRed}</p>
       )}

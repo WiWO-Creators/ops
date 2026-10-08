@@ -4,9 +4,8 @@ import { EsqueletoRecurrentes } from '@/componentes/recurrencia/EsqueletoRecurre
 import { VistaRecurrentes } from '@/componentes/recurrencia/VistaRecurrentes'
 import { RUTA_DE_ASIGNABLES } from '@/datos/asignables'
 import { cargarLookups } from '@/datos/lookups'
-import { pedir, pedirOpcional } from '@/datos/servidor'
+import { cargarYo, pedir, pedirOpcional } from '@/datos/servidor'
 import type { Espacio, PersonaAsignable } from '@/datos/recursos'
-import type { Yo } from '@/datos/tipos'
 
 export const metadata = { title: 'Tareas recurrentes · WiWO Ops' }
 
@@ -23,13 +22,13 @@ export const metadata = { title: 'Tareas recurrentes · WiWO Ops' }
  */
 export default async function RecurrentesPage () {
   const [yo, espacios, equipo, lookups] = await Promise.all([
-    pedir<Yo>('/me'),
+    cargarYo(),
     pedir<Espacio[]>('/projects?per_page=500'),
     pedirOpcional<PersonaAsignable[]>(`/${RUTA_DE_ASIGNABLES}`),
     cargarLookups()
   ])
 
-  const proyectos = espacios.data.map((espacio) => ({ id: espacio.id, name: espacio.name }))
+  const proyectos = espacios.data.map((espacio) => ({ id: espacio.id, name: espacio.name, patente: espacio.patente }))
   const personas = (equipo.datos ?? []).map((persona) => ({ id: persona.id, name: persona.full_name }))
 
   return (

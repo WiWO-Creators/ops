@@ -1,4 +1,5 @@
 import { useId } from 'react'
+import { AvisoEnLinea } from '@/componentes/estado/Estados'
 import { cn } from '@/lib/clases'
 
 interface PropsCampo {
@@ -53,9 +54,7 @@ export function Campo ({ etiqueta, ayuda, error, requerido, children, className 
 
       {error !== undefined
         ? (
-          <p id={idError} role="alert" className="text-texto-peligro text-xs">
-            {error}
-          </p>
+          <AvisoEnLinea variante="error" mensaje={error} id={idError} />
           )
         : ayuda !== undefined && (
           <p id={idAyuda} className="text-texto-sutil text-xs">

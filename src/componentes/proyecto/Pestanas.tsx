@@ -1,8 +1,9 @@
 'use client'
 
-import { startTransition, ViewTransition } from 'react'
+import { startTransition, useEffect, ViewTransition } from 'react'
 import { useSearchParams } from 'next/navigation'
 import { cn } from '@/lib/clases'
+import { avisarPestana } from '@/componentes/portal/rastreo/eventos'
 
 /**
  * Nombre de transicion del subrayado activo.
@@ -51,11 +52,18 @@ export function Pestanas ({
 }) {
   const params = useSearchParams()
   const porDefecto = paneles[0]
-
-  if (porDefecto === undefined) return null
-
   const pedida = params.get('tab')
-  const activa = paneles.some((p) => p.clave === pedida) && pedida !== null ? pedida : porDefecto.clave
+  const activa = porDefecto === undefined
+    ? null
+    : paneles.some((p) => p.clave === pedida) && pedida !== null ? pedida : porDefecto.clave
+
+  // El rastreador del portal no ve `?tab=` (se cambia con la History API): se le avisa aca, al
+  // montar y en cada cambio. En el panel nadie escucha y el aviso se pierde sin efecto.
+  useEffect(() => {
+    if (activa !== null) avisarPestana(activa)
+  }, [activa])
+
+  if (porDefecto === undefined || activa === null) return null
 
   /** Escribe la pestaña en la URL conservando el resto de los parametros de la vista. */
   function elegir (clave: string): void {

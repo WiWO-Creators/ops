@@ -56,7 +56,7 @@ Varios hallazgos son el mismo problema visto desde áreas distintas. Conviene re
 | Aviso tras guardar | P1-05, P3-18, P4-03 | Regla: toda mutación exitosa llama `useAviso().exito()` |
 | Utilidades duplicadas | P1-08…P1-11, P2-09, P4-05, P4-07 | Consolidar en `src/lib` (fechas, duraciones, iniciales, `SIN_DATO`) |
 | Textos | P3-15, P3-16, P3-17, P1-04, P1-06, P1-07, P3-11 | Tuteo único, «Eliminar» único, verbos de confirmación y `GLOSARIO` |
-| Movimiento fuera de tokens | P4-04, P2-17, 88 `duration-N` literales | Pasar a `--wiwo-motion-*` y agregar lint para `animate-pulse`/`ping` fuera de `estado/` |
+| Movimiento fuera de tokens | P4-04, P2-17, 88 `duration-N` literales | Pasar a `--wiwo-motion-*` y agregar lint para `animate-pulse`/`ping` fuera de `estado/` (resuelto en 7ce8ef8) |
 
 ## Plan por encargos
 
@@ -141,6 +141,19 @@ Más de 1.000 líneas cada uno (P1-31). Sin cambio de comportamiento.
 
 Tokens duplicados (P2-08), escala de `z-index` (P2-19), tamaños de texto arbitrarios (P2-20,
 P1-24), taller (P2-12) y comentario desactualizado (P1-32).
+
+### Encargos de remanentes (5A–5E)
+
+Añadidos el 30-09-2026 tras cerrar 1…4C, para cubrir los hallazgos que el plan no asignaba. Mismas
+reglas; se encadenan sobre `feat/pulido-4c` en este orden.
+
+| Encargo | Contenido | Hallazgos |
+|---|---|---|
+| **5A** | Textos y avisos | P1-05 (resto: acta y propuestas), P1-06, P1-07, P1-25, P3-11, P3-13, P3-14, P3-16, P3-17, P3-19, P4-02 |
+| **5B** | Utilidades duplicadas | P1-08, P1-09, P1-10, P1-11, P1-18, P2-09, P3-28, P4-05, P4-07 |
+| **5C** | Carga, error y vacío | P4-08, P1-16, P1-17, P1-20, P1-21, P1-22, P2-05, P2-06, P2-15, P4-06, P4-10, P4-15 |
+| **5D** | Cabeceras y controles de ficha | P3-02, P3-03, P3-04, P3-08, P3-22, P2-03, P2-04, P2-14 |
+| **5E** | Portal, móvil y movimiento | P4-19, P4-12, P4-13, P4-14, P4-17, P4-18, P4-20, P4-21, P3-25, y las `duration-N` literales restantes (tema «Movimiento fuera de tokens») |
 
 ## Cómo trabajar esto
 

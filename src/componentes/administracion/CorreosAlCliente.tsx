@@ -1,6 +1,7 @@
 'use client'
 
 import { useId, useMemo, useState, type ReactElement } from 'react'
+import { AvisoEnLinea } from '@/componentes/estado/Estados'
 import { Boton } from '@/componentes/formularios/Boton'
 import { CLASES_CASILLA } from '@/componentes/formularios/Entrada'
 import { Insignia } from '@/componentes/presentadores/Insignia'
@@ -143,7 +144,7 @@ export function CorreosAlCliente ({ inicial }: PropsCorreosAlCliente): ReactElem
           })}
         </div>
 
-        {error !== null && <p role="alert" className="text-texto-peligro text-sm">{error}</p>}
+        {error !== null && <AvisoEnLinea variante="error" mensaje={error} className="text-sm" />}
 
         <div className="flex items-center gap-3">
           <Boton

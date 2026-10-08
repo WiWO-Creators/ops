@@ -1,3 +1,4 @@
+import { Vacio } from '@/componentes/estado/Estados'
 import { EntradaEscalonada } from '@/componentes/estructura/EntradaEscalonada'
 import { TituloModulo } from '@/componentes/estructura/TituloModulo'
 import { Fecha } from '@/componentes/presentadores/Fecha'
@@ -21,20 +22,18 @@ export default function NovedadesPage () {
   const recorrido = novedadesDelRecorrido(NOVEDADES)
 
   return (
-    <EntradaEscalonada>
+    <EntradaEscalonada trasEntradaDePagina>
       <div className="mx-auto flex w-full max-w-3xl flex-col gap-8">
         {masReciente !== null && <MarcaNovedadesVistas fecha={masReciente} />}
 
-        <div data-entrada="cabecera">
-          <TituloModulo
-            titulo="Novedades"
-            descripcion="Lo que fue cambiando en Ops, contado en simple. Lo más reciente va arriba."
-            acciones={recorrido.length > 0 ? <AbrirRecorrido novedades={recorrido} /> : undefined}
-          />
-        </div>
+        <TituloModulo
+          titulo="Novedades"
+          descripcion="Lo que fue cambiando en Ops, contado en simple. Lo más reciente va arriba."
+          acciones={recorrido.length > 0 ? <AbrirRecorrido novedades={recorrido} /> : undefined}
+        />
 
         {dias.length === 0
-          ? <p className="text-texto-tenue text-sm">Todavía no hay novedades publicadas.</p>
+          ? <Vacio titulo="Todavía no hay novedades publicadas" descripcion="Cuando Ops cambie, lo contamos acá, día por día." />
           : dias.map(dia => (
             <section key={dia.fecha} className="flex flex-col gap-3" aria-labelledby={`dia-${dia.fecha}`}>
               <h2 id={`dia-${dia.fecha}`} className="text-texto-tenue text-sm font-semibold">

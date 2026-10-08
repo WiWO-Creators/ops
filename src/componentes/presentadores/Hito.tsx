@@ -1,5 +1,5 @@
 import { Insignia } from './Insignia'
-import { BarraProgreso } from '@/componentes/proyecto/CabeceraProyecto'
+import { BarraProgreso } from '@/componentes/presentadores/BarraProgreso'
 import { avanceDeHito } from '@/componentes/proyecto/hitos'
 import { GLOSARIO } from '@/dominio/glosario'
 import { formatearFecha } from '@/lib/fechas'

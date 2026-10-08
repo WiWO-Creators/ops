@@ -9,8 +9,8 @@ import type { EscenaDeBienvenida } from './escenas'
 
 /** Para quien pidio menos movimiento: se ve el cartel, no se le hace esperar la coreografia. */
 const OBRA_REDUCIDA = 700
-/** El cierre en iris. Tiene que coincidir con `duration-500` de la capa. */
-const SALIDA = 500
+/** El cierre en iris. Tiene que coincidir con `duration-lenta` de la capa (`--wiwo-motion-slow`). */
+const SALIDA = 420
 
 interface PropsCapa {
   /** La coreografia a mostrar. */
@@ -73,8 +73,8 @@ export function CapaDeBienvenida ({ escena, onSaliendo, onTerminar, onVerNovedad
       aria-live="polite"
       onClick={() => { setSaliendo(true) }}
       className={cn(
-        'bienvenida-capa bg-superficie fixed inset-0 z-[70] flex cursor-pointer flex-col items-center justify-center gap-6 px-6',
-        'transition-[clip-path] duration-500 ease-in [clip-path:circle(150%_at_50%_50%)]',
+        'bienvenida-capa bg-superficie fixed inset-0 z-bienvenida flex cursor-pointer flex-col items-center justify-center gap-6 px-6',
+        'transition-[clip-path] duration-lenta ease-in [clip-path:circle(150%_at_50%_50%)]',
         saliendo && '[clip-path:circle(0%_at_50%_50%)]'
       )}
     >

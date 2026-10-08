@@ -8,7 +8,7 @@ import {
   ContenidoSelector, DisparadorSelector, Opcion, Selector
 } from '@/componentes/formularios/Selector'
 import { CerrarDialogo, ContenidoDialogo, Dialogo } from '@/componentes/superposiciones/Dialogo'
-import { Cargando, ErrorEstado } from '@/componentes/estado/Estados'
+import { AvisoEnLinea, Cargando, ErrorEstado } from '@/componentes/estado/Estados'
 import { mensajeDeRespuesta, pedirRespuesta } from '@/datos/cliente'
 import { cargarAsignables } from '@/datos/asignables'
 import { escribirEnBff } from '@/componentes/datos/mutaciones'
@@ -260,7 +260,7 @@ function GestorPermisosDrive ({ folderId }: { folderId: string }) {
         </Boton>
       </div>
 
-      {errorFormulario !== null && <p role="alert" className="text-texto-peligro text-sm">{errorFormulario}</p>}
+      {errorFormulario !== null && <AvisoEnLinea variante="error" mensaje={errorFormulario} className="text-sm" />}
     </div>
   )
 }
@@ -299,7 +299,7 @@ function ListaAccesos ({ permisos, onQuitar }: {
       {grupos.filter(([, filas]) => filas.length > 0).map(([sujeto, filas]) => (
         <div key={sujeto} className="flex flex-col gap-1.5">
           {conTitulos && (
-            <p className="text-texto-sutil text-xs font-medium tracking-[0.08em] uppercase">
+            <p className="text-texto-sutil text-xs antetitulo">
               {TITULOS_SUJETO[sujeto]}
             </p>
           )}
@@ -314,7 +314,7 @@ function ListaAccesos ({ permisos, onQuitar }: {
 
       {sinCuenta.length > 0 && (
         <div className="flex flex-col gap-1.5">
-          <p className="text-texto-aviso text-xs font-medium tracking-[0.08em] uppercase">
+          <p className="text-texto-aviso text-xs antetitulo">
             Sin acceso todavía
           </p>
           <p className="text-texto-sutil text-xs">

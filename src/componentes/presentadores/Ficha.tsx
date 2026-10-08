@@ -19,7 +19,7 @@ export interface Dato {
 export function Seccion ({ titulo, children }: { titulo: string, children: React.ReactNode }) {
   return (
     <section className="flex flex-col gap-2">
-      <h2 className="border-linea-suave text-texto-sutil border-b pb-1.5 text-xs font-medium tracking-[0.08em] uppercase">
+      <h2 className="border-linea-suave text-texto-sutil border-b pb-1.5 text-xs antetitulo">
         {titulo}
       </h2>
       {children}

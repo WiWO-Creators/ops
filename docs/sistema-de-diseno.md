@@ -13,7 +13,7 @@ Se copian a `src/estilos/`:
 
 | Archivo | Qué trae |
 |---|---|
-| `tokens.css` | Paleta Neo, motion, escala de espaciado, tamaños de control, radios, sombras |
+| `tokens.css` | Paleta Neo, motion y los radios que mapea el `@theme` (la escala de espaciado, los tamaños de control y las sombras del tema portado se quitaron: nadie los leía) |
 | `fonts.css` | Los `@font-face` de las tres familias |
 
 Y las fuentes de `apps/web/public/fonts/neo/` a `public/fonts/neo/`.
@@ -44,7 +44,7 @@ de accesibilidad de la marca cruda:
 ## Capas
 
 ```
-tokens.css        crudo: la marca no se edita          --wiwo-blue, --spacing-3, --motion-fast
+tokens.css        crudo: la marca no se edita          --wiwo-blue, --wiwo-motion-fast, --large-BorderRadius
    ↓
 neo.css           semánticos del diseño NUEVO          --superficie, --linea, --texto, --acento
    ↓
@@ -53,7 +53,13 @@ neo.css           semánticos del diseño NUEVO          --superficie, --linea, 
 
 El `@theme` mapea **`neo.css`, no los tokens crudos**. Cambiar el tema es tocar un archivo.
 
-De `tokens.css` se copia literal la **marca** —paleta, motion, espaciado, radios— y
+Cada valor tiene un solo dueño: `tokens.css` la marca cruda (paleta, motion, radios);
+`neo-tokens.css` lo que Neo trae y el tema portado no (escala `--step-*`, pesos, medidas de línea,
+paleta de gráficos); `neo.css` los semánticos por tema; y `globals.css` solo los expone a Tailwind,
+con valores propios únicamente para lo que no es de marca (cortes, animaciones, capas de `z-index`).
+El espaciado es el de Tailwind (`--spacing`, 0.25rem): no hay otra escala.
+
+De `tokens.css` se copia literal la **marca** —paleta, motion, radios— y
 `pruebas/marca.test.js` falla si alguien la toca. Las dos **rampas de superficie** (`--wiwo-surface-*`
 y la rampa oscura derivada de la tinta) no vienen del tema portado: las agregó este proyecto para
 resolver los problemas de accesibilidad de la marca cruda, y se ajustan cuando el sistema lo pide —
@@ -155,6 +161,10 @@ Tres familias, **self-hosted y subseteadas**. Nunca Google Fonts — ni el CSS n
 
 Pesos semánticos: cuerpo 400, meta 500, navegación 600, acción 700, titular 800.
 
+Antetítulo en versalita (el rótulo chico sobre un dato, sección o ficha): utilidad `antetitulo` de
+`globals.css` (peso 500, `0.08em`, mayúsculas). El tamaño y el color van aparte: `text-xs` por
+defecto, `text-menor` en tarjetas densas. No reescribir `font-medium tracking-[0.08em] uppercase`.
+
 ## Espaciado, tamaños y radios
 
 Escala `--spacing-0_25` … `--spacing-10` (0.125rem → 7.5rem). Tamaños de control
@@ -173,6 +183,24 @@ Curvas: `--wiwo-ease-emphasized cubic-bezier(.2,0,0,1)` y
 `--wiwo-ease-expressive cubic-bezier(.2,.8,.2,1)`.
 
 Todo respeta `prefers-reduced-motion`.
+
+La entrada escalonada de listas, tablas y grillas tiene un solo mecanismo: `EntradaEscalonada`
+(`componentes/estructura/`). Se marca `data-entrada="item"` en cada elemento; `densa` acorta el paso
+para filas y tarjetas, y `clave` repite la entrada al cambiar página, filtro u orden sin reanimar en
+un refresco de los mismos datos. No se escriben retrasos por índice a mano.
+
+Lo que se abre y se cierra también tiene un mecanismo por caso, todos con `--wiwo-motion-fast`:
+
+- **Flotante que no es de Radix** (`OrbeChatIA`, `TarjetaFlotantePersona`): `usePresencia`
+  (`lib/`) lo sostiene montado hasta el `animationend` de su clase `animate-salir-*`. Sale por donde
+  entró: `entrar-abajo`/`salir-abajo`, `entrar-escala`/`salir-escala`.
+- **Acordeón con estado**: `Plegable` (`componentes/estructura/`) anima el alto con
+  `grid-template-rows: 0fr → 1fr` y deja el panel `inert` al plegar. Se creó con tres usos reales
+  (`acta/Paso`, `acta/TareasPropuestas`, `HistorialDeAprobaciones`).
+- **`<details>` nativo**: una regla global sobre `::details-content` en `globals.css`, mejora
+  progresiva; donde el navegador no la entiende abre de golpe como siempre.
+- **Filas que se agregan, quitan o reordenan**: `<ViewTransition enter="fila-entrar"
+  exit="fila-salir" update="auto">` por fila y el cambio dentro de `startTransition`.
 
 ## Breakpoints
 
@@ -205,6 +233,18 @@ estéticas: colgaban el panel en pantallas Retina.
    `animation` y la deriva no puede existir sin su `:has(.lienzo-vivo)`. Las dos cosas las verifica
    `pruebas/marca.test.js`. Si mañana una segunda pantalla quiere lo mismo, la conversación es si esa
    pantalla es una portada, no si el guardrail aguanta otra excepción.
+
+   La otra excepción, decidida el 30-09-2026, es **el pulso de la píldora de estado del Proyecto**
+   (`CabeceraProyecto.tsx` y `MenuEstadoProyecto.tsx`, estados de `ESTADOS_DESTACADOS` en
+   `estado-proyecto.ts`: En desarrollo y Finalizado). La cabecera del Proyecto está siempre visible
+   mientras se trabaja en el detalle, pero ese latido sí comunica un estado: marca de un vistazo que
+   el Proyecto está vivo o recién cerrado, y es una decisión de producto, no un descuido. Se acota a
+   una insignia chica, anima solo opacidad (`animate-pulse`) y va siempre con `motion-safe:`, así que
+   con `prefers-reduced-motion` queda quieta. No se extiende a otras insignias ni a otros módulos.
+
+   El punto verde de la llamada en curso (`teletrabajo/MiniLlamada.tsx`) pulsa con el mismo criterio
+   (decidido junto con la píldora: se corrigió para que vaya con `motion-safe:`), y no es armazón:
+   la ventanita existe solo mientras dura la llamada.
 3. Preferir `transform` y `opacity` sobre `filter` y `box-shadow` animados.
 
 Se hacen cumplir con lint, no con buena voluntad:
@@ -213,6 +253,11 @@ Se hacen cumplir con lint, no con buena voluntad:
   `src/componentes/{estructura,navegacion,superposiciones,datos}/`.
 - Regla que prohíbe `animation-iteration-count: infinite` fuera de `src/componentes/estado/`
   (donde vive lo que se desmonta: indicadores de carga puntual).
+- Regla de ESLint (`no-restricted-syntax` en `eslint.config.mjs`) que prohíbe las clases
+  `animate-pulse` y `animate-ping` en `src/` fuera de `src/componentes/estado/`, salvo en los tres
+  archivos de las excepciones de arriba y en `/pantalla`, que es cartelería.
+- La misma regla prohíbe los `duration-N` literales en `src/` fuera de `/pantalla`: las transiciones
+  usan `duration-rapida`, `duration-media` o `duration-lenta`.
 
 > El login actual del panel (`views/authentication/login_admin.php:25`) viola la regla 1 a propósito,
 > por ser una pantalla transitoria. Ese permiso **no** se hereda: en `ops-v2` la pantalla de acceso
@@ -220,15 +265,37 @@ Se hacen cumplir con lint, no con buena voluntad:
 
 ## Inventario de componentes
 
+Lo que existe hoy en `src/componentes/` (carpeta entre paréntesis cuando no es la del grupo):
+
 | Grupo | Componentes |
 |---|---|
-| **Estructura** | Marco, BarraLateral, BarraSuperior, PanelDetalle, Seccion, Cabecera |
-| **Navegación** | Menu, Migas, Pestañas, Paginacion, Buscador (⌘K), SelectorEspacio |
-| **Datos** | Tabla, Tablero, Lista, Calendario, LineaDeTiempo, Grafico |
-| **Presentadores** | Insignia, Avatar, GrupoAvatares, Etiqueta, Dinero, Fecha, Progreso, EnlaceEntidad |
-| **Superposiciones** | Dialogo, Cajon, MenuContextual, Emergente, Tooltip, Confirmacion |
-| **Estado** | Cargando, Vacio, Error, SinPermiso, Avisos |
-| **Formularios** | Campo, Entrada, AreaTexto, Selector, SelectorMultiple, SelectorRelacion, SelectorFecha, Interruptor, Casilla, Editor, Adjuntos, CampoPersonalizado |
+| **Estructura** | BarraLateral, BarraInferiorMovil, TituloModulo (con `FirmaDeMarca` y `TituloDeFicha`), BotonVolver (regreso al listado desde la cabecera de una ficha), Tarjeta, Plegable, EntradaEscalonada (props `clave`, `densa`, `items`, `className`), TransicionDePagina, Muestra |
+| **Navegación** | PaletaDeComandos (⌘K, `paleta/`), Pestanas (`proyecto/`), SelectorEspacio (`live/`), PaginacionTabla (modo controlado con `onCambiar` o modo enlaces con `enlaces` para páginas del servidor) |
+| **Datos** | Tabla (prop `entrada`), TablaRecurso, Tablero, VistaCalendario, ControlesTabla, MenuAccionesFila (también el ⋯ de la cabecera de una ficha, con las destructivas), ConfirmarBorrado, ConfirmacionEnLinea, BajaYBorrado (prop `enMenu` en fichas), TotalDelListado, BotonFiltroEnUrl (interruptor de filtro en la URL: `BotonCompletados`, `BotonCompletadas`, `BotonCreadas`) |
+| **Presentadores** | Insignia, InsigniaDePrioridad, Avatar y ImagenEntidad (misma escala `TAMANOS_IDENTIDAD`: `chico`, `medio`, `grande`, `ficha`, `destacada`), GrupoAvatares, Etiquetas, Fecha, BarraProgreso, EstadoSla, Hito, EnlaceProyecto / EnlaceCliente / EnlacePersona, Seccion y Filas (`Ficha`), CodigoCopiable, TarjetaFlotantePersona |
+| **Superposiciones** | Dialogo, Cajon, MenuContextual (con `BuscadorMenu` e `ItemMenuMarcable`), PanelVidrio |
+| **Estado** | Cargando, Vacio, ErrorEstado, SinPermiso, Hueso, EsqueletoFicha, AvisoEnLinea, Orbe, AvisosDeError + `useAviso`, LimiteDeError |
+| **Formularios** | Campo, Entrada, AreaTexto (en `Entrada`), Selector + SelectorBuscable, SelectorDePersona, SelectorBuscableMultiple (base de SelectorPersonas, SelectorClientes y SelectorEspacios de `proyecto/`), SelectorEtiquetas, Interruptor, Segmentado, Boton, CamposPersonalizados, MatrizAsignacion |
+| **Hooks** | `usePresencia` (`src/lib/`), `useAviso` |
+
+**Lo que no es un primitivo, a propósito.** Se probó contra el código si hacía falta (regla: se crea
+un primitivo cuando hay 3 o más usos reales hechos a mano) y no:
+
+- **Tooltip**: se usa el atributo `title` nativo; la única ayuda flotante dibujada a mano son dos
+  globos de `portal/GraficosDelProyecto`, por debajo del umbral.
+- **Casilla**: `<input type="checkbox">` con la clase `CLASES_CASILLA` (en `Entrada`); un componente no
+  agregaría comportamiento.
+- **Dinero**: es texto, no un control; se formatea con `formatearImporte` (`proyecto/formatos.ts`).
+- **PanelDetalle** y **Emergente**: el panel lateral es `Cajon`, y lo flotante es `MenuContextual` o
+  `TarjetaFlotantePersona`.
+- **Migas**: no hay migas de pan; la ubicación la dan el título y la barra lateral.
+- **Paginacion** como primitivo aparte: vive en `PaginacionTabla` (`datos/`), que cubre también las páginas del servidor con enlaces.
+- **SelectorFecha** y **Adjuntos**: las fechas usan el `<input type="date">` nativo con `Entrada`, y los
+  adjuntos son propios de cada módulo (`PanelArchivos`, Drive).
+
+**Selector de persona**: una sola persona es `SelectorDePersona`; varias, `SelectorPersonas`. La
+búsqueda de todos los selectores es `filtrarPorPalabras` (`dominio/busqueda.ts`): sin acentos, sin
+mayúsculas y por palabras en cualquier orden.
 
 **Los presentadores son la pieza que sostiene la consistencia.** Son lo más repetido del sistema: una
 insignia de estado aparece en 47 tablas, 5 tableros y todos los detalles. Si cada pantalla la dibuja a
@@ -237,7 +304,7 @@ su manera, no hay sistema de diseño.
 **Superposiciones sobre Radix UI**: manejo de foco, `Escape`, `aria` y captura de clics no se
 reimplementan. Es exactamente el trabajo que no hay que hacer.
 
-**Mínimo de Fase 1** (~22): Marco, BarraLateral, BarraSuperior, Cabecera, Tabla, Tablero, Dialogo,
+**Mínimo de Fase 1** (plan original, ~22; los nombres que cambiaron están en la tabla): Marco, BarraLateral, BarraSuperior, Cabecera, Tabla, Tablero, Dialogo,
 Cajon, MenuContextual, Boton, Insignia, Avatar, Etiqueta, Fecha, Cargando, Vacio, Error, Avisos,
 Campo, Entrada, AreaTexto, Selector, SelectorRelacion.
 
@@ -247,6 +314,35 @@ El editor rico estaba en esa lista y ya no: el Meeting Paper lo necesita, porque
 con títulos, listas y negritas, y con `AreaTexto` habría que editar HTML a mano. Vive **solo** ahí
 (`componentes/proyecto/EditorDeActa.tsx`, TipTap cargado con `next/dynamic`), y el resto del panel
 sigue usando `AreaTexto`: la excepción es para documentos, no para cualquier campo largo.
+
+## Textos
+
+Convenciones de redacción de la interfaz. Mandan sobre la costumbre de cada pantalla.
+
+- **Tuteo** en todo texto visible («Elige», «Cierra y vuelve a abrir»), nunca voseo.
+- **Nombres del dominio desde `GLOSARIO`** (`src/dominio/glosario.ts`): «tarea», «proyecto», «hito»,
+  «Meeting Paper» se escriben con `GLOSARIO.proceso.singular.toLowerCase()` y parientes, no a mano.
+  Si el glosario cambia, la frase cambia con él.
+- **Acción destructiva: «Eliminar»**, nunca «Borrar». Vale para el botón, el título de la
+  confirmación, `etiquetaConfirmar`, el `aria-label` y el aviso posterior (««X» se eliminó.»).
+  `ConfirmarBorrado` ya trae «Eliminar» por defecto. «Enviar a la papelera» queda para la baja
+  recuperable, y «Descartar» para lo que nunca llegó a existir (un borrador, una propuesta).
+- **Botón de envío de un formulario:** en un alta, «Crear X» nombrando la entidad («Crear
+  contrato»); en una edición, «Guardar cambios». `FormularioRecurso` lo deriva solo del método y del
+  título (`etiquetaDeEnvio` en `proyecto/formulario.ts`); `etiquetaEnviar` lo pisa cuando la acción
+  tiene un verbo propio más preciso («Copiar proyecto», «Sumar iteración», «Reservar»). Excepción: una
+  pantalla con varios formularios independientes nombra lo que guarda cada uno («Guardar foto»,
+  «Guardar firma» en el perfil), porque tres «Guardar cambios» iguales no dicen cuál es cuál.
+- **Aviso tras guardar:** toda mutación exitosa que cierra una superposición confirma con
+  `useAviso().exito()` nombrando la entidad con comillas latinas («Cambios de «ACME» guardados.»).
+  `FormularioRecurso` lo hace por defecto (`avisoExito`).
+- **Vacíos en línea:** «Todavía no hay X.» en `text-texto-sutil` («Todavía no hay archivos
+  adjuntos.»). Los vacíos de bloque o de página usan `Vacio`, con título en la misma fórmula y sin
+  punto final.
+- **Volver al listado:** en la cabecera de una ficha, la miga «← Sección»; en su estado de
+  inexistente, la acción «Volver a Sección». Son dos lugares con dos papeles, no una incoherencia.
+- **Control deshabilitado:** dice por qué, en texto visible junto al control y enlazado con
+  `aria-describedby` (no hay primitivo `Tooltip`, y un `title` solo no llega al teclado ni al lector).
 
 ## El taller
 

@@ -54,7 +54,7 @@ export function JustificacionDelEquipo (
 
   return (
     <div className="border-linea col-span-full flex flex-col gap-2 border-t pt-3">
-      <span className="text-texto-sutil text-xs font-medium tracking-[0.08em] uppercase">
+      <span className="text-texto-sutil text-xs antetitulo">
         Justificación del equipo
       </span>
 
@@ -116,7 +116,7 @@ function Formulario (
     // Se valida acá además de en el backend porque un 422 por un campo vacío es un viaje de ida y
     // vuelta para decir algo que ya se sabía al apretar el botón.
     if (limpio === '') {
-      setFallo('Escribí por qué se da por buena la desviación.')
+      setFallo('Escribe por qué se da por buena la desviación.')
       return
     }
 

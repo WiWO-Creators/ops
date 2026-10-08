@@ -5,7 +5,7 @@ import { TituloModulo } from '@/componentes/estructura/TituloModulo'
 import { HojaDeSupervision } from '@/componentes/supervision/HojaDeSupervision'
 import { HojasDelEquipo } from '@/componentes/supervision/HojasDelEquipo'
 import { ErrorApi } from '@/datos/errores'
-import { pedir, pedirOpcional } from '@/datos/servidor'
+import { cargarYo, pedir, pedirOpcional } from '@/datos/servidor'
 import {
   RUTA_SUPERVISORES,
   rutaDeHoja,
@@ -14,7 +14,6 @@ import {
   type HojaDelEquipo,
   type SupervisorVisible
 } from '@/datos/supervision'
-import type { Yo } from '@/datos/tipos'
 import { etiquetaDeEscalon } from '@/dominio/escalon'
 import {
   diasVecinos,
@@ -60,7 +59,7 @@ export default async function SupervisionPage (props: PageProps<'/supervision'>)
   const staffId = supervisorPedido(parametros.staff_id)
 
   const [yo, supervisores, equipo, hoja] = await Promise.all([
-    pedir<Yo>('/me'),
+    cargarYo(),
     pedirOpcional<SupervisorVisible[]>(`/${RUTA_SUPERVISORES}`),
     pedirOpcional<HojaDelEquipo[]>(`/${rutaDeHojasDelEquipo(fecha)}`),
     cargarHoja(fecha, staffId)

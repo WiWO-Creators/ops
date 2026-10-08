@@ -2,8 +2,7 @@ import type { ReactElement } from 'react'
 import { LaboratorioDeAnimaciones } from '@/componentes/administracion/LaboratorioDeAnimaciones'
 import { SinPermiso } from '@/componentes/estado/Estados'
 import { TituloModulo } from '@/componentes/estructura/TituloModulo'
-import { pedir } from '@/datos/servidor'
-import type { Yo } from '@/datos/tipos'
+import { cargarYo } from '@/datos/servidor'
 import { NOVEDADES, novedadesDelRecorrido } from '@/dominio/novedades'
 
 export const metadata = { title: 'Animaciones · WiWO Ops' }
@@ -17,7 +16,7 @@ export const metadata = { title: 'Animaciones · WiWO Ops' }
  * mantiene Ops, no algo que el resto necesite encontrar.
  */
 export default async function AnimacionesPage (): Promise<ReactElement> {
-  const { data: yo } = await pedir<Yo>('/me')
+  const { data: yo } = await cargarYo()
 
   if (!yo.is_superadmin) return <SinPermiso className="mt-10" />
 

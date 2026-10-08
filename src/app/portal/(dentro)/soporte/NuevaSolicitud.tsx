@@ -1,7 +1,7 @@
 'use client'
 
 import { useRouter } from 'next/navigation'
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useRef, useState, useTransition } from 'react'
 import { AvisoEnLinea } from '@/componentes/estado/Estados'
 import { useAviso } from '@/componentes/estado/useAviso'
 import { Boton } from '@/componentes/formularios/Boton'
@@ -13,10 +13,18 @@ import {
 import { ContenidoDialogo, Dialogo, DisparadorDialogo } from '@/componentes/superposiciones/Dialogo'
 import { escribirEnBff } from '@/componentes/datos/mutaciones'
 import { urlConParametro } from '@/componentes/datos/tabla'
+import { claveDeIdempotencia } from '@/datos/red'
+import { ArchivosParaAdjuntar } from '@/componentes/tickets/ArchivosParaAdjuntar'
 import { GLOSARIO } from '@/dominio/glosario'
-import { PARAMETRO_TICKET, avisarCambioDeTicket, falloDeTicket } from '@/dominio/ticket-vista'
+import { cuerpoConArchivos } from '@/dominio/ticket-adjuntos'
+import { LARGO_MENSAJE_TICKET, contadorDeLargo } from '@/dominio/ticket-limites'
+import { PARAMETRO_TICKET } from '@/dominio/ticket-estados'
 import {
-  LARGO_ASUNTO, SIN_PRIORIDAD, cuerpoDeSolicitud, espacioPorDefecto, solicitudCompleta
+  almacenDeSesion, avisarCambioDeTicket, falloDeTicket, guardarBorrador, leerBorrador
+} from '@/dominio/ticket-vista'
+import {
+  LARGO_ASUNTO, claveDeBorradorDeSolicitud, SIN_PRIORIDAD, cuerpoDeSolicitud, espacioPorDefecto,
+  leerBorradorDeSolicitud, serializarBorradorDeSolicitud, solicitudCompleta
 } from '@/dominio/tickets-del-portal'
 import type { TicketPortalDetalle } from '@/datos/portal'
 import type { Referencia } from '@/datos/recursos'
@@ -41,6 +49,16 @@ import type { Referencia } from '@/datos/recursos'
  * tabla— en vez de pedirse al montar: un selector que aparece vacio y se puebla medio segundo despues
  * se usa mal.
  *
+ * Lo escrito se guarda como borrador en `sessionStorage` a cada cambio: cerrar el dialogo por error o
+ * recargar no pierde un mensaje largo. Se borra al crear la solicitud.
+ *
+ * Los archivos se eligen en el mismo formulario y viajan **con** la solicitud (`multipart/form-data`;
+ * sin archivos es JSON, como siempre). Quedan en el estado del componente, asi que cerrar el dialogo
+ * no los pierde, pero un `F5` si: el borrador guarda texto y un archivo se vuelve a elegir.
+ *
+ * Si los espacios no se pudieron cargar, en vez del boton se ofrece reintentar; si el contacto no
+ * tiene ninguno, se dice por que no puede pedir soporte.
+ *
  * Al crear, el formulario vuelve a cero (la proxima solicitud no nace con la anterior escrita) y la
  * bandeja abre la nueva en su modal **conservando filtros, orden y pagina**. Si la API contesta 200
  * en vez de 201 es el alta idempotente: la misma solicitud enviada dos veces en un minuto. No se creo
@@ -62,22 +80,47 @@ interface PropsNuevaSolicitud {
    * inicial del selector: quien tenga otro en mente lo cambia sin resistencia.
    */
   entradaId?: number | null
+  /** El contacto que escribe; `null` si no se pudo saber, y entonces no se guarda borrador. */
+  contactoId?: number | null
+  /** `true` si pedir los {espacios} fallo: sin lista no se puede distinguir de «no tiene ninguno». */
+  fallaronEspacios?: boolean
 }
 
-export function NuevaSolicitud ({ prioridades, espacios, entradaId = null }: PropsNuevaSolicitud) {
+export function NuevaSolicitud ({ prioridades, espacios, entradaId = null, contactoId = null, fallaronEspacios = false }: PropsNuevaSolicitud) {
   const router = useRouter()
   const avisar = useAviso()
+  const [reintentando, reintentar] = useTransition()
   const [abierto, setAbierto] = useState(false)
   const [enviando, setEnviando] = useState(false)
   const [fallo, setFallo] = useState<string | null>(null)
   // Segundos que pidio esperar un 429; mientras no es `null` el envio queda bloqueado.
   const [espera, setEspera] = useState<number | null>(null)
   const enviandoAhora = useRef(false)
+  // Clave del alta en curso: la misma mientras lo escrito no cambie, para que repetir tras una
+  // respuesta perdida no cree un segundo ticket.
+  const claveAlta = useRef<{ huella: string, clave: string } | null>(null)
 
-  const [asunto, setAsunto] = useState('')
-  const [mensaje, setMensaje] = useState('')
-  const [espacio, setEspacio] = useState(() => espacioPorDefecto(espacios, entradaId))
-  const [prioridad, setPrioridad] = useState(SIN_PRIORIDAD)
+  // Sin saber de quien es, no se lee ni se guarda: un borrador ajeno es peor que ninguno.
+  const claveBorrador = contactoId === null ? null : claveDeBorradorDeSolicitud(contactoId)
+  const [inicial] = useState(() => leerBorradorDeSolicitud(
+    claveBorrador === null ? '' : leerBorrador(almacenDeSesion(), claveBorrador), espacios, prioridades, entradaId
+  ))
+  const [asunto, setAsunto] = useState(inicial.asunto)
+  const [mensaje, setMensaje] = useState(inicial.mensaje)
+  const [espacio, setEspacio] = useState(inicial.espacio)
+  const [prioridad, setPrioridad] = useState(inicial.prioridad)
+  const [archivos, setArchivos] = useState<File[]>([])
+
+  // El borrador sigue a lo escrito; al reiniciar el formulario queda vacio y esto lo borra.
+  useEffect(() => {
+    if (claveBorrador === null) return
+
+    guardarBorrador(
+      almacenDeSesion(),
+      claveBorrador,
+      serializarBorradorDeSolicitud({ asunto, mensaje, espacio, prioridad })
+    )
+  }, [claveBorrador, asunto, mensaje, espacio, prioridad])
 
   useEffect(() => {
     if (espera === null) return
@@ -87,9 +130,20 @@ export function NuevaSolicitud ({ prioridades, espacios, entradaId = null }: Pro
     return () => { window.clearTimeout(id) }
   }, [espera])
 
-  // Sin espacios no hay nada que abrir: el contrato exige `project_id`, asi que el boton no se ofrece
-  // en vez de ofrecer un formulario que la API va a rechazar siempre.
-  if (espacios.length === 0) return null
+  // Sin espacios no hay nada que abrir: el contrato exige `project_id`, asi que en vez del boton se
+  // explica por que falta —o se deja reintentar si fue la carga la que fallo—.
+  if (espacios.length === 0) {
+    return fallaronEspacios
+      ? (
+        <div className="flex items-center gap-2">
+          <p className="text-texto-tenue text-sm">No pudimos cargar tus {GLOSARIO.espacio.plural}.</p>
+          <Boton variante="sutil" data-rastreo="ticket.reintentar-proyectos" cargando={reintentando} onClick={() => { reintentar(() => { router.refresh() }) }}>
+            Reintentar
+          </Boton>
+        </div>
+        )
+      : <p className="text-texto-tenue text-sm">No tienes {GLOSARIO.espacio.plural} habilitados para pedir soporte.</p>
+  }
 
   const borrador = { asunto, mensaje, espacio, prioridad }
 
@@ -107,10 +161,16 @@ export function NuevaSolicitud ({ prioridades, espacios, entradaId = null }: Pro
     setEnviando(true)
     setFallo(null)
 
+    const cuerpo = cuerpoDeSolicitud(borrador)
+    const huella = JSON.stringify([cuerpo, archivos.map((archivo) => [archivo.name, archivo.size])])
+
+    if (claveAlta.current?.huella !== huella) claveAlta.current = { huella, clave: claveDeIdempotencia() }
+
     const resultado = await escribirEnBff<TicketPortalDetalle>(
       'portal/tickets',
       'POST',
-      cuerpoDeSolicitud(borrador)
+      cuerpoConArchivos(cuerpo, archivos),
+      { idempotencia: claveAlta.current.clave }
     )
 
     enviandoAhora.current = false
@@ -124,6 +184,8 @@ export function NuevaSolicitud ({ prioridades, espacios, entradaId = null }: Pro
 
       return
     }
+
+    claveAlta.current = null
 
     const id = resultado.datos.id
 
@@ -144,6 +206,7 @@ export function NuevaSolicitud ({ prioridades, espacios, entradaId = null }: Pro
     setMensaje('')
     setEspacio(espacioPorDefecto(espacios, entradaId))
     setPrioridad(SIN_PRIORIDAD)
+    setArchivos([])
     setFallo(null)
   }
 
@@ -151,7 +214,7 @@ export function NuevaSolicitud ({ prioridades, espacios, entradaId = null }: Pro
     <>
       <Dialogo open={abierto} onOpenChange={setAbierto}>
         <DisparadorDialogo asChild>
-          <Boton variante="primario">Nuevo ticket</Boton>
+          <Boton variante="primario" data-rastreo="ticket.nuevo">Nuevo ticket</Boton>
         </DisparadorDialogo>
 
         <ContenidoDialogo
@@ -207,27 +270,31 @@ export function NuevaSolicitud ({ prioridades, espacios, entradaId = null }: Pro
               </Campo>
             </div>
 
-            <Campo etiqueta="Mensaje" requerido>
+            <Campo etiqueta="Mensaje" requerido ayuda={contadorDeLargo(mensaje.length) ?? undefined}>
               {(props) => (
                 <AreaTexto
                   {...props}
                   rows={5}
                   value={mensaje}
+                  maxLength={LARGO_MENSAJE_TICKET}
                   placeholder="Cuéntanos qué pasa, desde cuándo y qué esperabas que ocurriera."
                   onChange={(evento) => { setMensaje(evento.target.value) }}
                 />
               )}
             </Campo>
 
+            <ArchivosParaAdjuntar archivos={archivos} onCambiar={setArchivos} deshabilitado={enviando} />
+
             {fallo !== null && <AvisoEnLinea variante="error" mensaje={fallo} className="text-sm" />}
 
             <div className="flex justify-end gap-2">
-              <Boton type="button" variante="sutil" onClick={() => { setAbierto(false) }}>
+              <Boton type="button" variante="sutil" data-rastreo="ticket.cancelar" onClick={() => { setAbierto(false) }}>
                 Cancelar
               </Boton>
               <Boton
                 type="submit"
                 variante="primario"
+                data-rastreo="ticket.enviar"
                 cargando={enviando}
                 disabled={!solicitudCompleta(borrador) || espera !== null}
               >

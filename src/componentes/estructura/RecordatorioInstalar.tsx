@@ -136,7 +136,7 @@ export function RecordatorioInstalar (): React.ReactNode {
         // En móvil va arriba, bajo la cabecera: abajo ya están la barra de pestañas, el orbe y los
         // avisos de versión y de jornada. En el computador, abajo a la izquierda, fuera del centro
         // donde salen esos avisos.
-        'fixed top-[calc(4rem_+_env(safe-area-inset-top,0px))] left-1/2 z-40 w-[min(26rem,calc(100vw-2rem))] -translate-x-1/2',
+        'fixed top-[calc(4rem_+_env(safe-area-inset-top,0px))] left-1/2 z-flotante w-[min(26rem,calc(100vw-2rem))] -translate-x-1/2',
         'sm:top-auto sm:bottom-5 sm:left-5 sm:translate-x-0',
         cerrando ? 'animate-aviso-salir' : 'animate-aviso-entrar'
       )}

@@ -142,3 +142,66 @@ test('cleanup aborta consulta, ignora respuesta tardía y elimina todos los disp
   assert.equal(consultas, 1)
   assert.deepEqual(recibidos, [])
 })
+
+test('eventos opcionales: con una lista vacia no escucha los avisos de Tareas y conserva el resto', async (t) => {
+  const { ventana, documento } = navegador(t)
+  let consultas = 0
+  const detener = observarLista(async () => ++consultas, () => {}, assert.fail, { eventos: [] })
+  t.after(detener)
+  await terminar()
+  avisarCambioDeTareas('tasks/356')
+  await terminar()
+  assert.equal(consultas, 1, 'el aviso de Tareas no consulta')
+  t.mock.timers.tick(REFRESCO_LISTA_MS)
+  await terminar()
+  assert.equal(consultas, 2, 'el intervalo sigue vivo')
+  ventana.dispatchEvent(new Event('focus'))
+  await terminar()
+  assert.equal(consultas, 3, 'el foco sigue vivo')
+  documento.dispatchEvent(new Event('visibilitychange'))
+  await terminar()
+  assert.equal(consultas, 4, 'la vuelta a la pestaña sigue viva')
+})
+
+test('eventos opcionales: escucha los que se le pidan y los suelta al limpiar', async (t) => {
+  const { ventana } = navegador(t)
+  let consultas = 0
+  const detener = observarLista(async () => ++consultas, () => {}, assert.fail, { eventos: ['ops:otro'] })
+  await terminar()
+  ventana.dispatchEvent(new Event('ops:otro'))
+  await terminar()
+  assert.equal(consultas, 2)
+  detener()
+  ventana.dispatchEvent(new Event('ops:otro'))
+  await terminar()
+  assert.equal(consultas, 2)
+})
+
+test('foco y vuelta a la pestaña seguidos hacen una sola consulta', async (t) => {
+  const { ventana, documento } = navegador(t)
+  const resolver = []
+  const detener = observarLista(() => new Promise((resolve) => resolver.push(resolve)), () => {}, assert.fail)
+  t.after(detener)
+  resolver[0]()
+  await terminar()
+  documento.dispatchEvent(new Event('visibilitychange'))
+  ventana.dispatchEvent(new Event('focus'))
+  assert.equal(resolver.length, 2, 'una sola consulta nueva para el regreso')
+  resolver[1]()
+  await terminar()
+  assert.equal(resolver.length, 2, 'ni repite al terminar')
+})
+
+test('el regreso en vuelo no esconde una escritura: esa si repite al terminar', async (t) => {
+  const { ventana } = navegador(t)
+  const resolver = []
+  const detener = observarLista(() => new Promise((resolve) => resolver.push(resolve)), () => {}, assert.fail)
+  t.after(detener)
+  resolver[0]()
+  await terminar()
+  ventana.dispatchEvent(new Event('focus'))
+  avisarCambioDeTareas('tasks/356')
+  resolver[1]()
+  await terminar()
+  assert.equal(resolver.length, 3)
+})

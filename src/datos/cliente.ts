@@ -6,6 +6,7 @@ import {
   registrarFallaSinIncidente,
   type PeticionFallida
 } from './errores.ts'
+import { conLimite, esTiempoAgotado, TIEMPO_LECTURA_MS } from './red.ts'
 import type { Sobre } from './tipos'
 
 /**
@@ -20,7 +21,7 @@ import type { Sobre } from './tipos'
  */
 export async function pedirRespuesta (ruta: string, senal: AbortSignal): Promise<Response> {
   try {
-    return await fetch(`/api/bff/${ruta}`, { signal: senal })
+    return await fetch(`/api/bff/${ruta}`, { signal: conLimite(senal, TIEMPO_LECTURA_MS) })
   } catch (fallo) {
     // Un `fetch` que lanza es la red, no la API: el servidor no contesto, asi que no hay incidente
     // que registrar —el reporte viajaria por la misma red que acaba de fallar— y el aviso sale sin
@@ -29,7 +30,9 @@ export async function pedirRespuesta (ruta: string, senal: AbortSignal): Promise
     //
     // El aborto no es un error: lo dispara el propio componente al desmontarse, y avisar de eso
     // llenaria la pantalla de avisos cada vez que alguien cambia de pestaña.
-    if (!esAborto(fallo)) {
+    if (esTiempoAgotado(fallo)) {
+      avisarError({ mensaje: 'El servidor tardó demasiado en responder. Intenta de nuevo.' })
+    } else if (!esAborto(fallo)) {
       avisarError({ mensaje: 'Se perdió la conexión con el servidor. La acción no se completó.' })
     }
 
@@ -82,6 +85,33 @@ export async function mensajeDeRespuesta (respuesta: Response, peticion: Peticio
 }
 
 /**
+ * Lo que se muestra cuando la API dice que la sesion ya no sirve.
+ *
+ * Existe como constante y no como literal suelto porque lo dicen varias pantallas —`useRecurso`, el
+ * tablero y todo lo que pide con `pedirSobre`— y es la frase que convierte el sintoma en su causa:
+ * una sesion cerrada de madrugada se veia como una lista vacia o como una vista congelada, y el
+ * equipo la reportaba como "no aparecen tareas" o "se desincronizan".
+ */
+export const MENSAJE_SESION_CERRADA = 'Se cerró tu sesión. Vuelve a entrar para seguir trabajando.'
+
+/**
+ * Mensaje legible del fallo de una lectura (`GET`) al BFF.
+ *
+ * Es `mensajeDeRespuesta` con un caso aparte: el `401` del BFF siempre es la sesion (sin cookie o
+ * con el par de tokens revocado), asi que se dice `MENSAJE_SESION_CERRADA`, porque lo unico que se
+ * puede hacer es volver a entrar.
+ *
+ * @param respuesta La respuesta con `ok === false`.
+ * @param peticion Metodo y ruta, para el registro de la falla.
+ * @returns El texto listo para mostrar.
+ */
+export async function mensajeDeLectura (respuesta: Response, peticion: PeticionFallida = {}): Promise<string> {
+  const mensaje = await mensajeDeRespuesta(respuesta, peticion)
+
+  return respuesta.status === 401 ? MENSAJE_SESION_CERRADA : mensaje
+}
+
+/**
  * Pide una ruta al BFF y devuelve el envelope ya tipado.
  *
  * @param ruta Ruta sin la base del BFF ni barra inicial. Ej: `lookups`.
@@ -92,7 +122,7 @@ export async function mensajeDeRespuesta (respuesta: Response, peticion: Peticio
 export async function pedirSobre<T> (ruta: string, senal: AbortSignal): Promise<Sobre<T>> {
   const respuesta = await pedirRespuesta(ruta, senal)
 
-  if (!respuesta.ok) throw new Error(await mensajeDeRespuesta(respuesta, { metodo: 'GET', ruta: `/api/bff/${ruta}` }))
+  if (!respuesta.ok) throw new Error(await mensajeDeLectura(respuesta, { metodo: 'GET', ruta: `/api/bff/${ruta}` }))
 
   return await respuesta.json() as Sobre<T>
 }

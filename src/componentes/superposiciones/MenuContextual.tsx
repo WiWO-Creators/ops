@@ -29,7 +29,7 @@ export function ContenidoMenu ({
         sideOffset={6}
         collisionPadding={8}
         className={cn(
-          'border-linea bg-superficie-flotante rounded-medio shadow-2 z-50 min-w-44 border p-1',
+          'border-linea bg-superficie-flotante rounded-medio shadow-2 z-superposicion min-w-44 border p-1',
           // Radix expone el alto disponible: el menu hace scroll en vez de salirse de la ventana.
           'max-h-[var(--radix-dropdown-menu-content-available-height)] overflow-y-auto',
           // Crece desde el disparador y no desde su propio centro: Radix calcula el origen segun el

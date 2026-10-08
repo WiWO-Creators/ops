@@ -65,7 +65,7 @@ export function MigasDrive ({ migas, onIr, destino }: {
                     title={paso.miga.name}
                     {...destino(paso.miga.id, paso.miga.name)}
                     className={cn(
-                      'rounded-chico flex min-w-0 items-center gap-1.5 px-1.5 py-1 text-sm transition-colors duration-150',
+                      'rounded-chico flex min-w-0 items-center gap-1.5 px-1.5 py-1 text-sm transition-colors duration-rapida ease-neo',
                       ultimo ? 'text-texto cursor-default font-semibold' : 'text-texto-tenue hover:bg-hover hover:text-texto'
                     )}
                   >

@@ -86,7 +86,7 @@ function CambiosDeCompromiso ({ lectura }: { lectura: LecturaDeCambios }) {
       <dl className="mt-3 grid gap-5 sm:grid-cols-3">
         {lectura.filas.map((fila) => (
           <div key={fila.clave} className="flex flex-col gap-0.5">
-            <dt className="text-texto-sutil text-xs font-medium tracking-[0.08em] uppercase">
+            <dt className="text-texto-sutil text-xs antetitulo">
               {fila.rotulo}
             </dt>
             <dd data-numerico className="text-texto text-2xl leading-none font-semibold tabular-nums">

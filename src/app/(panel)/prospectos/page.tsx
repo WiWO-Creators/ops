@@ -5,11 +5,10 @@ import { VistaProspectos } from '@/componentes/prospecto/VistaProspectos'
 import { construirConsulta, leerConsulta, paramsDeUrl } from '@/datos/consulta'
 import { listaDe } from '@/datos/catalogos'
 import { cargarLookups } from '@/datos/lookups'
-import { pedir } from '@/datos/servidor'
+import { cargarYo, pedir } from '@/datos/servidor'
 import type { EstadoLookup, Prospecto } from '@/datos/recursos'
 import type { OpcionCampo } from '@/componentes/proyecto/formulario'
 import { TituloModulo } from '@/componentes/estructura/TituloModulo'
-import type { Yo } from '@/datos/tipos'
 import { PROSPECTOS } from '@/definiciones/prospectos'
 import { GLOSARIO } from '@/dominio/glosario'
 
@@ -31,7 +30,7 @@ export default async function ProspectosPage (props: PageProps<'/prospectos'>) {
   const [lista, lookups, yo] = await Promise.all([
     pedir<Prospecto[]>(`/prospectos${consulta === '' ? '' : `?${consulta}`}`),
     cargarLookups(),
-    pedir<Yo>('/me')
+    cargarYo()
   ])
 
   return (

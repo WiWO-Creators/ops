@@ -3,13 +3,13 @@
 import { Share2 } from 'lucide-react'
 import { useCallback, useState, type ReactElement } from 'react'
 import { escribirEnBff } from '@/componentes/datos/mutaciones'
-import { Cargando, SinPermiso } from '@/componentes/estado/Estados'
+import { AvisoEnLinea, Cargando, SinPermiso } from '@/componentes/estado/Estados'
 import { BotonCopiar } from '@/componentes/datos/BotonCopiar'
 import { ConfirmacionEnLinea } from '@/componentes/datos/ConfirmacionEnLinea'
 import { Boton } from '@/componentes/formularios/Boton'
 import { CLASES_CASILLA, Entrada } from '@/componentes/formularios/Entrada'
 import { Fecha } from '@/componentes/presentadores/Fecha'
-import { mensajeDeRespuesta, pedirRespuesta } from '@/datos/cliente'
+import { mensajeDeLectura, pedirRespuesta } from '@/datos/cliente'
 import { GLOSARIO } from '@/dominio/glosario'
 import {
   alternarSeccion,
@@ -178,7 +178,7 @@ export function CompartirTarea ({ procesoId }: { procesoId: number }): ReactElem
 
         {estado.fase === 'error' && (
           <div className="flex flex-col gap-3">
-            <p role="alert" className="text-texto-peligro text-sm">{estado.mensaje}</p>
+            <AvisoEnLinea variante="error" mensaje={estado.mensaje} className="text-sm" />
             <div className="flex justify-end">
               <Boton variante="secundario" tamano="chico" onClick={() => { void cargarEstado() }}>
                 Reintentar
@@ -356,7 +356,7 @@ async function leerEstado (procesoId: number): Promise<Estado> {
 
     if (respuesta.status === 403) return { fase: 'sinPermiso' }
 
-    if (!respuesta.ok) return { fase: 'error', mensaje: await mensajeDeRespuesta(respuesta) }
+    if (!respuesta.ok) return { fase: 'error', mensaje: await mensajeDeLectura(respuesta) }
 
     const sobre = await respuesta.json() as Sobre<EstadoEnlaceProceso>
 

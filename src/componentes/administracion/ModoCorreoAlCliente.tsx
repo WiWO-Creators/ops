@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, type ReactElement } from 'react'
+import { AvisoEnLinea } from '@/componentes/estado/Estados'
 import { Boton } from '@/componentes/formularios/Boton'
 import { Seccion } from '@/componentes/presentadores/Ficha'
 import { guardarAjustes } from '@/datos/recursos'
@@ -126,7 +127,7 @@ export function ModoCorreoAlCliente ({ inicial }: PropsModoCorreoAlCliente): Rea
               aria-checked={modo === opcion}
               onClick={() => { setModo(opcion); setConfirmarReal(false); setConfirmado(false) }}
               className={
-                'rounded-tarjeta border p-3 text-left transition-colors duration-150 ' +
+                'rounded-tarjeta border p-3 text-left transition-colors duration-rapida ease-neo ' +
                 (modo === opcion
                   ? 'border-acento bg-acento-suave'
                   : 'border-control-borde bg-control hover:bg-hover')
@@ -139,10 +140,11 @@ export function ModoCorreoAlCliente ({ inicial }: PropsModoCorreoAlCliente): Rea
         </div>
 
         {confirmarReal && (
-          <p role="alert" className="text-texto-peligro text-sm">
-            Este modo es el que va a mandar correo a gente ajena a este equipo en cuanto el envío exista. Toca
-            «Confirmar y guardar» para dejarlo puesto.
-          </p>
+          <AvisoEnLinea
+            variante="error"
+            mensaje="Este modo es el que va a mandar correo a gente ajena a este equipo en cuanto el envío exista. Toca «Confirmar y guardar» para dejarlo puesto."
+            className="text-sm"
+          />
         )}
 
         {errorGuardar !== null && (

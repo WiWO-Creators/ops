@@ -1,5 +1,6 @@
 import type { EstadoSla } from '../datos/recursos.ts'
 import { formatearFecha } from './fechas.ts'
+import { SIN_DATO } from './presentacion.ts'
 
 /**
  * Presentacion del compromiso de plazo (ETA, desviacion y SLA).
@@ -17,8 +18,7 @@ import { formatearFecha } from './fechas.ts'
  * Node, que resuelve rutas de archivo y no el alias `@/` de Next.
  */
 
-/** Guion que ocupa el lugar de un dato que no existe. Mismo criterio que la columna Iteraciones. */
-export const SIN_DATO = '—'
+export { SIN_DATO }
 
 /**
  * Texto de una desviacion en dias contra el vencimiento comprometido.

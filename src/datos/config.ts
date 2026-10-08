@@ -61,3 +61,27 @@ export function secretoProxy (): string | null {
 
 /** Segundos antes del vencimiento en los que el proxy refresca por adelantado. */
 export const MARGEN_REFRESCO_SEGUNDOS = 60
+
+/**
+ * Cuanto se espera, como maximo, a `GET /public/modo` desde el layout raiz.
+ *
+ * Esa lectura corre en cada pagina nueva y no puede retrasarla: pasado este tiempo la pagina sale
+ * sin modo especial. `MODO_ESPERA_MS` lo cambia sin tocar codigo.
+ */
+export function esperaDeModoEspecial (): number {
+  const configurada = Number(process.env.MODO_ESPERA_MS)
+
+  return Number.isInteger(configurada) && configurada > 0 ? configurada : 1500
+}
+
+/**
+ * Espera maxima del BFF a la API en una peticion corriente, en milisegundos.
+ *
+ * Sin limite, una API lenta deja la peticion del navegador colgada hasta que algun intermediario la
+ * corte, y la persona no sabe si lo que hizo se guardo. `API_TIEMPO_MS` lo cambia sin tocar codigo.
+ */
+export function tiempoDeApiMs (): number {
+  const configurado = Number(process.env.API_TIEMPO_MS)
+
+  return Number.isInteger(configurado) && configurado > 0 ? configurado : 25_000
+}

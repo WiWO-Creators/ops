@@ -2,6 +2,7 @@
 
 import { useRouter } from 'next/navigation'
 import { useEffect, useRef, useState } from 'react'
+import { AvisoEnLinea } from '@/componentes/estado/Estados'
 import { Orbe, type EstadoOrbe } from '@/componentes/estado/Orbe'
 import { Logo } from '@/componentes/estructura/Logo'
 import { Boton } from '@/componentes/formularios/Boton'
@@ -9,6 +10,7 @@ import { Campo } from '@/componentes/formularios/Campo'
 import { Entrada } from '@/componentes/formularios/Entrada'
 import { PanelVidrio } from '@/componentes/superposiciones/PanelVidrio'
 import { destinoDeEntrada } from '@/dominio/portal'
+import { conLimite, TIEMPO_ESCRITURA_MS } from '@/datos/red'
 
 interface RespuestaCanje {
   ok?: boolean
@@ -85,7 +87,8 @@ export function FormularioFijarClave ({ token }: { token: string }) {
       const respuesta = await fetch('/api/sesion', {
         method: 'POST',
         headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({ enlace: token, password })
+        body: JSON.stringify({ enlace: token, password }),
+        signal: conLimite(undefined, TIEMPO_ESCRITURA_MS)
       })
 
       const cuerpo = await respuesta.json() as RespuestaCanje
@@ -100,7 +103,7 @@ export function FormularioFijarClave ({ token }: { token: string }) {
       router.replace(destinoDeEntrada(cuerpo.destino))
       router.refresh()
     } catch {
-      señalarError('No se pudo contactar al servidor. Revisa tu conexión.')
+      señalarError('No pudimos confirmar si tu contraseña quedó guardada. Prueba entrar con ella; si no funciona, vuelve a intentarlo.')
     }
   }
 
@@ -127,10 +130,10 @@ export function FormularioFijarClave ({ token }: { token: string }) {
           <Logo />
         </div>
 
-        <PanelVidrio className="w-full max-w-sm p-6 sm:p-8">
-          <header className="mb-8">
-            <h1 className="font-titular text-texto text-xl font-semibold">Tu contraseña del portal</h1>
-            <p className="text-texto-tenue mt-1 text-sm">
+        <PanelVidrio className="animate-entrar-abajo w-full max-w-sm p-6 sm:p-8">
+          <header className="mb-6">
+            <h1 className="font-titular text-texto text-2xl font-bold tracking-tight">Tu contraseña del portal</h1>
+            <p className="text-texto-tenue mt-2 text-sm">
               Este enlace sirve una sola vez. Al guardar, entras directo al portal.
             </p>
           </header>
@@ -164,12 +167,11 @@ export function FormularioFijarClave ({ token }: { token: string }) {
             </Campo>
 
             {error !== null && (
-              <p
-                role="alert"
-                className="rounded-chico border-relleno-peligro/40 bg-superficie-peligro text-texto-peligro border px-3 py-2 text-sm"
-              >
-                {error}
-              </p>
+              <AvisoEnLinea
+                variante="error"
+                mensaje={error}
+                className="rounded-chico border-relleno-peligro/40 bg-superficie-peligro border px-3 py-2 text-sm"
+              />
             )}
 
             <Boton type="submit" variante="primario" disabled={enviando} className="mt-1 w-full">

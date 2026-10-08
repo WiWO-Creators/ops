@@ -7,6 +7,7 @@ import { Insignia } from '@/componentes/presentadores/Insignia'
 import { estaEncendido } from '@/dominio/accesos'
 import { CabeceraDePanel, DialogoConfirmar, Interruptor } from './piezas'
 import type { CatalogoDeAccesos, InterruptorDeAccesos } from '@/datos/accesos'
+import { useAviso } from '@/componentes/estado/useAviso'
 
 interface PropsPanelInterruptores {
   catalogo: CatalogoDeAccesos
@@ -25,6 +26,7 @@ interface PropsPanelInterruptores {
  * no esté en ella devuelve 422.
  */
 export function PanelInterruptores ({ catalogo, recargar }: PropsPanelInterruptores) {
+  const aviso = useAviso()
   const [confirmando, setConfirmando] = useState<InterruptorDeAccesos | null>(null)
   const [enCurso, setEnCurso] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -49,6 +51,7 @@ export function PanelInterruptores ({ catalogo, recargar }: PropsPanelInterrupto
       return
     }
 
+    aviso.exito(`«${confirmando.nombre}» quedó ${siguiente === '1' ? 'encendido' : 'apagado'}.`)
     setConfirmando(null)
     recargar()
   }

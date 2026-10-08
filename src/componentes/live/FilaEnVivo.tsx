@@ -156,7 +156,7 @@ export function FilaEnVivo ({ fila, transcurrido, puedeDetener, estados = [] }: 
           <dl className="border-linea-suave flex flex-col gap-1.5 border-l-2 pl-3 sm:ml-[3.25rem]">
             {trabajo.niveles.map((nivel) => (
               <div key={nivel.etiqueta} className="flex min-w-0 flex-wrap items-baseline gap-x-2 gap-y-1">
-                <dt className="text-texto-sutil w-20 shrink-0 text-xs font-medium tracking-[0.08em] uppercase">
+                <dt className="text-texto-sutil w-20 shrink-0 text-xs antetitulo">
                   {nivel.etiqueta}
                 </dt>
                 <dd className="flex min-w-0 flex-1 flex-wrap items-baseline gap-2">

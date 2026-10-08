@@ -2,6 +2,7 @@
 
 import { useState, type ReactElement } from 'react'
 import { Download } from 'lucide-react'
+import { AvisoEnLinea } from '@/componentes/estado/Estados'
 import { Boton } from '@/componentes/formularios/Boton'
 import {
   ContenidoMenu,
@@ -135,7 +136,7 @@ export function ExportarGantt ({
 
   return (
     <div className="ml-auto flex items-center gap-2">
-      {error !== null && <p role="alert" className="text-texto-peligro max-w-80 text-xs">{error}</p>}
+      {error !== null && <AvisoEnLinea variante="error" mensaje={error} className="max-w-80" />}
 
       <MenuContextual>
         <DisparadorMenu asChild>

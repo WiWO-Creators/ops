@@ -22,6 +22,8 @@ import {
 } from './recurrentes.js'
 import { contarCopias, limpiarCopias, listarCopias, marcarEditada, sembrarCopias, usoDe } from './copias-recurrentes.js'
 import { avisosRuta } from './avisos.js'
+import { integracionesRuta, propuestasRuta } from './mcp-externo.js'
+import { actividadDeCliente, actividadDeContacto, registrarActividad } from './actividad-portal.js'
 import { altaDelPortal, esAccionDelPortal, ticketDelPortal, ticketsDelEquipo } from './tickets.js'
 import { esPrincipal, filaDelPortal, listadosDeTickets, ticketsDelResumen } from './tickets-listados.js'
 import { filtrosGuardados } from './filtros-guardados.js'
@@ -1634,8 +1636,69 @@ function estadoDeMantenimiento (actual) {
       alineados: false
     },
     base: { version: '10.11.6-MariaDB', prefijo: 'tbl' },
-    ocupantes: 2
+    ocupantes: 2,
+    rutina: rutinaDe(actual.id)
   }
+}
+
+/** Rutina por staffid, en memoria. Mismo contrato que `Escritura\Rutina`. */
+const RUTINAS = new Map()
+const HORA_CORTE_MOCK = '18:30'
+
+/** `YYYY-MM-DD` local de una fecha. */
+function fechaMock (fecha) {
+  return [fecha.getFullYear(), fecha.getMonth() + 1, fecha.getDate()].map(n => String(n).padStart(2, '0')).join('-')
+}
+
+/** La configuracion de un operador con la proxima corrida. Sin ventana ni jornadas: al mock le basta el calendario. */
+function rutinaDe (staffId) {
+  const propia = RUTINAS.get(staffId) ?? { activo: false, hora: '09:00', omitir: [] }
+  const hoy = fechaMock(new Date())
+  const omitir = propia.omitir.filter(f => f >= hoy)
+  let proximo = null
+
+  for (let dia = 0; propia.activo && proximo === null && dia < 120; dia++) {
+    const fecha = new Date()
+    fecha.setDate(fecha.getDate() + dia)
+    const texto = fechaMock(fecha)
+    const [h, m] = propia.hora.split(':').map(Number)
+    const pasada = dia === 0 && (fecha.getHours() * 60 + fecha.getMinutes()) >= h * 60 + m + 60
+    if (fecha.getDay() % 6 !== 0 && !omitir.includes(texto) && !pasada) proximo = `${texto} ${propia.hora}`
+  }
+
+  return { ...propia, omitir, proximo, hora_corte: HORA_CORTE_MOCK }
+}
+
+/** Aplica un `PATCH /mantenimiento/rutina`, o lanza 422. */
+function configurarRutina (staffId, entrada) {
+  const campos = Object.keys(entrada ?? {})
+  if (campos.length === 0 || campos.some(c => !['activo', 'hora', 'omitir'].includes(c))) {
+    throw new ErrorApi(422, 'validation_error', 'Hay campos que no se pueden cambiar.')
+  }
+
+  const propia = { ...(RUTINAS.get(staffId) ?? { activo: false, hora: '09:00', omitir: [] }) }
+
+  if ('activo' in entrada) {
+    if (typeof entrada.activo !== 'boolean') throw new ErrorApi(422, 'validation_error', '"activo" tiene que ser verdadero o falso.')
+    propia.activo = entrada.activo
+  }
+  if ('hora' in entrada) {
+    if (!/^([01]\d|2[0-3]):[0-5]\d$/.test(entrada.hora)) throw new ErrorApi(422, 'validation_error', 'La hora debe tener la forma "HH:MM".')
+    if (entrada.hora >= HORA_CORTE_MOCK) {
+      throw new ErrorApi(422, 'validation_error', `La hora tiene que ser antes de las ${HORA_CORTE_MOCK}, cuando se cierra la jornada.`)
+    }
+    propia.hora = entrada.hora
+  }
+  if ('omitir' in entrada) {
+    if (!Array.isArray(entrada.omitir) || entrada.omitir.some(f => typeof f !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(f))) {
+      throw new ErrorApi(422, 'validation_error', 'Cada fecha debe tener la forma "AAAA-MM-DD".')
+    }
+    const hoy = fechaMock(new Date())
+    propia.omitir = [...new Set(entrada.omitir.filter(f => f >= hoy))].sort()
+  }
+
+  RUTINAS.set(staffId, propia)
+  return rutinaDe(staffId)
 }
 
 /** Exige superadministrador, o lanza 403. Mismo texto que `Acceso\\Permisos::exigirSuperadmin()`. */
@@ -3274,6 +3337,11 @@ function tareasDeResumenIa (actual) {
 async function iaRuta (metodo, resto, parametros, actual, cuerpo, peticion) {
   const [seccion, ...sub] = resto
 
+  // Propuestas de otros sistemas de WiWO: ver `mock/mcp-externo.js`.
+  const propuesta = await propuestasRuta(metodo, resto, parametros, cuerpo)
+
+  if (propuesta !== null) return propuesta
+
   if (seccion === 'capacidades' && sub.length === 0 && metodo === 'GET') {
     return { estado: 200, cuerpo: conDatos({ agente: { habilitado: false } }) }
   }
@@ -4031,6 +4099,9 @@ async function accesosRuta (metodo, resto, parametros, actual, cuerpo, peticion)
 
   const [seccion, id] = resto
 
+  // Integraciones y sistemas MCP externos: ver `mock/mcp-externo.js`.
+  if (seccion === 'integraciones') return await integracionesRuta(metodo, resto.slice(1), cuerpo)
+
   if (seccion === 'catalogo' && metodo === 'GET') {
     return { estado: 200, cuerpo: conDatos(catalogoDeAccesos()) }
   }
@@ -4715,6 +4786,72 @@ function opcionesDeJornada () {
       group: 'jornada', type: 'entero', value: CIERRE_MOCK.minutosDeProrroga, min: 5, max: 240
     }
   }
+}
+
+/**
+ * El modo especial (`wiwo_modo_*`). `MOCK_MODO` lo precarga para las pruebas de navegador:
+ * `halloween:2026-10-01:2026-11-30`. Sin la variable nace apagado, como la instalacion real.
+ */
+const MODO_MOCK = (() => {
+  const [modo = 'ninguno', desde = '', hasta = ''] = (process.env.MOCK_MODO ?? '').split(':')
+
+  return { modo: modo === '' ? 'ninguno' : modo, desde, hasta }
+})()
+
+const DIA_VALIDO = /^\d{4}-\d{2}-\d{2}$/
+
+/** Las unicas claves que el mock sabe escribir en `PATCH /settings`; cualquier otra es 422 `no_editable`. */
+const CLAVES_DE_AJUSTES_DEL_MOCK = new Set([
+  'wiwo_portal_ia_chat', 'wiwo_live_cierre_automatico', 'wiwo_live_hora_cierre', 'wiwo_live_prorroga_minutos',
+  'wiwo_modo_especial', 'wiwo_modo_desde', 'wiwo_modo_hasta'
+])
+
+/** El grupo `apariencia` de `GET /settings`, con la forma de `RecursoAjustes::presentar()`. */
+function opcionesDeModo () {
+  return {
+    wiwo_modo_especial: { group: 'apariencia', type: 'enum', value: MODO_MOCK.modo, options: ['ninguno', 'halloween'] },
+    wiwo_modo_desde: { group: 'apariencia', type: 'fecha', value: MODO_MOCK.desde },
+    wiwo_modo_hasta: { group: 'apariencia', type: 'fecha', value: MODO_MOCK.hasta }
+  }
+}
+
+/** Aplica las claves del modo de un `PATCH /settings` con las mismas reglas que `Escritura\Ajuste`. */
+function escribirAjustesDeModo (cambios) {
+  const final = { ...MODO_MOCK }
+  const errores = {}
+
+  if ('wiwo_modo_especial' in cambios) {
+    if (['ninguno', 'halloween'].includes(cambios.wiwo_modo_especial)) final.modo = cambios.wiwo_modo_especial
+    else errores.wiwo_modo_especial = ['invalid']
+  }
+  for (const [clave, campo] of [['wiwo_modo_desde', 'desde'], ['wiwo_modo_hasta', 'hasta']]) {
+    if (!(clave in cambios)) continue
+    const valor = String(cambios[clave])
+    if (valor === '' || DIA_VALIDO.test(valor)) final[campo] = valor
+    else errores[clave] = ['invalid']
+  }
+  if (Object.keys(errores).length === 0 && ['modo', 'desde', 'hasta'].some((k) => final[k] !== MODO_MOCK[k])) {
+    if (final.modo !== 'ninguno' && final.desde === '') errores.wiwo_modo_desde = ['required']
+    if (final.modo !== 'ninguno' && final.hasta === '') errores.wiwo_modo_hasta = ['required']
+    if (Object.keys(errores).length === 0 && final.desde !== '' && final.hasta !== '' && final.desde > final.hasta) {
+      errores.wiwo_modo_hasta = ['after_or_equal:wiwo_modo_desde']
+    }
+  }
+  if (Object.keys(errores).length > 0) {
+    throw new ErrorApi(422, 'validation_failed', 'Hay ajustes que no se pueden escribir.', errores)
+  }
+
+  Object.assign(MODO_MOCK, final)
+}
+
+/** El modo vigente hoy, o `null`: lo que contesta `GET /public/modo`. */
+function modoVigenteMock () {
+  const hoy = new Date().toISOString().slice(0, 10)
+
+  if (MODO_MOCK.modo !== 'halloween' || MODO_MOCK.desde === '' || MODO_MOCK.hasta === '') return null
+  if (hoy < MODO_MOCK.desde || hoy > MODO_MOCK.hasta) return null
+
+  return { clave: MODO_MOCK.modo, desde: MODO_MOCK.desde, hasta: MODO_MOCK.hasta }
 }
 
 /** Aplica las claves de jornada de un `PATCH /settings`, ignorando el resto. */
@@ -6439,6 +6576,13 @@ async function resolverRuta (metodo, segmentos, parametros, token, cuerpo, petic
   // El mock acepta CUALQUIER token con forma de enlace y contesta el area 4 ("Content Studio"). No
   // emula la emision ni la revocacion —eso es de `/accesos/pantallas`, que si necesita sesion—: lo
   // que esta ruta tiene que dar es el PAQUETE, que es lo unico que la pantalla sabe leer.
+  // `GET /public/modo`: el modo especial vigente, sin sesion (lo pintan tambien el acceso y el portal).
+  if (recurso === 'public' && resto[0] === 'modo') {
+    if (metodo !== 'GET' || resto.length > 1) throw new ErrorApi(404, 'not_found', 'No existe ese enlace.')
+
+    return { estado: 200, cuerpo: conDatos(modoVigenteMock()) }
+  }
+
   if (recurso === 'public' && resto[0] === 'display') {
     if (metodo !== 'GET') throw new ErrorApi(404, 'not_found', 'No existe esa pantalla.')
 
@@ -6571,6 +6715,13 @@ async function resolverRuta (metodo, segmentos, parametros, token, cuerpo, petic
       })
     }
 
+    // El rastreo de uso: el contacto anota lo que hace en el portal. Responde 204 como la API.
+    if (metodo === 'POST' && resto[0] === 'actividad' && resto.length === 1) {
+      registrarActividad(sesion.resolverContacto(token, 'acceso'), await cuerpo(), null)
+
+      return { estado: 204, cuerpo: null }
+    }
+
     // El alta de una solicitud es lo UNICO que el contacto escribe en todo el portal, asi que el
     // resto sigue siendo de solo lectura: cualquier otro metodo cae en el 404 de siempre.
     const escribeTicket = (metodo === 'POST' && resto[0] === 'tickets' && resto.length === 1) || esAccionDelPortal(metodo, resto)
@@ -6593,6 +6744,7 @@ async function resolverRuta (metodo, segmentos, parametros, token, cuerpo, petic
           secciones_habilitadas: seccionesDelPortal(contacto),
           proyecto_de_entrada: entradaDelContacto(contacto),
           client: marcaDelCliente(contacto),
+          rastreo: true,
           locale: 'es'
         })
       }
@@ -6863,7 +7015,7 @@ async function resolverRuta (metodo, segmentos, parametros, token, cuerpo, petic
       // con la suya, igual que en la API.
       if (resto[2] === 'tablero' && resto.length === 3) {
         exigirPestania('overview')
-        return { estado: 200, cuerpo: conDatos(tableroParaContacto(pestanias)) }
+        return { estado: 200, cuerpo: conDatos(tableroParaContacto(pestanias, parametros.get('mes'))) }
       }
 
       if (resto[2] === 'timesheets' && resto.length === 3) {
@@ -7308,6 +7460,10 @@ async function resolverRuta (metodo, segmentos, parametros, token, cuerpo, petic
       return { estado: 200, cuerpo: conDatos({ escritos }) }
     }
 
+    if (metodo === 'PATCH' && resto[0] === 'rutina') {
+      return { estado: 200, cuerpo: conDatos(configurarRutina(actual.id, await cuerpo())) }
+    }
+
     throw new ErrorApi(404, 'not_found', 'Subrecurso desconocido.')
   }
 
@@ -7322,8 +7478,17 @@ async function resolverRuta (metodo, segmentos, parametros, token, cuerpo, petic
     if (metodo === 'PATCH') {
       const cambios = await cuerpo()
 
-      escribirAjustesDelOrbePortal(cambios)
+      const ajenas = Object.keys(cambios).filter((clave) => !CLAVES_DE_AJUSTES_DEL_MOCK.has(clave))
+
+      if (ajenas.length > 0) {
+        throw new ErrorApi(422, 'validation_failed', 'Hay ajustes que no se pueden escribir.',
+          Object.fromEntries(ajenas.map((clave) => [clave, ['no_editable']])))
+      }
+
+      // El orbe valida su propia clave y rechaza las ajenas; se le pasa solo la suya.
+      escribirAjustesDelOrbePortal('wiwo_portal_ia_chat' in cambios ? { wiwo_portal_ia_chat: cambios.wiwo_portal_ia_chat } : {})
       escribirAjustesDeJornada(cambios)
+      escribirAjustesDeModo(cambios)
     }
 
     return {
@@ -7333,7 +7498,8 @@ async function resolverRuta (metodo, segmentos, parametros, token, cuerpo, petic
           ia_habilitada: { value: true, tipo: 'bool' },
           ia_tope_tokens: { value: 700, tipo: 'int' },
           ...opcionDelOrbePortal(),
-          ...opcionesDeJornada()
+          ...opcionesDeJornada(),
+          ...opcionesDeModo()
         }
       })
     }
@@ -7580,6 +7746,22 @@ async function resolverRuta (metodo, segmentos, parametros, token, cuerpo, petic
     const asignados = ADMINS_DE_CLIENTE.get(cliente.id) ?? []
 
     return { estado: 200, cuerpo: conDatos(STAFF.filter((s) => asignados.includes(s.id)).map(presentarStaff)) }
+  }
+
+  // --- Actividad del portal, para el equipo ---------------------------------
+  if (recurso === 'clients' && resto[1] === 'portal-activity' && resto.length === 2 && metodo === 'GET') {
+    exigirPermiso(actual, 'customers', 'view')
+    const cliente = buscarO404(CLIENTES, Number(resto[0]), 'cliente')
+
+    return { estado: 200, cuerpo: conDatos(actividadDeCliente(cliente.id, parametros)) }
+  }
+
+  if (recurso === 'contacts' && resto[1] === 'portal-activity' && resto.length === 2 && metodo === 'GET') {
+    exigirPermiso(actual, 'customers', 'view')
+    const contacto = buscarO404(CONTACTOS, Number(resto[0]), 'contacto')
+    const { filas, meta } = actividadDeContacto(contacto.id, parametros)
+
+    return { estado: 200, cuerpo: conDatos(filas, meta) }
   }
 
   // --- Contactos de un cliente ---------------------------------------------
@@ -9190,8 +9372,10 @@ const ACTIVIDAD_DEL_TABLERO = [
  * consigo mismo: las pendientes de los hitos no pueden sumar más que las abiertas del avance.
  *
  * @param {Array<string>} pestanias las pestañas que este contacto tiene en este Proyecto
+ * @param {string|null} mes `YYYY-MM` de un mes ya cerrado: devuelve la foto al cierre, con `foto` y
+ *   cifras propias del mes, como la API real. `null` es el tablero vivo.
  */
-function tableroParaContacto (pestanias) {
+function tableroParaContacto (pestanias, mes = null) {
   const hitos = HITOS_DEL_TABLERO.map(({ por_estado: porEstado, ...hito }) => {
     const pendientes = porEstado.reduce((suma, [, total]) => suma + total, 0)
     const cerradas = hito.tareas - pendientes
@@ -9243,7 +9427,8 @@ function tableroParaContacto (pestanias) {
       vencidas: 7,
       sin_fecha: 4,
       cerradas_7: 5,
-      cerradas_30: 19
+      cerradas_30: 19,
+      cerradas_mes: 12
     }
     tablero.proxima_entrega = { id: 518, name: 'Guion del reel de lanzamiento', duedate: '2026-09-25', dias: 3 }
   }
@@ -9254,7 +9439,51 @@ function tableroParaContacto (pestanias) {
     tablero.actividad = ACTIVIDAD_DEL_TABLERO.map(([fecha, clave]) => ({ fecha, clave }))
   }
 
-  return tablero
+  return mes === null ? tablero : comoFotoAlCierre(tablero, mes)
+}
+
+/**
+ * Convierte el tablero vivo en la foto al último día de un mes cerrado.
+ *
+ * No reconstruye nada: cambia lo justo para que el mes se note en pantalla y en el informe —`foto`,
+ * un avance menor, cifras del mes y la actividad acotada a ese mes— y marca el reparto como
+ * aproximado, que es lo que dice la API real mientras no haya historial de estados.
+ *
+ * @param {object} tablero el tablero vivo ya armado
+ * @param {string} mes `YYYY-MM`
+ */
+function comoFotoAlCierre (tablero, mes) {
+  const [anio, numero] = mes.split('-').map(Number)
+  const ultimo = new Date(Date.UTC(anio, numero, 0)).getUTCDate()
+  const hasta = `${mes}-${String(ultimo).padStart(2, '0')}`
+  const cerradas = Math.floor(tablero.avance.cerradas * 0.6)
+  const foto = {
+    ...tablero,
+    foto: { mes, cerrado: true, hasta, aproximado: true },
+    avance: {
+      ...tablero.avance,
+      cerradas,
+      abiertas: tablero.avance.tareas - cerradas,
+      porcentaje: tablero.avance.tareas === 0 ? null : Math.round((cerradas * 100) / tablero.avance.tareas)
+    }
+  }
+
+  if (tablero.tareas !== undefined) {
+    foto.tareas = { ...tablero.tareas, vencidas: 3, cerradas_mes: 9, cerradas_7: 2, cerradas_30: 9 }
+  }
+
+  if (tablero.proxima_entrega !== undefined) {
+    foto.proxima_entrega = { ...tablero.proxima_entrega, dias: 9 }
+  }
+
+  if (tablero.actividad !== undefined) {
+    foto.actividad = tablero.actividad.map((linea, i) => ({
+      ...linea,
+      fecha: `${mes}-${String(Math.min(ultimo, 3 + i * 4)).padStart(2, '0')} ${linea.fecha.slice(11)}`
+    }))
+  }
+
+  return foto
 }
 
 /**

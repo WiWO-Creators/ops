@@ -1,4 +1,7 @@
 import type { ComponentType } from 'react'
+import { EscenaCalabaza } from './EscenaCalabaza'
+import { EscenaCaldero } from './EscenaCaldero'
+import { EscenaFantasma } from './EscenaFantasma'
 import { EscenaGantt } from './EscenaGantt'
 import { EscenaIndicadores } from './EscenaIndicadores'
 import { EscenaJornada } from './EscenaJornada'
@@ -43,17 +46,33 @@ export const ESCENAS: readonly [EscenaDeBienvenida, ...EscenaDeBienvenida[]] = [
 ]
 
 /**
- * Elige una escena al azar.
+ * Las escenas de cada modo especial, que reemplazan a las de siempre mientras el modo se ve.
+ *
+ * La clave es la del modo (`dominio/modos-especiales.ts`). Mismo encuadre y mismas reglas que
+ * `ESCENAS`: agregar un modo con escenas propias es una entrada aca.
+ */
+export const ESCENAS_DE_MODO: Readonly<Record<string, readonly [EscenaDeBienvenida, ...EscenaDeBienvenida[]]>> = {
+  halloween: [
+    { clave: 'calabaza', nombre: 'Calabaza', Dibujo: EscenaCalabaza, frase: 'Tallando las novedades…', duracion: 3500 },
+    { clave: 'caldero', nombre: 'Caldero', Dibujo: EscenaCaldero, frase: 'Cocinando la actualización…', duracion: 3300 },
+    { clave: 'fantasma', nombre: 'Fantasma', Dibujo: EscenaFantasma, frase: 'Cazando los últimos bugs…', duracion: 3400 }
+  ]
+}
+
+/**
+ * Elige una escena al azar, de las del modo especial si hay uno a la vista y de las de siempre si no.
  *
  * Al azar y no por turnos: recordar cual toco la vez pasada obliga a guardar estado entre sesiones
  * para algo que dura tres segundos y se ve, con suerte, una vez por semana.
  *
- * @returns una de las escenas de `ESCENAS`; nunca `undefined` mientras la lista no este vacia
+ * @returns una de las escenas; nunca `undefined` mientras las listas no esten vacias
  */
 export function elegirEscena (): EscenaDeBienvenida {
-  const indice = Math.floor(Math.random() * ESCENAS.length)
+  const modo = typeof document === 'undefined' ? null : document.documentElement.getAttribute('data-modo')
+  const lista = (modo !== null ? ESCENAS_DE_MODO[modo] : undefined) ?? ESCENAS
+  const indice = Math.floor(Math.random() * lista.length)
 
   // `Math.random()` no llega a 1, pero un redondeo desafortunado en algun motor no puede terminar en
   // una pantalla en blanco: la primera escena es un respaldo valido.
-  return ESCENAS[indice] ?? ESCENAS[0]
+  return lista[indice] ?? lista[0]
 }

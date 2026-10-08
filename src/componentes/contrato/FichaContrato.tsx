@@ -1,10 +1,10 @@
 'use client'
 
-import Link from 'next/link'
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
-import { ArrowLeft, Pencil } from 'lucide-react'
+import { Pencil } from 'lucide-react'
 import { Boton } from '@/componentes/formularios/Boton'
+import { BotonVolver } from '@/componentes/estructura/BotonVolver'
 import { TituloModulo } from '@/componentes/estructura/TituloModulo'
 import { FormularioRecurso } from '@/componentes/proyecto/FormularioRecurso'
 import type { OpcionCampo } from '@/componentes/proyecto/formulario'
@@ -12,17 +12,19 @@ import { EnlaceCliente } from '@/componentes/presentadores/EnlaceCliente'
 import { EnlaceProyecto } from '@/componentes/presentadores/EnlaceProyecto'
 import { ContenidoHtml } from '@/componentes/presentadores/ContenidoHtml'
 import { Filas, Seccion, type Dato } from '@/componentes/presentadores/Ficha'
-import { useAviso } from '@/componentes/estado/useAviso'
+import type { EstadoIa } from '@/dominio/ajustes'
 import type { Contrato } from '@/datos/recursos'
 import { formatearValorDeContrato } from '@/definiciones/contratos'
 import { GLOSARIO } from '@/dominio/glosario'
 import { formatearFecha } from '@/lib/fechas'
 import { camposDeContrato, registroDeContrato } from './campos'
+import { PanelScopeContrato } from './PanelScopeContrato'
 
 interface PropsFichaContrato {
   contrato: Contrato
   clientes: OpcionCampo[]
   tipos: OpcionCampo[]
+  ia: EstadoIa
 }
 
 /**
@@ -31,12 +33,13 @@ interface PropsFichaContrato {
  * El texto (`content`) se muestra en solo lectura dentro de `ContenidoHtml`, que lo aisla del resto
  * de la pagina; se sigue editando y firmando en el panel.
  *
- * @param props el contrato y las opciones del formulario de edicion
+ * El scope principal (`PanelScopeContrato`) es el que heredan los Proyectos creados dentro de el.
+ *
+ * @param props el contrato, las opciones del formulario de edicion y el estado de la IA
  * @returns la cabecera con «Editar» y las secciones de la ficha
  */
-export function FichaContrato ({ contrato, clientes, tipos }: PropsFichaContrato) {
+export function FichaContrato ({ contrato, clientes, tipos, ia }: PropsFichaContrato) {
   const router = useRouter()
-  const aviso = useAviso()
   const [editando, setEditando] = useState(false)
 
   const comercial = conValor([
@@ -55,20 +58,20 @@ export function FichaContrato ({ contrato, clientes, tipos }: PropsFichaContrato
 
   return (
     <section className="flex flex-col gap-6">
-      <Link href="/contratos" className="text-texto-tenue hover:text-acento inline-flex w-fit items-center gap-1 text-sm">
-        <ArrowLeft aria-hidden className="size-4" />
-        {GLOSARIO.contrato.plural}
-      </Link>
-
-      <TituloModulo
-        titulo={contrato.subject === '' ? `Contrato #${contrato.id}` : contrato.subject}
-        acciones={
-          <Boton tamano="chico" onClick={() => { setEditando(true) }}>
-            <Pencil aria-hidden className="size-4" />
-            Editar
-          </Boton>
-        }
-      />
+      {/* El regreso comparte bloque con el titulo: suelto seria el primer hijo de la seccion y la
+          entrada de pagina lo animaria como un grupo de contenido, desfasado del titulo. */}
+      <div className="flex flex-col gap-3">
+        <BotonVolver href="/contratos" etiqueta={GLOSARIO.contrato.plural} />
+        <TituloModulo
+          titulo={contrato.subject === '' ? `Contrato #${contrato.id}` : contrato.subject}
+          acciones={
+            <Boton variante="secundario" tamano="chico" onClick={() => { setEditando(true) }}>
+              <Pencil aria-hidden className="size-4" />
+              Editar
+            </Boton>
+          }
+        />
+      </div>
 
       {contrato.trash && (
         <p className="text-texto-tenue text-sm">Este contrato está en la papelera del panel: no aparece en el listado.</p>
@@ -119,6 +122,12 @@ export function FichaContrato ({ contrato, clientes, tipos }: PropsFichaContrato
         </Seccion>
       </div>
 
+      <div className="max-w-5xl">
+        <Seccion titulo={`${GLOSARIO.scope.singular} principal`}>
+          <PanelScopeContrato contratoId={contrato.id} ia={ia} />
+        </Seccion>
+      </div>
+
       {contrato.content !== null && contrato.content !== undefined && (
         <div className="max-w-5xl">
           <Seccion titulo="Texto del contrato">
@@ -136,10 +145,8 @@ export function FichaContrato ({ contrato, clientes, tipos }: PropsFichaContrato
           ruta={`contratos/${contrato.id}`}
           metodo="PATCH"
           registro={registroDeContrato(contrato)}
-          onGuardado={() => {
-            aviso.exito('Contrato actualizado.')
-            router.refresh()
-          }}
+          avisoExito="Contrato actualizado."
+          onGuardado={() => { router.refresh() }}
           columnas={2}
           ancho="grande"
         />

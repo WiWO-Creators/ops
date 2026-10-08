@@ -18,7 +18,7 @@ import type { OpcionCampo } from '@/componentes/proyecto/formulario'
 import { listaDe } from '@/datos/catalogos'
 import { ErrorApi } from '@/datos/errores'
 import { cargarLookups } from '@/datos/lookups'
-import { pedir } from '@/datos/servidor'
+import { cargarYo, pedir } from '@/datos/servidor'
 import { GLOSARIO } from '@/dominio/glosario'
 import { alcanzaParaSupervisar } from '@/dominio/supervision'
 import type { FichaPersona as Persona, Lookups } from '@/datos/recursos'
@@ -77,7 +77,7 @@ async function cargarDetalle (id: string): Promise<Detalle | ErrorApi> {
     const [persona, lookups, yo] = await Promise.all([
       traerPersona(id),
       cargarLookups(),
-      pedir<Yo>('/me')
+      cargarYo()
     ])
 
     return { persona: persona.data, lookups, yo: yo.data }

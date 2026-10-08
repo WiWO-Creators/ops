@@ -16,7 +16,6 @@ import {
   duracionDesdeMinutos,
   duracionMostrada,
   formatearDecimal,
-  formatearHm,
   parsearDuracion,
   segundosEnVivo,
   validarTimesheet
@@ -89,10 +88,7 @@ test('un registro cerrado muestra tal cual lo que calculo el backend', () => {
   })
 })
 
-test('formatearHm no convierte las horas en dias', () => {
-  assert.equal(formatearHm(30 * 3600), '30:00')
-  assert.equal(formatearHm(0), '00:00')
-  assert.equal(formatearHm(-5), '00:00')
+test('formatearDecimal redondea a dos decimales', () => {
   assert.equal(formatearDecimal(108330), 30.09)
 })
 

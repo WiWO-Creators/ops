@@ -28,6 +28,7 @@ import {
   altoDeGantt,
   anchoDeGantt,
   diaDeFecha,
+  fechaDeDia,
   filasDeGantt,
   flechasDeGantt,
   marcasDeGantt,
@@ -63,9 +64,6 @@ export const NOMBRE_DE_AGRUPACION: Record<AgrupacionGantt, string> = {
 
 /** Separador entre dependencias dentro de una celda. Con coma la celda se entrecomilla y se lee peor. */
 const SEPARADOR_DEPENDENCIAS = '; '
-
-/** Un dia en milisegundos: para pasar el dia UTC de `rangoDeGantt` de vuelta a `YYYY-MM-DD`. */
-const DIA_EN_MS = 86400000
 
 // -- Planilla -----------------------------------------------------------------------------------
 
@@ -329,16 +327,6 @@ export interface OpcionesDeDiagrama {
   /** Fecha `YYYY-MM-DD` congelada por el panel. */
   hoy: string
   proyectoId: number
-}
-
-/**
- * Convierte un dia UTC desde la epoca de vuelta a `YYYY-MM-DD`.
- *
- * @param dia el dia que devuelve `rangoDeGantt`
- * @returns la fecha en el formato del contrato
- */
-function fechaDeDia (dia: number): string {
-  return new Date(dia * DIA_EN_MS).toISOString().slice(0, 10)
 }
 
 /**

@@ -106,7 +106,7 @@ export function validarFormulario (
       const elegidas = valor === undefined ? [] : valor
 
       if (!Array.isArray(elegidas) || elegidas.some((id) => !(campo.opciones ?? []).some((opcion) => opcion.valor === id))) {
-        errores[campo.clave] = 'Elegí opciones válidas.'
+        errores[campo.clave] = 'Elige opciones válidas.'
       } else if (campo.requerido === true && elegidas.length === 0) {
         errores[campo.clave] = 'Este campo es obligatorio.'
       }
@@ -253,7 +253,7 @@ function escribirEn (cuerpo: Record<string, unknown>, clave: string, valor: unkn
  * @param clave `company` o `billing.street`
  * @returns el valor, o `undefined` si algun tramo del camino no existe
  */
-function leerDe (registro: Record<string, unknown>, clave: string): unknown {
+function leerDe (registro: object, clave: string): unknown {
   let actual: unknown = registro
 
   for (const parte of clave.split('.')) {
@@ -274,7 +274,7 @@ function leerDe (registro: Record<string, unknown>, clave: string): unknown {
  */
 export function valoresIniciales (
   campos: CampoFormulario[],
-  registro: Record<string, unknown> | null
+  registro: object | null
 ): ValoresFormulario {
   const valores: ValoresFormulario = {}
 
@@ -318,4 +318,70 @@ function nombresDeEtiquetasCrudas (crudo: unknown[]): string[] {
 
     return nombre.trim() === '' ? [] : [nombre]
   })
+}
+
+/** Claves donde un registro guarda el nombre con que la persona lo reconoce, en orden de preferencia. */
+const CLAVES_DE_NOMBRE = ['name', 'title', 'company', 'subject', 'full_name', 'nombre', 'empresa'] as const
+
+/**
+ * El nombre con que se reconoce un registro, buscado en lo enviado y, si no viajó, en el registro.
+ *
+ * @param fuentes el cuerpo enviado y el registro editado, en ese orden
+ * @returns el nombre, o `null` si ninguna fuente lo trae
+ */
+function nombreDelRegistro (fuentes: Array<object | null>): string | null {
+  for (const fuente of fuentes) {
+    if (fuente === null) continue
+
+    for (const clave of CLAVES_DE_NOMBRE) {
+      const valor = leerDe(fuente, clave)
+      if (typeof valor === 'string' && valor.trim() !== '') return valor.trim()
+    }
+
+    const persona = [leerDe(fuente, 'firstname'), leerDe(fuente, 'lastname')].filter((parte) => typeof parte === 'string' && parte.trim() !== '')
+    if (persona.length > 0) return persona.join(' ').trim()
+  }
+
+  return null
+}
+
+/**
+ * El aviso de exito tras guardar un formulario, nombrando lo guardado con «».
+ *
+ * Toda mutacion que cierra un dialogo confirma: sin eso, el dialogo desaparece y quien guardo no sabe
+ * si entro. El nombre sale de lo enviado y, en una edicion que no lo toca, del registro.
+ *
+ * @param metodo `POST` para un alta, `PATCH` para una edicion
+ * @param cuerpo lo que se envio
+ * @param registro el registro editado, o `null` en un alta
+ * @returns el texto del aviso
+ */
+export function avisoDeGuardado (
+  metodo: 'POST' | 'PATCH',
+  cuerpo: Record<string, unknown>,
+  registro: object | null
+): string {
+  const nombre = nombreDelRegistro([cuerpo, registro])
+
+  if (nombre === null) return metodo === 'POST' ? 'Alta guardada.' : 'Cambios guardados.'
+
+  return metodo === 'POST' ? `«${nombre}» se creó.` : `Cambios de «${nombre}» guardados.`
+}
+
+/**
+ * El texto del boton que envia un formulario de alta o de edicion.
+ *
+ * Una edicion dice «Guardar cambios». Un alta nombra lo que crea: «Nuevo contrato» pasa a
+ * «Crear contrato»; si el titulo no empieza por «Nuevo»/«Nueva», queda «Crear».
+ *
+ * @param metodo `POST` para un alta, `PATCH` para una edicion
+ * @param titulo el titulo del dialogo
+ * @returns la etiqueta del boton de envio
+ */
+export function etiquetaDeEnvio (metodo: 'POST' | 'PATCH', titulo: string): string {
+  if (metodo === 'PATCH') return 'Guardar cambios'
+
+  const entidad = /^nuev[oa]s?\s+(.+)$/iu.exec(titulo.trim())?.[1]
+
+  return entidad === undefined ? 'Crear' : `Crear ${entidad}`
 }
