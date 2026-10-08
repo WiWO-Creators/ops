@@ -6427,11 +6427,17 @@ Thinking Orb pasa de leer a **proponer**. El modelo no ejecuta nada: deja una pr
 `tblapi_ia_acciones` y una persona la confirma o la rechaza en el chat. Se mergea **apagado**
 (`ia_escritura_habilitada` = `'0'`), y apagado el comportamiento es exactamente el de antes.
 
-**No es un servidor MCP: es function calling interno**, el mismo formato `tools` que `IA\Cliente` ya
+**Para el Orbe no es un servidor MCP: es function calling interno**, el mismo formato `tools` que `IA\Cliente` ya
 habla y las mismas diez herramientas de lectura que ya existían. MCP se paga cuando varios clientes
 ajenos consumen las mismas herramientas; acá el único cliente es este backend, y un proceso aparte
 obligaría a sacar `staffId`, `Acceso\Permisos` y `Acceso\Visibilidad` fuera de la petición que lleva
 la sesión, que es exactamente donde tienen que estar.
+
+> **Actualización.** Cuando otros sistemas de WiWO empezaron a necesitar las mismas herramientas, el
+> razonamiento de arriba se respetó: el servidor MCP externo **no es un proceso aparte**, vive en PHP
+> (`POST /api/v1/mcp`) y resuelve `staffId`, `Permisos` y `Visibilidad` dentro de la petición, a partir
+> de una aserción firmada con el correo de la persona. Ver «Servidor MCP externo» al final de este
+> documento. El worker del Orbe sigue igual.
 
 #### El invariante, y los tres greps que lo verifican
 
@@ -7515,6 +7521,220 @@ Una fila trae `id`, `subject`, `description`, `client_id`, `client {id, company,
 `contract_type {id, name} | null`, `project {id, name} | null`, `datestart`, `dateend`,
 `contract_value | null`, `signed`, `visible_to_client`, `trash`, `addedfrom {id, full_name} | null`
 y `dateadded`.
+
+## Servidor MCP externo — endpoints de administración y propuestas
+
+Otros sistemas de WiWO (Metriq, WiwoLab…) usan Ops en nombre de una persona identificada por su
+correo. Esta sección es el contrato de **lo que ve ops-v2**: la administración de los sistemas y la
+bandeja de propuestas. El protocolo MCP en sí (`POST /api/v1/mcp`) lo consumen esos sistemas y no
+pasa por el BFF.
+
+> **Quién lo implementa.** `GET /accesos/integraciones/{id}/mcp/llamadas`, `GET /ia/propuestas` y el
+> campo `vinculos` de `GET /tasks/{id}` los implementa el board en la rama `feat/mcp-externo`, la
+> misma de este cambio. Hasta que se desplieguen, ops-v2 los trata como ausentes: la bandeja se lee
+> vacía ante un `404`, el contador de la barra no se dibuja y la ficha de la Tarea no pinta vínculo.
+> El interruptor `wiwo_mcp_habilitado` nace apagado: nada de esto se anuncia en Novedades hasta
+> encenderlo.
+
+### El protocolo para los otros sistemas (resumen)
+
+`POST /api/v1/mcp` — MCP «Streamable HTTP» mínimo: JSON-RPC 2.0, **un mensaje por petición**, respuesta
+en JSON, sin stream, sin lotes ni sesión (`GET` es `405`). Solo `tools`. No pasa por el BFF: lo llaman
+servidores, no navegadores (una petición con `Origin` es `403`).
+
+Cada petición lleva **dos credenciales**: `Authorization: Bearer <llave del sistema>` (integración de
+alcance `mcp`) y `X-Wiwo-Asercion: <JWT ES256>` de vida corta (`iss` = slug del sistema, `aud` =
+endpoint, `sub` = correo de la persona, `jti` único). La persona sale del correo y tiene que ser staff
+activo; actúa con sus permisos y su visibilidad. Ops guarda solo la clave **pública** de cada sistema.
+
+- **Lecturas**: las del Orbe sobre Espacios más `mis_tareas`, `mis_horas`, `comentarios_de_tarea`,
+  `personas_de_tarea`, `tarea_por_vinculo`, `estado_de_propuesta`, `mis_propuestas`. `tarea_por_vinculo` nunca da `404`
+  por una tarea que la persona no ve: responde `{ encontrada: false }` igual que si el vínculo no existiera. Lista blanca
+  filtrada por los dominios que cada sistema tiene encendidos.
+- **Escrituras** (`crear_tarea`, `comentar_tarea`, `cambiar_estado_de_tarea`, `registrar_horas`):
+  **solo dejan una propuesta**; la persona la confirma desde `/propuestas` con el mismo
+  `POST /ia/acciones/{id}`. Aceptan `_meta["wiwo/idempotency_key"]` y, las dos primeras, un `vinculo`
+  `{externo_id, url}` que se materializa al aprobar.
+- **Eventos** por webhook (cola con reintentos, mismo `id` en cada intento): `propuesta.aprobada|
+  rechazada|fallida|expirada`, `tarea.estado_cambiado`, `tarea.completada` y los de acceso y catálogo:
+  `persona.acceso_revocado`, `persona.permisos_cambiados`, `espacio.acceso_perdido`, `espacio.archivado`,
+  `espacio.eliminado`, `tarea.inaccesible` y `sistema.catalogo_cambiado`.
+- **Decisión remota** (opcional, apagada de fábrica): `POST /api/v1/mcp/decision/{propuesta_id}`, una ruta
+  HTTP aparte —nunca una herramienta MCP— con su propia clave de propósito `decision`. Solo aprueba las
+  herramientas que el administrador encendió por sistema y nunca una propuesta visible para el cliente.
+- **Interruptores**, todos apagados de fábrica: `wiwo_mcp_habilitado`, `wiwo_mcp_eventos`.
+
+El detalle para quien integra está en `modules/api/docs/mcp-consumidores.md` del board y la operación en
+`modules/api/README.md`.
+
+Todas las rutas de `/accesos/integraciones` exigen **superadministrador** (`403` al resto).
+
+### Integraciones (`/accesos/integraciones`)
+
+| Método y ruta | Cuerpo | Respuesta |
+|---|---|---|
+| `GET /accesos/integraciones` | — | `[{ id, name, scope, key_start, created_at, created_by, key_issued_at, last_used_at }]`. `scope` es `pantallas` o `mcp`. Las revocadas no salen. |
+| `POST /accesos/integraciones` | `{ nombre }` (alcance `pantallas`) o `{ nombre, sistema, alcance: "mcp" }` | `201`. El `data` trae `key` (64 hex) **en claro, esta única vez**. Con `alcance: "mcp"` trae además el sistema (ver abajo). `409` si el `sistema` ya existe, `422` si el slug no sirve (`^[a-z0-9][a-z0-9-]{1,30}$`). |
+| `POST /accesos/integraciones/{id}/llave` | opcional `{ "sin_gracia": true }` (tiene que ser booleano; otro tipo es `422`) | `201` con `key` nueva y `previous_key_valid_until`. En una integración `pantallas` la anterior deja de servir al instante y el campo es `null`. En un sistema `mcp` la anterior sigue válida un rato (`MCP_LLAVE_GRACIA_MIN`, 15 min por defecto) y el campo trae hasta cuándo, salvo con `sin_gracia: true` (la llave se filtró): la anterior muere al instante y el campo es `null`. ops-v2 dice «la llave anterior sigue válida hasta …» y, en el diálogo de regenerar, ofrece «Invalidar la anterior ahora». |
+| `DELETE /accesos/integraciones/{id}` | — | `204`. Idempotente y definitivo. |
+
+### Sistema MCP (`/accesos/integraciones/{id}/mcp`)
+
+`GET` y `PUT` (parcial: lo que el cuerpo no trae no se toca). `404` si la integración no es de alcance `mcp`.
+
+```json
+{
+  "id": 7, "system": "metriq",
+  "keys": [{
+    "kid": "metriq-2026-10", "purpose": "mcp",
+    "since": "2026-10-01T00:00:00Z", "until": null,
+    "status": "active", "expires_in_days": null, "fingerprint": "sha256:9f2c…"
+  }],
+  "active_keys": 1, "keys_expiring_soon": false,
+  "domains": ["nucleo", "procesos"],
+  "events": ["propuesta.aprobada", "tarea.completada"],
+  "proposal_ttl_hours": 72,
+  "link_domains": ["metriq.example", "*.metriq.example"],
+  "decision_tools": [],
+  "limits": {
+    "rpm_person": null, "rpm_system": 600, "max_pending": null,
+    "effective": { "rpm_person": 60, "rpm_system": 600, "max_pending": 25 }
+  },
+  "updated_at": "2026-10-07T15:00:00Z"
+}
+```
+
+- Cada clave trae `purpose` (`mcp` o `decision`), `status` (`active`, `expiring` —vence dentro del aviso del
+  servidor—, `expired` o `scheduled` —aún no empieza—), `expires_in_days` (`null` si no vence o ya venció) y
+  `fingerprint`. **El PEM nunca vuelve.** `active_keys` cuenta las `active` y `expiring`; `keys_expiring_soon`
+  es `true` si alguna está `expiring` (ops-v2 avisa que hay claves por vencer).
+- `limits` lleva lo configurado por sistema (`null` = usa el valor por defecto del entorno) y, en `effective`,
+  lo que rige de verdad.
+- `link_domains` es la lista blanca de dominios de `vinculo.url`; vacía = ninguna URL se acepta.
+- `decision_tools` es lo que el sistema puede aprobar de forma remota; vacía = ruta de decisión desactivada.
+
+Cuerpo del `PUT` (todo opcional):
+
+```json
+{
+  "claves": [{ "kid": "metriq-2026-10", "pem": "-----BEGIN PUBLIC KEY-----…", "proposito": "mcp", "desde": "…", "hasta": null }],
+  "dominios": ["nucleo", "espacios", "personales", "procesos", "jornadas"],
+  "eventos": ["propuesta.aprobada", "…"],
+  "ttl_propuesta_horas": 72,
+  "rpm_persona": 60,
+  "rpm_sistema": null,
+  "tope_vivas": 25,
+  "decision_herramientas": ["comentar_tarea"],
+  "dominios_vinculo": ["metriq.example", "*.metriq.example"]
+}
+```
+
+- **`claves` reemplaza la lista entera**, y el `PEM` **no vuelve nunca** en el `GET`. Por eso una entrada con un
+  `kid` que ya existe y **sin `pem` conserva la clave registrada** (y su propósito) y solo actualiza
+  `desde`/`hasta`; con `pem`, la registra. Así ops-v2 puede agregar una clave y retirar otra sin conocer los PEM
+  guardados. Cada `pem` tiene que ser una clave **pública EC P-256** (`422` con una privada, otra curva o texto
+  que no es PEM). `proposito` es `mcp` (por defecto) o `decision`. Máximo 6 claves, y **2 vigentes a la vez por
+  propósito**. ops-v2 reenvía todas las claves y descarta las vencidas únicamente si hacen falta para no pasar de 6.
+- `dominios` y `eventos` solo admiten los valores listados (`422` con otro). Los eventos suscribibles son los seis
+  de propuestas y tareas más `persona.acceso_revocado`, `persona.permisos_cambiados`, `espacio.acceso_perdido`,
+  `espacio.archivado`, `espacio.eliminado`, `tarea.inaccesible` y `sistema.catalogo_cambiado`.
+  `ttl_propuesta_horas`: entero de 1 a 720.
+- `rpm_persona` y `rpm_sistema`: entero de 1 a 100000. `tope_vivas`: entero de 1 a 1000. `null` vuelve al valor
+  por defecto. Cualquier otra cosa (texto, decimal, 0, fuera de rango) es `422`.
+- `decision_herramientas` es un subconjunto de `comentar_tarea`, `cambiar_estado_de_tarea` y `registrar_horas`
+  (`422` con otra); **por defecto ninguna**. Encender una permite que el sistema apruebe esas propuestas desde fuera
+  de Ops, con una clave de propósito `decision`.
+- `dominios_vinculo`: hasta 20 entradas, cada una `dominio.com` o `*.dominio.com` (en minúsculas, sin esquema, ruta,
+  puerto ni IP); `422` con una mal formada.
+- `PUT claves` tiene dos `422` con explicación propia, que ops-v2 traduce (los códigos viajan en `details.claves`):
+  `proposito_inmutable` (una clave ya registrada no cambia de propósito: se registra otra con otro `kid`) y
+  `clave_repetida_entre_propositos` (el mismo PEM no puede ser de propósito `mcp` y `decision` a la vez).
+  Además, `max_active` y `unique` ya existentes.
+- Las escrituras de un sistema **siempre** llegan como propuesta (ver abajo); no hay interruptor para saltarlo.
+
+### Últimas llamadas (`GET /accesos/integraciones/{id}/mcp/llamadas`)
+
+Las últimas 50, de la más nueva a la más vieja. De los argumentos solo se guarda una huella: no hay contenido.
+
+```json
+[
+  { "id": 912, "staff_id": 5, "method": "tools/call", "tool": "mis_tareas", "code": "ok",
+    "reason": null, "request_id": "req-7f2e", "sid": "ses-21", "ms": 38, "created_at": "2026-10-07T15:00:00Z" },
+  { "id": 913, "staff_id": null, "method": "rechazo", "tool": null, "code": "401",
+    "reason": "firma_invalida", "request_id": null, "sid": null, "ms": 3, "created_at": "2026-10-07T15:02:00Z" }
+]
+```
+
+- `method` es `initialize`, `tools/list`, `tools/call`, **`rechazo`** (un 401, 403 o 429 de la puerta, antes de
+  llegar a una herramienta) o **`decision`** (una aprobación o rechazo remotos).
+- `reason` es el motivo INTERNO de un rechazo (`firma_invalida`, `kid_desconocido`, `proposito_equivocado` —una
+  clave que existe pero es de otro propósito—, `jti_repetido`, `cuota_persona`…); al sistema le llega siempre el
+  mismo texto. `null` en lo que pasó. **No hay filas `ip_bloqueada`**: el bloqueo por IP insiste miles de veces y
+  no se audita. Si el board está detrás de un proxy cuya IP de cliente no es pública, el MCP responde
+  `503 proxy_ip_no_publica` (es de despliegue, no sale en esta lista).
+- `request_id` y `sid` los manda el sistema y **solo sirven para correlacionar**; nunca deciden nada.
+- ops-v2 los muestra en una tabla con filtro por método (todas, rechazos, decisiones, herramientas) y búsqueda
+  por herramienta, motivo, `request_id` o `sid`.
+
+### Webhook de la integración
+
+Rutas ya existentes, sin cambios: `GET|PUT|DELETE /accesos/integraciones/{id}/webhook` (el `PUT` toma
+`{ url }` y contesta `201` con `secret` en claro la primera vez), `POST …/webhook/secreto` (`201`, `secret`
+nuevo) y `POST …/webhook/prueba`. El `GET` no trae el secreto: trae `url`, `secret_start`, `last_attempt_at`,
+`last_status`, `last_error`, `last_success_at`, `consecutive_failures` y `enabled`. Sin webhook, `404`.
+
+### Propuestas de otros sistemas (`GET /ia/propuestas`)
+
+Las de **quien pregunta**; nunca las de otra persona. `?estado=pendiente` (por defecto: las que siguen
+esperando y no vencieron) o `?estado=todas` (las recientes, resueltas o no). Sin paginar.
+
+```json
+[{
+  "id": 41, "tool": "crear_tarea",
+  "summary": "Crear la tarea «Revisar métricas de octubre» en Nestlé",
+  "detail": ["Proyecto: Nestlé · Campañas"], "assumptions": ["Vence: viernes"],
+  "state": "pendiente", "result": null,
+  "expires_at": "2026-10-10T12:00:00Z", "created_at": "2026-10-07T12:00:00Z",
+  "origin": { "system": "metriq", "name": "Metriq" },
+  "link": { "external_id": "m-9", "url": "https://metriq.wiwo.me/alertas/9" },
+  "args_hash": "a3f1c9d27b6e4a08",
+  "visible_to_client": true,
+  "provenance": { "trusted": false, "data": { "alerta": "Caída de inversión en octubre" } },
+  "url_ops": "https://ops.wiwo.me/propuestas/41"
+}]
+```
+
+`state`: `pendiente`, `ejecutando`, `ejecutada`, `rechazada`, `fallida` o `expirada`. `link` es `null`
+si el sistema no mandó vínculo; su `url` solo se abre si es `https`. **Confirmar o rechazar** usa el
+endpoint de siempre: `POST /ia/acciones/{id}` con `{ "decision": "confirmar" | "rechazar" }`; la
+respuesta es la tarjeta ya resuelta (`id`, `herramienta`, `resumen`, `detalle`, `supuestos`, `estado`,
+`resultado`, `expira_en`). A diferencia de las del chat (30 minutos), el plazo de estas lo fija
+`proposal_ttl_hours` del sistema.
+
+Campos que ops-v2 trata con cuidado:
+
+- **`visible_to_client`** (siempre `bool`): lo que la propuesta hace lo va a poder leer el cliente (tarea creada
+  visible, comentario o estado sobre una tarea visible). Es `true` también cuando el board aún no lo calculó
+  (columna sin valor): ante la duda se avisa. La tarjeta lo muestra —«Será visible para el cliente»— y la decisión
+  remota nunca la aprueba. ops-v2 solo toma `true` como visible; cualquier otra cosa, ausente incluida, la lee
+  como no visible.
+- **`provenance`** (`{ trusted: false, data: { clave: valor } } | null`): lo que el sistema DECLARÓ sobre el
+  origen. **Nunca es de confianza**: ops-v2 lo pinta siempre como texto plano (jamás HTML ni enlace), bajo el
+  rótulo «Declarado por {sistema}, no verificado por Ops», y fuerza `trusted: false` aunque llegara otra cosa.
+  Los valores que no son texto, número o booleano se descartan.
+- **`args_hash`**: huella de lo que se propuso; la decisión remota se liga a ella. ops-v2 la lee pero no la
+  muestra.
+- **`url_ops`**: enlace profundo a la propuesta en Ops (`/propuestas/{id}`); ausente si el board no conoce su URL
+  pública. ops-v2 lo ofrece como «Copiar enlace a esta propuesta».
+
+**Enlace profundo.** `/propuestas/{id}` (ruta de ops-v2, no de la API) abre la bandeja completa con esa propuesta
+resaltada y a la vista. Como `GET /ia/propuestas` solo trae las propias, un id ajeno, viejo o inexistente muestra
+«No encontramos esa propuesta». No hay `GET /ia/propuestas/{id}`.
+
+### Vínculo en la Tarea (`GET /tasks/{id}`)
+
+Campo nuevo y opcional: `vinculos: [{ "system": "metriq", "external_id": "m-9", "url": "https://…" | null }]`.
+Una API que no lo manda se lee como «sin vínculos». ops-v2 pinta «Vinculada con {sistema} ↗» en la ficha.
 
 ## Tiempo real
 

@@ -1,5 +1,5 @@
 import { Suspense } from 'react'
-import { CalendarSync, Database, Inbox, KeyRound, Megaphone, MonitorPlay, RefreshCcwDot, Siren, Sparkles, type LucideIcon } from 'lucide-react'
+import { CalendarSync, Database, Inbox, KeyRound, Megaphone, MonitorPlay, Plug, RefreshCcwDot, Siren, Sparkles, type LucideIcon } from 'lucide-react'
 import { AccesoGoogle } from '@/componentes/administracion/AccesoGoogle'
 import { FormularioDeAjustes } from '@/componentes/administracion/FormularioDeAjustes'
 import { ModoEspecialAdmin } from '@/componentes/administracion/ModoEspecialAdmin'
@@ -60,6 +60,13 @@ const PANTALLAS_APARTE: PantallaAparte[] = [
     titulo: 'Anuncios de pantalla',
     descripcion: 'Los avisos que una persona publica para el televisor de un área o el de toda la compañía.',
     icono: Megaphone,
+    tono: 'acento'
+  },
+  {
+    href: '/administracion/integraciones',
+    titulo: 'Integraciones',
+    descripcion: 'Las llaves con las que Metriq, WiwoLab y otros sistemas usan Ops en nombre de una persona.',
+    icono: Plug,
     tono: 'acento'
   },
   {

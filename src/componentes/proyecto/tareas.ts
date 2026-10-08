@@ -265,6 +265,8 @@ export interface ProcesoDeFicha {
    * manda solo con `include=description` o en la ficha, y el del portal siempre.
    */
   description?: string | null
+  /** Sistemas de WiWO con los que se vinculó la Tarea. Opcional; se lee con `leerVinculos`. No llega al portal. */
+  vinculos?: unknown
   project?: Referencia | null
   milestone?: Referencia | null
   /**

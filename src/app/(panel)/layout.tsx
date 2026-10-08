@@ -224,6 +224,10 @@ function seccionesDe (yo: Yo): Seccion[] {
   // Va antes que Tareas: primero lo de uno, despues el listado de toda la casa.
   secciones.push({ href: '/mis-tareas', etiqueta: `Mis ${GLOSARIO.proceso.plural}`, icono: 'mis_tareas', grupo: 'principal' })
 
+  // Propuestas tampoco lleva condicion: son de quien las recibe, la API solo devuelve las propias, y
+  // sin propuestas la pantalla se explica sola. El contador de la barra aparece cuando hay alguna.
+  secciones.push({ href: '/propuestas', etiqueta: 'Propuestas', icono: 'propuestas', grupo: 'operacion' })
+
   if (puedeVerSeccion(yo.permissions.tasks, 'tasks')) {
     secciones.push({ href: '/tareas', etiqueta: GLOSARIO.proceso.plural, icono: 'procesos', grupo: 'operacion' })
     // Misma llave que Tareas: las recurrentes son Tareas, y su pantalla lista lo mismo que `/tasks`
