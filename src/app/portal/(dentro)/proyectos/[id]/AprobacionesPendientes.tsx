@@ -87,8 +87,9 @@ function FilaAprobacion ({ tarea, estados }: {
   const [rechazando, setRechazando] = useState(false)
   const [motivo, setMotivo] = useState('')
   const [cambiando, setCambiando] = useState(false)
-  // La decision recien confirmada, hasta que el `refresh` traiga la del servidor.
-  const [decidida, setDecidida] = useState<'aprobada' | 'rechazada' | null>(null)
+  // La decision recien confirmada, hasta que el refresco del portal traiga la del servidor. Lleva la
+  // fecha del pedido al que respondio: si el equipo pide otra vuelta, la respuesta vieja deja de valer.
+  const [respuestaLocal, setRespuestaLocal] = useState<{ valor: 'aprobada' | 'rechazada', pedida: string | null } | null>(null)
 
   /**
    * Manda la decision del contacto.
@@ -113,18 +114,20 @@ function FilaAprobacion ({ tarea, estados }: {
 
     if (!resultado.ok) {
       setFallo(resultado.mensaje)
+      // Sin respuesta la decision pudo quedar registrada: se relee la pagina para mostrar el estado real.
+      if (resultado.incierta === true) router.refresh()
       return
     }
 
     aviso.exito(decision === 'aprobada' ? `Visto bueno registrado para «${tarea.name}».` : `Observación sobre «${tarea.name}» enviada al equipo.`)
     setRechazando(false)
     setCambiando(false)
-    setDecidida(decision)
-    router.refresh()
+    setRespuestaLocal({ valor: decision, pedida: tarea.approval?.solicitada_en ?? null })
   }
 
   // Sin aprobacion pedida no hay fecha que mostrar: la Tarea esta aca por su estado, no por un pedido.
   const pedida = tarea.approval?.solicitada_en ?? null
+  const decidida = respuestaLocal !== null && respuestaLocal.pedida === pedida ? respuestaLocal.valor : null
   // Responder no mueve la Tarea de «Espera de respuesta»: sigue en la lista hasta que el equipo la
   // mueva. Sin esto volveria a ofrecer los botones como si nadie hubiera contestado.
   const estado = decidida ?? tarea.approval?.estado ?? null

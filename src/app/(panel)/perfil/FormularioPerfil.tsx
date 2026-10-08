@@ -2,7 +2,7 @@
 
 import { useRouter } from 'next/navigation'
 import { useEffect, useRef, useState, type ChangeEvent } from 'react'
-import { escribirEnBff, subirArchivoEnBff } from '@/componentes/datos/mutaciones'
+import { escribirEnBff } from '@/componentes/datos/mutaciones'
 import { AvisoEnLinea } from '@/componentes/estado/Estados'
 import { useAviso } from '@/componentes/estado/useAviso'
 import { Boton } from '@/componentes/formularios/Boton'
@@ -221,12 +221,19 @@ export function FormularioPerfil ({ yo, perfil }: PropsFormularioPerfil) {
     establecerSubiendo(true)
     establecerErrorFoto(null)
 
-    const resultado = await subirArchivoEnBff<PerfilPropio>('me/foto', elegida, 'profile_image')
+    const cuerpo = new FormData()
+    cuerpo.append('profile_image', elegida)
+    const resultado = await escribirEnBff<PerfilPropio | undefined>('me/foto', 'POST', cuerpo)
 
     establecerSubiendo(false)
 
     if (!resultado.ok) {
       establecerErrorFoto(resultado.mensaje)
+      return
+    }
+
+    if (resultado.datos == null) {
+      establecerErrorFoto('El servidor no confirmó que la foto se haya guardado. Inténtalo nuevamente.')
       return
     }
 

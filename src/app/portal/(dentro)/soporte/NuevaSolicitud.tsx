@@ -13,6 +13,7 @@ import {
 import { ContenidoDialogo, Dialogo, DisparadorDialogo } from '@/componentes/superposiciones/Dialogo'
 import { escribirEnBff } from '@/componentes/datos/mutaciones'
 import { urlConParametro } from '@/componentes/datos/tabla'
+import { claveDeIdempotencia } from '@/datos/red'
 import { ArchivosParaAdjuntar } from '@/componentes/tickets/ArchivosParaAdjuntar'
 import { GLOSARIO } from '@/dominio/glosario'
 import { cuerpoConArchivos } from '@/dominio/ticket-adjuntos'
@@ -95,6 +96,9 @@ export function NuevaSolicitud ({ prioridades, espacios, entradaId = null, conta
   // Segundos que pidio esperar un 429; mientras no es `null` el envio queda bloqueado.
   const [espera, setEspera] = useState<number | null>(null)
   const enviandoAhora = useRef(false)
+  // Clave del alta en curso: la misma mientras lo escrito no cambie, para que repetir tras una
+  // respuesta perdida no cree un segundo ticket.
+  const claveAlta = useRef<{ huella: string, clave: string } | null>(null)
 
   // Sin saber de quien es, no se lee ni se guarda: un borrador ajeno es peor que ninguno.
   const claveBorrador = contactoId === null ? null : claveDeBorradorDeSolicitud(contactoId)
@@ -157,10 +161,16 @@ export function NuevaSolicitud ({ prioridades, espacios, entradaId = null, conta
     setEnviando(true)
     setFallo(null)
 
+    const cuerpo = cuerpoDeSolicitud(borrador)
+    const huella = JSON.stringify([cuerpo, archivos.map((archivo) => [archivo.name, archivo.size])])
+
+    if (claveAlta.current?.huella !== huella) claveAlta.current = { huella, clave: claveDeIdempotencia() }
+
     const resultado = await escribirEnBff<TicketPortalDetalle>(
       'portal/tickets',
       'POST',
-      cuerpoConArchivos(cuerpoDeSolicitud(borrador), archivos)
+      cuerpoConArchivos(cuerpo, archivos),
+      { idempotencia: claveAlta.current.clave }
     )
 
     enviandoAhora.current = false
@@ -174,6 +184,8 @@ export function NuevaSolicitud ({ prioridades, espacios, entradaId = null, conta
 
       return
     }
+
+    claveAlta.current = null
 
     const id = resultado.datos.id
 

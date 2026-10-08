@@ -1,4 +1,4 @@
-import { leerError } from './errores.ts'
+import { escribirEnBff } from '../componentes/datos/mutaciones.ts'
 import type { StaffReferencia } from './tipos.ts'
 import type { AsignadoConAutoria } from '../dominio/autoria-tarea.ts'
 import type { Escalon } from '../dominio/escalon.ts'
@@ -2440,8 +2440,9 @@ export type ResultadoDeAjustes =
 /**
  * Escribe ajustes por el BFF (`PATCH /settings`).
  *
- * No usa `escribirEnBff()` por una sola razon: ese helper reduce el error a un mensaje y pierde el
- * `details` del 422, que aca es la unica forma de saber que clave rechazo la whitelist.
+ * Pasa por `escribirEnBff()` (limite de tiempo, clave de idempotencia y escritura incierta) y conserva
+ * el `details` del 422, que aca es la unica forma de saber que clave rechazo la whitelist. Si la
+ * respuesta se pierde, el mensaje dice que no se sabe si se guardo y no que fallo.
  *
  * La lectura no esta en este archivo sino en `ajustes.ts`: necesita `pedir()`, que es `server-only`,
  * y a `recursos.ts` lo importan tambien componentes de cliente.
@@ -2451,33 +2452,19 @@ export type ResultadoDeAjustes =
  * @returns Los ajustes releidos por la API, o el error ya legible con su detalle por campo.
  */
 export async function guardarAjustes (cambios: CambiosDeAjustes): Promise<ResultadoDeAjustes> {
-  let respuesta: Response
+  const resultado = await escribirEnBff<Ajustes | undefined>('settings', 'PATCH', cambios)
 
-  try {
-    respuesta = await fetch('/api/bff/settings', {
-      method: 'PATCH',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(cambios)
-    })
-  } catch {
-    return { ok: false, mensaje: 'No se pudo contactar al servidor. Revisa tu conexión.', detalles: {} }
+  if (!resultado.ok) {
+    return { ok: false, mensaje: resultado.mensaje, detalles: (resultado.detalles ?? {}) as Record<string, string[]> }
   }
 
-  if (!respuesta.ok) {
-    const error = await leerError(respuesta)
-
-    return { ok: false, mensaje: error.message, detalles: error.details ?? {} }
-  }
-
-  try {
-    const sobre = await respuesta.json() as { data: Ajustes }
-
-    return { ok: true, ajustes: sobre.data }
-  } catch {
-    // La API responde el cuerpo completo tambien en el PATCH. Si no llego, la escritura igual ocurrio:
-    // decir que fallo mandaria a repetirla.
+  // La API responde el cuerpo completo tambien en el PATCH. Si no llego, la escritura igual ocurrio:
+  // decir que fallo mandaria a repetirla.
+  if (resultado.datos === undefined) {
     return { ok: false, mensaje: 'Los ajustes se guardaron, pero la respuesta no se pudo leer. Recarga la pantalla.', detalles: {} }
   }
+
+  return { ok: true, ajustes: resultado.datos }
 }
 
 // frente: plantillas de Espacio

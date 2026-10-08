@@ -19,6 +19,7 @@ import { formatearFecha } from '@/lib/fechas'
 import { cn } from '@/lib/clases'
 import type { Capacidad } from '@/datos/tipos'
 import type { ContactoCompleto } from '@/datos/recursos'
+import { conLimite, TIEMPO_ESCRITURA_MS } from '@/datos/red'
 
 interface PropsPanelContactos {
   clienteId: number
@@ -134,7 +135,8 @@ export function PanelContactos ({ clienteId, contactos, capacidades }: PropsPane
       const respuesta = await fetch('/api/sesion/ver-como-cliente', {
         method: 'POST',
         headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({ contactoId: contacto.id })
+        body: JSON.stringify({ contactoId: contacto.id }),
+        signal: conLimite(undefined, TIEMPO_ESCRITURA_MS)
       })
       const cuerpo = await respuesta.json().catch(() => ({})) as { destino?: string, mensaje?: string }
 

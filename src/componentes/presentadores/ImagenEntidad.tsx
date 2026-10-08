@@ -4,7 +4,7 @@ import { useRef, useState, type ChangeEvent } from 'react'
 import { useRouter } from 'next/navigation'
 import { Camera } from 'lucide-react'
 import { Orbe } from '@/componentes/estado/Orbe'
-import { escribirEnBff, subirArchivoEnBff } from '@/componentes/datos/mutaciones'
+import { escribirEnBff } from '@/componentes/datos/mutaciones'
 import {
   ContenidoMenu,
   DisparadorMenu,
@@ -76,7 +76,9 @@ export function ImagenEntidad ({
 
     setCargando(true)
     setError(null)
-    const resultado = await subirArchivoEnBff<unknown>(`${ruta}/image`, archivo, 'image')
+    const cuerpo = new FormData()
+    cuerpo.append('image', archivo)
+    const resultado = await escribirEnBff<unknown>(`${ruta}/image`, 'POST', cuerpo)
     setCargando(false)
 
     if (!resultado.ok) {

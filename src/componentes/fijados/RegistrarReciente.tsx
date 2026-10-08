@@ -2,6 +2,7 @@
 
 import { useEffect } from 'react'
 import type { TipoFijable } from './fijados'
+import { conLimite, TIEMPO_ESCRITURA_MS } from '@/datos/red'
 
 /**
  * Anota en `/me/recientes` que la persona abrio esta ficha. No pinta nada.
@@ -24,7 +25,8 @@ export function RegistrarReciente ({ tipo, id }: { tipo: TipoFijable, id: number
     fetch('/api/bff/me/recientes', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ type: tipo, id })
+      body: JSON.stringify({ type: tipo, id }),
+      signal: conLimite(undefined, TIEMPO_ESCRITURA_MS)
     }).catch(() => {
       // Red caida: el reciente no se anota, y no hace falta mas.
     })

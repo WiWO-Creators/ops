@@ -10,6 +10,7 @@ import { Campo } from '@/componentes/formularios/Campo'
 import { Entrada } from '@/componentes/formularios/Entrada'
 import { PanelVidrio } from '@/componentes/superposiciones/PanelVidrio'
 import { destinoDeEntrada } from '@/dominio/portal'
+import { conLimite, TIEMPO_ESCRITURA_MS } from '@/datos/red'
 
 interface RespuestaCanje {
   ok?: boolean
@@ -86,7 +87,8 @@ export function FormularioFijarClave ({ token }: { token: string }) {
       const respuesta = await fetch('/api/sesion', {
         method: 'POST',
         headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({ enlace: token, password })
+        body: JSON.stringify({ enlace: token, password }),
+        signal: conLimite(undefined, TIEMPO_ESCRITURA_MS)
       })
 
       const cuerpo = await respuesta.json() as RespuestaCanje
@@ -101,7 +103,7 @@ export function FormularioFijarClave ({ token }: { token: string }) {
       router.replace(destinoDeEntrada(cuerpo.destino))
       router.refresh()
     } catch {
-      señalarError('No se pudo contactar al servidor. Revisa tu conexión.')
+      señalarError('No pudimos confirmar si tu contraseña quedó guardada. Prueba entrar con ella; si no funciona, vuelve a intentarlo.')
     }
   }
 
