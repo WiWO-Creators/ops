@@ -236,7 +236,9 @@ export function EditorRicoInterno ({
   useEffect(() => {
     if (editor === null) return
 
-    editor.setEditable(!deshabilitado)
+    // Sin `emitUpdate`: cambiar el modo no es un cambio de contenido, y avisarlo borraria el error del
+    // campo (`onCambio` lo limpia) justo cuando acaba de aparecer.
+    if (editor.isEditable === deshabilitado) editor.setEditable(!deshabilitado, false)
     editor.setOptions({ editorProps: { ...editor.options.editorProps, attributes: atributos() } })
     // `atributos` se reconstruye en cada pasada; las dependencias son lo que de verdad lo cambia.
     // eslint-disable-next-line react-hooks/exhaustive-deps

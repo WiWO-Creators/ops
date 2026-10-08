@@ -4,7 +4,8 @@ import { useState } from 'react'
 import { Plus } from 'lucide-react'
 import { Boton } from '@/componentes/formularios/Boton'
 import { Campo } from '@/componentes/formularios/Campo'
-import { AreaTexto, Entrada } from '@/componentes/formularios/Entrada'
+import { EditorRico } from '@/componentes/formularios/EditorRico'
+import { Entrada } from '@/componentes/formularios/Entrada'
 import { ContenidoDialogo, Dialogo, DisparadorDialogo } from '@/componentes/superposiciones/Dialogo'
 import { escribirEnBff } from '@/componentes/datos/mutaciones'
 import { TareasAsignadas } from '@/componentes/mis-tareas/TareasAsignadas'
@@ -82,7 +83,9 @@ export function TareasPrivadas ({ personaId, estados, rutaDetalle, verCompletada
 function DialogoTareaPrivada ({ personaId }: { personaId: number }) {
   const [abierto, setAbierto] = useState(false)
   const [nombre, setNombre] = useState('')
+  // HTML del editor; el editor no es controlado y se vacia remontandolo con otra `key`.
   const [descripcion, setDescripcion] = useState('')
+  const [versionDescripcion, setVersionDescripcion] = useState(0)
   const [vence, setVence] = useState('')
   const [enCurso, setEnCurso] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -92,6 +95,7 @@ function DialogoTareaPrivada ({ personaId }: { personaId: number }) {
   function limpiar (): void {
     setNombre('')
     setDescripcion('')
+    setVersionDescripcion((version) => version + 1)
     setVence('')
     setError(null)
   }
@@ -125,6 +129,7 @@ function DialogoTareaPrivada ({ personaId }: { personaId: number }) {
     const resultado = await escribirEnBff<{ id: number }>('tasks', 'POST', {
       name: titulo,
       description: descripcion.trim(),
+      format: 'html',
       // Los dos juntos y explicitos: la API trata "uno de los dos" como error, no como default.
       rel_type: null,
       rel_id: null,
@@ -184,10 +189,12 @@ function DialogoTareaPrivada ({ personaId }: { personaId: number }) {
             ayuda="La API la exige: es lo que hace que la tarea se entienda sin preguntarte."
           >
             {(props) => (
-              <AreaTexto
+              <EditorRico
                 {...props}
-                value={descripcion}
-                onChange={(evento) => { setDescripcion(evento.target.value) }}
+                key={versionDescripcion}
+                etiqueta="Descripción"
+                valorInicial={descripcion}
+                onCambio={setDescripcion}
               />
             )}
           </Campo>

@@ -5,7 +5,8 @@ import { ChevronDown, ChevronRight, Pencil, Sparkles, Trash2 } from 'lucide-reac
 import { useLenis } from 'lenis/react'
 import { Boton } from '@/componentes/formularios/Boton'
 import { Campo } from '@/componentes/formularios/Campo'
-import { AreaTexto, CLASES_CASILLA, Entrada } from '@/componentes/formularios/Entrada'
+import { CLASES_CASILLA, Entrada } from '@/componentes/formularios/Entrada'
+import { EditorRico } from '@/componentes/formularios/EditorRico'
 import {
   ContenidoSelector,
   DisparadorSelector,
@@ -22,7 +23,7 @@ import { ConfirmarBorrado, useConfirmarBorrado } from '@/componentes/datos/Confi
 import { escribirEnBff, leerDelBff } from '@/componentes/datos/mutaciones'
 import { PARAMETRO_TAREA } from '@/componentes/datos/tabla'
 import { cargarAsignables } from '@/datos/asignables'
-import { esHtml, textoPlano } from '@/dominio/texto-rico'
+import { esHtml, htmlVacio, textoPlano } from '@/dominio/texto-rico'
 import { cn } from '@/lib/clases'
 import { EstadoDeTarea } from '../EstadoDeTarea'
 import type { EstadoLookup, Lookups } from '@/datos/recursos'
@@ -890,6 +891,9 @@ function DialogoDePropuesta ({ propuesta, personas, errorEquipo, prioridades, on
 }): ReactElement {
   const [titulo, setTitulo] = useState(propuesta.titulo)
   const [descripcion, setDescripcion] = useState(propuesta.descripcion ?? '')
+  // Con que se compara lo escrito: el HTML tal como el editor normaliza la descripcion original. Sin
+  // esto, abrir y guardar sin tocar nada mandaria un `PATCH` por una diferencia de formato.
+  const [descripcionBase, setDescripcionBase] = useState(propuesta.descripcion ?? '')
   const [vence, setVence] = useState(propuesta.vence ?? '')
   const [prioridad, setPrioridad] = useState(String(propuesta.prioridad))
   const [asignados, setAsignados] = useState(propuesta.asignados.map((persona) => persona.id))
@@ -908,7 +912,9 @@ function DialogoDePropuesta ({ propuesta, personas, errorEquipo, prioridades, on
       propuesta.asignados.every((persona) => asignados.includes(persona.id))
     const parche: ParcheDePropuesta = {
       ...(limpio === propuesta.titulo ? {} : { titulo: limpio }),
-      ...(descripcion === (propuesta.descripcion ?? '') ? {} : { descripcion: descripcion === '' ? null : descripcion }),
+      ...(descripcion === descripcionBase
+        ? {}
+        : { descripcion: htmlVacio(descripcion) ? null : descripcion, format: 'html' as const }),
       ...(vence === (propuesta.vence ?? '') ? {} : { vence: vence === '' ? null : vence }),
       ...(prioridad === String(propuesta.prioridad) ? {} : { prioridad: Number(prioridad) }),
       ...(mismosAsignados ? {} : { asignados })
@@ -948,10 +954,15 @@ function DialogoDePropuesta ({ propuesta, personas, errorEquipo, prioridades, on
 
           <Campo etiqueta="Descripción" ayuda="Lo que haga falta para que se entienda sin volver al acta.">
             {(props) => (
-              <AreaTexto
+              <EditorRico
                 {...props}
-                value={descripcion}
-                onChange={(evento) => { setDescripcion(evento.target.value) }}
+                etiqueta="Descripción"
+                valorInicial={propuesta.descripcion}
+                onListo={(normalizado) => {
+                  setDescripcionBase(normalizado)
+                  setDescripcion(normalizado)
+                }}
+                onCambio={setDescripcion}
               />
             )}
           </Campo>

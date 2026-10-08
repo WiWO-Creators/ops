@@ -19,6 +19,7 @@ import { InsigniaDePrioridad } from '@/componentes/presentadores/InsigniaDePrior
 import { listaDe, nombreDe } from '@/datos/catalogos'
 import { agruparPorQuienAsigno, type GrupoDeAsignacion, type PersonaDeAutoria } from '@/dominio/autoria-tarea'
 import { camposLegibles } from '@/dominio/campos-personalizados'
+import { htmlVacio } from '@/dominio/texto-rico'
 import { GLOSARIO } from '@/dominio/glosario'
 import { aTextoPlano } from '@/componentes/proyecto/formatos'
 import { cn } from '@/lib/clases'
@@ -340,7 +341,7 @@ export function DetalleTarea (
             // `GET /tasks/{id}` y trae todo. En el portal `puedeEditar` es `false` y esto no existe.
             tarea={tarea as Proceso}
             lookups={lookups}
-            descripcion={typeof tarea.description === 'string' ? aTextoPlano(tarea.description) : ''}
+            descripcion={descripcionParaEditar(tarea)}
             onCerrar={() => setEditando(false)}
             onGuardada={alCambiar}
           />
@@ -896,6 +897,21 @@ function Contador ({ etiqueta, valor }: { etiqueta: string, valor: string }): Re
       </span>
     </li>
   )
+}
+
+/**
+ * La descripcion con la que se abre el editor: el HTML saneado de la API o, sin el, el texto plano.
+ *
+ * El editor convierte el texto plano a parrafos al montarse. Con una API anterior (sin
+ * `description_html`) la edicion funciona igual, solo que parte del texto ya sin formato.
+ *
+ * @param tarea la ficha tal como la trajo la API
+ * @returns el valor inicial del editor, `''` si no tiene descripcion
+ */
+function descripcionParaEditar (tarea: { description?: string | null, description_html?: string | null }): string {
+  if (typeof tarea.description_html === 'string' && !htmlVacio(tarea.description_html)) return tarea.description_html
+
+  return typeof tarea.description === 'string' ? aTextoPlano(tarea.description) : ''
 }
 
 /**

@@ -5,6 +5,7 @@ import { useEffect, useMemo, useRef, useState, type FormEvent, type ReactElement
 import { Boton } from '@/componentes/formularios/Boton'
 import { useAccionPresencia } from '@/componentes/auditoria/accion'
 import { Campo } from '@/componentes/formularios/Campo'
+import { EditorRico } from '@/componentes/formularios/EditorRico'
 import { AreaTexto, Entrada } from '@/componentes/formularios/Entrada'
 import { CamposPersonalizados } from '@/componentes/formularios/CamposPersonalizados'
 import { cargarAsignables } from '@/datos/asignables'
@@ -45,6 +46,7 @@ import {
   type TareaFusionada
 } from '@/dominio/ia-tarea'
 import { errorDeDescripcion, errorDeDetalle } from '@/dominio/descripcion-tarea'
+import { textoAHtml } from '@/dominio/texto-rico'
 import {
   claseDeEspacio, espaciosDeClase, esRelacionDeEspacio, relTypeDeRelacion, RELACIONES_TAREA,
   type RelacionTarea
@@ -289,7 +291,11 @@ export function AltaRapidaProceso ({
   const [inicio, setInicio] = useState('')
   const [vencimiento, setVencimiento] = useState('')
   const [etiquetasEscritas, setEtiquetasEscritas] = useState<string[]>([])
+  // HTML del editor de texto enriquecido; `''` si no hay nada visible.
   const [descripcion, setDescripcion] = useState('')
+  // El editor no es controlado: cuando algo distinto de la persona escribe la descripcion (IA,
+  // deshacer, reinicio) se remonta con otra `key` para que tome el valor nuevo.
+  const [versionDescripcion, setVersionDescripcion] = useState(0)
   /** Archivos elegidos junto a la descripcion: se suben a la carpeta de Drive cuando la tarea ya existe. */
   const [adjuntos, setAdjuntos] = useState<File[]>([])
   /**
@@ -304,9 +310,9 @@ export function AltaRapidaProceso ({
   /**
    * Caja del campo Descripcion, solo para poder enfocarlo.
    *
-   * Se apunta al contenedor y se busca el `textarea` adentro, como ya hace `ChatDeSala`: `AreaTexto`
-   * no reenvia `ref`, y el `id` que cablea `Campo` lo genera `Campo` con su `useId()` y no sale de
-   * su funcion hija.
+   * Se apunta al contenedor y se busca el cuadro de texto adentro, como ya hace `ChatDeSala`: el
+   * editor no reenvia `ref`, y el `id` que cablea `Campo` lo genera `Campo` con su `useId()` y no
+   * sale de su funcion hija.
    */
   const cajaDescripcion = useRef<HTMLDivElement | null>(null)
   // Se pide en el alta y no solo en la ficha: la estimacion se define al solicitar la tarea, y lo que
@@ -517,7 +523,7 @@ export function AltaRapidaProceso ({
     setInicio('')
     setVencimiento('')
     setEtiquetasEscritas([])
-    setDescripcion('')
+    fijarDescripcion('')
     setAdjuntos([])
     setHorasEstimadas('')
     setFacturable(true)
@@ -555,6 +561,16 @@ export function AltaRapidaProceso ({
   const catalogosConEtiquetas: CatalogosTarea = { ...catalogos, etiquetas }
 
   /**
+   * Escribe la descripcion desde fuera del editor y lo remonta para que la muestre.
+   *
+   * @param html el HTML nuevo; `''` la deja vacia
+   */
+  function fijarDescripcion (html: string): void {
+    setDescripcion(html)
+    setVersionDescripcion((version) => version + 1)
+  }
+
+  /**
    * Vuelca en los campos lo que resolvio la fusion.
    *
    * Solo escribe lo que tiene valor: un campo que quedo en `null` no borra lo que ya se habia
@@ -569,7 +585,8 @@ export function AltaRapidaProceso ({
     if (resultado.due_date !== null) setVencimiento(resultado.due_date)
     if (resultado.tags.length > 0) setEtiquetasEscritas(resultado.tags.reduce<string[]>((lista, nombre) => agregarEtiqueta(lista, nombre, nombresDelCatalogo), []))
     if (resultado.description !== null) {
-      setDescripcion(resultado.description)
+      // La interpretacion devuelve texto plano; el campo guarda HTML.
+      fijarDescripcion(textoAHtml(resultado.description))
       // El reclamo de "falta la descripcion" deja de tener sentido en cuanto algo la llena.
       setErrorDescripcion(null)
     }
@@ -639,7 +656,7 @@ export function AltaRapidaProceso ({
     setInicio(previo.inicio)
     setVencimiento(previo.vencimiento)
     setEtiquetasEscritas(previo.etiquetasEscritas)
-    setDescripcion(previo.descripcion)
+    fijarDescripcion(previo.descripcion)
     setPrevio(null)
     setFusion(null)
     setAvisoIa(null)
@@ -866,7 +883,7 @@ export function AltaRapidaProceso ({
 
   /** Deja el cursor en el campo Descripcion. Ver `cajaDescripcion`. */
   function enfocarDescripcion (): void {
-    cajaDescripcion.current?.querySelector('textarea')?.focus()
+    cajaDescripcion.current?.querySelector<HTMLElement>('[role="textbox"]')?.focus()
   }
 
   /**
@@ -970,6 +987,7 @@ export function AltaRapidaProceso ({
       // Siempre viaja: es obligatoria, y omitirla cuando esta vacia le escondia al servidor
       // justamente el caso que ahora tiene que rechazar.
       description: descripcion.trim(),
+      format: 'html',
       ...(horas === null ? {} : { estimated_hours: horas }),
       ...(pedidas.length === 0 ? {} : { tags: pedidas })
     }
@@ -1277,11 +1295,14 @@ export function AltaRapidaProceso ({
                     ayuda="Qué hay que hacer y con qué se da por terminada. Quien abra la tarea no estuvo en esta conversación."
                   >
                     {(props) => (
-                      <AreaTexto
+                      <EditorRico
                         {...props}
-                        rows={4}
-                        value={descripcion}
-                        onChange={(evento) => { setDescripcion(evento.target.value); setErrorDescripcion(null) }}
+                        key={versionDescripcion}
+                        etiqueta="Descripción"
+                        filasMinimas={4}
+                        valorInicial={descripcion}
+                        deshabilitado={enCurso}
+                        onCambio={(html) => { setDescripcion(html); setErrorDescripcion(null) }}
                       />
                     )}
                   </Campo>
@@ -1303,7 +1324,7 @@ export function AltaRapidaProceso ({
                         descripcionActual={descripcion}
                         proyectoId={vaAEspacio && espacio !== NINGUNO ? Number(espacio) : null}
                         deshabilitado={enCurso}
-                        onRedactada={(texto) => { setDescripcion(texto); setErrorDescripcion(null) }}
+                        onRedactada={(html) => { fijarDescripcion(html); setErrorDescripcion(null) }}
                       />
                     </div>
                   )}

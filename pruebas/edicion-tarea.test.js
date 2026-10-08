@@ -86,9 +86,23 @@ test('vaciar una fecha o la descripcion viaja como null, y quitar el hito como c
   const campos = camposDeTarea(TAREA, 'algo')
 
   assert.deepEqual(
-    cuerpoDeParche(campos, { ...campos, inicio: '', hito: '', descripcion: '   ' }),
-    { start_date: null, milestone: 0, description: null }
+    cuerpoDeParche(campos, { ...campos, inicio: '', hito: '', descripcion: '' }),
+    { start_date: null, milestone: 0, description: null, format: 'html' }
   )
+  // Lo que el editor deja cuando se borra todo tambien es vaciar.
+  assert.equal(cuerpoDeParche(campos, { ...campos, descripcion: '<p></p>' }).description, null)
+})
+
+test('la descripcion viaja como HTML marcado con format, y solo si cambio', () => {
+  const campos = camposDeTarea(TAREA, '<p>Antes</p>')
+
+  assert.deepEqual(
+    cuerpoDeParche(campos, { ...campos, descripcion: '  <p>Antes <strong>y despues</strong></p> ' }),
+    { description: '<p>Antes <strong>y despues</strong></p>', format: 'html' }
+  )
+  // La base es el HTML que normaliza el editor: si no cambio, no hay parche ni `format` suelto.
+  assert.deepEqual(cuerpoDeParche(campos, { ...campos }), {})
+  assert.deepEqual(cuerpoDeParche(campos, { ...campos, descripcion: ' <p>Antes</p>\n' }), {})
 })
 
 test('poner una fecha y un hito donde no habia', () => {
