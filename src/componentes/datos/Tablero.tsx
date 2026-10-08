@@ -332,7 +332,8 @@ export function Tablero<T extends FilaConId> ({
       // asi que se pide la pagina y se conserva solo el grupo que la pidio. Es una peticion de mas a
       // cambio de no meter en la definicion un campo de filtro por columna que hoy no existe.
       const respuesta = await fetch(urlTablero(grupo.pagination.page + 1), {
-        headers: { accept: 'application/json' }
+        headers: { accept: 'application/json' },
+        signal: conLimite(undefined, TIEMPO_LECTURA_MS)
       })
 
       if (!respuesta.ok) {

@@ -9,6 +9,7 @@ import type { Capacidad, Sobre } from '@/datos/tipos'
 import type { TableroDePreset } from '@/datos/recursos'
 import { leerError } from '@/datos/errores'
 import { escribirEnBff } from './mutaciones'
+import { conLimite, esTiempoAgotado, TIEMPO_LECTURA_MS } from '@/datos/red'
 import { EVENTO_RECURSO_CAMBIADO } from '@/datos/refresco-lista'
 import { ErrorEstado, Vacio } from '@/componentes/estado/Estados'
 import { CargandoConOrbe } from '@/componentes/estado/Orbe'
@@ -781,7 +782,7 @@ type Respuesta<T> = { ok: true, resultado: ResultadoLista<T> } | { ok: false, er
  */
 async function pedirLista<T> (ruta: string, consulta: string, senal: AbortSignal): Promise<Respuesta<T>> {
   try {
-    const respuesta = await fetch(`/api/bff/${ruta}${consulta === '' ? '' : `?${consulta}`}`, { signal: senal })
+    const respuesta = await fetch(`/api/bff/${ruta}${consulta === '' ? '' : `?${consulta}`}`, { signal: conLimite(senal, TIEMPO_LECTURA_MS) })
 
     if (!respuesta.ok) return { ok: false, error: await leerError(respuesta) }
 
@@ -791,6 +792,10 @@ async function pedirLista<T> (ruta: string, consulta: string, senal: AbortSignal
   } catch (fallo) {
     if (fallo instanceof DOMException && fallo.name === 'AbortError') {
       return { ok: false, error: { code: 'bad_request', message: 'Petición cancelada' } }
+    }
+
+    if (esTiempoAgotado(fallo)) {
+      return { ok: false, error: { code: 'server_error', message: 'El servidor tardó demasiado en responder. Intenta de nuevo.' } }
     }
 
     return {
