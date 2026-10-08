@@ -1,7 +1,9 @@
 'use client'
 
 import { useEffect, useState, type FormEvent, type ReactElement } from 'react'
+import { escribirEnBff } from '@/componentes/datos/mutaciones'
 import { AvisoEnLinea } from '@/componentes/estado/Estados'
+import { useAviso } from '@/componentes/estado/useAviso'
 import { Boton } from '@/componentes/formularios/Boton'
 import { Campo } from '@/componentes/formularios/Campo'
 import { AreaTexto, Entrada } from '@/componentes/formularios/Entrada'
@@ -13,9 +15,9 @@ import {
 } from '@/componentes/formularios/Selector'
 import { CerrarDialogo, ContenidoDialogo, Dialogo } from '@/componentes/superposiciones/Dialogo'
 import { pedirSobre } from '@/datos/cliente'
-import { leerError } from '@/datos/errores'
 import type { AsignadoTarea, Etiqueta, TareaElegible } from '@/datos/recursos'
 import { nombrar } from '@/dominio/glosario'
+import { useClaveEstable } from './clave-estable'
 import { AYUDA_DURACION, validarTimesheet, type EntradaTimesheet } from './timesheet'
 
 /**
@@ -102,6 +104,8 @@ export function FormularioTimesheet ({
   onOpenChange,
   onGuardado
 }: PropsFormulario): ReactElement {
+  const avisar = useAviso()
+  const clave = useClaveEstable()
   const [entrada, setEntrada] = useState<EntradaTimesheet>(() => entradaInicial(registro))
   const [tareas, setTareas] = useState<TareaElegible[]>([])
   const [personas, setPersonas] = useState<AsignadoTarea[]>([])
@@ -168,25 +172,27 @@ export function FormularioTimesheet ({
       ? `projects/${proyectoId}/timesheets`
       : `projects/${proyectoId}/timesheets/${registro.id}`
 
-    try {
-      const respuesta = await fetch(`/api/bff/${ruta}`, {
-        method: registro === null ? 'POST' : 'PATCH',
-        headers: { 'content-type': 'application/json', accept: 'application/json' },
-        body: JSON.stringify(validacion.cuerpo)
-      })
+    const metodo = registro === null ? 'POST' : 'PATCH'
+    const resultado = await escribirEnBff(ruta, metodo, validacion.cuerpo, { idempotencia: clave.claveDe([metodo, ruta, validacion.cuerpo]) })
 
-      if (!respuesta.ok) {
-        setError((await leerError(respuesta)).message)
-        return
+    setEnCurso(false)
+
+    if (!resultado.ok) {
+      setError(resultado.mensaje)
+
+      if (resultado.incierta === true) {
+        // No se sabe si quedo: el formulario sigue intacto para reintentar con la misma clave, y una
+        // edicion vuelve a leer lo real.
+        avisar.advertencia(resultado.mensaje)
+        if (metodo === 'PATCH') onGuardado()
       }
 
-      onOpenChange(false)
-      onGuardado()
-    } catch {
-      setError('No se pudo guardar: revisa la conexión.')
-    } finally {
-      setEnCurso(false)
+      return
     }
+
+    clave.olvidar()
+    onOpenChange(false)
+    onGuardado()
   }
 
   return (

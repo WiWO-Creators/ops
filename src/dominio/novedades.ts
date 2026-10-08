@@ -54,6 +54,13 @@ export const ROTULO_TIPO: Record<TipoNovedad, string> = {
 export const NOVEDADES: Novedad[] = [
   {
     fecha: '2026-10-08',
+    tipo: 'mejora',
+    titulo: 'Ops aguanta mejor las conexiones lentas',
+    detalle: 'Las tareas se abren al instante, los filtros responden sin esperar, y una barra arriba y un aviso abajo muestran cuando algo está cargando o guardándose. Si la conexión se corta a mitad de un cambio, Ops te dice que no pudo confirmarlo en lugar de dejarlo a medias, y las listas, el tablero y el portal se ponen al día solos.',
+    commits: ['ops-v2@bf0e6d7', 'board@330f6ce']
+  },
+  {
+    fecha: '2026-10-08',
     tipo: 'nuevo',
     titulo: 'Exporta el tablero del proyecto como informe PDF',
     detalle: 'En el Resumen del portal, el botón «Exportar informe» descarga un PDF con el avance, las cifras, los pendientes por hito, los estados y las novedades del mes que estás mirando. Al elegir un mes cerrado, el tablero cambia al instante y las cifras dicen «al cierre» y «en el mes».',

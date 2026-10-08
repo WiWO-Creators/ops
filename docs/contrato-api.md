@@ -23,6 +23,27 @@ Base: `https://board.wiwo.me/api/v1/`
 - **Nunca 200 con `success: false`.** El código HTTP es la respuesta.
 - Los campos `null` **se incluyen**. Un campo ausente significa "no pedido" (ver `fields`), no "vacío".
 
+## Escrituras seguras con red lenta
+
+Una escritura puede llegar al servidor y perder su respuesta. Para que repetirla no duplique y una
+versión vieja no pise a la nueva, la API acepta dos cabeceras (el BFF las reenvía tal cual):
+
+- **`Idempotency-Key: <clave>`** en `POST`/`PATCH`/`PUT`/`DELETE`. La misma clave con el mismo cuerpo
+  devuelve la respuesta ya guardada (con `Idempotent-Replayed: true`) en vez de ejecutar de nuevo; un
+  `DELETE` repetido devuelve lo guardado, no `404`. Si la primera petición sigue en curso responde
+  `409` con `Retry-After`; la misma clave con otro cuerpo, `422`. Una respuesta `5xx` libera la clave.
+  El cliente genera una clave por intención (`claveDeIdempotencia()` en `src/datos/red.ts`) y la reutiliza
+  en cada reintento. Se guarda 24 h.
+- **`If-Match: <ETag>`** en `PATCH /tasks/{id}`, `mark-complete`, `reopen`, `mover` y `mover-hito`. Si la
+  versión cambió, responde `409 version_conflict` con la entidad actual en `data`. Sin cabecera, no se
+  comprueba. El `ETag` sale de cualquier lectura de la entidad (con el mismo `?include=`).
+
+`GET /tasks?updated_since=<ISO>` devuelve solo lo cambiado desde entonces, en staff y portal, con
+`meta.server_time` (el cursor siguiente), `meta.removed_ids` (papelera y, en el portal, tareas que dejan de
+ser visibles) y `meta.full_resync` cuando el cursor es muy viejo y hay que pedir la lista completa.
+
+El detalle del contrato vive en el README del módulo `modules/api` del board.
+
 ## Envelope
 
 Éxito con colección:

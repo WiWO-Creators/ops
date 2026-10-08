@@ -183,6 +183,10 @@ test('despues de un refresco no se vuelve a los iniciales viejos, pero si a unos
   assert.equal(debeAdoptarInicial({ ...BASE, refresco: 1 }, true), true)
 })
 
+test('tras una recarga explicita los iniciales del servidor no pisan lo que trajo el BFF', () => {
+  assert.equal(debeAdoptarInicial({ ...BASE, revision: 1 }, true), false)
+})
+
 // --- Definiciones ---------------------------------------------------------------
 
 test('departamento y asignado solo se ofrecen a quien administra', () => {

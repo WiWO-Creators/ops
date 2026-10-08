@@ -8,6 +8,9 @@ import { Insignia } from '@/componentes/presentadores/Insignia'
 import type { Capacidad, Sobre } from '@/datos/tipos'
 import type { TableroDePreset } from '@/datos/recursos'
 import { leerError } from '@/datos/errores'
+import { escribirEnBff } from './mutaciones'
+import { conLimite, esTiempoAgotado, TIEMPO_LECTURA_MS } from '@/datos/red'
+import { EVENTO_RECURSO_CAMBIADO } from '@/datos/refresco-lista'
 import { ErrorEstado, Vacio } from '@/componentes/estado/Estados'
 import { CargandoConOrbe } from '@/componentes/estado/Orbe'
 import { useAviso } from '@/componentes/estado/useAviso'
@@ -210,6 +213,9 @@ const VISTAS: readonly OpcionSegmentada[] = [
   { valor: 'tarjetas', etiqueta: 'Tarjetas', icono: 'tarjetas' }
 ]
 
+/** Espera para agrupar las escrituras seguidas en una sola consulta de la tabla. */
+const ESPERA_DE_INVALIDACION_MS = 250
+
 export function TablaRecurso<T> ({
   definicion,
   inicial,
@@ -244,7 +250,9 @@ export function TablaRecurso<T> ({
   const { estado, params, cambiar: cambiarEnUrl, escribirParametro, leerParametro } = useFiltrosEnUrl<EstadoConsulta>({
     leer: leerEstado,
     construir: construirParaUrl,
-    prefijo: prefijoUrl
+    prefijo: prefijoUrl,
+    // Una tabla que se pide sola desde el navegador no necesita esperar al servidor para filtrar.
+    superficial: datos === undefined
   })
   const consulta = useMemo(() => construirQuery(estado), [estado, construirQuery])
 
@@ -319,6 +327,30 @@ export function TablaRecurso<T> ({
   // La fuente vigente de filas y paginacion: la de memoria cuando la tabla la declara, o la que trajo
   // el efecto de arriba. El resto del componente no sabe ni le importa cual de las dos es.
   const resultado = resultadoDeMemoria ?? resultadoRemoto
+
+  /**
+   * Vuelve a pedir la pagina cuando cualquier escritura confirmada cambia algo.
+   *
+   * Una escritura hecha fuera de la tabla (un alta, el modal de detalle) solo refrescaba lo resuelto
+   * en el servidor; con esto la tabla que se pide desde el navegador tambien se pone al dia. Varias
+   * escrituras seguidas se agrupan en una sola consulta.
+   */
+  useEffect(() => {
+    if (datos !== undefined) return
+
+    let espera: ReturnType<typeof setTimeout> | undefined
+    const alCambiar = (): void => {
+      clearTimeout(espera)
+      espera = setTimeout(() => { setRevision((n) => n + 1) }, ESPERA_DE_INVALIDACION_MS)
+    }
+
+    window.addEventListener(EVENTO_RECURSO_CAMBIADO, alCambiar)
+
+    return () => {
+      clearTimeout(espera)
+      window.removeEventListener(EVENTO_RECURSO_CAMBIADO, alCambiar)
+    }
+  }, [datos])
 
   /**
    * Adopta los datos frescos que baja `router.refresh()`.
@@ -700,16 +732,20 @@ function MenuAcciones ({ acciones, id, onError, onListo, onEditar, borrado }: Pr
     setEnCurso(true)
 
     try {
-      const respuesta = await fetch(`/api/bff/${rutaDeAccion(ruta, id)}`, { method: metodo })
+      const resultado = await escribirEnBff(rutaDeAccion(ruta, id), metodo)
 
-      if (respuesta.ok) {
+      if (resultado.ok) {
         onListo()
         return
       }
 
-      onError(await leerError(respuesta))
-    } catch {
-      aviso.error('No se pudo completar la acción: revisa tu conexión e intenta de nuevo.')
+      if (resultado.incierta === true) {
+        aviso.advertencia(resultado.mensaje)
+        onListo()
+        return
+      }
+
+      onError({ code: (resultado.codigo ?? 'server_error') as CuerpoError['code'], message: resultado.mensaje })
     } finally {
       setEnCurso(false)
     }
@@ -746,7 +782,7 @@ type Respuesta<T> = { ok: true, resultado: ResultadoLista<T> } | { ok: false, er
  */
 async function pedirLista<T> (ruta: string, consulta: string, senal: AbortSignal): Promise<Respuesta<T>> {
   try {
-    const respuesta = await fetch(`/api/bff/${ruta}${consulta === '' ? '' : `?${consulta}`}`, { signal: senal })
+    const respuesta = await fetch(`/api/bff/${ruta}${consulta === '' ? '' : `?${consulta}`}`, { signal: conLimite(senal, TIEMPO_LECTURA_MS) })
 
     if (!respuesta.ok) return { ok: false, error: await leerError(respuesta) }
 
@@ -756,6 +792,10 @@ async function pedirLista<T> (ruta: string, consulta: string, senal: AbortSignal
   } catch (fallo) {
     if (fallo instanceof DOMException && fallo.name === 'AbortError') {
       return { ok: false, error: { code: 'bad_request', message: 'Petición cancelada' } }
+    }
+
+    if (esTiempoAgotado(fallo)) {
+      return { ok: false, error: { code: 'server_error', message: 'El servidor tardó demasiado en responder. Intenta de nuevo.' } }
     }
 
     return {

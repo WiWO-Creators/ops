@@ -1,4 +1,3 @@
-import { mensajeDeRespuesta } from '../../datos/cliente.ts'
 import { GLOSARIO } from '../../dominio/glosario.ts'
 
 /**
@@ -54,6 +53,10 @@ export interface RutasDeEdicion {
  * falla no se guardo nada. Si falla la segunda, el mensaje dice que la primera si quedo, y como solo
  * viaja lo cambiado, guardar otra vez manda solo lo que falto.
  *
+ * Una parte de la que no llego respuesta puede haberse guardado: se devuelve `parcial` para que quien
+ * llama vuelva a pedir lo real, y el mensaje no afirma que no se guardo. No se sigue con la segunda
+ * parte, para no escribir sobre un Espacio cuyo estado se ignora.
+ *
  * @param rutas La ruta del Espacio y la propia.
  * @param partes Lo cambiado, repartido por `partirEdicionCombinada`.
  * @returns `null` si todo se guardo (o no habia nada), o el mensaje y si quedo algo guardado.
@@ -62,23 +65,24 @@ export async function guardarEdicionCombinada (
   rutas: RutasDeEdicion,
   partes: EdicionCombinada
 ): Promise<{ mensaje: string, parcial: boolean } | null> {
-  if (partes.espacio !== null) {
-    const respuesta = await patch(rutas.espacio, partes.espacio)
+  // Se importa al usarlo: este modulo tambien lo cargan las pruebas de los campos, que no escriben nada.
+  const { escribirEnBff } = await import('../datos/mutaciones')
 
-    if (!respuesta.ok) {
-      return { mensaje: await mensajeDeRespuesta(respuesta, { metodo: 'PATCH', ruta: rutas.espacio }), parcial: false }
-    }
+  if (partes.espacio !== null) {
+    const resultado = await escribirEnBff(rutas.espacio, 'PATCH', partes.espacio)
+
+    if (!resultado.ok) return { mensaje: resultado.mensaje, parcial: resultado.incierta === true }
   }
 
   if (partes.propios !== null) {
-    const respuesta = await patch(rutas.propia, partes.propios)
+    const resultado = await escribirEnBff(rutas.propia, 'PATCH', partes.propios)
 
-    if (!respuesta.ok) {
-      const mensaje = await mensajeDeRespuesta(respuesta, { metodo: 'PATCH', ruta: rutas.propia })
+    if (!resultado.ok) {
+      if (resultado.incierta === true) return { mensaje: resultado.mensaje, parcial: true }
 
       return partes.espacio === null
-        ? { mensaje, parcial: false }
-        : { mensaje: `Se guardaron los datos del ${GLOSARIO.espacio.singular.toLowerCase()}, pero no el resto: ${mensaje}`, parcial: true }
+        ? { mensaje: resultado.mensaje, parcial: false }
+        : { mensaje: `Se guardaron los datos del ${GLOSARIO.espacio.singular.toLowerCase()}, pero no el resto: ${resultado.mensaje}`, parcial: true }
     }
   }
 
@@ -125,19 +129,4 @@ function anidado (cuerpo: Record<string, unknown>): Record<string, unknown> {
   return typeof cuerpo.espacio === 'object' && cuerpo.espacio !== null
     ? cuerpo.espacio as Record<string, unknown>
     : {}
-}
-
-/**
- * `PATCH` al BFF con un cuerpo JSON.
- *
- * @param ruta Ruta del BFF sin barra inicial.
- * @param cuerpo Lo que se manda.
- * @returns La respuesta tal cual.
- */
-async function patch (ruta: string, cuerpo: Record<string, unknown>): Promise<Response> {
-  return await fetch(`/api/bff/${ruta}`, {
-    method: 'PATCH',
-    headers: { 'content-type': 'application/json', accept: 'application/json' },
-    body: JSON.stringify(cuerpo)
-  })
 }

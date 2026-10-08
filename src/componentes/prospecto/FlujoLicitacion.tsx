@@ -9,7 +9,9 @@ import { ControlDeCampo } from '@/componentes/proyecto/FormularioRecurso'
 import { cuerpoDelFormulario, validarFormulario, valoresIniciales, type CampoFormulario, type OpcionCampo } from '@/componentes/proyecto/formulario'
 import { ContenidoDialogo, Dialogo } from '@/componentes/superposiciones/Dialogo'
 import { ConfirmacionEnLinea } from '@/componentes/datos/ConfirmacionEnLinea'
-import { mensajeDeRespuesta, pedirSobre } from '@/datos/cliente'
+import { escribirEnBff } from '@/componentes/datos/mutaciones'
+import { useAviso } from '@/componentes/estado/useAviso'
+import { pedirSobre } from '@/datos/cliente'
 import type { ContactoProspecto, Prospecto, ProspectoDetalle } from '@/datos/recursos'
 import type { Capacidad } from '@/datos/tipos'
 import { claveBorrador, crearBorrador, eliminarBorrador, guardarBorrador, leerBorrador, type BorradorLicitacion } from '@/dominio/flujo-licitacion'
@@ -66,6 +68,7 @@ function cargarBorrador (clave: string, inicial: BorradorLicitacion) {
  */
 export function FlujoLicitacion ({ usuarioId, capacidades, paises, areas, staff, etiquetas = [], prospecto, contactos = [], onCerrar, onGuardado }: PropsFlujo) {
   const router = useRouter()
+  const avisar = useAviso()
   const clave = claveBorrador(usuarioId, prospecto?.id)
   const camposEmpresa = useMemo(() => camposDeProspecto(paises), [paises])
   // `prospecto_id` se quita porque el prospecto ya quedó elegido en el paso 1. Los catalogos van en
@@ -211,32 +214,42 @@ export function FlujoLicitacion ({ usuarioId, capacidades, paises, areas, staff,
     enviando.current = true
     setGuardando(true)
     setFallo(null)
-    try {
-      const respuesta = await fetch(`/api/bff/${ruta}`, { method: metodo, headers: { 'content-type': 'application/json' }, body: JSON.stringify(cuerpo) })
-      if (!respuesta.ok) {
-        if (respuesta.status >= 400 && respuesta.status < 500) actualizar({ ...borrador, pendiente: null })
-        setFallo(await mensajeDeRespuesta(respuesta))
-        return
+    const resultado = await escribirEnBff<{ id?: number } | undefined>(ruta, metodo, cuerpo)
+
+    if (!resultado.ok) {
+      if (resultado.incierta === true) {
+        // Sin respuesta no se sabe si se creo: `pendiente` sigue puesto y bloquea repetir el alta
+        // hasta que la persona revise los registros.
+        avisar.advertencia(resultado.mensaje)
+      } else if (resultado.estado !== undefined && resultado.estado >= 400 && resultado.estado < 500) {
+        actualizar({ ...borrador, pendiente: null })
       }
-      const sobre = await respuesta.json() as { data?: { id?: number } }
-      const confirmado = sobre.data?.id ?? (metodo === 'PATCH' ? id : null)
-      if (!Number.isSafeInteger(confirmado) || (confirmado ?? 0) <= 0) throw new Error('El servidor no confirmó el registro guardado.')
-      if (paso === 2) {
-        actualizar({ ...borrador, pendiente: null, licitacionId: confirmado as number })
-        eliminarBorrador(window.localStorage, clave)
-        onGuardado()
-        onCerrar()
-        router.push(`/licitaciones/${confirmado}`)
-        return
-      }
-      actualizar({ ...borrador, pendiente: null, paso: paso === 0 ? 1 : 2,
-        ...(paso === 0 ? { prospectoId: confirmado as number } : { contactoId: confirmado as number }) })
-    } catch {
-      setFallo('No se pudo confirmar el guardado. Revisa la conexión y los registros antes de reintentar.')
-    } finally {
+      setFallo(resultado.mensaje)
       enviando.current = false
       setGuardando(false)
+      return
     }
+
+    const confirmado = resultado.datos?.id ?? (metodo === 'PATCH' ? id : null)
+    enviando.current = false
+    setGuardando(false)
+
+    if (!Number.isSafeInteger(confirmado) || (confirmado ?? 0) <= 0) {
+      setFallo('No se pudo confirmar el guardado. Revisa la conexión y los registros antes de reintentar.')
+      return
+    }
+
+    if (paso === 2) {
+      actualizar({ ...borrador, pendiente: null, licitacionId: confirmado as number })
+      eliminarBorrador(window.localStorage, clave)
+      onGuardado()
+      onCerrar()
+      router.push(`/licitaciones/${confirmado}`)
+      return
+    }
+
+    actualizar({ ...borrador, pendiente: null, paso: paso === 0 ? 1 : 2,
+      ...(paso === 0 ? { prospectoId: confirmado as number } : { contactoId: confirmado as number }) })
   }
 
   /**

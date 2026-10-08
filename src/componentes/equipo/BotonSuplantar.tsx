@@ -10,6 +10,7 @@ import {
   Dialogo,
   DisparadorDialogo
 } from '@/componentes/superposiciones/Dialogo'
+import { conLimite, TIEMPO_ESCRITURA_MS } from '@/datos/red'
 
 interface PropsBotonSuplantar {
   personaId: number
@@ -42,7 +43,8 @@ export function BotonSuplantar ({ personaId, nombre, activa }: PropsBotonSuplant
       const respuesta = await fetch('/api/sesion/suplantar', {
         method: 'POST',
         headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({ staffId: personaId })
+        body: JSON.stringify({ staffId: personaId }),
+        signal: conLimite(undefined, TIEMPO_ESCRITURA_MS)
       })
 
       if (!respuesta.ok) {

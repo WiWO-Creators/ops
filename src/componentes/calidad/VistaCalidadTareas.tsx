@@ -40,7 +40,7 @@ export function VistaCalidadTareas ({
         definicion={CALIDAD_TAREAS_RICA}
         inicial={inicial}
         claveFila={(fila) => fila.id}
-        abrirEn={{ clave: PARAMETRO_TAREA, valor: (fila) => fila.id }}
+        abrirEn={{ clave: PARAMETRO_TAREA, valor: (fila) => fila.id, superficial: true }}
         capacidades={capacidades}
         opcionesDeFiltro={opcionesDeFiltro}
       />

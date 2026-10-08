@@ -6,6 +6,8 @@ import { Avatar } from '@/componentes/presentadores/Avatar'
 import { EnlacePersona } from '@/componentes/presentadores/EnlacePersona'
 import { Vacio } from '@/componentes/estado/Estados'
 import type { MetaPresencia, PersonaConectada, SuplantacionViva } from '@/datos/auditoria'
+import { conLimite, esTiempoAgotado, TIEMPO_LECTURA_MS } from '@/datos/red'
+import { sondeoSinApilar } from '@/datos/sondeo'
 import { formatearFecha } from '@/lib/fechas'
 import { arbolDePresencia, type RamaPresencia } from './presentacion'
 import { cn } from '@/lib/clases'
@@ -41,9 +43,10 @@ export function PanelEnVivo ({ inicial, segundos }: PropsPanelEnVivo) {
   const [error, setError] = useState<string | null>(null)
 
   const refrescar = useCallback(async (senal: AbortSignal): Promise<void> => {
+    const limite = conLimite(senal, TIEMPO_LECTURA_MS)
     const [presencia, impersonaciones] = await Promise.all([
-      fetch('/api/bff/presence', { signal: senal }),
-      fetch('/api/bff/sessions/impersonations', { signal: senal })
+      fetch('/api/bff/presence', { signal: limite }),
+      fetch('/api/bff/sessions/impersonations', { signal: limite })
     ])
 
     if (!presencia.ok || !impersonaciones.ok) {
@@ -62,17 +65,23 @@ export function PanelEnVivo ({ inicial, segundos }: PropsPanelEnVivo) {
   useEffect(() => {
     const control = new AbortController()
 
-    function tic (): void {
-      // Con la pestaña oculta no se pregunta: nadie está mirando, y el bloque se pone al día solo
-      // en cuanto vuelve al frente.
-      if (document.hidden) return
-
-      refrescar(control.signal).catch((fallo: unknown) => {
+    const consultar = sondeoSinApilar(async () => {
+      try {
+        await refrescar(control.signal)
+      } catch (fallo) {
         if (control.signal.aborted) return
 
-        setError(fallo instanceof Error ? fallo.message : 'No se pudo actualizar la actividad en vivo.')
-      })
-    }
+        setError(
+          esTiempoAgotado(fallo)
+            ? 'La actividad en vivo tardó en responder. Se vuelve a intentar sola.'
+            : fallo instanceof Error ? fallo.message : 'No se pudo actualizar la actividad en vivo.'
+        )
+      }
+    })
+
+    // Con la pestaña oculta no se pregunta: nadie está mirando, y el bloque se pone al día solo
+    // en cuanto vuelve al frente. Nunca se apila una consulta sobre otra en camino.
+    const tic = (): void => { if (!document.hidden) consultar(true) }
 
     const intervalo = globalThis.setInterval(tic, segundos * 1000)
     document.addEventListener('visibilitychange', tic)

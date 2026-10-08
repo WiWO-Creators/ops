@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useRef, useState } from 'react'
 import { TriangleAlert } from 'lucide-react'
 import { AvisoEnLinea } from '@/componentes/estado/Estados'
 import { Boton } from '@/componentes/formularios/Boton'
@@ -11,6 +11,7 @@ import {
 } from '@/componentes/formularios/Selector'
 import { CerrarDialogo, ContenidoDialogo, Dialogo } from '@/componentes/superposiciones/Dialogo'
 import { escribirEnBff } from '@/componentes/datos/mutaciones'
+import { claveDeIdempotencia } from '@/datos/red'
 import { SelectorPersonas } from '@/componentes/formularios/SelectorPersonas'
 import {
   formatearMinutos, instanteDe, minutosDeHora, PASO_MINUTOS, revisarReserva, seSuperpone,
@@ -66,6 +67,7 @@ export function DialogoReserva ({ borrador, salas, reservas, personas, onCerrar,
   const aviso = useAviso()
   const [campos, setCampos] = useState<BorradorReserva>(borrador)
   const [guardando, setGuardando] = useState(false)
+  const claveAlta = useRef<{ huella: string, clave: string } | null>(null)
   const [errorApi, setErrorApi] = useState<string | null>(null)
 
   const sala = salas.find((s) => s.id === campos.salaId) ?? salas[0]
@@ -113,8 +115,14 @@ export function DialogoReserva ({ borrador, salas, reservas, personas, onCerrar,
       participant_ids: campos.participantes
     }
 
+    // La clave del alta se conserva mientras el cuerpo no cambie: si la respuesta se pierde, volver a
+    // pulsar «Reservar» no crea una segunda reserva (que chocaria con la primera).
+    const huella = JSON.stringify(cuerpo)
+
+    if (claveAlta.current?.huella !== huella) claveAlta.current = { huella, clave: claveDeIdempotencia() }
+
     const resultado = campos.id === undefined
-      ? await escribirEnBff<Reserva>('rooms/bookings', 'POST', cuerpo)
+      ? await escribirEnBff<Reserva>('rooms/bookings', 'POST', cuerpo, { idempotencia: claveAlta.current.clave })
       : await escribirEnBff<Reserva>(`rooms/bookings/${campos.id}`, 'PATCH', cuerpo)
 
     setGuardando(false)
@@ -123,6 +131,8 @@ export function DialogoReserva ({ borrador, salas, reservas, personas, onCerrar,
       setErrorApi(resultado.mensaje)
       return
     }
+
+    claveAlta.current = null
 
     aviso.exito(campos.id === undefined ? `«${cuerpo.title}» quedó reservada.` : `Reserva «${cuerpo.title}» actualizada.`)
     onGuardado()

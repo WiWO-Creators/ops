@@ -14,6 +14,7 @@ import {
   Tabla
 } from '@/componentes/datos/Tabla'
 import { MenuAccionesFila } from '@/componentes/datos/MenuAccionesFila'
+import { escribirEnBff } from '@/componentes/datos/mutaciones'
 import { AvisoEnLinea, Cargando, ErrorEstado, Vacio } from '@/componentes/estado/Estados'
 import { CargandoConOrbe } from '@/componentes/estado/Orbe'
 import { useAviso } from '@/componentes/estado/useAviso'
@@ -26,7 +27,6 @@ import { Insignia } from '@/componentes/presentadores/Insignia'
 import { avisarCambioDeMedidor } from '@/componentes/live/medidor'
 import { pedirSobre } from '@/datos/cliente'
 import { construirConsulta, leerConsulta } from '@/datos/consulta'
-import { leerError } from '@/datos/errores'
 import type { Etiqueta, PersonaConTiempo } from '@/datos/recursos'
 import type { Capacidad, Paginacion } from '@/datos/tipos'
 import { LOOKUP_PERSONAS_CON_TIEMPO, definicionDeTiempos } from '@/definiciones/tiempos'
@@ -246,27 +246,37 @@ function TiemposDelProyecto ({ proyectoId, fuente, capacidades }: PropsPanelTiem
   async function detener (registro: RegistroDeHoras): Promise<void> {
     setAviso(null)
 
-    try {
-      const respuesta = await fetch(`/api/bff/tasks/${registro.task.id}/timer`, { method: 'DELETE' })
+    const resultado = await escribirEnBff(`tasks/${registro.task.id}/timer`, 'DELETE')
 
-      if (!respuesta.ok) {
-        setAviso((await leerError(respuesta)).message)
-        return
-      }
-
-      // El control de jornada de la cabecera mira el mismo cronometro.
-      avisarCambioDeMedidor()
-      recargar()
-    } catch {
-      setAviso('No se pudo detener: revisa la conexión.')
+    if (!resultado.ok && resultado.incierta !== true) {
+      setAviso(resultado.mensaje)
+      return
     }
+
+    // Sin respuesta no se sabe si se detuvo: se avisa y la recarga muestra como quedo.
+    if (!resultado.ok) avisador.advertencia(resultado.mensaje)
+
+    // El control de jornada de la cabecera mira el mismo cronometro.
+    avisarCambioDeMedidor()
+    recargar()
   }
 
-  /** Borra un registro. Lanza si falla: `ConfirmarBorrado` (dentro de `MenuAccionesFila`) muestra el mensaje. */
+  /**
+   * Borra un registro. Lanza si falla: `ConfirmarBorrado` (dentro de `MenuAccionesFila`) muestra el mensaje.
+   *
+   * Si no llego respuesta no se afirma que no se borro: se avisa y se recarga la tabla.
+   */
   async function borrar (registro: RegistroDeHoras): Promise<void> {
-    const respuesta = await fetch(`/api/bff/${fuente.tiempos}/${registro.id}`, { method: 'DELETE' })
+    const resultado = await escribirEnBff(`${fuente.tiempos}/${registro.id}`, 'DELETE')
 
-    if (!respuesta.ok) throw new Error((await leerError(respuesta)).message)
+    if (!resultado.ok) {
+      if (resultado.incierta !== true) throw new Error(resultado.mensaje)
+
+      avisador.advertencia(resultado.mensaje)
+      recargar()
+
+      return
+    }
 
     recargar()
     avisador.exito('Registro eliminado.')

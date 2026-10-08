@@ -3,7 +3,7 @@
 import { useId, useState, type CSSProperties, type FormEvent } from 'react'
 import { useRouter } from 'next/navigation'
 import { X } from 'lucide-react'
-import { mensajeDeRespuesta } from '@/datos/cliente'
+import { escribirEnBff } from '@/componentes/datos/mutaciones'
 import type { Horario as Datos, TextosHorario } from './tipos'
 
 type Cambio = Partial<Pick<Datos, 'activo' | 'hora' | 'omitir'>>
@@ -53,29 +53,24 @@ export function Horario ({ datos, escritura, textos, indice }: {
   /**
    * Manda un cambio parcial y relee del servidor.
    *
-   * @returns `true` si el servidor lo acepto
+   * @returns `true` si el servidor lo acepto; con la respuesta perdida avisa que no se sabe y relee
    */
   async function enviar (cambio: Cambio): Promise<boolean> {
     setEnVuelo(true)
     setError(null)
 
     try {
-      const respuesta = await fetch(escritura, {
-        method: 'PATCH',
-        headers: { 'content-type': 'application/json' },
-        body: JSON.stringify(cambio)
-      })
+      const resultado = await escribirEnBff(escritura, 'PATCH', cambio)
 
-      if (!respuesta.ok) {
-        setError(await mensajeDeRespuesta(respuesta))
+      if (!resultado.ok) {
+        setError(resultado.mensaje)
+        // Sin respuesta pudo haberse guardado: se relee del servidor para mostrar lo que quedo.
+        if (resultado.incierta === true) router.refresh()
         return false
       }
 
       router.refresh()
       return true
-    } catch {
-      setError('Se perdió la conexión con el servidor. No cambió nada.')
-      return false
     } finally {
       setEnVuelo(false)
     }

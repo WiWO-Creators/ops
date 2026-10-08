@@ -1,5 +1,7 @@
 import { mensajeDeLectura, mensajeDeRespuesta } from '@/datos/cliente'
-import { avisarCambioDeTareas } from '@/datos/refresco-lista'
+import { claveDeIdempotencia, conLimite, esTiempoAgotado, TIEMPO_ESCRITURA_MS, TIEMPO_LECTURA_MS, TIEMPO_SUBIDA_MS } from '@/datos/red'
+import { registrarEscritura } from '@/datos/pendientes'
+import { avisarCambioDeRecurso, avisarCambioDeTareas } from '@/datos/refresco-lista'
 import { segundosParaReintentar } from '@/dominio/ticket-vista'
 
 /**
@@ -20,9 +22,12 @@ import { segundosParaReintentar } from '@/dominio/ticket-vista'
  * `cancelada` distingue un abort deliberado (`AbortSignal`) de una caida de red real: sin ella quien
  * cancela una subida a mitad de camino veria "no se pudo contactar al servidor" como si hubiera
  * fallado, en vez de que se respete la cancelacion.
+ *
+ * `incierta` marca una escritura que salio pero de la que no llego respuesta (tiempo agotado o red
+ * caida): el servidor pudo haberla aplicado. Quien la recibe no debe presentarla como "no se guardo".
  */
 export type Resultado<T> =
-  | { ok: true, datos: T, estado?: number }
+  | { ok: true, datos: T, estado?: number, meta?: { omitidos?: number[] } & Record<string, unknown> }
   | {
     ok: false
     mensaje: string
@@ -31,7 +36,21 @@ export type Resultado<T> =
     detalles?: Record<string, unknown>
     reintentarEnSegundos?: number | null
     cancelada?: boolean
+    incierta?: boolean
   }
+
+/** Opciones de una escritura; sin ellas se comporta como siempre. */
+export interface OpcionesDeEscritura {
+  /** Señal para cancelar la peticion. */
+  senal?: AbortSignal
+  /** Clave de idempotencia; un reintento de la misma intencion reutiliza la que recibio la primera vez. */
+  idempotencia?: string
+  /** Version (ETag) que se espera encontrar en el servidor; si cambio, la API responde 409. */
+  siCoincide?: string
+}
+
+/** Mensaje de una escritura de la que no llego respuesta. */
+const MENSAJE_INCIERTA = 'La respuesta tardó demasiado o se perdió la conexión, y no sabemos si el cambio se guardó. Revisa antes de repetirlo.'
 
 /**
  * Lee del cuerpo de error el codigo y los detalles, y la espera de un 429.
@@ -75,43 +94,81 @@ function opcionesDeCuerpo (cuerpo: unknown): RequestInit {
 }
 
 /**
+ * Normaliza el cuarto argumento de {@link escribirEnBff}: durante la migracion acepta la señal sola.
+ *
+ * @param valor una `AbortSignal`, unas opciones o nada
+ * @returns las opciones completas
+ */
+function opcionesDe (valor: AbortSignal | OpcionesDeEscritura | undefined): OpcionesDeEscritura {
+  if (valor === undefined) return {}
+
+  return 'aborted' in valor ? { senal: valor } : valor
+}
+
+/**
  * Manda una escritura al BFF y devuelve el resultado como valor, nunca como excepcion.
  *
  * @param ruta Ruta sin la base del BFF ni barra inicial. Ej: `projects/12/actions/copy`.
  * @param metodo Verbo HTTP de la operacion.
  * @param cuerpo Cuerpo JSON, o un `FormData` para multipart. `DELETE` normalmente no lleva.
- * @param senal Para cancelar la peticion (por ejemplo, una subida a Drive que la persona cancelo).
+ * @param senalOOpciones Una señal para cancelar la peticion (por ejemplo, una subida a Drive que la
+ *        persona cancelo), o las {@link OpcionesDeEscritura} completas.
  * @returns `datos` con el `data` del envelope, o el mensaje de error ya legible.
  */
 export async function escribirEnBff<T> (
   ruta: string,
   metodo: 'POST' | 'PATCH' | 'PUT' | 'DELETE',
   cuerpo?: unknown,
-  senal?: AbortSignal
+  senalOOpciones?: AbortSignal | OpcionesDeEscritura
 ): Promise<Resultado<T>> {
+  const { senal, idempotencia, siCoincide } = opcionesDe(senalOOpciones)
+  const esSubida = typeof FormData !== 'undefined' && cuerpo instanceof FormData
+  const base = opcionesDeCuerpo(cuerpo)
+  const cabeceras = new Headers(base.headers)
+  cabeceras.set('Idempotency-Key', idempotencia ?? claveDeIdempotencia())
+  if (siCoincide !== undefined) cabeceras.set('If-Match', siCoincide)
+
+  const cerrar = registrarEscritura(ruta)
   let respuesta: Response
 
   try {
-    respuesta = await fetch(`/api/bff/${ruta}`, { method: metodo, signal: senal, ...opcionesDeCuerpo(cuerpo) })
+    respuesta = await fetch(`/api/bff/${ruta}`, {
+      ...base,
+      method: metodo,
+      headers: cabeceras,
+      signal: conLimite(senal, esSubida ? TIEMPO_SUBIDA_MS : TIEMPO_ESCRITURA_MS)
+    })
   } catch {
-    return { ok: false, mensaje: 'No se pudo contactar al servidor. Revisa tu conexión.', cancelada: senal?.aborted === true }
+    if (senal?.aborted === true) {
+      cerrar('error')
+
+      return { ok: false, mensaje: 'No se pudo contactar al servidor. Revisa tu conexión.', cancelada: true }
+    }
+
+    // Salio y no volvio nada: sea por tiempo agotado o por red caida, el servidor pudo aplicarla.
+    cerrar('incierta')
+
+    return { ok: false, mensaje: MENSAJE_INCIERTA, incierta: true }
   }
 
   if (!respuesta.ok) {
+    cerrar('error')
     const error = await codigoDeError(respuesta)
 
     return { ok: false, mensaje: await mensajeDeRespuesta(respuesta), estado: respuesta.status, ...error }
   }
 
+  cerrar('ok')
   avisarCambioDeTareas(ruta)
+  avisarCambioDeRecurso(ruta)
 
   // 204 no trae cuerpo: un `json()` sobre una respuesta vacia lanza.
   if (respuesta.status === 204) return { ok: true, datos: undefined as T, estado: 204 }
 
   try {
-    const sobre = await respuesta.json() as { data: T }
+    const sobre = await respuesta.json() as { data: T, meta?: { omitidos?: number[] } }
 
-    return { ok: true, datos: sobre.data, estado: respuesta.status }
+    return { ok: true, datos: sobre.data, estado: respuesta.status, meta: sobre.meta }
   } catch {
     return { ok: true, datos: undefined as T, estado: respuesta.status }
   }
@@ -132,9 +189,14 @@ export async function leerDelBff<T> (ruta: string): Promise<Resultado<T>> {
   let respuesta: Response
 
   try {
-    respuesta = await fetch(`/api/bff/${ruta}`)
-  } catch {
-    return { ok: false, mensaje: 'No se pudo contactar al servidor. Revisa tu conexión.' }
+    respuesta = await fetch(`/api/bff/${ruta}`, { signal: conLimite(undefined, TIEMPO_LECTURA_MS) })
+  } catch (fallo) {
+    return {
+      ok: false,
+      mensaje: esTiempoAgotado(fallo)
+        ? 'El servidor tardó demasiado en responder. Intenta de nuevo.'
+        : 'No se pudo contactar al servidor. Revisa tu conexión.'
+    }
   }
 
   if (!respuesta.ok) return { ok: false, mensaje: await mensajeDeLectura(respuesta) }
@@ -160,7 +222,7 @@ export async function subirArchivoEnBff<T> (ruta: string, archivo: File, campo: 
   let respuesta: Response
 
   try {
-    respuesta = await fetch(`/api/bff/${ruta}`, { method: 'POST', body: cuerpo })
+    respuesta = await fetch(`/api/bff/${ruta}`, { method: 'POST', body: cuerpo, signal: conLimite(undefined, TIEMPO_SUBIDA_MS) })
   } catch {
     return { ok: false, mensaje: 'No se pudo contactar al servidor. Revisa tu conexión.' }
   }
