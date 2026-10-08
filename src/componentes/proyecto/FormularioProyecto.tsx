@@ -5,7 +5,8 @@ import { useAccionPresencia } from '@/componentes/auditoria/accion'
 import { CerrarDialogo, ContenidoDialogo, Dialogo } from '@/componentes/superposiciones/Dialogo'
 import { Boton } from '@/componentes/formularios/Boton'
 import { Campo } from '@/componentes/formularios/Campo'
-import { AreaTexto, Entrada } from '@/componentes/formularios/Entrada'
+import { EditorRico } from '@/componentes/formularios/EditorRico'
+import { Entrada } from '@/componentes/formularios/Entrada'
 import {
   ContenidoSelector, DisparadorSelector, Opcion, Selector, SelectorBuscable
 } from '@/componentes/formularios/Selector'
@@ -14,6 +15,7 @@ import type { Espacio } from '@/datos/recursos'
 import type { OpcionFiltro } from '@/definiciones/tipos'
 import { TIPOS_DE_FACTURACION } from '@/definiciones/espacios'
 import { GLOSARIO } from '@/dominio/glosario'
+import { esHtml, textoAHtml } from '@/dominio/texto-rico'
 import { hoyLocal } from '@/lib/fechas'
 import { enFormatoTitulo } from '@/lib/titulo'
 
@@ -88,7 +90,8 @@ function Campos ({
   const [inicio, setInicio] = useState(espacio?.start_date ?? hoyLocal())
   const [entrega, setEntrega] = useState(espacio?.deadline ?? '')
   const [horas, setHoras] = useState(espacio?.estimated_hours === null || espacio === null ? '' : String(espacio.estimated_hours))
-  const [descripcion, setDescripcion] = useState(espacio?.description ?? '')
+  // HTML del editor. Parte de la version saneada de la API; sin ella, del texto plano.
+  const [descripcion, setDescripcion] = useState(espacio?.description_html ?? espacio?.description ?? '')
   const [enviando, setEnviando] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
@@ -114,7 +117,9 @@ function Campos ({
 
     const comunes = {
       name: enFormatoTitulo(nombre),
-      description: descripcion,
+      // Un texto plano que el editor aun no cargo se convierte: `format: 'html'` no puede acompañarlo.
+      description: esHtml(descripcion) ? descripcion : textoAHtml(descripcion),
+      format: 'html',
       start_date: inicio === '' ? null : inicio,
       deadline: entrega === '' ? null : entrega,
       estimated_hours: horas === '' ? null : Number(horas),
@@ -217,7 +222,7 @@ function Campos ({
 
       <Campo etiqueta="Descripción">
         {(props) => (
-          <AreaTexto {...props} rows={4} value={descripcion} onChange={(e) => { setDescripcion(e.target.value) }} />
+          <EditorRico {...props} etiqueta="Descripción" valorInicial={descripcion} onCambio={setDescripcion} />
         )}
       </Campo>
 

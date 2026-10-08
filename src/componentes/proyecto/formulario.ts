@@ -8,12 +8,17 @@
 
 import { LARGO_MAXIMO_ETIQUETA } from '../../dominio/etiquetas.ts'
 import { aFechaLocal } from '../../lib/fechas.ts'
+import { esHtml, htmlVacio, textoAHtml, textoPlano } from '../../dominio/texto-rico.ts'
 
 /**
  * `etiquetas` es una lista de NOMBRES, no de ids: la API crea el nombre que no existe. Sus `opciones`
  * son el catálogo que se sugiere mientras se escribe, no un límite de lo que se puede poner.
+ *
+ * `rico` es un `area` con texto enriquecido (`EditorRico`): su valor es HTML, el cuerpo lleva
+ * `format: 'html'` y el vacio, el largo y el valor inicial se miden sobre el texto visible. Se activa
+ * por campo: lo que la API todavia no sanea como HTML sigue siendo `area`.
  */
-export type TipoCampo = 'texto' | 'area' | 'fecha' | 'color' | 'booleano' | 'numero' | 'seleccion' | 'seleccion-multiple' | 'etiquetas'
+export type TipoCampo = 'texto' | 'area' | 'rico' | 'fecha' | 'color' | 'booleano' | 'numero' | 'seleccion' | 'seleccion-multiple' | 'etiquetas'
 
 /** Una opcion de un campo `seleccion`. El valor viaja como cadena y se convierte al armar el cuerpo. */
 export interface OpcionCampo {
@@ -126,7 +131,7 @@ export function validarFormulario (
 
     if (campo.tipo === 'booleano') continue
 
-    const texto = typeof valor === 'string' ? valor.trim() : ''
+    const texto = textoDelCampo(campo, valor)
 
     if (campo.requerido === true && texto === '') {
       errores[campo.clave] = 'Este campo es obligatorio.'
@@ -135,7 +140,7 @@ export function validarFormulario (
 
     if (texto === '') continue
 
-    if (campo.maximo !== undefined && texto.length > campo.maximo) {
+    if (campo.maximo !== undefined && (campo.tipo === 'rico' ? textoPlano(texto) : texto).length > campo.maximo) {
       errores[campo.clave] = `Máximo ${campo.maximo} caracteres.`
       continue
     }
@@ -205,7 +210,9 @@ export function cuerpoDelFormulario (
       continue
     }
 
-    const texto = typeof valor === 'string' ? valor.trim() : ''
+    const texto = textoDelCampo(campo, valor)
+
+    if (campo.tipo === 'rico') cuerpo.format = 'html'
 
     if (texto === '') {
       if (campo.omitirSiVacio === true) continue
@@ -220,6 +227,26 @@ export function cuerpoDelFormulario (
   }
 
   return cuerpo
+}
+
+/**
+ * El texto de un campo listo para validar y enviar: recortado, y para `rico` convertido a HTML.
+ *
+ * Un campo `rico` que nadie toco puede traer todavia el texto plano de una fila vieja (la API no
+ * mando su version en HTML): se convierte aca para que `format: 'html'` nunca acompañe texto plano.
+ * Lo que el editor deja sin nada visible (`<p></p>`) cuenta como vacio.
+ *
+ * @param campo la descripcion del campo
+ * @param valor lo que hay escrito
+ * @returns el texto, o `''` si no hay nada
+ */
+function textoDelCampo (campo: CampoFormulario, valor: ValoresFormulario[string] | undefined): string {
+  const texto = typeof valor === 'string' ? valor.trim() : ''
+
+  if (campo.tipo !== 'rico') return texto
+  if (htmlVacio(texto)) return ''
+
+  return esHtml(texto) ? texto : textoAHtml(texto)
 }
 
 /**
@@ -294,6 +321,16 @@ export function valoresIniciales (
     if (campo.tipo === 'booleano') {
       valores[campo.clave] = crudo === true
       continue
+    }
+
+    if (campo.tipo === 'rico' && registro !== null) {
+      // La version saneada que manda la API, si la hay: es la que conserva el formato.
+      const html = leerDe(registro, `${campo.clave}_html`)
+
+      if (typeof html === 'string' && !htmlVacio(html)) {
+        valores[campo.clave] = html
+        continue
+      }
     }
 
     valores[campo.clave] = crudo === null || crudo === undefined ? '' : String(crudo)

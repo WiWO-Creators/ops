@@ -11,9 +11,9 @@ import {
   armarHilos,
   autorBreve,
   extractoDeComentario,
-  htmlDeComentario,
   textoDeComentario
 } from '../src/componentes/proyecto/discusiones.ts'
+import { textoAHtml } from '../src/dominio/texto-rico.ts'
 import { comentarioParaMostrar } from '../src/componentes/proyecto/tareas.ts'
 
 function comentario (id, parentId = null, extra = {}) {
@@ -73,17 +73,10 @@ test('el extracto va en una linea y se corta con puntos suspensivos', () => {
   assert.equal(extractoDeComentario(''), '')
 })
 
-test('lo que se escribe viaja escapado, con parrafos y saltos', () => {
-  assert.equal(htmlDeComentario('  hola <b>equipo</b> & "cliente"  '), '<p>hola &lt;b&gt;equipo&lt;/b&gt; &amp; &quot;cliente&quot;</p>')
-  assert.equal(htmlDeComentario('uno\ndos\n\n\ntres'), '<p>uno<br>dos</p><p>tres</p>')
-  assert.equal(htmlDeComentario('a\r\nb'), '<p>a<br>b</p>')
-  assert.equal(htmlDeComentario('   \n  '), '')
-})
-
 test('ida y vuelta: lo que se escribe se lee igual', () => {
   const escrito = 'Revisé el <informe>.\nFalta la firma.\n\nOk & listo'
 
-  assert.equal(textoDeComentario(htmlDeComentario(escrito)).texto, escrito)
+  assert.equal(textoDeComentario(textoAHtml(escrito)).texto, escrito)
 })
 
 test('el autor breve es el nombre de pila, del equipo o del cliente', () => {

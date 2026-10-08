@@ -6,14 +6,14 @@ import { AvisoEnLinea, Cargando, ErrorEstado } from '@/componentes/estado/Estado
 import { ConfirmacionEnLinea } from '@/componentes/datos/ConfirmacionEnLinea'
 import { escribirEnBff } from '@/componentes/datos/mutaciones'
 import { Boton } from '@/componentes/formularios/Boton'
-import { AreaTexto } from '@/componentes/formularios/Entrada'
+import { EditorRico } from '@/componentes/formularios/EditorRico'
 import { GLOSARIO } from '@/dominio/glosario'
+import { htmlVacio, textoPlano } from '@/dominio/texto-rico'
 import { cn } from '@/lib/clases'
 import { LOCALE } from '@/lib/fechas'
 import { useRecurso } from './carga'
 import {
   armarHilos,
-  htmlDeComentario,
   MAXIMO_COMENTARIO,
   type ComentarioDeHilo
 } from './discusiones'
@@ -79,25 +79,33 @@ export function HiloDeComentarios (
   /**
    * Manda un comentario nuevo, o una respuesta, y lo suma al hilo con lo que devolvio la API.
    *
-   * @param texto lo que se escribio, sin convertir
+   * @param html lo que se escribio, como HTML del editor de texto enriquecido
    * @param padre el comentario raiz al que responde, o `null`
    * @returns el mensaje de error, o `null` si se guardo
    */
-  async function enviar (texto: string, padre: number | null): Promise<string | null> {
-    const contenido = htmlDeComentario(texto)
-    if (contenido === '') return 'Escribe algo antes de enviar.'
+  async function enviar (html: string, padre: number | null): Promise<string | null> {
+    const contenido = html.trim()
+    if (htmlVacio(contenido)) return 'Escribe algo antes de enviar.'
 
     const resultado = await escribirEnBff<ComentarioDeHilo>(
       ruta,
       'POST',
-      padre === null ? { content: contenido } : { content: contenido, parent: padre }
+      padre === null
+        ? { content: contenido, format: 'html' }
+        : { content: contenido, format: 'html', parent: padre }
     )
 
     if (!resultado.ok) return resultado.mensaje
 
     // La lectura de un comentario suelto no trae `parent_id` ni `contact`: se completan con lo que
     // se mando, que es lo que la API acaba de guardar.
-    const guardado: ComentarioDeHilo = { ...resultado.datos, parent_id: padre, contact: null }
+    // Si la API no devolvio `content_html`, se pinta lo que se mando: `Contenido` lo filtra igual.
+    const guardado: ComentarioDeHilo = {
+      ...resultado.datos,
+      content_html: resultado.datos.content_html ?? contenido,
+      parent_id: padre,
+      contact: null
+    }
 
     // Actualizacion funcional: con una respuesta y un comentario viajando a la vez, la lista del
     // render en que salio cada uno ya no es la ultima, y el segundo en volver borraria al primero.
@@ -288,8 +296,8 @@ interface PropsCuadroDeComentario {
   /** Rotulo del boton de envio. */
   accion: string
   enfocar?: boolean
-  /** Manda el texto. Devuelve el error a mostrar, o `null` si se guardo. */
-  onEnviar: (texto: string) => Promise<string | null>
+  /** Manda el HTML. Devuelve el error a mostrar, o `null` si se guardo. */
+  onEnviar: (html: string) => Promise<string | null>
   /** Si esta, `Escape` y el boton Cancelar cierran el cuadro. */
   onCancelar?: () => void
 }
@@ -299,19 +307,24 @@ interface PropsCuadroDeComentario {
  *
  * `Ctrl`/`Cmd` + `Enter` envia, porque `Enter` solo es un salto de linea: un comentario de varios
  * parrafos es lo normal y no puede salir a medio escribir. El texto se conserva si el envio falla.
+ *
+ * El editor no es controlado: vaciarlo tras enviar es remontarlo con otra `key`. El tope de
+ * `MAXIMO_COMENTARIO` se mide sobre el texto visible y no sobre el marcado, que la persona no escribio.
  */
 function CuadroDeComentario (
   { etiqueta, placeholder, accion, enfocar = false, onEnviar, onCancelar }: PropsCuadroDeComentario
 ): ReactElement {
-  const [texto, setTexto] = useState('')
+  const [html, setHtml] = useState('')
+  const [version, setVersion] = useState(0)
   const [enviando, setEnviando] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const idError = useId()
   const idAyuda = useId()
 
-  const vacio = texto.trim() === ''
-  const excedido = texto.length > MAXIMO_COMENTARIO
-  const cercaDelTope = texto.length > MAXIMO_COMENTARIO * 0.9
+  const largo = textoPlano(html).length
+  const vacio = htmlVacio(html)
+  const excedido = largo > MAXIMO_COMENTARIO
+  const cercaDelTope = largo > MAXIMO_COMENTARIO * 0.9
 
   async function enviar (evento?: FormEvent<HTMLFormElement>): Promise<void> {
     evento?.preventDefault()
@@ -319,7 +332,7 @@ function CuadroDeComentario (
 
     setEnviando(true)
     setError(null)
-    const fallo = await onEnviar(texto)
+    const fallo = await onEnviar(html)
     setEnviando(false)
 
     if (fallo !== null) {
@@ -327,16 +340,11 @@ function CuadroDeComentario (
       return
     }
 
-    setTexto('')
+    setHtml('')
+    setVersion((actual) => actual + 1)
   }
 
-  function alTeclear (evento: KeyboardEvent<HTMLTextAreaElement>): void {
-    if (evento.key === 'Enter' && (evento.metaKey || evento.ctrlKey)) {
-      evento.preventDefault()
-      void enviar()
-      return
-    }
-
+  function alTeclear (evento: KeyboardEvent<HTMLFormElement>): void {
     if (evento.key === 'Escape' && onCancelar !== undefined) {
       evento.preventDefault()
       onCancelar()
@@ -344,31 +352,24 @@ function CuadroDeComentario (
   }
 
   return (
-    <form
-      onSubmit={(evento) => { void enviar(evento) }}
-      className={cn(
-        'border-control-borde bg-control rounded-medio flex flex-col border transition-[border-color,box-shadow] duration-150',
-        'focus-within:border-foco focus-within:ring-foco/25 focus-within:ring-2',
-        error !== null && 'border-relleno-peligro'
-      )}
-    >
-      <AreaTexto
-        value={texto}
-        onChange={(evento) => { setTexto(evento.target.value) }}
-        onKeyDown={alTeclear}
+    <form onSubmit={(evento) => { void enviar(evento) }} onKeyDown={alTeclear} className="flex flex-col gap-2">
+      <EditorRico
+        key={version}
+        etiqueta={etiqueta}
         placeholder={placeholder}
-        aria-label={etiqueta}
-        aria-invalid={error !== null || excedido}
+        filasMinimas={2}
+        aria-invalid={error !== null || excedido || undefined}
         aria-describedby={error !== null ? `${idAyuda} ${idError}` : idAyuda}
-        autoFocus={enfocar}
-        rows={2}
-        className="min-h-16 resize-none border-0 bg-transparent shadow-none focus-visible:ring-0 focus-visible:outline-none"
+        autoenfocar={enfocar || version > 0}
+        deshabilitado={enviando}
+        onCambio={setHtml}
+        onEnviar={() => { void enviar() }}
       />
 
-      <div className="flex items-center justify-between gap-3 px-2 pb-2">
+      <div className="flex items-center justify-between gap-3">
         <span id={idAyuda} className="text-texto-sutil pl-1 text-xs">
           {cercaDelTope
-            ? <span className={cn('tabular-nums', excedido && 'text-texto-peligro')}>{texto.length.toLocaleString(LOCALE)} / {MAXIMO_COMENTARIO.toLocaleString(LOCALE)}</span>
+            ? <span className={cn('tabular-nums', excedido && 'text-texto-peligro')}>{largo.toLocaleString(LOCALE)} / {MAXIMO_COMENTARIO.toLocaleString(LOCALE)}</span>
             : <span className="pointer-coarse:hidden">Ctrl + Enter para enviar</span>}
         </span>
 
@@ -384,12 +385,7 @@ function CuadroDeComentario (
       </div>
 
       {error !== null && (
-        <AvisoEnLinea
-          id={idError}
-          variante="error"
-          mensaje={error}
-          className="border-linea-suave border-t px-3 py-2"
-        />
+        <AvisoEnLinea id={idError} variante="error" mensaje={error} className="rounded-chico px-3 py-2" />
       )}
     </form>
   )

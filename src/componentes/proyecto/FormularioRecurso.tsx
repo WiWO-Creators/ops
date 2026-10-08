@@ -3,6 +3,7 @@
 import { Fragment, useState, type ReactElement, type ReactNode } from 'react'
 import { Boton } from '@/componentes/formularios/Boton'
 import { Campo } from '@/componentes/formularios/Campo'
+import { EditorRico } from '@/componentes/formularios/EditorRico'
 import { AreaTexto, Entrada } from '@/componentes/formularios/Entrada'
 import { SelectorEtiquetas } from '@/componentes/formularios/SelectorEtiquetas'
 import {
@@ -13,6 +14,7 @@ import {
 } from '@/componentes/formularios/Selector'
 import { Dialogo, ContenidoDialogo } from '@/componentes/superposiciones/Dialogo'
 import { mensajeDeRespuesta } from '@/datos/cliente'
+import { textoPlano } from '@/dominio/texto-rico'
 import { cn } from '@/lib/clases'
 import { aFechaDelContrato, aFechaLocal, enmascararFechaLocal } from '@/lib/fechas'
 import { AsistenteDescripcion } from './AsistenteDescripcion'
@@ -255,6 +257,57 @@ interface PropsControl {
 }
 
 /**
+ * El campo `rico`: un `EditorRico` con el asistente de redaccion debajo, igual que el `area`.
+ *
+ * Es un componente aparte porque necesita estado propio —la `key` con la que se remonta el editor
+ * cuando el asistente escribe—, y `ControlDeCampo` decide por tipo con retornos tempranos, donde un
+ * hook no cabe.
+ *
+ * @param props los mismos de `ControlDeCampo`
+ */
+function ControlRico (
+  { campo, valor, error, alCambiar, titulo = '', proyectoId = null }: PropsControl
+): ReactElement {
+  const [version, setVersion] = useState(0)
+  const html = typeof valor === 'string' ? valor : ''
+
+  return (
+    <div className="flex flex-col gap-2">
+      <Campo
+        etiqueta={campo.etiqueta}
+        requerido={campo.requerido}
+        {...(campo.ayuda === undefined ? {} : { ayuda: campo.ayuda })}
+        {...(error === undefined ? {} : { error })}
+      >
+        {(props) => (
+          <EditorRico
+            {...props}
+            key={version}
+            etiqueta={campo.etiqueta}
+            valorInicial={html}
+            onCambio={alCambiar}
+          />
+        )}
+      </Campo>
+
+      {campo.sinAsistenteIa !== true && (
+        <div className="flex justify-end">
+          <AsistenteDescripcion
+            titulo={titulo}
+            descripcionActual={html}
+            proyectoId={proyectoId}
+            onRedactada={(redactado) => {
+              alCambiar(redactado)
+              setVersion((actual) => actual + 1)
+            }}
+          />
+        </div>
+      )}
+    </div>
+  )
+}
+
+/**
  * Dibuja el control que corresponde al tipo del campo.
  *
  * Se usan controles nativos (`<input type="color">`, `<input type="checkbox">`) en vez de widgets
@@ -379,6 +432,10 @@ export function ControlDeCampo (
     )
   }
 
+  if (campo.tipo === 'rico') {
+    return <ControlRico campo={campo} valor={valor} error={error} alCambiar={alCambiar} titulo={titulo} proyectoId={proyectoId} />
+  }
+
   if (campo.tipo === 'area') {
     // Un solo bloque y no un fragmento: en un formulario de dos columnas el asistente caia en la
     // celda siguiente de la rejilla, lejos de la caja que redacta.
@@ -409,7 +466,8 @@ export function ControlDeCampo (
               titulo={titulo}
               descripcionActual={texto}
               proyectoId={proyectoId}
-              onRedactada={(redactado) => { alCambiar(redactado) }}
+              // El asistente devuelve HTML; este campo es texto plano.
+              onRedactada={(redactado) => { alCambiar(textoPlano(redactado)) }}
             />
           </div>
         )}

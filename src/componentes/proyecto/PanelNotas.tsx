@@ -21,7 +21,7 @@ import type { DefinicionRecurso } from '@/definiciones/tipos'
 /** Campos del formulario de nota. `title` lo exige la API y la columna tiene 255 caracteres. */
 const CAMPOS: CampoFormulario[] = [
   { clave: 'title', etiqueta: 'Título', tipo: 'texto', requerido: true, maximo: 255 },
-  { clave: 'content', etiqueta: 'Contenido', tipo: 'area' }
+  { clave: 'content', etiqueta: 'Contenido', tipo: 'rico' }
 ]
 
 export function PanelNotas ({ proyectoId }: { proyectoId: number }): ReactElement {

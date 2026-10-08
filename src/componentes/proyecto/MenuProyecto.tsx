@@ -61,7 +61,7 @@ interface PropsMenuProyecto {
 function camposDeEdicion (): CampoFormulario[] {
   return [
     { clave: 'name', etiqueta: 'Nombre', tipo: 'texto', requerido: true, maximo: 600 },
-    { clave: 'description', etiqueta: 'Descripción', tipo: 'area' },
+    { clave: 'description', etiqueta: 'Descripción', tipo: 'rico' },
     { clave: 'start_date', etiqueta: 'Fecha de inicio', tipo: 'fecha' },
     { clave: 'deadline', etiqueta: 'Fecha límite', tipo: 'fecha' },
     { clave: 'estimated_hours', etiqueta: 'Horas estimadas', tipo: 'numero' }
