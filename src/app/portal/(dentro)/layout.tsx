@@ -10,6 +10,7 @@ import { BarraVerComoCliente } from '../BarraVerComoCliente'
 import { BotonSalirPortal } from '../BotonSalirPortal'
 import { NavegacionPortal } from '../NavegacionPortal'
 import { ScrollSuave } from '@/componentes/estructura/ScrollSuave'
+import { IndicadorDeRed } from '@/componentes/estado/IndicadorDeRed'
 import { OrbeChatIA } from '@/componentes/ia/OrbeChatIA'
 import { RastreadorPortal } from '@/componentes/portal/rastreo/RastreadorPortal'
 
@@ -44,6 +45,7 @@ export default async function PortalLayout ({ children }: { children: React.Reac
     // `esPortal` fijo en `true`: en el portal ninguna persona, cliente o proyecto se enlaza, sea cual
     // sea la capacidad. Ver `ProveedorEnlaces`.
     <ProveedorEnlaces permisos={{}} esPortal>
+    <Suspense fallback={null}><IndicadorDeRed /></Suspense>
     {/* Primero, para que sus efectos corran antes que los de la pagina. `useSearchParams` pide
         `Suspense`. Con `rastreo` ausente o apagado no registra nada. */}
     <Suspense fallback={null}>

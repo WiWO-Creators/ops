@@ -9,7 +9,7 @@ import {
   ItemMenuRadio,
   MenuContextual
 } from '@/componentes/superposiciones/MenuContextual'
-import { escribirEnBff } from '@/componentes/datos/mutaciones'
+import { comprobarEntidad, mutarEnBff } from '@/componentes/datos/mutar'
 import { useAviso } from '@/componentes/estado/useAviso'
 import { resolverEstado } from '@/dominio/estados-tarea'
 import { cn } from '@/lib/clases'
@@ -91,11 +91,24 @@ export function MenuEstadoTarea ({
     setPintado(destino)
     setEnCurso(true)
 
-    const resultado = await escribirEnBff<Proceso>(accion.ruta, 'POST', accion.cuerpo)
+    // Pasar a un estado es absoluto —repetirlo da lo mismo—, asi que es seguro reintentarlo, y antes
+    // de rendirse se lee la tarea para saber si el cambio ya habia llegado.
+    const resultado = await mutarEnBff<Proceso>(accion.ruta, 'POST', accion.cuerpo, {
+      servidorIdempotente: true,
+      yaAplicada: comprobarEntidad<Proceso>(`tasks/${tareaId}`, (tarea) => tarea.status === destino)
+    })
 
     setEnCurso(false)
 
     if (!resultado.ok) {
+      if (resultado.incierta === true) {
+        // No se sabe si quedo: se muestra lo que hay de verdad en vez de afirmar que no se guardo.
+        avisar.advertencia(resultado.mensaje)
+        onCambiado()
+
+        return
+      }
+
       setPintado(previo)
       avisar.error(resultado.mensaje)
 

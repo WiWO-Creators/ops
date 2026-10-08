@@ -1,6 +1,7 @@
 import { mensajeDeLectura, mensajeDeRespuesta } from '@/datos/cliente'
 import { claveDeIdempotencia, conLimite, esTiempoAgotado, TIEMPO_ESCRITURA_MS, TIEMPO_LECTURA_MS, TIEMPO_SUBIDA_MS } from '@/datos/red'
-import { avisarCambioDeTareas } from '@/datos/refresco-lista'
+import { registrarEscritura } from '@/datos/pendientes'
+import { avisarCambioDeRecurso, avisarCambioDeTareas } from '@/datos/refresco-lista'
 import { segundosParaReintentar } from '@/dominio/ticket-vista'
 
 /**
@@ -127,6 +128,7 @@ export async function escribirEnBff<T> (
   cabeceras.set('Idempotency-Key', idempotencia ?? claveDeIdempotencia())
   if (siCoincide !== undefined) cabeceras.set('If-Match', siCoincide)
 
+  const cerrar = registrarEscritura(ruta)
   let respuesta: Response
 
   try {
@@ -137,19 +139,28 @@ export async function escribirEnBff<T> (
       signal: conLimite(senal, esSubida ? TIEMPO_SUBIDA_MS : TIEMPO_ESCRITURA_MS)
     })
   } catch {
-    if (senal?.aborted === true) return { ok: false, mensaje: 'No se pudo contactar al servidor. Revisa tu conexión.', cancelada: true }
+    if (senal?.aborted === true) {
+      cerrar('error')
+
+      return { ok: false, mensaje: 'No se pudo contactar al servidor. Revisa tu conexión.', cancelada: true }
+    }
 
     // Salio y no volvio nada: sea por tiempo agotado o por red caida, el servidor pudo aplicarla.
+    cerrar('incierta')
+
     return { ok: false, mensaje: MENSAJE_INCIERTA, incierta: true }
   }
 
   if (!respuesta.ok) {
+    cerrar('error')
     const error = await codigoDeError(respuesta)
 
     return { ok: false, mensaje: await mensajeDeRespuesta(respuesta), estado: respuesta.status, ...error }
   }
 
+  cerrar('ok')
   avisarCambioDeTareas(ruta)
+  avisarCambioDeRecurso(ruta)
 
   // 204 no trae cuerpo: un `json()` sobre una respuesta vacia lanza.
   if (respuesta.status === 204) return { ok: true, datos: undefined as T, estado: 204 }

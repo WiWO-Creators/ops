@@ -1,10 +1,13 @@
 'use client'
 
 import { ArrowLeft, ArrowRight, GripVertical } from 'lucide-react'
-import { Fragment, useCallback, useRef, useState, type ReactNode } from 'react'
+import { Fragment, useCallback, useEffect, useRef, useState, type ReactNode } from 'react'
 import { Boton } from '@/componentes/formularios/Boton'
 import { Vacio } from '@/componentes/estado/Estados'
 import { escribirEnBff } from './mutaciones'
+import { mutarEnBff } from './mutar'
+import { conLimite, TIEMPO_LECTURA_MS } from '@/datos/red'
+import { EVENTO_RECURSO_CAMBIADO, EVENTO_TAREAS_CAMBIADAS, observarLista } from '@/datos/refresco-lista'
 import { useAviso } from '@/componentes/estado/useAviso'
 import {
   ContenidoMenu,
@@ -156,6 +159,36 @@ export function Tablero<T extends FilaConId> ({
   )
 
   /**
+   * Trae el tablero hasta la pagina indicada, para no perder las tarjetas que la persona ya habia
+   * cargado con «Cargar mas»: recargar solo la primera dejaba el resto de la columna desaparecer.
+   *
+   * @param hastaPagina ultima pagina a traer; la 1 si nadie cargo mas
+   * @param senal para cancelar al desmontar
+   * @returns los grupos con todas las paginas pedidas unidas
+   * @throws ErrorDeTablero si la API contesta con error; cualquier otro fallo es de red
+   */
+  const traerTablero = useCallback(async (hastaPagina: number, senal?: AbortSignal): Promise<Array<GrupoTablero<T>>> => {
+    let acumulado: Array<GrupoTablero<T>> = []
+
+    for (let pagina = 1; pagina <= hastaPagina; pagina++) {
+      const respuesta = await fetch(urlTablero(pagina), {
+        headers: { accept: 'application/json' },
+        signal: conLimite(senal, TIEMPO_LECTURA_MS)
+      })
+
+      if (!respuesta.ok) throw new ErrorDeTablero(await mensajeDeError(respuesta))
+
+      const traidos = (await respuesta.json() as Sobre<Array<GrupoTablero<T>>>).data
+
+      acumulado = pagina === 1
+        ? traidos
+        : traidos.reduce((previos, g) => agregarPagina(previos, g.columna.id, g.tarjetas, g.pagination), acumulado)
+    }
+
+    return acumulado
+  }, [urlTablero])
+
+  /**
    * Vuelve a pedir el tablero entero.
    *
    * Mover son dos operaciones del lado del servidor —el cambio de estado con su cascada y despues
@@ -171,19 +204,31 @@ export function Tablero<T extends FilaConId> ({
    */
   const recargar = useCallback(async () => {
     try {
-      const respuesta = await fetch(urlTablero(1), { headers: { accept: 'application/json' } })
-
-      if (!respuesta.ok) {
-        avisar.error(await mensajeDeError(respuesta))
-        return
-      }
-
-      const sobre = await respuesta.json() as Sobre<Array<GrupoTablero<T>>>
-      setGrupos(ordenarColumnas(sobre.data))
-    } catch {
-      avisar.error('No se pudo actualizar el tablero: revisa la conexión. Lo que ves puede estar desactualizado.')
+      setGrupos(ordenarColumnas(await traerTablero(grupos.reduce((m, g) => Math.max(m, g.pagination.page), 1))))
+    } catch (fallo) {
+      avisar.error(fallo instanceof ErrorDeTablero
+        ? fallo.message
+        : 'No se pudo actualizar el tablero: revisa la conexión. Lo que ves puede estar desactualizado.')
     }
-  }, [urlTablero, ordenarColumnas, avisar])
+  }, [traerTablero, grupos, ordenarColumnas, avisar])
+
+  // Pone el tablero al dia solo: cada 30 s, al volver a la pestaña y tras cualquier escritura. Sin
+  // esto el tablero era una foto del momento en que se abrio y un cambio ajeno no aparecia nunca.
+  // Mientras algo se esta moviendo no se pisa la pantalla.
+  const ocupadoRef = useRef(false)
+  const gruposRef = useRef(grupos)
+
+  useEffect(() => {
+    ocupadoRef.current = ocupado
+    gruposRef.current = grupos
+  })
+
+  useEffect(() => observarLista(
+    async (senal) => await traerTablero(gruposRef.current.reduce((m, g) => Math.max(m, g.pagination.page), 1), senal),
+    (traidos) => { if (!ocupadoRef.current && !guardandoOrden.current) setGrupos(ordenarColumnas(traidos)) },
+    () => {},
+    { eventos: [EVENTO_RECURSO_CAMBIADO, EVENTO_TAREAS_CAMBIADAS], inmediato: false }
+  ), [traerTablero, ordenarColumnas])
 
   if (tablero === undefined) {
     return <Vacio titulo={`${definicion.titulo.plural} no tiene vista de tablero`} />
@@ -225,8 +270,10 @@ export function Tablero<T extends FilaConId> ({
     setOcupado(true)
 
     try {
-      const resultado = await escribirEnBff(
-        tablero.rutaMover.replace(':id', String(idTarjeta)), 'POST', adaptarCuerpo(movimiento.cuerpo)
+      // Mover a una columna es absoluto —repetirlo deja lo mismo—, asi que se reintenta con la misma clave.
+      const resultado = await mutarEnBff(
+        tablero.rutaMover.replace(':id', String(idTarjeta)), 'POST', adaptarCuerpo(movimiento.cuerpo),
+        { servidorIdempotente: true }
       )
 
       if (!resultado.ok) {
@@ -564,6 +611,9 @@ export function Tablero<T extends FilaConId> ({
  * cerro»— no dice lo unico que hay que hacer, que es volver a entrar. Se decide aca y no en cada
  * llamada para que mover, reordenar, paginar y recargar digan todos lo mismo.
  */
+/** Error con la frase que dio la API, para distinguirlo de un fallo de red al recargar. */
+class ErrorDeTablero extends Error {}
+
 async function mensajeDeError (respuesta: Response): Promise<string> {
   if (respuesta.status === 401) return MENSAJE_SESION_CERRADA
 

@@ -2,7 +2,7 @@
 
 import { X } from 'lucide-react'
 import { useRouter, useSearchParams } from 'next/navigation'
-import type { ReactElement } from 'react'
+import { useState, type ReactElement } from 'react'
 import { Boton } from '@/componentes/formularios/Boton'
 import { CerrarDialogo, ContenidoDialogo, Dialogo } from '@/componentes/superposiciones/Dialogo'
 import { idDeParametro, PARAMETRO_TAREA } from '@/componentes/datos/tabla'
@@ -50,18 +50,38 @@ export function ModalTarea (
 
   const tareaAbierta = idDeParametro(params.get(PARAMETRO_TAREA))
 
+  // De donde vino la apertura: si el modal estaba montado y la URL cambio de «sin tarea» a «con tarea»,
+  // abrirla fue un paso de historial y cerrarla es volver atras. `setState` en el render, como en
+  // `ModalTicket`: la URL es la fuente y esto solo recuerda como se llego.
+  const [apertura, setApertura] = useState({ tarea: tareaAbierta, porNavegacion: false })
+
+  if (apertura.tarea !== tareaAbierta) {
+    setApertura({
+      tarea: tareaAbierta,
+      porNavegacion: tareaAbierta !== null && (apertura.tarea === null || apertura.porNavegacion)
+    })
+  }
+
   /**
    * Cierra el modal quitando el parametro y conservando el resto de la URL.
    *
-   * `replace` y no `push`: cerrar no es un paso nuevo del historial, y con `push` "atras" reabriria
-   * el detalle que la persona acaba de cerrar.
+   * Sin pasar por el servidor: `router.replace` volvia a renderizar la pagina entera (decenas de
+   * peticiones) solo para quitar un parametro, y con red lenta el modal tardaba segundos en cerrarse.
+   * Si se abrio con un paso de historial, cerrar es volver atras para que «atras» no lo reabra;
+   * si la URL ya traia la tarea, se reemplaza.
    */
   function cerrar (): void {
+    if (apertura.porNavegacion) {
+      window.history.back()
+
+      return
+    }
+
     const siguientes = new URLSearchParams(params.toString())
 
     siguientes.delete(PARAMETRO_TAREA)
 
-    router.replace(`?${siguientes.toString()}`, { scroll: false })
+    window.history.replaceState(null, '', `${window.location.pathname}?${siguientes.toString()}${window.location.hash}`)
   }
 
   /**

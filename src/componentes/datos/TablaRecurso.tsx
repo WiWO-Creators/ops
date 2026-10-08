@@ -9,6 +9,7 @@ import type { Capacidad, Sobre } from '@/datos/tipos'
 import type { TableroDePreset } from '@/datos/recursos'
 import { leerError } from '@/datos/errores'
 import { escribirEnBff } from './mutaciones'
+import { EVENTO_RECURSO_CAMBIADO } from '@/datos/refresco-lista'
 import { ErrorEstado, Vacio } from '@/componentes/estado/Estados'
 import { CargandoConOrbe } from '@/componentes/estado/Orbe'
 import { useAviso } from '@/componentes/estado/useAviso'
@@ -211,6 +212,9 @@ const VISTAS: readonly OpcionSegmentada[] = [
   { valor: 'tarjetas', etiqueta: 'Tarjetas', icono: 'tarjetas' }
 ]
 
+/** Espera para agrupar las escrituras seguidas en una sola consulta de la tabla. */
+const ESPERA_DE_INVALIDACION_MS = 250
+
 export function TablaRecurso<T> ({
   definicion,
   inicial,
@@ -320,6 +324,30 @@ export function TablaRecurso<T> ({
   // La fuente vigente de filas y paginacion: la de memoria cuando la tabla la declara, o la que trajo
   // el efecto de arriba. El resto del componente no sabe ni le importa cual de las dos es.
   const resultado = resultadoDeMemoria ?? resultadoRemoto
+
+  /**
+   * Vuelve a pedir la pagina cuando cualquier escritura confirmada cambia algo.
+   *
+   * Una escritura hecha fuera de la tabla (un alta, el modal de detalle) solo refrescaba lo resuelto
+   * en el servidor; con esto la tabla que se pide desde el navegador tambien se pone al dia. Varias
+   * escrituras seguidas se agrupan en una sola consulta.
+   */
+  useEffect(() => {
+    if (datos !== undefined) return
+
+    let espera: ReturnType<typeof setTimeout> | undefined
+    const alCambiar = (): void => {
+      clearTimeout(espera)
+      espera = setTimeout(() => { setRevision((n) => n + 1) }, ESPERA_DE_INVALIDACION_MS)
+    }
+
+    window.addEventListener(EVENTO_RECURSO_CAMBIADO, alCambiar)
+
+    return () => {
+      clearTimeout(espera)
+      window.removeEventListener(EVENTO_RECURSO_CAMBIADO, alCambiar)
+    }
+  }, [datos])
 
   /**
    * Adopta los datos frescos que baja `router.refresh()`.
