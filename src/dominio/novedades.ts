@@ -53,6 +53,13 @@ export const ROTULO_TIPO: Record<TipoNovedad, string> = {
  */
 export const NOVEDADES: Novedad[] = [
   {
+    fecha: '2026-10-08',
+    tipo: 'nuevo',
+    titulo: 'Texto con formato en tickets, tareas, comentarios y notas',
+    detalle: 'Ahora puedes escribir con negrita, cursiva, subrayado, títulos, listas, citas y enlaces al abrir o responder un ticket, al describir una Tarea, al comentar y en las notas y la descripción de un Espacio. Se ve igual para quien lo lee, en el panel y en el portal.',
+    commits: ['ops-v2@c1f26d3', 'ops-v2@b90ceb1', 'ops-v2@bc1f0dc', 'ops-v2@3d28042', 'ops-v2@7b7c76e']
+  },
+  {
     fecha: '2026-09-30',
     tipo: 'nuevo',
     titulo: 'Adjuntar archivos al crear una Tarea',
