@@ -196,10 +196,21 @@ export function espaciosAcotados (consultaFija: string, filtroDelDueno?: string)
 export const ESTADO_EN_DESARROLLO = '2'
 
 /**
+ * Estado "En producción" del catalogo `project_statuses`.
+ *
+ * Es un estado propio del fork: su nombre vive en `custom_lang.php` (`project_status_6`). Entra en
+ * el filtro de entrada junto a "En desarrollo" porque ambos son Espacios en marcha.
+ */
+export const ESTADO_EN_PRODUCCION = '6'
+
+/** Estados con los que abre el listado de Espacios, en el orden en que se muestran. */
+const ESTADOS_DE_ENTRADA = [ESTADO_EN_DESARROLLO, ESTADO_EN_PRODUCCION]
+
+/**
  * Filtros con los que abre el listado de Espacios cuando nadie pidio una consulta.
  *
  * A esta pantalla se entra a mirar lo que esta en marcha, no el archivo completo, asi que la entrada
- * limpia viene acotada a "En desarrollo". El filtro no se aplica en secreto: la pagina lo escribe en
+ * limpia viene acotada a "En desarrollo" y "En producción". El filtro no se aplica en secreto: la pagina lo escribe en
  * la URL, y de ahi lo leen las pastillas y los controles, que lo muestran marcado y lo dejan quitar
  * de un clic.
  *
@@ -217,9 +228,10 @@ export function filtrosDeEntradaDeEspacios (
 ): Record<string, string[]> | null {
   if (params.toString() !== '') return null
 
-  // Una instalacion con otra numeracion de estados abre sin filtro: una pantalla vacia que no explica
-  // por que no hay nada es peor que una lista larga.
-  if (!estadosDisponibles.includes(ESTADO_EN_DESARROLLO)) return null
+  // Se filtra solo por los estados que la instalacion publica. Si no existe ninguno (otra numeracion)
+  // abre sin filtro: una pantalla vacia que no explica por que no hay nada es peor que una lista larga.
+  const estados = ESTADOS_DE_ENTRADA.filter((estado) => estadosDisponibles.includes(estado))
+  if (estados.length === 0) return null
 
-  return { status: [ESTADO_EN_DESARROLLO] }
+  return { status: estados }
 }

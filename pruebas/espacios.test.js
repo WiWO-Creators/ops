@@ -11,6 +11,7 @@ import assert from 'node:assert/strict'
 import {
   ESPACIOS,
   ESTADO_EN_DESARROLLO,
+  ESTADO_EN_PRODUCCION,
   columnasDeCamposPersonalizados,
   espaciosConCampos,
   filtrosDeEntradaDeEspacios,
@@ -21,7 +22,7 @@ import { construirConsulta, estadoInicial } from '../src/datos/consulta.ts'
 import { hoyLocal } from '../src/lib/fechas.ts'
 
 /** Los cinco estados de una instalacion normal, como los publica `/lookups`. */
-const ESTADOS = ['1', '2', '3', '4', '5']
+const ESTADOS = ['1', '2', '3', '4', '5', '6']
 
 const CAMPOS = [
   { id: 8, slug: 'projects_palabra_clave', name: 'Palabra Clave', type: 'textarea', options: null, required: false, order: 2, default_value: '', only_admin: false, show_on_table: true },
@@ -79,10 +80,10 @@ test('hoyLocal toma el dia local, no el de UTC', () => {
   assert.equal(hoyLocal(fecha), '2026-08-25')
 })
 
-test('la entrada limpia abre filtrada por En desarrollo', () => {
+test('la entrada limpia abre filtrada por En desarrollo y En producción', () => {
   assert.deepEqual(
     filtrosDeEntradaDeEspacios(new URLSearchParams(''), ESTADOS),
-    { status: [ESTADO_EN_DESARROLLO] }
+    { status: [ESTADO_EN_DESARROLLO, ESTADO_EN_PRODUCCION] }
   )
 })
 
@@ -97,14 +98,21 @@ test('una URL que ya elige otro estado se respeta tal cual', () => {
   assert.equal(filtrosDeEntradaDeEspacios(new URLSearchParams('filter[status]=4'), ESTADOS), null)
 })
 
-test('sin el estado 2 en el catalogo la pantalla abre sin filtro, no vacia', () => {
+test('sin los estados 2 ni 6 en el catalogo la pantalla abre sin filtro, no vacia', () => {
   assert.equal(filtrosDeEntradaDeEspacios(new URLSearchParams(''), ['1', '7', '9']), null)
   assert.equal(filtrosDeEntradaDeEspacios(new URLSearchParams(''), []), null)
 })
 
-test('el defecto viaja a la API como filter[status]=2', () => {
+test('con solo uno de los dos estados en el catalogo filtra por ese', () => {
+  assert.deepEqual(
+    filtrosDeEntradaDeEspacios(new URLSearchParams(''), ['1', '6']),
+    { status: [ESTADO_EN_PRODUCCION] }
+  )
+})
+
+test('el defecto viaja a la API como filter[status]=2,6', () => {
   const filtros = filtrosDeEntradaDeEspacios(new URLSearchParams(''), ESTADOS)
   const consulta = new URLSearchParams(construirConsulta({ ...estadoInicial(ESPACIOS), filtros }, ESPACIOS))
 
-  assert.equal(consulta.get('filter[status]'), '2')
+  assert.equal(consulta.get('filter[status]'), '2,6')
 })
