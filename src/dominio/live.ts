@@ -327,6 +327,17 @@ export function alcanceDeLive (yo: Yo): AlcanceDeLive {
 }
 
 /**
+ * Código de estado que usa la interfaz para una escritura que salió y de la que no volvió respuesta.
+ *
+ * No es un código HTTP: distingue «no sabemos si se aplicó» de `0` («no llegó a salir») para no
+ * afirmar un fallo que quizá no ocurrió.
+ */
+export const ESTADO_INCIERTO = -1
+
+/** Lo que se le dice a quien hizo una escritura de la que no volvió respuesta. */
+export const MENSAJE_ESCRITURA_INCIERTA = 'No sabemos si el cambio se guardó: la respuesta tardó demasiado o se perdió la conexión. Mira el estado actual antes de repetirlo.'
+
+/**
  * Traduce el fallo de arrancar o detener el medidor a una frase que se entienda.
  *
  * El `409` al arrancar es el caso que da nombre al modulo: la API lo devuelve tanto por no haber
@@ -341,6 +352,7 @@ export function alcanceDeLive (yo: Yo): AlcanceDeLive {
  * @returns el mensaje a mostrar; nunca vacio
  */
 export function mensajeDeFalloDeMedidor (estado: number, arrancando: boolean): string {
+  if (estado === ESTADO_INCIERTO) return MENSAJE_ESCRITURA_INCIERTA
   if (estado === 0) return 'No se pudo contactar al servidor. Revisa la conexión.'
 
   if (estado === 403) {
@@ -379,6 +391,7 @@ export function mensajeDeFalloDeMedidor (estado: number, arrancando: boolean): s
  * @returns el mensaje a mostrar; nunca vacio
  */
 export function mensajeDeFalloDeJornada (estado: number, abriendo: boolean): string {
+  if (estado === ESTADO_INCIERTO) return MENSAJE_ESCRITURA_INCIERTA
   if (estado === 0) return 'No se pudo contactar al servidor. Revisa la conexión.'
 
   if (estado === 409) {
@@ -414,6 +427,7 @@ export function mensajeDeFalloDeJornada (estado: number, abriendo: boolean): str
  * @returns el mensaje a mostrar; nunca vacío
  */
 export function mensajeDeFalloDeProrroga (estado: number): string {
+  if (estado === ESTADO_INCIERTO) return MENSAJE_ESCRITURA_INCIERTA
   if (estado === 0) return 'No se pudo contactar al servidor. Revisa la conexión.'
 
   if (estado === 404) return 'Tu jornada ya está cerrada. Ábrela otra vez si sigues trabajando.'
@@ -515,6 +529,7 @@ export function fraseDeJornadaSinDestino (cliente: ClienteDeJornada | null): str
  * @returns el mensaje a mostrar; nunca vacio
  */
 export function mensajeDeFalloDeCliente (estado: number): string {
+  if (estado === ESTADO_INCIERTO) return MENSAJE_ESCRITURA_INCIERTA
   if (estado === 0) return 'No se pudo contactar al servidor. Revisa la conexión.'
   if (estado === 409) return 'No tienes ninguna jornada abierta a la que ponerle un Cliente.'
   if (estado === 422) return 'Ese Cliente ya no existe o está en la papelera. Elige otro.'

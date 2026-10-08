@@ -10,6 +10,7 @@ import { Entrada } from '@/componentes/formularios/Entrada'
 import { ContenidoSelector, DisparadorSelector, Opcion, Selector } from '@/componentes/formularios/Selector'
 import { ContenidoDialogo, Dialogo } from '@/componentes/superposiciones/Dialogo'
 import { mensajeDeRespuesta } from '@/datos/cliente'
+import { conLimite, esTiempoAgotado, TIEMPO_LECTURA_MS } from '@/datos/red'
 import {
   camposDeRegla, cuerpoDePrevia, erroresDeApiEnRegla, erroresDeRegla, parcheDeRegla, textoDeFechaDePrevia, tieneDosTopes,
   UNIDADES_REGLA, type CampoRegla, type CamposRegla, type CuerpoPrevia, type Previa, type ReglaGuardada
@@ -77,14 +78,23 @@ type EstadoPrevia =
  * @param senal aborta el pedido si llega otro
  * @returns el estado ya resuelto
  * @throws DOMException `AbortError` si se cancelo; quien llama lo descarta
+ * @throws Error si el servidor tardo mas de `TIEMPO_LECTURA_MS`
  */
 async function pedirPrevia (cuerpo: CuerpoPrevia, senal: AbortSignal): Promise<EstadoPrevia> {
-  const respuesta = await fetch('/api/bff/tasks/recurrentes/previa', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(cuerpo),
-    signal: senal
-  })
+  let respuesta: Response
+
+  try {
+    respuesta = await fetch('/api/bff/tasks/recurrentes/previa', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(cuerpo),
+      signal: conLimite(senal, TIEMPO_LECTURA_MS)
+    })
+  } catch (fallo) {
+    if (esTiempoAgotado(fallo)) throw new Error('El servidor tardó demasiado en calcular la vista previa.')
+
+    throw fallo
+  }
 
   if (!respuesta.ok) {
     const detalles = await respuesta.clone().json()
@@ -197,6 +207,13 @@ function FormularioDeRegla ({ tarea, onCerrar, onGuardada }: {
     if (!resultado.ok) {
       setErroresApi(erroresDeApiEnRegla(resultado.detalles))
       setError(resultado.mensaje)
+
+      if (resultado.incierta === true) {
+        // No se sabe si quedo: se avisa y el listado vuelve a leerse; el formulario sigue para reintentar.
+        aviso.advertencia(resultado.mensaje)
+        onGuardada?.()
+      }
+
       return
     }
 

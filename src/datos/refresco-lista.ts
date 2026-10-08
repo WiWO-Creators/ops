@@ -1,6 +1,11 @@
 /** Cadencia compartida de actualización de las listas personales visibles. */
 export const REFRESCO_LISTA_MS = 30_000
 export const EVENTO_TAREAS_CAMBIADAS = 'ops:tareas-cambiadas'
+/** Se emite tras cualquier escritura confirmada; las tablas montadas vuelven a pedir lo suyo. */
+export const EVENTO_RECURSO_CAMBIADO = 'ops:recurso-cambiado'
+
+/** Escrituras periódicas o de presencia, que no cambian ningún listado y no deben invalidarlos. */
+const RUTAS_SIN_INVALIDACION = /^(?:live\/|audit\/|ia\/|me\/(?:presence|jornada|foto)|push\/)/
 
 const EVENTOS_POR_DEFECTO: readonly string[] = [EVENTO_TAREAS_CAMBIADAS]
 
@@ -11,6 +16,11 @@ export interface OpcionesDeObservacion {
    * foco. Por defecto, `EVENTO_TAREAS_CAMBIADAS`; `[]` para quien no depende de las Tareas.
    */
   eventos?: readonly string[]
+  /**
+   * `false` si quien observa ya tiene datos al montar y no necesita una primera consulta inmediata;
+   * la siguiente llega con el intervalo, el foco o un evento.
+   */
+  inmediato?: boolean
 }
 
 /**
@@ -30,7 +40,7 @@ export function observarLista<T> (
   cargar: (senal: AbortSignal) => Promise<T>,
   recibir: (datos: T) => void,
   fallar: (fallo: unknown) => void,
-  { eventos = EVENTOS_POR_DEFECTO }: OpcionesDeObservacion = {}
+  { eventos = EVENTOS_POR_DEFECTO, inmediato = true }: OpcionesDeObservacion = {}
 ): () => void {
   const control = new AbortController()
   const documento = document
@@ -69,7 +79,7 @@ export function observarLista<T> (
   documento.addEventListener('visibilitychange', regreso)
   ventana.addEventListener('focus', regreso)
   for (const evento of eventos) ventana.addEventListener(evento, tic)
-  tic()
+  if (inmediato) tic()
 
   return () => {
     control.abort()
@@ -85,4 +95,18 @@ export function avisarCambioDeTareas (ruta: string): void {
   if (/^tasks(?:\/|$)/.test(ruta) && typeof window !== 'undefined') {
     window.dispatchEvent(new Event(EVENTO_TAREAS_CAMBIADAS))
   }
+}
+
+/**
+ * Notifica una escritura confirmada para que las tablas visibles vuelvan a pedir sus datos.
+ *
+ * Es lo que hace que una escritura hecha fuera de la tabla —un alta, el modal de detalle— se vea sin
+ * depender de `router.refresh()`, que solo alcanza a lo resuelto en el servidor.
+ *
+ * @param ruta la ruta del BFF que se escribió
+ */
+export function avisarCambioDeRecurso (ruta: string): void {
+  if (typeof window === 'undefined' || RUTAS_SIN_INVALIDACION.test(ruta)) return
+
+  window.dispatchEvent(new CustomEvent(EVENTO_RECURSO_CAMBIADO, { detail: { ruta } }))
 }

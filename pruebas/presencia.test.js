@@ -5,6 +5,7 @@ import vm from 'node:vm'
 import ts from 'typescript'
 import { arbolDePresencia } from '../src/componentes/auditoria/presentacion.ts'
 import { pantallaDeRuta } from '../src/dominio/pantalla.ts'
+import * as red from '../src/datos/red.ts'
 
 test('árbol mantiene cliente → proyecto → tarea, actividad general y relaciones ausentes', () => {
   const client = { id: 1, name: 'Cliente' }
@@ -52,6 +53,7 @@ test('latido detecta interacciones globales, limita envíos y no renueva una pes
     require: nombre => ({
       'next/navigation': { usePathname: () => '/proyectos/2' },
       '@/dominio/pantalla': { pantallaDeRuta },
+      '@/datos/red': red,
       react: { useEffect: funcion => { cerrar = funcion() } },
       './accion': {
         accionEnCurso: () => null, rutaDeTarea: () => tarea,

@@ -118,6 +118,8 @@ export async function llamarConRefresco (sesion: Sesion, dependencias: Dependenc
 export const CABECERAS_REENVIADAS = [
   'cache-control',
   'x-accel-buffering',
+  'etag',
+  'idempotent-replayed',
   'content-disposition',
   'x-content-type-options'
 ] as const

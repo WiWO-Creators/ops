@@ -2,11 +2,12 @@
 
 import { Minus, Plus } from 'lucide-react'
 import { useState, type ReactElement } from 'react'
+import { escribirEnBff } from '@/componentes/datos/mutaciones'
 import { AvisoEnLinea } from '@/componentes/estado/Estados'
 import { Boton } from '@/componentes/formularios/Boton'
 import { avisarCambioDeMedidor } from '@/componentes/live/medidor'
-import { leerError } from '@/datos/errores'
 import { cn } from '@/lib/clases'
+import { useClaveEstable } from './clave-estable'
 import {
   ATAJOS_MINUTOS,
   MINUTOS_MAXIMOS,
@@ -52,6 +53,7 @@ export function RegistroRapido ({
   const [minutos, setMinutos] = useState(0)
   const [enCurso, setEnCurso] = useState(false)
   const [aviso, setAviso] = useState<string | null>(null)
+  const clave = useClaveEstable()
 
   const bloqueado = impedimento !== null || enCurso
 
@@ -62,27 +64,23 @@ export function RegistroRapido ({
     setEnCurso(true)
     setAviso(null)
 
-    try {
-      const respuesta = await fetch(`/api/bff/projects/${espacioId}/timesheets`, {
-        method: 'POST',
-        headers: { 'content-type': 'application/json', accept: 'application/json' },
-        body: JSON.stringify({ task_id: procesoId, duration: duracionDesdeMinutos(minutos) })
-      })
+    const cuerpo = { task_id: procesoId, duration: duracionDesdeMinutos(minutos) }
+    const resultado = await escribirEnBff(`projects/${espacioId}/timesheets`, 'POST', cuerpo, { idempotencia: clave.claveDe(cuerpo) })
 
-      if (!respuesta.ok) {
-        setAviso((await leerError(respuesta)).message)
-        return
-      }
+    setEnCurso(false)
 
-      setMinutos(0)
-      // El control de jornada de la cabecera cuenta el tiempo cubierto por marcajes.
-      avisarCambioDeMedidor()
-      onRegistrado()
-    } catch {
-      setAviso('No se pudo registrar el tiempo: revisa la conexión.')
-    } finally {
-      setEnCurso(false)
+    if (!resultado.ok) {
+      // Sin respuesta no se sabe si quedo: el mensaje lo dice y el formulario queda intacto.
+      setAviso(resultado.mensaje)
+
+      return
     }
+
+    clave.olvidar()
+    setMinutos(0)
+    // El control de jornada de la cabecera cuenta el tiempo cubierto por marcajes.
+    avisarCambioDeMedidor()
+    onRegistrado()
   }
 
   return (

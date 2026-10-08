@@ -22,6 +22,7 @@ import {
 } from './recurrentes.js'
 import { contarCopias, limpiarCopias, listarCopias, marcarEditada, sembrarCopias, usoDe } from './copias-recurrentes.js'
 import { avisosRuta } from './avisos.js'
+import { integracionesRuta, propuestasRuta } from './mcp-externo.js'
 import { actividadDeCliente, actividadDeContacto, registrarActividad } from './actividad-portal.js'
 import { altaDelPortal, esAccionDelPortal, ticketDelPortal, ticketsDelEquipo } from './tickets.js'
 import { esPrincipal, filaDelPortal, listadosDeTickets, ticketsDelResumen } from './tickets-listados.js'
@@ -3336,6 +3337,11 @@ function tareasDeResumenIa (actual) {
 async function iaRuta (metodo, resto, parametros, actual, cuerpo, peticion) {
   const [seccion, ...sub] = resto
 
+  // Propuestas de otros sistemas de WiWO: ver `mock/mcp-externo.js`.
+  const propuesta = await propuestasRuta(metodo, resto, parametros, cuerpo)
+
+  if (propuesta !== null) return propuesta
+
   if (seccion === 'capacidades' && sub.length === 0 && metodo === 'GET') {
     return { estado: 200, cuerpo: conDatos({ agente: { habilitado: false } }) }
   }
@@ -4094,6 +4100,9 @@ async function accesosRuta (metodo, resto, parametros, actual, cuerpo, peticion)
   }
 
   const [seccion, id] = resto
+
+  // Integraciones y sistemas MCP externos: ver `mock/mcp-externo.js`.
+  if (seccion === 'integraciones') return await integracionesRuta(metodo, resto.slice(1), cuerpo)
 
   if (seccion === 'catalogo' && metodo === 'GET') {
     return { estado: 200, cuerpo: conDatos(catalogoDeAccesos()) }

@@ -10,7 +10,8 @@ import { AreaTexto, Entrada } from '@/componentes/formularios/Entrada'
 import { ContenidoSelector, DisparadorSelector, Opcion, Selector } from '@/componentes/formularios/Selector'
 import { AvisoEnLinea, Cargando, ErrorEstado, Vacio } from '@/componentes/estado/Estados'
 import { Fecha } from '@/componentes/presentadores/Fecha'
-import { mensajeDeRespuesta, pedirSobre } from '@/datos/cliente'
+import { pedirSobre } from '@/datos/cliente'
+import { claveDeIdempotencia, conLimite, TIEMPO_LECTURA_MS } from '@/datos/red'
 import { cn } from '@/lib/clases'
 import {
   ACEPTA_IMAGEN, FORMATOS, TEXTO_MAXIMO, TIPOS_DE_ANUNCIO, TITULO_MAXIMO, aplicarTipo, borradorDesde,
@@ -75,6 +76,9 @@ export function AnunciosDePantalla ({ pantallas, inicial, avisoDeCarga = null }:
    */
   const traido = useRef(clave)
 
+  /** Clave de idempotencia del guardado en curso; la misma mientras el contenido no cambie. */
+  const claveAlta = useRef<{ huella: string, clave: string } | null>(null)
+
   useEffect(() => {
     if (ruta === null || traido.current === clave) return
 
@@ -103,6 +107,24 @@ export function AnunciosDePantalla ({ pantallas, inicial, avisoDeCarga = null }:
   }, [clave, ruta])
 
   /**
+   * Vuelve a pedir la lista al servidor, que es quien sabe como quedo.
+   *
+   * Se usa cuando una escritura salio y no volvio respuesta: la lista en pantalla puede estar
+   * adelantada o atrasada respecto de lo que se guardo, y revertirla a ciegas diria algo falso.
+   */
+  const recargar = useCallback(async (): Promise<void> => {
+    if (ruta === null) return
+
+    try {
+      const sobre = await pedirSobre<AnuncioDePantallaEnPanel[]>(ruta, conLimite(undefined, TIEMPO_LECTURA_MS))
+
+      setAnuncios(enOrden(sobre.data))
+    } catch {
+      // Se queda lo que hay en pantalla: el aviso de la escritura incierta ya pide revisar.
+    }
+  }, [ruta])
+
+  /**
    * Sube o baja un anuncio, adelantandose a la respuesta.
    *
    * Optimista a proposito: reordenar es un boton que se pulsa tres o cuatro veces seguidas, y esperar
@@ -129,10 +151,11 @@ export function AnunciosDePantalla ({ pantallas, inicial, avisoDeCarga = null }:
     setOcupado(false)
 
     if (!resultado.ok) {
-      setAnuncios(previos)
       setError(resultado.mensaje)
+      if (resultado.incierta === true) await recargar()
+      else setAnuncios(previos)
     }
-  }, [anuncios, ruta])
+  }, [anuncios, ruta, recargar])
 
   const borrar = useCallback(async (id: number): Promise<void> => {
     if (ruta === null) return
@@ -147,6 +170,7 @@ export function AnunciosDePantalla ({ pantallas, inicial, avisoDeCarga = null }:
 
     if (!resultado.ok) {
       setError(resultado.mensaje)
+      if (resultado.incierta === true) await recargar()
 
       return
     }
@@ -154,7 +178,7 @@ export function AnunciosDePantalla ({ pantallas, inicial, avisoDeCarga = null }:
     // El 204 no trae cuerpo. Se renumera en local porque la API tambien renumera al borrar: sin esto,
     // el campo "orden" de los que quedan mostraria el hueco que dejo el borrado.
     setAnuncios((previos) => renumerar(previos.filter((anuncio) => anuncio.id !== id)))
-  }, [ruta])
+  }, [ruta, recargar])
 
   const guardar = useCallback(async (
     borrador: BorradorDeAnuncio,
@@ -170,15 +194,22 @@ export function AnunciosDePantalla ({ pantallas, inicial, avisoDeCarga = null }:
     setError(null)
     setOcupado(true)
 
-    const resultado = await enviarAnuncio(destino, cuerpo, imagen, anterior === null)
+    const huella = JSON.stringify([destino, cuerpo, imagen?.name ?? null, imagen?.size ?? null])
+
+    if (claveAlta.current?.huella !== huella) claveAlta.current = { huella, clave: claveDeIdempotencia() }
+
+    const resultado = await enviarAnuncio(destino, cuerpo, imagen, anterior === null, claveAlta.current.clave)
 
     setOcupado(false)
 
     if (!resultado.ok) {
+      // El formulario queda intacto y la clave se conserva: si la respuesta se perdio, repetir no duplica.
       setError(resultado.mensaje)
 
       return false
     }
+
+    claveAlta.current = null
 
     const guardado = resultado.datos
 
@@ -297,23 +328,26 @@ export function AnunciosDePantalla ({ pantallas, inicial, avisoDeCarga = null }:
  * mandaron. Por eso la edicion cambia de verbo segun lleve archivo o no, y por eso esta decision vive
  * en una sola funcion en vez de repartida por los sitios donde se guarda.
  *
- * Esta acá y no en `mutaciones.ts` porque `subirArchivoEnBff` sube **un campo de archivo y nada mas**,
- * y un anuncio necesita el archivo y seis campos de texto en el mismo cuerpo.
+ * Esta acá porque `subirArchivoEnBff` sube **un campo de archivo y nada mas**, y un anuncio necesita el
+ * archivo y seis campos de texto en el mismo cuerpo: ese `FormData` viaja por `escribirEnBff`.
  *
  * @param destino Ruta del BFF sin barra inicial: la coleccion para crear, la fila para editar.
  * @param esNuevo Decide el verbo cuando no hay archivo. Con archivo siempre es `POST`.
+ * @param idempotencia Clave del alta: la misma al repetir tras una respuesta perdida, para no duplicar.
  */
 async function enviarAnuncio (
   destino: string,
   cuerpo: Record<string, string | number | null>,
   imagen: File | null,
-  esNuevo: boolean
+  esNuevo: boolean,
+  idempotencia: string
 ): Promise<Resultado<AnuncioDePantallaEnPanel>> {
   if (imagen === null) {
     const resultado = await escribirEnBff<AnuncioDePantallaEnPanel | undefined>(
       destino,
       esNuevo ? 'POST' : 'PUT',
-      cuerpo
+      cuerpo,
+      { idempotencia }
     )
 
     if (!resultado.ok) return resultado
@@ -333,25 +367,16 @@ async function enviarAnuncio (
 
   formulario.append('image', imagen)
 
-  let respuesta: Response
+  const resultado = await escribirEnBff<AnuncioDePantallaEnPanel | undefined>(destino, 'POST', formulario, { idempotencia })
 
-  try {
-    respuesta = await fetch(`/api/bff/${destino}`, { method: 'POST', body: formulario })
-  } catch {
-    return { ok: false, mensaje: 'No se pudo contactar al servidor. Revisa tu conexión.' }
+  if (!resultado.ok) return resultado
+
+  // Un proxy puede devolver HTML con estado 200; eso no confirma que la imagen se haya guardado.
+  if (resultado.datos == null) {
+    return { ok: false, mensaje: 'El servidor no confirmó que el anuncio se haya guardado. Vuelve a cargar la página.' }
   }
 
-  if (!respuesta.ok) return { ok: false, mensaje: await mensajeDeRespuesta(respuesta) }
-
-  try {
-    const sobre = await respuesta.json() as { data?: AnuncioDePantallaEnPanel }
-
-    if (sobre.data != null) return { ok: true, datos: sobre.data }
-  } catch {
-    // Un proxy puede devolver HTML con estado 200; eso no confirma que la imagen se haya guardado.
-  }
-
-  return { ok: false, mensaje: 'El servidor no confirmó que el anuncio se haya guardado. Vuelve a cargar la página.' }
+  return { ok: true, datos: resultado.datos }
 }
 
 /**

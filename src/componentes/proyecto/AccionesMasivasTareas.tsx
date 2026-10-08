@@ -29,7 +29,7 @@ import { GLOSARIO } from '@/dominio/glosario'
 import { mensajeMasivoDeVencimiento } from '@/dominio/vencimiento-requerido'
 import { cargarAsignables } from '@/datos/asignables'
 import { pedirSobre } from '@/datos/cliente'
-import { leerError } from '@/datos/errores'
+import { escribirEnBff } from '@/componentes/datos/mutaciones'
 import type { Espacio, Hito, PersonaAsignable, Proceso, ResultadoAccionMasiva } from '@/datos/recursos'
 import type { Capacidad } from '@/datos/tipos'
 import type { OpcionFiltro } from '@/definiciones/tipos'
@@ -239,33 +239,24 @@ export function AccionesMasivasTareas ({
     setError(null)
 
     try {
-      const respuesta = await fetch('/api/bff/tasks/bulk', {
-        method: 'POST',
-        headers: { 'content-type': 'application/json', accept: 'application/json' },
-        body: JSON.stringify(cuerpo)
-      })
+      const resultado = await escribirEnBff<ResultadoAccionMasiva>('tasks/bulk', 'POST', cuerpo)
 
-      if (!respuesta.ok) {
-        const fallo = await leerError(respuesta)
-
-        setError(mensajeMasivoDeVencimiento(fallo.details) ?? fallo.message)
+      if (!resultado.ok) {
+        setError(mensajeMasivoDeVencimiento(resultado.detalles) ?? resultado.mensaje)
         return
       }
 
-      const sobre = await respuesta.json() as { data: ResultadoAccionMasiva, meta?: { omitidos?: number[] } }
-      const omitidos = sobre.meta?.omitidos ?? []
+      const omitidos = resultado.meta?.omitidos ?? []
 
       setAccion(null)
       limpiar()
       recargar()
 
       if (omitidos.length > 0) {
-        avisar.advertencia(`Se aplicó a ${sobre.data.aplicados}. ${omitidos.length} quedaron sin cambiar por permisos.`)
+        avisar.advertencia(`Se aplicó a ${resultado.datos.aplicados}. ${omitidos.length} quedaron sin cambiar por permisos.`)
       } else {
-        avisar.exito(`Se aplicó a ${sobre.data.aplicados}.`)
+        avisar.exito(`Se aplicó a ${resultado.datos.aplicados}.`)
       }
-    } catch {
-      setError('No se pudo aplicar: revisa la conexión.')
     } finally {
       setEnCurso(false)
     }

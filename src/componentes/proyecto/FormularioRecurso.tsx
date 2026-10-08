@@ -1,6 +1,7 @@
 'use client'
 
 import { Fragment, useState, type ReactElement, type ReactNode } from 'react'
+import { escribirEnBff } from '@/componentes/datos/mutaciones'
 import { AvisoEnLinea } from '@/componentes/estado/Estados'
 import { Boton } from '@/componentes/formularios/Boton'
 import { Campo } from '@/componentes/formularios/Campo'
@@ -13,10 +14,10 @@ import {
   Selector
 } from '@/componentes/formularios/Selector'
 import { Dialogo, ContenidoDialogo } from '@/componentes/superposiciones/Dialogo'
-import { mensajeDeRespuesta } from '@/datos/cliente'
 import { cn } from '@/lib/clases'
 import { aFechaDelContrato, aFechaLocal, enmascararFechaLocal } from '@/lib/fechas'
 import { AsistenteDescripcion } from './AsistenteDescripcion'
+import { useClaveEstable } from './clave-estable'
 import {
   avisoDeGuardado,
   cuerpoDelFormulario,
@@ -109,6 +110,7 @@ export function FormularioRecurso<T extends object> ({
   const [errores, setErrores] = useState<Record<string, string>>({})
   const [fallo, setFallo] = useState<string | null>(null)
   const [guardando, setGuardando] = useState(false)
+  const clave = useClaveEstable()
 
   // Al abrir se vuelve a sembrar: el dialogo se reusa para altas y ediciones, y conservar lo que
   // quedo escrito de la vez anterior haria guardar datos de otro registro. Se hace en el render y no
@@ -152,16 +154,17 @@ export function FormularioRecurso<T extends object> ({
           return
         }
       } else {
-        const respuesta = await fetch(`/api/bff/${ruta}`, {
-          method: metodo,
-          headers: { 'content-type': 'application/json', accept: 'application/json' },
-          body: JSON.stringify(cuerpo)
-        })
+        const resultado = await escribirEnBff(ruta, metodo, cuerpo, { idempotencia: clave.claveDe([metodo, ruta, cuerpo]) })
 
-        if (!respuesta.ok) {
-          setFallo(await mensajeDeRespuesta(respuesta))
+        if (!resultado.ok) {
+          // Sin respuesta no se sabe si quedo: el formulario sigue intacto y el mensaje no afirma lo contrario.
+          if (resultado.incierta === true) tratarEnvioIncierto(resultado.mensaje)
+          else setFallo(resultado.mensaje)
+
           return
         }
+
+        clave.olvidar()
       }
 
       if (avisoExito !== null) aviso.exito(avisoExito ?? avisoDeGuardado(metodo, cuerpo, registro))
@@ -172,6 +175,19 @@ export function FormularioRecurso<T extends object> ({
     } finally {
       setGuardando(false)
     }
+  }
+
+  /**
+   * Un envio del que no llego respuesta: avisa sin decir que no se guardo y, si era una edicion, vuelve a pedir lo real.
+   *
+   * Un alta no recarga ni cierra: el formulario queda para reintentar con la misma clave.
+   *
+   * @param mensaje la frase de la escritura incierta
+   */
+  function tratarEnvioIncierto (mensaje: string): void {
+    setFallo(mensaje)
+    aviso.advertencia(mensaje)
+    if (metodo !== 'POST') onGuardado()
   }
 
   return (

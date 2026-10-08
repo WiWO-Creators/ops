@@ -6,6 +6,7 @@ import {
   registrarFallaSinIncidente,
   type PeticionFallida
 } from './errores.ts'
+import { conLimite, esTiempoAgotado, TIEMPO_LECTURA_MS } from './red.ts'
 import type { Sobre } from './tipos'
 
 /**
@@ -20,7 +21,7 @@ import type { Sobre } from './tipos'
  */
 export async function pedirRespuesta (ruta: string, senal: AbortSignal): Promise<Response> {
   try {
-    return await fetch(`/api/bff/${ruta}`, { signal: senal })
+    return await fetch(`/api/bff/${ruta}`, { signal: conLimite(senal, TIEMPO_LECTURA_MS) })
   } catch (fallo) {
     // Un `fetch` que lanza es la red, no la API: el servidor no contesto, asi que no hay incidente
     // que registrar —el reporte viajaria por la misma red que acaba de fallar— y el aviso sale sin
@@ -29,7 +30,9 @@ export async function pedirRespuesta (ruta: string, senal: AbortSignal): Promise
     //
     // El aborto no es un error: lo dispara el propio componente al desmontarse, y avisar de eso
     // llenaria la pantalla de avisos cada vez que alguien cambia de pestaña.
-    if (!esAborto(fallo)) {
+    if (esTiempoAgotado(fallo)) {
+      avisarError({ mensaje: 'El servidor tardó demasiado en responder. Intenta de nuevo.' })
+    } else if (!esAborto(fallo)) {
       avisarError({ mensaje: 'Se perdió la conexión con el servidor. La acción no se completó.' })
     }
 

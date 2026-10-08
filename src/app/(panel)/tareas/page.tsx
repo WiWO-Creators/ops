@@ -28,6 +28,26 @@ export const metadata = { title: 'Tareas · WiWO Ops' }
  */
 export default async function ProcesosPage (props: PageProps<'/tareas'>) {
   const params = paramsDeUrl(await props.searchParams)
+  // Lo que no depende de los filtros arranca YA, junto con los campos personalizados: antes se pedia
+  // todo despues de ellos y, con red lenta, cada navegacion sumaba un viaje entero de espera.
+  // Catalogos del alta rapida: son para resolver `@` y `#` mientras se escribe, no para paginar,
+  // asi que se piden ENTEROS. Con el tope anterior de 100 entraba poco mas de la mitad de las 184
+  // personas y de los 275 Espacios, y todo lo que quedaba fuera se veia como "no existe": `#Test`
+  // terminaba en el titulo como texto suelto. El equipo sale de `/staff/asignables`, la misma
+  // fuente que el selector de la tarea: `/staff` exige `staff.view` y le contestaba 403 a casi
+  // todo el equipo, que veia el campo "Responsable" vacio. Sigue con `pedirOpcional` porque un
+  // catalogo del alta no puede tumbar la pantalla entera.
+  const catalogos = Promise.all([
+    cargarLookups(),
+    cargarYo(),
+    pedirOpcional<PersonaAsignable[]>(`/${RUTA_DE_ASIGNABLES}`),
+    pedir<Espacio[]>('/projects?per_page=500'),
+    opcionesDeCliente(),
+    // Decide si el alta ofrece el texto libre: con la capa apagada la API responde 404 a `/ia/*`.
+    iaHabilitada()
+  ])
+  // Si los campos fallan antes de esperar los catalogos, su rechazo no debe quedar sin atender.
+  void catalogos.catch(() => undefined)
   const campos = await pedir<DefinicionCampoPersonalizado[]>('/custom-fields?para=tasks')
   const definicion = { ...PROCESOS, filtros: [...PROCESOS.filtros, ...filtrosDeCamposPersonalizados(campos.data)] }
   const estado = leerConsulta(params, definicion)
@@ -37,23 +57,10 @@ export default async function ProcesosPage (props: PageProps<'/tareas'>) {
   // filtrar la lista y pasar al tablero devolvia el tablero sin filtrar.
   const consultaTablero = construirConsulta({ ...estado, orden: [], pagina: 1 }, definicion)
 
-  const [lista, lookups, yo, equipo, espacios, clientes, hitos, conIa] = await Promise.all([
+  const [lista, hitos, [lookups, yo, equipo, espacios, clientes, conIa]] = await Promise.all([
     pedir<Proceso[]>(`/tasks${consulta === '' ? '' : `?${consulta}`}`),
-    cargarLookups(),
-    cargarYo(),
-    // Catalogos del alta rapida: son para resolver `@` y `#` mientras se escribe, no para paginar,
-    // asi que se piden ENTEROS. Con el tope anterior de 100 entraba poco mas de la mitad de las 184
-    // personas y de los 275 Espacios, y todo lo que quedaba fuera se veia como "no existe": `#Test`
-    // terminaba en el titulo como texto suelto. El equipo sale de `/staff/asignables`, la misma
-    // fuente que el selector de la tarea: `/staff` exige `staff.view` y le contestaba 403 a casi
-    // todo el equipo, que veia el campo "Responsable" vacio. Sigue con `pedirOpcional` porque un
-    // catalogo del alta no puede tumbar la pantalla entera.
-    pedirOpcional<PersonaAsignable[]>(`/${RUTA_DE_ASIGNABLES}`),
-    pedir<Espacio[]>('/projects?per_page=500'),
-    opcionesDeCliente(),
     opcionesDeHito(estado.filtros.project_id),
-    // Decide si el alta ofrece el texto libre: con la capa apagada la API responde 404 a `/ia/*`.
-    iaHabilitada()
+    catalogos
   ])
 
   // El catalogo de Espacios ya venia para el alta rapida; darselo tambien al filtro es lo que hace

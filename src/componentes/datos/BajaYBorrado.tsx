@@ -4,10 +4,10 @@ import { useState, type ReactElement, type ReactNode } from 'react'
 import { RotateCcw, PowerOff } from 'lucide-react'
 import { ConfirmarBorrado, useConfirmarBorrado } from './ConfirmarBorrado'
 import { MenuAccionesFila, type AccionDeBorrado, type AccionDeFila } from './MenuAccionesFila'
+import { escribirEnBff } from './mutaciones'
 import { AvisoEnLinea } from '@/componentes/estado/Estados'
 import { Boton } from '@/componentes/formularios/Boton'
 import { useAviso } from '@/componentes/estado/useAviso'
-import { mensajeDeRespuesta } from '@/datos/cliente'
 
 /**
  * Baja, reactivación y borrado de Clientes y Equipo.
@@ -87,50 +87,48 @@ export function BajaYBorrado ({
     setEnCurso(true)
     setFallo(null)
 
-    try {
-      const respuesta = await fetch(`/api/bff/${ruta}`, {
-        method: metodo,
-        headers: { 'content-type': 'application/json', accept: 'application/json' },
-        ...(cuerpo === undefined ? {} : { body: JSON.stringify(cuerpo) })
-      })
+    const resultado = await escribirEnBff(ruta, metodo, cuerpo)
 
-      if (!respuesta.ok) {
-        setFallo(await mensajeDeRespuesta(respuesta))
-        return
-      }
+    setEnCurso(false)
 
-      recargar()
-    } catch {
-      setFallo('No se pudo completar: revisa la conexión.')
-    } finally {
-      setEnCurso(false)
+    if (!resultado.ok && resultado.incierta !== true) {
+      setFallo(resultado.mensaje)
+      return
     }
+
+    // Sin respuesta no se sabe si quedo: se avisa y la recarga muestra como esta de verdad.
+    if (!resultado.ok) aviso.advertencia(resultado.mensaje)
+
+    recargar()
   }
 
   /** Borra definitivo o manda a la papelera. Lanza si falla: `ConfirmarBorrado` muestra el mensaje. */
   async function eliminarDefinitivo (): Promise<void> {
     setEnCurso(true)
 
-    try {
-      const sufijo = usaPapelera ? '' : `?purgar=1${extra?.consulta ?? ''}`
-      const respuesta = await fetch(`/api/bff/${ruta}${sufijo}`, {
-        method: 'DELETE',
-        headers: { accept: 'application/json' }
-      })
+    const sufijo = usaPapelera ? '' : `?purgar=1${extra?.consulta ?? ''}`
+    const resultado = await escribirEnBff(`${ruta}${sufijo}`, 'DELETE')
 
-      if (!respuesta.ok) throw new Error(await mensajeDeRespuesta(respuesta))
+    setEnCurso(false)
 
-      aviso.exito(usaPapelera ? `«${nombre}» se envió a la papelera.` : `«${nombre}» se eliminó definitivamente.`)
+    if (!resultado.ok) {
+      if (resultado.incierta !== true) throw new Error(resultado.mensaje)
 
-      if (alBorrar !== undefined) {
-        alBorrar()
-        return
-      }
-
+      // No se sabe si se borro: no se afirma que no, y la recarga muestra como quedo.
+      aviso.advertencia(resultado.mensaje)
       recargar()
-    } finally {
-      setEnCurso(false)
+
+      return
     }
+
+    aviso.exito(usaPapelera ? `«${nombre}» se envió a la papelera.` : `«${nombre}» se eliminó definitivamente.`)
+
+    if (alBorrar !== undefined) {
+      alBorrar()
+      return
+    }
+
+    recargar()
   }
 
   const avisoDeFallo = fallo !== null && !confirmarBorrado.abierto && (

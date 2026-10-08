@@ -1,3 +1,4 @@
+import { Suspense } from 'react'
 import Link from 'next/link'
 import { cargarYo, pedirOpcional } from '@/datos/servidor'
 import { leerSuplantador } from '@/datos/sesion'
@@ -27,6 +28,7 @@ import { Logo } from '@/componentes/estructura/Logo'
 import { MenuUsuario } from '@/componentes/estructura/MenuUsuario'
 import { ProveedorEnlaces } from '@/componentes/presentadores/ProveedorEnlaces'
 import { ScrollSuave } from '@/componentes/estructura/ScrollSuave'
+import { IndicadorDeRed } from '@/componentes/estado/IndicadorDeRed'
 import { LlamadaEnCurso } from '@/componentes/teletrabajo/LlamadaEnCurso'
 import { VigilanteDeVersion } from '@/componentes/estructura/VigilanteDeVersion'
 import { vistasPermitidas } from '@/dominio/vistas-de-auditoria'
@@ -81,6 +83,7 @@ export default async function PanelLayout ({ children }: { children: React.React
     // `EnlaceCliente` o `EnlaceProyecto` de cualquier pantalla enlace sin que su llamador tenga que
     // pasarle `capacidades` a mano.
     <ProveedorEnlaces permisos={yo.permissions}>
+      <Suspense fallback={null}><IndicadorDeRed /></Suspense>
     <div className="flex h-dvh flex-col overflow-hidden">
       {suplantando && <BarraSuplantacion nombre={yo.full_name} />}
 
@@ -223,6 +226,10 @@ function seccionesDe (yo: Yo): Seccion[] {
   // sin `tasks.view` ve sus asignaciones igual, que es justamente la regla de `puedeVerSeccion`.
   // Va antes que Tareas: primero lo de uno, despues el listado de toda la casa.
   secciones.push({ href: '/mis-tareas', etiqueta: `Mis ${GLOSARIO.proceso.plural}`, icono: 'mis_tareas', grupo: 'principal' })
+
+  // Propuestas tampoco lleva condicion: son de quien las recibe, la API solo devuelve las propias, y
+  // sin propuestas la pantalla se explica sola. El contador de la barra aparece cuando hay alguna.
+  secciones.push({ href: '/propuestas', etiqueta: 'Propuestas', icono: 'propuestas', grupo: 'operacion' })
 
   if (puedeVerSeccion(yo.permissions.tasks, 'tasks')) {
     secciones.push({ href: '/tareas', etiqueta: GLOSARIO.proceso.plural, icono: 'procesos', grupo: 'operacion' })

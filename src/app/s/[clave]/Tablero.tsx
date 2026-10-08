@@ -3,7 +3,7 @@
 import { useState, type CSSProperties } from 'react'
 import { useRouter } from 'next/navigation'
 import { TriangleAlert } from 'lucide-react'
-import { mensajeDeRespuesta } from '@/datos/cliente'
+import { escribirEnBff } from '@/componentes/datos/mutaciones'
 import { Horario } from './Horario'
 import type { Estado, Interruptor, TextosHorario } from './tipos'
 
@@ -147,22 +147,18 @@ function Interruptores ({ interruptores, peligrososEncendidos, escritura }: {
     setError(null)
 
     try {
-      const respuesta = await fetch(escritura, {
-        method: 'PATCH',
-        headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({ [int.clave]: siguiente })
-      })
+      const resultado = await escribirEnBff(escritura, 'PATCH', { [int.clave]: siguiente })
 
-      if (!respuesta.ok) {
-        setError(await mensajeDeRespuesta(respuesta))
+      if (!resultado.ok) {
+        setError(resultado.mensaje)
+        // Sin respuesta el interruptor pudo haber cambiado: se relee para no mostrar un estado falso.
+        if (resultado.incierta === true) router.refresh()
         return
       }
 
       // El valor lo vuelve a leer el servidor: creerle al navegador dejaria la pantalla diciendo algo
       // distinto de lo que quedo en `tbloptions` si la escritura se normalizo de otra forma.
       router.refresh()
-    } catch {
-      setError('Se perdió la conexión con el servidor. El interruptor no cambió.')
     } finally {
       setEnVuelo(null)
     }

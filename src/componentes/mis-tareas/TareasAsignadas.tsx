@@ -237,6 +237,9 @@ type CargaInicial =
   | { fase: 'error', mensaje: string }
   | { fase: 'listo', inicial: ResultadoLista<Proceso>, consulta: string }
 
+/** Tiempo minimo entre dos consultas disparadas por volver a la pestaña: con red lenta, cada foco abortaba la anterior. */
+const UMBRAL_DE_REGRESO_MS = 5_000
+
 function CuerpoDeTareasAsignadas ({
   personaId, alcance, orden = 'due_date', prioridades, titulo, estados, consultaExtra, vacio, licitaciones,
   rutaDetalle = '/tareas', accion, estadoEditable = false, verCompletadas = false, prefijoUrl
@@ -251,20 +254,29 @@ function CuerpoDeTareasAsignadas ({
   const [revision, setRevision] = useState(0)
 
   useEffect(() => {
-    function avisar (): void {
-      if (!document.hidden) setRevision((n) => n + 1)
+    let ultimo = Date.now()
+
+    /** Pide de nuevo; `descartable` evita que el foco aborte una consulta recien lanzada (red lenta). */
+    function avisar (descartable: boolean): void {
+      if (document.hidden) return
+      if (descartable && Date.now() - ultimo < UMBRAL_DE_REGRESO_MS) return
+
+      ultimo = Date.now()
+      setRevision((n) => n + 1)
     }
 
-    const intervalo = globalThis.setInterval(avisar, REFRESCO_LISTA_MS)
-    document.addEventListener('visibilitychange', avisar)
-    window.addEventListener('focus', avisar)
-    window.addEventListener(EVENTO_TAREAS_CAMBIADAS, avisar)
+    const alTic = (): void => { avisar(false) }
+    const alRegresar = (): void => { avisar(true) }
+    const intervalo = globalThis.setInterval(alTic, REFRESCO_LISTA_MS)
+    document.addEventListener('visibilitychange', alRegresar)
+    window.addEventListener('focus', alRegresar)
+    window.addEventListener(EVENTO_TAREAS_CAMBIADAS, alTic)
 
     return () => {
       globalThis.clearInterval(intervalo)
-      document.removeEventListener('visibilitychange', avisar)
-      window.removeEventListener('focus', avisar)
-      window.removeEventListener(EVENTO_TAREAS_CAMBIADAS, avisar)
+      document.removeEventListener('visibilitychange', alRegresar)
+      window.removeEventListener('focus', alRegresar)
+      window.removeEventListener(EVENTO_TAREAS_CAMBIADAS, alTic)
     }
   }, [])
 

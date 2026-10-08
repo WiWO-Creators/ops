@@ -41,8 +41,8 @@ export default async function Pagina () {
   return (
     <Tablero
       estado={estado}
-      escritura="/api/bff/mantenimiento/interruptores"
-      escrituraHorario="/api/bff/mantenimiento/rutina"
+      escritura="mantenimiento/interruptores"
+      escrituraHorario="mantenimiento/rutina"
       textosHorario={TEXTOS_HORARIO}
     />
   )

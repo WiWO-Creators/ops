@@ -4,11 +4,12 @@ import { AlertTriangle } from 'lucide-react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { useState, type ReactElement } from 'react'
+import { escribirEnBff } from '@/componentes/datos/mutaciones'
 import { AvisoEnLinea } from '@/componentes/estado/Estados'
+import { useAviso } from '@/componentes/estado/useAviso'
 import { Boton } from '@/componentes/formularios/Boton'
 import { ControlDeCampo } from '@/componentes/proyecto/FormularioRecurso'
 import type { OpcionCampo } from '@/componentes/proyecto/formulario'
-import { mensajeDeRespuesta } from '@/datos/cliente'
 import type { Capacidad } from '@/datos/tipos'
 import { GLOSARIO } from '@/dominio/glosario'
 import {
@@ -127,6 +128,7 @@ function NombrarFocal (
   { licitacionId, staff }: { licitacionId: number, staff: OpcionCampo[] }
 ): ReactElement {
   const router = useRouter()
+  const aviso = useAviso()
   const [elegido, setElegido] = useState('')
   const [guardando, setGuardando] = useState(false)
   const [fallo, setFallo] = useState<string | null>(null)
@@ -151,24 +153,23 @@ function NombrarFocal (
     setGuardando(true)
     setFallo(null)
 
-    try {
-      const respuesta = await fetch(`/api/bff/licitaciones/${licitacionId}`, {
-        method: 'PATCH',
-        headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({ focal_id: focalId })
-      })
+    const resultado = await escribirEnBff(`licitaciones/${licitacionId}`, 'PATCH', { focal_id: focalId })
 
-      if (!respuesta.ok) {
-        setFallo(await mensajeDeRespuesta(respuesta))
-        return
+    setGuardando(false)
+
+    if (!resultado.ok) {
+      setFallo(resultado.mensaje)
+
+      if (resultado.incierta === true) {
+        // No se sabe si quedo: la ficha se pinta en el servidor, asi que se vuelve a pedir.
+        aviso.advertencia(resultado.mensaje)
+        router.refresh()
       }
 
-      router.refresh()
-    } catch {
-      setFallo('No se pudo guardar. Revisa la conexión y vuelve a intentarlo.')
-    } finally {
-      setGuardando(false)
+      return
     }
+
+    router.refresh()
   }
 
   return (

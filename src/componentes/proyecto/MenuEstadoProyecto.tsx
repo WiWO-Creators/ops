@@ -11,7 +11,7 @@ import {
   ItemMenuRadio,
   MenuContextual
 } from '@/componentes/superposiciones/MenuContextual'
-import { escribirEnBff } from '@/componentes/datos/mutaciones'
+import { comprobarEntidad, mutarEnBff } from '@/componentes/datos/mutar'
 import { useAviso } from '@/componentes/estado/useAviso'
 import { cn } from '@/lib/clases'
 import { ESTADOS_DESTACADOS, estadoDelCatalogo, pildoraDeEstado } from './estado-proyecto'
@@ -57,6 +57,13 @@ export function MenuEstadoProyecto ({
   // admite este `setState` durante el render —reinicia el render antes de pintar— y es lo que la
   // regla de hooks pide en vez de encadenar renders desde un efecto.
   const [pintado, setPintado] = useState(estado)
+
+  // Lo que dice el servidor manda: si el refresco trae otro estado, la pildora lo adopta.
+  const [estadoPrevio, setEstadoPrevio] = useState(estado)
+  if (estado !== estadoPrevio) {
+    setEstadoPrevio(estado)
+    setPintado(estado)
+  }
   const [ultimoDeLaApi, setUltimoDeLaApi] = useState(estado)
   const [enCurso, setEnCurso] = useState(false)
 
@@ -83,11 +90,23 @@ export function MenuEstadoProyecto ({
     setPintado(destino)
     setEnCurso(true)
 
-    const resultado = await escribirEnBff(`projects/${proyectoId}`, 'PATCH', { status: destino })
+    // Pasar a un estado es absoluto, asi que es seguro reintentarlo; antes de rendirse se lee el
+    // Espacio para saber si el cambio ya habia llegado.
+    const resultado = await mutarEnBff(`projects/${proyectoId}`, 'PATCH', { status: destino }, {
+      yaAplicada: comprobarEntidad<{ status: number }>(`projects/${proyectoId}`, (espacio) => espacio.status === destino)
+    })
 
     setEnCurso(false)
 
     if (!resultado.ok) {
+      if (resultado.incierta === true) {
+        // No se sabe si quedo: se muestra lo que hay de verdad en vez de afirmar que no se guardo.
+        avisar.advertencia(resultado.mensaje)
+        router.refresh()
+
+        return
+      }
+
       setPintado(previo)
       avisar.error(resultado.mensaje)
 
