@@ -3,6 +3,7 @@
 import Link from 'next/link'
 import type { ReactElement } from 'react'
 import { Cargando, ErrorEstado } from '@/componentes/estado/Estados'
+import { Contenido } from '@/componentes/presentadores/Contenido'
 import { Etiquetas } from '@/componentes/presentadores/Etiqueta'
 import { Fecha } from '@/componentes/presentadores/Fecha'
 import { Insignia } from '@/componentes/presentadores/Insignia'
@@ -237,9 +238,12 @@ function FichaProyecto ({
 
       <div className="flex flex-col gap-1">
         <h3 className="text-texto-sutil text-xs">Descripción</h3>
-        <p className="text-texto text-sm whitespace-pre-line">
-          {descripcion === '' ? 'Sin descripción' : descripcion}
-        </p>
+        <Contenido
+          html={proyecto.description_html}
+          texto={descripcion}
+          className="text-texto text-sm"
+          vacio={<p className="text-texto text-sm">Sin descripción</p>}
+        />
       </div>
     </section>
   )

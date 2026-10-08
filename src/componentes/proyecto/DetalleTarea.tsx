@@ -12,6 +12,7 @@ import { ConfirmacionEnLinea } from '@/componentes/datos/ConfirmacionEnLinea'
 import { EnlacePanelClasico } from '@/componentes/presentadores/EnlacePanelClasico'
 import { EnlacePersona } from '@/componentes/presentadores/EnlacePersona'
 import { GrupoEnlacesPersona } from '@/componentes/presentadores/GrupoEnlacesPersona'
+import { Contenido } from '@/componentes/presentadores/Contenido'
 import { Etiquetas } from '@/componentes/presentadores/Etiqueta'
 import { Fecha } from '@/componentes/presentadores/Fecha'
 import { InsigniaDePrioridad } from '@/componentes/presentadores/InsigniaDePrioridad'
@@ -327,7 +328,7 @@ export function DetalleTarea (
             hasta el fondo para entender la ficha que se acaba de abrir. */}
         <section className="flex flex-col gap-2">
           <h4 className="text-texto-tenue text-sm font-semibold">Descripción</h4>
-          <Descripcion html={tarea.description} />
+          <Descripcion html={tarea.description_html} texto={tarea.description} />
         </section>
 
         {/* Montado solo mientras se edita: asi el formulario arranca siempre en los valores que se
@@ -898,21 +899,23 @@ function Contador ({ etiqueta, valor }: { etiqueta: string, valor: string }): Re
 }
 
 /**
- * La descripcion de la tarea, como texto.
+ * La descripcion de la tarea.
  *
- * **Nunca con `dangerouslySetInnerHTML`.** El HTML lo escriben personas en el editor de Perfex y
- * llega tal cual: inyectarlo seria ejecutar en nuestra sesion lo que cualquiera haya guardado ahi
- * —un `<script>`, un `onerror=` en una imagen rota—, o sea un XSS con la cookie de sesion adentro.
- * Se muestra el texto plano, que React escapa solo, y los saltos de linea se conservan con CSS.
+ * **Nunca con `dangerouslySetInnerHTML`.** El HTML lo escriben personas y llega de la red:
+ * inyectarlo seria ejecutar en nuestra sesion lo que cualquiera haya guardado ahi —un `<script>`, un
+ * `onerror=` en una imagen rota—. `Contenido` arma elementos de React desde una lista blanca de
+ * etiquetas. Sin `description_html` (una API anterior) se muestra el texto plano de `description`, que
+ * React escapa solo, con los saltos de linea conservados por CSS.
  */
-function Descripcion ({ html }: { html: string | null | undefined }): ReactElement {
-  const texto = typeof html === 'string' ? aTextoPlano(html) : ''
-
-  if (texto === '') {
-    return <p className="text-texto-sutil text-sm">Esta {GLOSARIO.proceso.singular.toLowerCase()} no tiene descripción.</p>
-  }
-
-  return <p className="text-texto-tenue max-w-prose text-sm whitespace-pre-line">{texto}</p>
+function Descripcion ({ html, texto }: { html: string | null | undefined, texto: string | null | undefined }): ReactElement {
+  return (
+    <Contenido
+      html={html}
+      texto={typeof texto === 'string' ? aTextoPlano(texto) : ''}
+      className="text-texto-tenue max-w-prose text-sm"
+      vacio={<p className="text-texto-sutil text-sm">Esta {GLOSARIO.proceso.singular.toLowerCase()} no tiene descripción.</p>}
+    />
+  )
 }
 
 /** Nombre y color de un valor de catalogo, listos para una insignia. */

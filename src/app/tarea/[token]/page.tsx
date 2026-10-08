@@ -1,6 +1,7 @@
 import { notFound } from 'next/navigation'
 import type { ReactElement, ReactNode } from 'react'
 import { Logo } from '@/componentes/estructura/Logo'
+import { Contenido } from '@/componentes/presentadores/Contenido'
 import { Fecha } from '@/componentes/presentadores/Fecha'
 import { Etiquetas } from '@/componentes/presentadores/Etiqueta'
 import { Insignia } from '@/componentes/presentadores/Insignia'
@@ -92,9 +93,12 @@ export default async function FichaPublicaDeTarea (props: PageProps<'/tarea/[tok
 
       {tarea.description !== undefined && (
         <Seccion titulo="Descripción">
-          {tarea.description === ''
-            ? <p className="text-texto-sutil text-sm">Sin descripción.</p>
-            : <p className="text-texto-tenue max-w-prose text-sm whitespace-pre-line">{tarea.description}</p>}
+          <Contenido
+            html={tarea.description_html}
+            texto={tarea.description}
+            className="text-texto-tenue max-w-prose text-sm"
+            vacio={<p className="text-texto-sutil text-sm">Sin descripción.</p>}
+          />
         </Seccion>
       )}
 
@@ -217,7 +221,11 @@ export default async function FichaPublicaDeTarea (props: PageProps<'/tarea/[tok
                         <span className="text-texto-sutil"><Fecha valor={comentario.date_added} conHora /></span>
                       )}
                     </div>
-                    <p className="text-texto-tenue text-sm break-words whitespace-pre-line">{comentario.content}</p>
+                    <Contenido
+                      html={comentario.content_html}
+                      texto={comentario.content}
+                      className="text-texto-tenue text-sm break-words"
+                    />
                   </li>
                 ))}
               </ul>

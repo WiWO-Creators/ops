@@ -147,6 +147,11 @@ export interface Proceso {
   justificacion?: JustificacionDesviacion
   /** Solo en el detalle o con `include=description`. */
   description?: string
+  /**
+   * La descripcion como HTML saneado por la API (texto enriquecido, WIW-0632), tambien para filas
+   * viejas. Ausente en una API anterior: entonces se usa `description` como texto.
+   */
+  description_html?: string | null
   /** Solo con `include=custom_fields`, tanto en el listado como en la ficha. */
   custom_fields?: ValorCampoPersonalizado[]
 }
@@ -350,6 +355,8 @@ export interface Espacio {
   /** Imagen propia del proyecto; si es `null`, la interfaz usa el logo del cliente. */
   image_url: string | null
   description: string | null
+  /** La descripcion como HTML saneado (texto enriquecido). Ausente en una API anterior. */
+  description_html?: string | null
   status: number
   client: { id: number, company: string, image_url: string | null } | null
   billing_type: number
@@ -1165,6 +1172,8 @@ export interface ComentarioProceso {
   id: number
   task_id: number
   content: string
+  /** El comentario como HTML saneado (texto enriquecido). Ausente en una API anterior. */
+  content_html?: string | null
   staff: { id: number, full_name: string } | null
   date_added: string | null
 }
@@ -1477,6 +1486,8 @@ export interface ProcesoPublico {
   sections: SeccionEnlacePublico[]
   /** Texto plano: la API ya quito el HTML del editor. */
   description?: string
+  /** La descripcion como HTML saneado (texto enriquecido). Ausente en una API anterior. */
+  description_html?: string | null
   /** `null` si la Tarea no cuelga de un Proyecto. */
   project?: { name: string, client: string | null, milestone: string | null } | null
   /** Solo nombres completos. */
@@ -1489,7 +1500,14 @@ export interface ProcesoPublico {
   checklist?: Array<{ description: string, finished: boolean }>
   /** `url` solo en los externos (Drive, Dropbox); los archivos locales no se descargan sin sesion. */
   attachments?: Array<{ name: string, url: string | null }>
-  comments?: Array<{ author: string | null, from_client: boolean, content: string, date_added: string | null }>
+  comments?: Array<{
+    author: string | null
+    from_client: boolean
+    content: string
+    /** El comentario como HTML saneado (texto enriquecido). Ausente en una API anterior. */
+    content_html?: string | null
+    date_added: string | null
+  }>
 }
 
 /** Una tarjeta del resumen de tareas por estado (`GET /projects/{id}/tasks/summary`). */
@@ -1645,6 +1663,8 @@ export interface NotaEspacio {
   id: number
   title: string
   content: string | null
+  /** La nota como HTML saneado (texto enriquecido). Ausente en una API anterior. */
+  content_html?: string | null
   date_added: string | null
   staff_id: number
 }
@@ -1879,6 +1899,8 @@ export interface TicketDetalle extends TicketEspacio {
    * con un backend anterior: sin el, el modal convierte con la misma regla (`textoDeMensaje`).
    */
   message_texto?: string
+  /** El mensaje como HTML saneado (texto enriquecido). Ausente en una API anterior. */
+  message_html?: string | null
   /** El Proyecto del ticket; `null` en los que se abrieron sin uno. */
   project_id: number | null
 }
@@ -1928,6 +1950,8 @@ export interface RespuestaTicket {
   message: string | null
   /** Texto limpio de la API (contrato v2, A). Ver `TicketDetalle.message_texto`. */
   message_texto?: string
+  /** El mensaje como HTML saneado (texto enriquecido). Ausente en una API anterior. */
+  message_html?: string | null
   date: string | null
   autor: {
     tipo: 'staff' | 'contacto' | 'correo'

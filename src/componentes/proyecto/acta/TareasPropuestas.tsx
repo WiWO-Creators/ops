@@ -13,6 +13,7 @@ import {
   Selector
 } from '@/componentes/formularios/Selector'
 import { SelectorPersonas } from '@/componentes/formularios/SelectorPersonas'
+import { Contenido } from '@/componentes/presentadores/Contenido'
 import { EnlacePersona } from '@/componentes/presentadores/EnlacePersona'
 import { Fecha } from '@/componentes/presentadores/Fecha'
 import { Insignia } from '@/componentes/presentadores/Insignia'
@@ -21,6 +22,7 @@ import { ConfirmarBorrado, useConfirmarBorrado } from '@/componentes/datos/Confi
 import { escribirEnBff, leerDelBff } from '@/componentes/datos/mutaciones'
 import { PARAMETRO_TAREA } from '@/componentes/datos/tabla'
 import { cargarAsignables } from '@/datos/asignables'
+import { esHtml, textoPlano } from '@/dominio/texto-rico'
 import { cn } from '@/lib/clases'
 import { EstadoDeTarea } from '../EstadoDeTarea'
 import type { EstadoLookup, Lookups } from '@/datos/recursos'
@@ -783,9 +785,12 @@ function FilaPropuesta ({
 
         {propuesta.descripcion !== null && (
           <div className="flex flex-col items-start gap-1">
-            <p className={cn('text-texto-tenue whitespace-pre-line text-sm', !descripcionAbierta && 'line-clamp-4')}>
-              {propuesta.descripcion}
-            </p>
+            <Contenido
+              html={esHtml(propuesta.descripcion) ? propuesta.descripcion : null}
+              texto={propuesta.descripcion}
+              className="text-texto-tenue text-sm"
+              recortar={descripcionAbierta ? undefined : 4}
+            />
             {esDescripcionLarga(propuesta.descripcion) && (
               <button
                 type="button"
@@ -824,7 +829,9 @@ function FilaPropuesta ({
  * que a ancho de fila ocupa más de cuatro, es lo que el recorte corta.
  */
 function esDescripcionLarga (descripcion: string): boolean {
-  return descripcion.split('\n').length > 4 || descripcion.length > 320
+  const plano = textoPlano(descripcion)
+
+  return plano.split('\n').length > 4 || plano.length > 320
 }
 
 /**

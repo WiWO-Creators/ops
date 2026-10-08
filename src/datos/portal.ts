@@ -52,6 +52,8 @@ export interface TicketPortalDetalle extends TicketPortal {
   message: string
   /** Texto limpio de la API (contrato v2, A). Opcional para convivir con un backend anterior. */
   message_texto?: string
+  /** El mensaje como HTML saneado (texto enriquecido). Ausente en una API anterior. */
+  message_html?: string | null
   replies: RespuestaTicketPortal[]
   /** `true` si el ticket lo abrio este contacto (contrato v2, B). Sin el, nadie es «Tú». */
   mio?: boolean
@@ -88,6 +90,8 @@ export interface RespuestaTicketPortal {
   message: string
   /** Texto limpio de la API (contrato v2, A). */
   message_texto?: string
+  /** El mensaje como HTML saneado (texto enriquecido). Ausente en una API anterior. */
+  message_html?: string | null
   date: string | null
   from: 'cliente' | 'equipo'
   name: string
@@ -109,6 +113,8 @@ export interface EspacioPortal {
   id: number
   name: string
   description: string | null
+  /** La descripcion como HTML saneado (texto enriquecido). Ausente en una API anterior. */
+  description_html?: string | null
   status: number
   start_date: string | null
   deadline: string | null

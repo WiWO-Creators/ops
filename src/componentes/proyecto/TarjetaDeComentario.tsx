@@ -1,6 +1,7 @@
 import { Paperclip } from 'lucide-react'
 import type { ReactNode } from 'react'
 import { Avatar } from '@/componentes/presentadores/Avatar'
+import { Contenido } from '@/componentes/presentadores/Contenido'
 import { EnlacePersona } from '@/componentes/presentadores/EnlacePersona'
 import { Fecha } from '@/componentes/presentadores/Fecha'
 import { Insignia } from '@/componentes/presentadores/Insignia'
@@ -22,6 +23,8 @@ import { cn } from '@/lib/clases'
 export interface ComentarioParaMostrar {
   /** Texto legible, ya sin HTML. */
   content: string
+  /** El comentario como HTML saneado por la API (texto enriquecido). Sin el, se pinta `content`. */
+  html?: string | null
   created: string | null
   author: {
     full_name: string
@@ -99,11 +102,11 @@ export function TarjetaDeComentario (
           {acciones !== undefined && <span className="ml-auto flex items-center gap-1">{acciones}</span>}
         </span>
 
-        {comentario.content !== '' && (
-          <p className="text-texto text-sm leading-relaxed text-pretty whitespace-pre-line [overflow-wrap:anywhere]">
-            {comentario.content}
-          </p>
-        )}
+        <Contenido
+          html={comentario.html}
+          texto={comentario.content}
+          className="text-texto text-sm leading-relaxed text-pretty [overflow-wrap:anywhere]"
+        />
 
         {comentario.file !== null && (
           <a

@@ -1,5 +1,6 @@
 import type { AdjuntoTicket, EstadoLookup, RespuestaTicket, TicketDetalle } from '../datos/recursos.ts'
 import type { RespuestaTicketPortal, TicketPortalDetalle } from '../datos/portal.ts'
+import { htmlVacio } from './texto-rico.ts'
 
 /**
  * Un ticket tal como lo dibuja el modal, venga del panel o del portal.
@@ -200,7 +201,13 @@ export interface MensajeDeTicket {
   /** De que lado vino. El dibujo lo usa para alinear y teñir, no para decidir nada. */
   lado: 'equipo' | 'cliente'
   fecha: string | null
+  /** El mensaje como texto plano: lo que usan las listas y la reserva si no hay `html`. */
   texto: string
+  /**
+   * El mensaje como HTML saneado por la API (texto enriquecido). `null` cuando la API no lo manda o
+   * viene vacio: entonces se pinta `texto`.
+   */
+  html: string | null
   /** Adjuntos del mensaje, solo lectura. Vacio donde el sujeto no los recibe. */
   adjuntos: AdjuntoVista[]
 }
@@ -309,6 +316,7 @@ export function ticketDelPanel (
     lado: 'cliente',
     fecha: detalle.date,
     texto: textoDe(detalle.message, detalle.message_texto),
+    html: htmlDe(detalle.message_html),
     adjuntos: archivos.map(adjuntoVista)
   }
 
@@ -347,6 +355,7 @@ function mensajeDelPanel (respuesta: RespuestaTicket): MensajeDeTicket {
     lado: respuesta.autor.tipo === 'staff' ? 'equipo' : 'cliente',
     fecha: respuesta.date,
     texto: textoDe(respuesta.message, respuesta.message_texto),
+    html: htmlDe(respuesta.message_html),
     adjuntos: (respuesta.attachments ?? []).map(adjuntoVista)
   }
 }
@@ -387,6 +396,7 @@ export function ticketDelPortal (detalle: TicketPortalDetalle): TicketVista {
         lado: 'cliente',
         fecha: detalle.date,
         texto: textoDe(detalle.message, detalle.message_texto),
+        html: htmlDe(detalle.message_html),
         adjuntos: []
       },
       ...detalle.replies.map(mensajeDelPortal)
@@ -421,6 +431,7 @@ function mensajeDelPortal (respuesta: RespuestaTicketPortal): MensajeDeTicket {
     lado: autor?.tipo ?? respuesta.from,
     fecha: respuesta.date,
     texto: textoDe(respuesta.message, respuesta.message_texto),
+    html: htmlDe(respuesta.message_html),
     adjuntos: []
   }
 }
@@ -637,6 +648,19 @@ function decodificarEntidades (texto: string): string {
  */
 export function textoDe (message: string | null | undefined, messageTexto: string | undefined): string {
   return typeof messageTexto === 'string' ? messageTexto : textoDeMensaje(message)
+}
+
+/**
+ * El HTML de un mensaje, o `null` si la API no lo manda o no trae nada visible.
+ *
+ * Un backend anterior no manda `message_html`, y una fila vieja puede traerlo vacio: en los dos casos
+ * el hilo cae al texto plano, que es lo que siempre se mostro.
+ *
+ * @param messageHtml el `message_html` de la API, si vino
+ * @returns el HTML a pintar con `Contenido`, o `null`
+ */
+export function htmlDe (messageHtml: string | null | undefined): string | null {
+  return typeof messageHtml === 'string' && !htmlVacio(messageHtml) ? messageHtml : null
 }
 
 /**

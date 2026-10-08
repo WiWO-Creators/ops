@@ -80,7 +80,7 @@ const ENTIDADES: Record<string, string> = {
  * @param texto texto ya sin etiquetas
  * @returns el texto con las entidades resueltas; las desconocidas quedan como estaban
  */
-function decodificarEntidades (texto: string): string {
+export function decodificarEntidades (texto: string): string {
   return texto.replace(/&(#x[0-9a-f]+|#\d+|[a-z]+);/gi, (entidad, cuerpo: string) => {
     if (cuerpo.startsWith('#')) {
       const codigo = cuerpo[1] === 'x' || cuerpo[1] === 'X'

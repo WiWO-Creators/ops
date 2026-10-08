@@ -186,6 +186,8 @@ export function textoDelPlazo (days: ResumenDeProyecto['days']): string {
 export interface ProyectoDeFicha {
   id: number
   description: string | null
+  /** La descripcion como HTML saneado (texto enriquecido). Ausente en una API anterior. */
+  description_html?: string | null
   start_date: string | null
   deadline: string | null
   date_finished: string | null
