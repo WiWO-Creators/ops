@@ -1,14 +1,14 @@
 'use client'
 
-import { Suspense, useCallback, useMemo, useState, type ReactElement } from 'react'
+import { Suspense, useMemo, type ReactElement } from 'react'
 import { PanelRecurso } from './PanelRecurso'
 import { FiltroEsperandoAlEquipo } from '@/componentes/datos/FiltroEsperandoAlEquipo'
-import { TarjetaDeTicket, claseDeFilaDeTicket, conCeldasDeTickets } from '@/componentes/datos/celdas-tickets'
-import { useAlCambiarTickets, useAlCerrarTicket } from '@/componentes/datos/useAlCambiarTickets'
+import { ABRIR_TICKET_EN_MODAL, TarjetaDeTicket, claseDeFilaDeTicket, conCeldasDeTickets } from '@/componentes/tickets/celdas-tickets'
+import { useRefrescoDeTickets } from '@/componentes/tickets/useAlCambiarTickets'
 import { ModalTicket } from '@/componentes/tickets/ModalTicket'
 import { definicionDeTicketsDelProyecto } from '@/definiciones/tickets'
 import type { Capacidad } from '@/datos/tipos'
-import { PARAMETRO_TICKET, TICKET_DEL_PANEL } from '@/dominio/ticket-vista'
+import { TICKET_DEL_PANEL } from '@/dominio/ticket-vista'
 
 /**
  * Pestaña Tickets de la ficha del Proyecto: la lista y, encima, el modal del ticket abierto.
@@ -27,17 +27,12 @@ export function PanelTickets ({
   proyecto: { id: number, name: string }
   capacidades: Capacidad[]
 }): ReactElement {
-  const [revision, setRevision] = useState(0)
+  const revision = useRefrescoDeTickets()
 
   // Memoizada: `PanelRecurso` la usa como dependencia de su carga.
   const definicion = useMemo(() => conCeldasDeTickets(definicionDeTicketsDelProyecto(proyecto.id)), [proyecto.id])
 
   const proyectos = useMemo(() => [{ id: proyecto.id, name: proyecto.name }], [proyecto.id, proyecto.name])
-  const alCambiar = useCallback(() => { setRevision((n) => n + 1) }, [])
-
-  useAlCambiarTickets(alCambiar)
-  // Abrir la ficha la marca como leida en la API: al cerrar se vuelve a pedir para quitar la marca.
-  useAlCerrarTicket(alCambiar)
 
   return (
     <>
@@ -49,7 +44,7 @@ export function PanelTickets ({
         claseFila={claseDeFilaDeTicket}
         tarjeta={(t, catalogos) => <TarjetaDeTicket ticket={t} catalogos={catalogos} />}
         tarjetasEnMovil
-        abrirEn={{ clave: PARAMETRO_TICKET, valor: (t) => t.id, superficial: true }}
+        abrirEn={ABRIR_TICKET_EN_MODAL}
       />
       {/* `ModalTicket` lee `useSearchParams`; sin este limite falla el build de la ruta. */}
       <Suspense fallback={null}>

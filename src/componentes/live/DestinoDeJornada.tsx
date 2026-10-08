@@ -3,11 +3,13 @@
 import { useId, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { LogOut, Play, UserRound } from 'lucide-react'
+import { AvisoEnLinea } from '@/componentes/estado/Estados'
 import { Boton } from '@/componentes/formularios/Boton'
 import { ContenidoDialogo, Dialogo } from '@/componentes/superposiciones/Dialogo'
 import { GLOSARIO } from '@/dominio/glosario'
 import { SelectorEspacio } from './SelectorEspacio'
 import { SelectorTarea } from './SelectorTarea'
+import { conLimite, TIEMPO_ESCRITURA_MS } from '@/datos/red'
 
 /**
  * La ventana de la jornada, en sus dos modos: abrir el día, o elegir dónde medir.
@@ -198,7 +200,7 @@ function CuerpoApertura ({
   return (
     <div className="flex flex-col gap-4">
       {aviso !== null && (
-        <p role="alert" className="text-texto-peligro text-pretty text-sm">{aviso}</p>
+        <AvisoEnLinea variante="error" mensaje={aviso} className="text-pretty text-sm" />
       )}
 
       <div className="border-linea flex flex-wrap items-center justify-end gap-2 border-t pt-4">
@@ -303,7 +305,7 @@ function CuerpoMedidor ({
       </ol>
 
       {aviso !== null && (
-        <p role="alert" className="text-texto-peligro text-pretty text-sm">{aviso}</p>
+        <AvisoEnLinea variante="error" mensaje={aviso} className="text-pretty text-sm" />
       )}
 
       <div className="border-linea flex flex-wrap items-center justify-end gap-2 border-t pt-4">
@@ -347,7 +349,7 @@ function Escalon ({
       >
         <span
           aria-hidden="true"
-          className="bg-superficie-hundida text-texto-sutil inline-flex size-5 shrink-0 items-center justify-center rounded-full text-[0.625rem] font-bold"
+          className="bg-superficie-hundida text-texto-sutil inline-flex size-5 shrink-0 items-center justify-center rounded-full text-micro font-bold"
         >
           {numero}
         </span>
@@ -384,7 +386,9 @@ function SalidaDeEmergencia ({
     setSaliendo(true)
 
     try {
-      await fetch('/api/sesion', { method: 'DELETE' })
+      await fetch('/api/sesion', { method: 'DELETE', signal: conLimite(undefined, TIEMPO_ESCRITURA_MS) })
+    } catch {
+      // Sin respuesta la sesion se da por terminada igual: el destino la revalida.
     } finally {
       router.replace('/colab')
       router.refresh()

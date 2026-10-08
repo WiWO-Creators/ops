@@ -14,6 +14,7 @@ import { EVENTO_TAREAS_CAMBIADAS } from '@/datos/refresco-lista'
 import type { Yo } from '@/datos/tipos'
 import { rutaDeCopias, situacionDeCopia, textosDeMotivos, type CopiaDeRegla } from '@/dominio/copias-recurrencia'
 import { formatearFecha } from '@/lib/fechas'
+import type { EstadoCarga } from '@/componentes/proyecto/carga'
 import { LimpiezaDeCopias, type ReglaALimpiar } from './LimpiezaDeCopias'
 
 /**
@@ -80,22 +81,20 @@ export function HistorialDeCopias ({ regla, esAdmin, onCerrar }: {
   )
 }
 
-type Carga = { fase: 'cargando' } | { fase: 'error', mensaje: string } | { fase: 'lista', copias: CopiaDeRegla[] }
-
 /**
  * La lista, que se vuelve a pedir con `ops:tareas-cambiadas`: tras una limpieza las copias pasan a
  * "En papelera" sin cerrar el dialogo.
  */
 function ListaDeCopias ({ regla, onAbrirTarea }: { regla: ReglaALimpiar, onAbrirTarea: () => void }): ReactElement {
   const params = useSearchParams()
-  const [carga, setCarga] = useState<Carga>({ fase: 'cargando' })
+  const [carga, setCarga] = useState<EstadoCarga<CopiaDeRegla[]>>({ fase: 'cargando' })
   const [intento, setIntento] = useState(0)
 
   useEffect(() => {
     let vigente = true
     void leerDelBff<CopiaDeRegla[]>(rutaDeCopias(regla.id)).then((resultado) => {
       if (!vigente) return
-      setCarga(resultado.ok ? { fase: 'lista', copias: resultado.datos } : { fase: 'error', mensaje: resultado.mensaje })
+      setCarga(resultado.ok ? { fase: 'listo', datos: resultado.datos } : { fase: 'error', mensaje: resultado.mensaje })
     })
 
     return () => { vigente = false }
@@ -110,18 +109,18 @@ function ListaDeCopias ({ regla, onAbrirTarea }: { regla: ReglaALimpiar, onAbrir
 
   if (carga.fase === 'cargando') return <Cargando alto="min-h-32" />
   if (carga.fase === 'error') return <ErrorEstado detalle={carga.mensaje} onReintentar={() => { setIntento((n) => n + 1) }} />
-  if (carga.copias.length === 0) return <p className="text-texto-tenue text-sm">Esta recurrencia todavía no generó ninguna copia.</p>
+  if (carga.datos.length === 0) return <p className="text-texto-tenue text-sm">Esta recurrencia todavía no generó ninguna copia.</p>
 
-  const sinMovimiento = carga.copias.filter((copia) => !copia.deleted && copia.evaluable && !copia.touched).length
+  const sinMovimiento = carga.datos.filter((copia) => !copia.deleted && copia.evaluable && !copia.touched).length
 
   return (
     <div className="flex flex-col gap-3">
       <p className="text-texto-tenue text-sm">
-        {carga.copias.length === 1 ? '1 copia' : `${carga.copias.length} copias`}, de la más nueva a la más vieja.
+        {carga.datos.length === 1 ? '1 copia' : `${carga.datos.length} copias`}, de la más nueva a la más vieja.
         {sinMovimiento > 0 && ` ${sinMovimiento} sin movimiento.`}
       </p>
       <ul aria-label="Copias" className="border-linea divide-linea rounded-tarjeta flex flex-col divide-y border">
-        {carga.copias.map((copia) => {
+        {carga.datos.map((copia) => {
           const situacion = situacionDeCopia(copia)
           const motivos = textosDeMotivos(copia.touched_reasons)
 

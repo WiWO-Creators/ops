@@ -203,7 +203,7 @@ export function SuperposicionOrbe ({
       aria-live="polite"
       className={cn(
         'bg-superficie/80 grid place-items-center overflow-hidden p-4',
-        acotada ? 'absolute inset-0 z-10' : 'fixed inset-0 z-50'
+        acotada ? 'absolute inset-0 z-10' : 'fixed inset-0 z-superposicion'
       )}
     >
       <div className={cn(

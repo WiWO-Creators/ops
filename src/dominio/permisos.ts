@@ -142,7 +142,7 @@ const NOMBRE_DE_CAPACIDAD: Record<string, string> = {
   view: 'ver',
   create: 'crear',
   edit: 'editar',
-  delete: 'borrar',
+  delete: 'eliminar',
   edit_milestones: 'editar hitos'
 }
 

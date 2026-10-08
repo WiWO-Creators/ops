@@ -1,7 +1,8 @@
-import { Minus, TrendingDown, TrendingUp } from 'lucide-react'
+import { TrendingDown, TrendingUp } from 'lucide-react'
 import { Insignia, type TonoInsignia } from '@/componentes/presentadores/Insignia'
 import type { ScoreCliente, SemaforoCliente as Tramo, SenalCarga, SenalPlazos, SenalVencimientos } from '@/datos/recursos'
 import { GLOSARIO } from '@/dominio/glosario'
+import { notaDePesos } from '@/dominio/tramos-de-semaforo'
 import { cn } from '@/lib/clases'
 
 /**
@@ -34,12 +35,18 @@ import { cn } from '@/lib/clases'
  * un semáforo son dos semáforos que pueden terminar pintando distinto el mismo número.
  */
 
-/** Cómo se lee y se pinta cada tramo. Vive una sola vez: el mapa es la definición del semáforo. */
-export const TRAMOS: Record<Tramo, { etiqueta: string, tono: TonoInsignia, numero: string }> = {
-  verde: { etiqueta: 'Al día', tono: 'exito', numero: 'text-texto' },
-  amarillo: { etiqueta: 'Atención', tono: 'aviso', numero: 'text-texto-aviso' },
-  rojo: { etiqueta: 'Crítico', tono: 'peligro', numero: 'text-texto-peligro' },
-  sin_datos: { etiqueta: 'Sin datos', tono: 'contorno', numero: 'text-texto-tenue' }
+/**
+ * Cómo se lee y se pinta cada tramo. Vive una sola vez: el mapa es la definición del semáforo.
+ *
+ * `fondo` es el color lleno del tramo (la barra de reparto y el punto de las fichas de Focals). Las
+ * palabras para contar —"críticos", "al día"— están aparte en `PALABRAS_DE_TRAMO`, en `dominio/`, y
+ * `etiqueta` no cambia: es la que lee la ficha del cliente.
+ */
+export const TRAMOS: Record<Tramo, { etiqueta: string, tono: TonoInsignia, numero: string, fondo: string }> = {
+  verde: { etiqueta: 'Al día', tono: 'exito', numero: 'text-texto', fondo: 'bg-texto-exito' },
+  amarillo: { etiqueta: 'Atención', tono: 'aviso', numero: 'text-texto-aviso', fondo: 'bg-texto-aviso' },
+  rojo: { etiqueta: 'Crítico', tono: 'peligro', numero: 'text-texto-peligro', fondo: 'bg-texto-peligro' },
+  sin_datos: { etiqueta: 'Sin datos', tono: 'contorno', numero: 'text-texto-tenue', fondo: 'bg-linea-fuerte' }
 }
 
 /** Las tres señales, tal como viajan tanto en el score de un cliente como en el de un Proyecto. */
@@ -106,12 +113,7 @@ export function Puntaje (
 
   return (
     <div className="flex items-center gap-2">
-      <span
-        className={cn('text-2xl leading-none font-semibold tabular-nums', tramo.numero)}
-        title={score === null ? 'Todavía no hay datos para calcular el score' : 'Score de 1 a 100'}
-      >
-        {score ?? '—'}
-      </span>
+      <NumeroDeScore score={score} semaforo={semaforo} className="text-2xl" />
       <Insignia tono={tramo.tono} tamano="chico">{tramo.etiqueta}</Insignia>
       <Variacion puntos={variacion} />
     </div>
@@ -119,16 +121,55 @@ export function Puntaje (
 }
 
 /**
+ * El número del score, con el color de su tramo y la explicación al pasar el puntero.
+ *
+ * Es la pieza que repetían el puntaje de la ficha, la fila de la cuenta y la del Proyecto. Trae lo
+ * que las tres comparten —cifras tabulares, peso, color y `title`— y deja el tamaño al que lo usa:
+ * cada superficie tiene su escala (`text-2xl` en la cabecera, `text-cifra` en la fila de una cuenta).
+ *
+ * @param score el número de 1 a 100, o `null` si no hay nada que puntuar (se dibuja "—")
+ * @param semaforo el tramo que decide el color
+ * @param className tamaño y disposición propios de la superficie
+ */
+export function NumeroDeScore (
+  { score, semaforo, className }: { score: number | null, semaforo: Tramo, className?: string }
+) {
+  const tramo = TRAMOS[semaforo] ?? TRAMOS.sin_datos
+
+  return (
+    <span
+      className={cn('leading-none font-semibold tabular-nums', tramo.numero, className)}
+      title={score === null ? 'Todavía no hay datos para calcular el score' : 'Score de 1 a 100'}
+    >
+      {score ?? '—'}
+    </span>
+  )
+}
+
+/**
  * Puntos ganados o perdidos contra la foto anterior.
  *
  * Sin foto anterior no dibuja nada: un "0" ahí se lee como "no se movió", que es distinto de "es la
- * primera medición". El icono acompaña al signo, no lo reemplaza.
+ * primera medición". El icono acompaña al signo, no lo reemplaza. Un 0 se dice "Sin cambio" y no
+ * "– 0", que se lee como un valor negativo.
+ *
+ * @param puntos puntos contra la foto anterior; `null` si no hay con qué comparar
+ * @param ocultarSinCambio no dibujar nada cuando no hubo movimiento: en una lista de cuentas, una
+ *   columna de "Sin cambio" repetido es ruido y deja de mostrar lo que sí se movió
  */
-export function Variacion ({ puntos }: { puntos: number | null }) {
+export function Variacion (
+  { puntos, ocultarSinCambio = false }: { puntos: number | null, ocultarSinCambio?: boolean }
+) {
   if (puntos === null) return null
 
-  const Icono = puntos > 0 ? TrendingUp : puntos < 0 ? TrendingDown : Minus
-  const tono = puntos > 0 ? 'text-texto-exito' : puntos < 0 ? 'text-texto-peligro' : 'text-texto-tenue'
+  if (puntos === 0) {
+    return ocultarSinCambio
+      ? null
+      : <span className="text-texto-sutil text-xs" title="Contra la medición anterior">Sin cambio</span>
+  }
+
+  const Icono = puntos > 0 ? TrendingUp : TrendingDown
+  const tono = puntos > 0 ? 'text-texto-exito' : 'text-texto-peligro'
 
   return (
     <span
@@ -145,26 +186,34 @@ export function Variacion ({ puntos }: { puntos: number | null }) {
  * Las tres señales con su sub-score, su peso y los contadores que las explican.
  *
  * @param senales el bloque `senales` de cualquiera de los dos scores
+ * @param conNota añadir, si corresponde, la nota de qué señales cuentan (por defecto sí)
  */
-export function DesgloseSenales ({ senales, className }: { senales: SenalesDelScore, className?: string }) {
+export function DesgloseSenales (
+  { senales, className, conNota = true }: { senales: SenalesDelScore, className?: string, conNota?: boolean }
+) {
+  const nota = conNota ? notaDePesos(senales) : null
+
   return (
-    <dl className={cn('flex flex-col gap-2', className)}>
-      <Senal
-        nombre="Cumplimiento de plazos"
-        senal={senales.plazos}
-        detalle={detallePlazos(senales.plazos)}
-      />
-      <Senal
-        nombre="Carga y actividad"
-        senal={senales.carga}
-        detalle={detalleCarga(senales.carga)}
-      />
-      <Senal
-        nombre="Vencimientos próximos"
-        senal={senales.vencimientos}
-        detalle={detalleVencimientos(senales.vencimientos)}
-      />
-    </dl>
+    <div className={cn('flex flex-col gap-2', className)}>
+      <dl className="flex flex-col gap-2">
+        <Senal
+          nombre="Cumplimiento de plazos"
+          senal={senales.plazos}
+          detalle={detallePlazos(senales.plazos)}
+        />
+        <Senal
+          nombre="Carga y actividad"
+          senal={senales.carga}
+          detalle={detalleCarga(senales.carga)}
+        />
+        <Senal
+          nombre="Vencimientos próximos"
+          senal={senales.vencimientos}
+          detalle={detalleVencimientos(senales.vencimientos)}
+        />
+      </dl>
+      {nota !== null && <p className="text-texto-tenue text-xs">{nota}</p>}
+    </div>
   )
 }
 
@@ -172,8 +221,8 @@ export function DesgloseSenales ({ senales, className }: { senales: SenalesDelSc
  * Una señal: su nombre, su sub-score sobre 100, cuánto pesa, y los contadores que lo explican.
  *
  * Una señal con `score: null` **no aplica** —no hay universo que medir— y su peso quedó fuera del
- * promedio. Se muestra igual, con su motivo: esconderla haría que los pesos visibles no sumaran y
- * que el score pareciera mal calculado.
+ * promedio. Se muestra igual, como "No aplica" y sin su peso —que no cuenta, y mostrarlo hace creer
+ * que sí—; esconderla haría que el score pareciera mal calculado.
  */
 function Senal (
   { nombre, senal, detalle }:
@@ -186,10 +235,14 @@ function Senal (
         <dd className="text-texto-tenue text-xs">{detalle}</dd>
       </div>
       <div className="flex shrink-0 items-baseline gap-1 tabular-nums">
-        <span className={senal.score === null ? 'text-texto-tenue' : 'font-semibold'}>
-          {senal.score ?? 'n/a'}
-        </span>
-        <span className="text-texto-tenue text-xs">· {senal.peso}%</span>
+        {senal.score === null
+          ? <span className="text-texto-sutil">No aplica</span>
+          : (
+            <>
+              <span className="font-semibold">{senal.score}</span>
+              <span className="text-texto-tenue text-xs">· {senal.peso}%</span>
+            </>
+            )}
       </div>
     </div>
   )

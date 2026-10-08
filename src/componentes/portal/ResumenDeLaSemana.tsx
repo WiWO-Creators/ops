@@ -379,7 +379,7 @@ export function ResumenDeLaSemana () {
 
             {fase === 'escribiendo'
               ? (
-                <Boton variante="sutil" tamano="chico" onClick={() => cola.current?.saltar()}>
+                <Boton variante="sutil" tamano="chico" data-rastreo="resumen.saltar" onClick={() => cola.current?.saltar()}>
                   Saltar
                 </Boton>
                 )
@@ -387,6 +387,7 @@ export function ResumenDeLaSemana () {
                 <Boton
                   variante="secundario"
                   tamano="chico"
+                  data-rastreo="resumen.generar"
                   onClick={() => { void generar() }}
                   disabled={fase === 'pensando' || bloqueo !== null}
                 >
@@ -502,7 +503,7 @@ function Pie ({ generadoEn, escribiendo, aMedias, error, alReintentar }: PropsPi
             <Orbe medida="0.9rem" estado="error" className="inline-flex shrink-0 align-middle" />
             {MENSAJE_ERROR}
           </span>
-          <Boton variante="sutil" tamano="chico" onClick={alReintentar}>Reintentar</Boton>
+          <Boton variante="sutil" tamano="chico" data-rastreo="resumen.reintentar" onClick={alReintentar}>Reintentar</Boton>
         </>
       )}
     </div>

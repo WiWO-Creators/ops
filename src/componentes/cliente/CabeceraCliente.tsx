@@ -1,4 +1,5 @@
-import Link from 'next/link'
+import { BotonVolver } from '@/componentes/estructura/BotonVolver'
+import { FirmaDeMarca, TituloDeFicha } from '@/componentes/estructura/TituloModulo'
 import { Etiquetas } from '@/componentes/presentadores/Etiqueta'
 import { Fecha } from '@/componentes/presentadores/Fecha'
 import { ImagenEntidad } from '@/componentes/presentadores/ImagenEntidad'
@@ -22,24 +23,21 @@ export function CabeceraCliente ({ cliente }: { cliente: Cliente }) {
 
   return (
     <header className="flex flex-col gap-3">
-      <Link
-        href="/clientes"
-        className="text-texto-sutil hover:text-texto w-fit text-xs font-medium transition-colors"
-      >
-        ← {GLOSARIO.cliente.plural}
-      </Link>
+      <BotonVolver href="/clientes" etiqueta={GLOSARIO.cliente.plural} />
 
       <div className="flex flex-wrap items-start gap-3">
-        <ImagenEntidad nombre={cliente.company} imagenPropia={cliente.image_url} tamano="grande" />
+        <ImagenEntidad nombre={cliente.company} imagenPropia={cliente.image_url} tamano="ficha" />
 
         <div className="flex min-w-0 flex-col gap-2">
           <div className="flex flex-wrap items-center gap-2">
-            <h1 className="text-texto text-seccion leading-tight font-semibold">{cliente.company}</h1>
+            <TituloDeFicha>{cliente.company}</TituloDeFicha>
             <Insignia tono={cliente.active ? 'exito' : 'neutro'}>
               {cliente.active ? 'Activo' : 'Inactivo'}
             </Insignia>
             <Etiquetas etiquetas={cliente.tags} maximo={4} />
           </div>
+
+          <FirmaDeMarca />
 
           <dl className="text-texto-tenue flex flex-wrap items-center gap-x-4 gap-y-1 text-xs">
             {cliente.vat !== null && <DatoLinea etiqueta="RUT" valor={cliente.vat} />}
@@ -76,7 +74,7 @@ export function CabeceraCliente ({ cliente }: { cliente: Cliente }) {
 function DatoLinea ({ etiqueta, valor }: { etiqueta: string, valor: React.ReactNode }) {
   return (
     <div className="flex items-center gap-1.5">
-      <dt className="text-texto-sutil text-xs tracking-[0.06em] uppercase">{etiqueta}</dt>
+      <dt className="text-texto-sutil text-xs antetitulo">{etiqueta}</dt>
       <dd className="text-texto">{valor}</dd>
     </div>
   )

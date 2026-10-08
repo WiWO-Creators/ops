@@ -3,6 +3,7 @@
 import { useRouter } from 'next/navigation'
 import { useState } from 'react'
 import { ChevronLeft, ChevronRight, Mail, Users } from 'lucide-react'
+import { AvisoEnLinea } from '@/componentes/estado/Estados'
 import { EnlacePersona } from '@/componentes/presentadores/EnlacePersona'
 import { Boton } from '@/componentes/formularios/Boton'
 import { Entrada } from '@/componentes/formularios/Entrada'
@@ -147,7 +148,7 @@ export function AgendaSalas ({ dia, vista, salas, reservas, personas, yoId, esAd
                 {filas.map((minuto) => (
                   <div
                     key={minuto}
-                    className="text-texto-sutil border-linea flex items-start justify-end border-b pr-2 pt-0.5 text-[0.6875rem]"
+                    className="text-texto-sutil border-linea flex items-start justify-end border-b pr-2 pt-0.5 text-menor"
                     style={{ height: ALTO_FRANJA }}
                   >
                     {minuto % 60 === 0 ? formatearMinutos(minuto) : ''}
@@ -166,7 +167,7 @@ export function AgendaSalas ({ dia, vista, salas, reservas, personas, yoId, esAd
                       <button
                         key={minuto}
                         type="button"
-                        className="border-linea hover:bg-hover block w-full border-b transition-colors duration-150"
+                        className="border-linea hover:bg-hover block w-full border-b transition-colors duration-rapida ease-neo"
                         style={{ height: ALTO_FRANJA }}
                         aria-label={`Reservar ${sala.name} a las ${formatearMinutos(minuto)}`}
                         onClick={() => reservarEn(sala.id, minuto)}
@@ -263,8 +264,8 @@ function BloqueReserva ({ reserva, dia, propia, onAbrir }: PropsBloque) {
       onClick={onAbrir}
       style={{ top: `${caja.arriba}%`, height: `${caja.alto}%` }}
       className={cn(
-        'rounded-chico absolute inset-x-1 z-[1] overflow-hidden px-2 py-1 text-left',
-        'transition-[filter] duration-150 hover:brightness-95',
+        'rounded-chico absolute inset-x-1 z-1 overflow-hidden px-2 py-1 text-left',
+        'transition-[filter] duration-rapida ease-neo hover:brightness-95',
         // El verde de marca se reserva para la pantalla de puerta, donde "libre" u "ocupada" es TODO
         // el mensaje. En una grilla con veinte bloques grita y tapa la lectura del hueco, que es lo
         // que la gente viene a buscar. Aca la distincion propia/ajena alcanza con el acento.
@@ -274,7 +275,7 @@ function BloqueReserva ({ reserva, dia, propia, onAbrir }: PropsBloque) {
       )}
     >
       <span className="block truncate text-xs font-semibold">{reserva.title}</span>
-      <span className="block truncate text-[0.6875rem] opacity-90">
+      <span className="block truncate text-menor opacity-90">
         {caja.recortado && '· '}
         {horaLocal(reserva.start)}–{horaLocal(reserva.end)}
         {reserva.staff !== null && ` · ${reserva.staff.full_name}`}
@@ -384,7 +385,7 @@ function DetalleReserva ({ reserva, puedeTocar, onCerrar, onEditar, onCancelado 
             <p className="text-texto-tenue whitespace-pre-line text-sm">{reserva.notes}</p>
           )}
 
-          {error !== null && <p role="alert" className="text-texto-peligro text-sm">{error}</p>}
+          {error !== null && <AvisoEnLinea variante="error" mensaje={error} className="text-sm" />}
 
           {/* Confirmacion en la misma ficha y no en otro dialogo: este detalle YA vive dentro de un
               modal, y un `Dialogo` sobre otro deja los dos peleando por el foco. */}

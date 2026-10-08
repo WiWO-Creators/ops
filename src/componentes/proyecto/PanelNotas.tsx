@@ -43,13 +43,14 @@ export function PanelNotas ({ proyectoId }: { proyectoId: number }): ReactElemen
             <AccionesFila
               tituloEdicion="Editar nota"
               campos={CAMPOS}
-              registro={nota as unknown as Record<string, unknown>}
+              registro={nota}
               ruta={`projects/${proyectoId}/notes/${nota.id}`}
               puedeEditar
               puedeBorrar
               tituloBorrado="Eliminar nota"
-              advertencia={`"${nota.title}" se borra para siempre.`}
+              advertencia={`«${nota.title}» se borra para siempre.`}
               recargar={recargar}
+              nombre={nota.title}
             />
           )
         }

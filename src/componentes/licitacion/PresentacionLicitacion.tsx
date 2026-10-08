@@ -3,15 +3,17 @@
 import { ExternalLink, FolderOpen } from 'lucide-react'
 import { useRouter } from 'next/navigation'
 import { useState, type FormEvent, type ReactElement } from 'react'
+import { escribirEnBff } from '@/componentes/datos/mutaciones'
+import { AvisoEnLinea } from '@/componentes/estado/Estados'
 import { Boton, boton } from '@/componentes/formularios/Boton'
 import { cn } from '@/lib/clases'
 import { ControlDeCampo } from '@/componentes/proyecto/FormularioRecurso'
-import { mensajeDeRespuesta } from '@/datos/cliente'
 import {
   LARGO_MAXIMO_ENLACE,
   revisarEnlaceDePresentacion,
   servicioDelEnlace
 } from '@/dominio/presentacion-licitacion'
+import { useAviso } from '@/componentes/estado/useAviso'
 
 /**
  * La carpeta donde se arma la propuesta de una Licitacion, arriba de su ficha y a la vista.
@@ -124,6 +126,7 @@ interface PropsEditor {
  */
 function EditorDeEnlace ({ licitacionId, inicial, alTerminar, puedeCancelar }: PropsEditor): ReactElement {
   const router = useRouter()
+  const aviso = useAviso()
   const [texto, setTexto] = useState(inicial)
   const [guardando, setGuardando] = useState(false)
   const [errorDeCampo, setErrorDeCampo] = useState<string | undefined>(undefined)
@@ -144,25 +147,25 @@ function EditorDeEnlace ({ licitacionId, inicial, alTerminar, puedeCancelar }: P
     setErrorDeCampo(undefined)
     setFallo(null)
 
-    try {
-      const respuesta = await fetch(`/api/bff/licitaciones/${licitacionId}`, {
-        method: 'PATCH',
-        headers: { 'content-type': 'application/json', accept: 'application/json' },
-        body: JSON.stringify({ presentacion_url: revision.url })
-      })
+    const resultado = await escribirEnBff(`licitaciones/${licitacionId}`, 'PATCH', { presentacion_url: revision.url })
 
-      if (!respuesta.ok) {
-        setFallo(await mensajeDeRespuesta(respuesta))
-        return
+    setGuardando(false)
+
+    if (!resultado.ok) {
+      setFallo(resultado.mensaje)
+
+      if (resultado.incierta === true) {
+        // No se sabe si quedo: la ficha se pinta en el servidor, asi que se vuelve a pedir.
+        aviso.advertencia(resultado.mensaje)
+        router.refresh()
       }
 
-      alTerminar()
-      router.refresh()
-    } catch {
-      setFallo('No se pudo guardar. Revisa la conexión y vuelve a intentarlo.')
-    } finally {
-      setGuardando(false)
+      return
     }
+
+    aviso.exito('Enlace de la presentación guardado.')
+    alTerminar()
+    router.refresh()
   }
 
   return (
@@ -182,7 +185,7 @@ function EditorDeEnlace ({ licitacionId, inicial, alTerminar, puedeCancelar }: P
           setErrorDeCampo(undefined)
         }}
       />
-      {fallo !== null && <p role="alert" className="text-texto-peligro text-sm">{fallo}</p>}
+      {fallo !== null && <AvisoEnLinea variante="error" mensaje={fallo} className="text-sm" />}
       <div className="flex gap-2">
         <Boton type="submit" variante="primario" tamano="chico" cargando={guardando}>
           Guardar

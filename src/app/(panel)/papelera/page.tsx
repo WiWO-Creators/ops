@@ -3,10 +3,11 @@ import { CeldaEncabezado, CeldaTabla, CuerpoTabla, EncabezadoTabla, FilaTabla, T
 import { ErrorEstado, SinPermiso, Vacio } from '@/componentes/estado/Estados'
 import { Fecha } from '@/componentes/presentadores/Fecha'
 import { Insignia } from '@/componentes/presentadores/Insignia'
+import { PaginacionTabla } from '@/componentes/datos/PaginacionTabla'
 import { TituloModulo } from '@/componentes/estructura/TituloModulo'
 import { AccionesPapelera } from '@/componentes/papelera/AccionesPapelera'
 import { ErrorApi } from '@/datos/errores'
-import { pedir } from '@/datos/servidor'
+import { cargarYo, pedir } from '@/datos/servidor'
 import {
   VISTAS_DE_PAPELERA,
   nombreDeEntidad,
@@ -17,7 +18,7 @@ import {
   type VistaDePapelera
 } from '@/dominio/papelera'
 import type { ElementoEnPapelera } from '@/datos/recursos'
-import type { Paginacion, Yo } from '@/datos/tipos'
+import type { Paginacion } from '@/datos/tipos'
 import { cn } from '@/lib/clases'
 
 export const metadata = { title: 'Papelera · WiWO Ops' }
@@ -62,6 +63,13 @@ function hrefDe (vista: VistaDePapelera, pagina = 1): string {
   return consulta === '' ? '/papelera' : `/papelera?${consulta}`
 }
 
+/** Las URLs de la página anterior y la siguiente de una vista, para `PaginacionTabla`. */
+function enlacesDePagina (vista: VistaDePapelera, paginacion: Paginacion | undefined): { anterior: string, siguiente: string } {
+  const actual = paginacion?.page ?? 1
+
+  return { anterior: hrefDe(vista, actual - 1), siguiente: hrefDe(vista, actual + 1) }
+}
+
 /**
  * Papelera: lo que se eliminó y todavía se puede recuperar.
  *
@@ -77,7 +85,7 @@ function hrefDe (vista: VistaDePapelera, pagina = 1): string {
  * purgar a cualquier administrador. Revisarlo antes de pedir ahorra un viaje que vuelve 403.
  */
 export default async function PapeleraPage (props: PageProps<'/papelera'>) {
-  const { data: yo } = await pedir<Yo>('/me')
+  const { data: yo } = await cargarYo()
 
   if (!yo.is_admin && !yo.is_superadmin) return <SinPermiso className="mt-10" />
 
@@ -113,7 +121,11 @@ export default async function PapeleraPage (props: PageProps<'/papelera'>) {
         : (
           <>
             <TablaDePapelera elementos={elementos} />
-            <Paginador paginacion={paginacion} vista={vista} />
+            <PaginacionTabla
+              paginacion={paginacion}
+              enlaces={enlacesDePagina(vista, paginacion)}
+              etiqueta="Paginación de la papelera"
+            />
           </>
           )}
     </section>
@@ -183,27 +195,5 @@ function TablaDePapelera ({ elementos }: { elementos: ElementoEnPapelera[] }) {
         ))}
       </CuerpoTabla>
     </Tabla>
-  )
-}
-
-/** Anterior y siguiente. Sin `meta.pagination`, o con una sola página, no se dibuja nada. */
-function Paginador ({ paginacion, vista }: { paginacion: Paginacion | undefined, vista: VistaDePapelera }) {
-  if (paginacion === undefined || paginacion.total_pages <= 1) return null
-
-  const { page, total, total_pages: totalPaginas } = paginacion
-
-  return (
-    <nav aria-label="Paginación de la papelera" className="text-texto-tenue flex flex-wrap items-center justify-between gap-2 text-xs">
-      <p aria-live="polite">Página {page} de {totalPaginas} · {total} en total</p>
-
-      <div className="flex items-center gap-4">
-        {page > 1
-          ? <Link href={hrefDe(vista, page - 1)} className="text-acento font-semibold underline underline-offset-4">Anterior</Link>
-          : <span className="text-texto-sutil">Anterior</span>}
-        {page < totalPaginas
-          ? <Link href={hrefDe(vista, page + 1)} className="text-acento font-semibold underline underline-offset-4">Siguiente</Link>
-          : <span className="text-texto-sutil">Siguiente</span>}
-      </div>
-    </nav>
   )
 }

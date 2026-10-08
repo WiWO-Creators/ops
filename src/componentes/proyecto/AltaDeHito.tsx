@@ -1,7 +1,7 @@
 'use client'
 
 import { type ReactElement } from 'react'
-import { Cargando } from '@/componentes/estado/Estados'
+import { AvisoEnLinea, Cargando } from '@/componentes/estado/Estados'
 import type { PlantillaHito, PlantillaHitoDetallada } from '@/datos/recursos'
 import { GLOSARIO } from '@/dominio/glosario'
 import { formatearFecha } from '@/lib/fechas'
@@ -137,9 +137,11 @@ function TareasDeLaPlantilla ({ id, inicio, cierre }: PropsTareas): ReactElement
 
   if (estado.fase === 'error') {
     return (
-      <p role="alert" className="text-texto-peligro text-sm">
-        {estado.mensaje} Puedes crear el {GLOSARIO.hito.singular.toLowerCase()} sin plantilla.
-      </p>
+      <AvisoEnLinea
+        variante="error"
+        mensaje={`${estado.mensaje} Puedes crear el ${GLOSARIO.hito.singular.toLowerCase()} sin plantilla.`}
+        className="text-sm"
+      />
     )
   }
 
@@ -147,10 +149,11 @@ function TareasDeLaPlantilla ({ id, inicio, cierre }: PropsTareas): ReactElement
 
   if (tareas.length === 0) {
     return (
-      <p role="alert" className="text-texto-peligro text-sm">
-        Esta plantilla no tiene {GLOSARIO.proceso.plural.toLowerCase()}, así que no se puede aplicar.
-        Elige otra o crea el {GLOSARIO.hito.singular.toLowerCase()} sin plantilla.
-      </p>
+      <AvisoEnLinea
+        variante="error"
+        mensaje={`Esta plantilla no tiene ${GLOSARIO.proceso.plural.toLowerCase()}, así que no se puede aplicar. Elige otra o crea el ${GLOSARIO.hito.singular.toLowerCase()} sin plantilla.`}
+        className="text-sm"
+      />
     )
   }
 

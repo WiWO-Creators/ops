@@ -35,7 +35,8 @@ function montarAvatar () {
         }
       },
       '@/lib/clases': { cn: (...clases) => clases.filter(Boolean).join(' ') },
-      '@/lib/personas': { coloresAvatar: () => ({ fondo: 'white', texto: 'black' }), iniciales: () => 'JA' }
+      '@/lib/personas': { coloresAvatar: () => ({ fondo: 'white', texto: 'black' }), iniciales: () => 'JA' },
+      './tamanos-identidad': { TAMANOS_IDENTIDAD: { chico: 'size-6', medio: 'size-8', grande: 'size-10' } }
     })[nombre]
   }
   vm.runInNewContext(fuente, sandbox)

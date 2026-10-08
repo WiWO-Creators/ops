@@ -267,6 +267,8 @@ export interface ProcesoDeFicha {
   description?: string | null
   /** La descripcion como HTML saneado por la API (texto enriquecido). Ausente en una API anterior. */
   description_html?: string | null
+  /** Sistemas de WiWO con los que se vinculó la Tarea. Opcional; se lee con `leerVinculos`. No llega al portal. */
+  vinculos?: unknown
   project?: Referencia | null
   milestone?: Referencia | null
   /**

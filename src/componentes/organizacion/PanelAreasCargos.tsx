@@ -24,7 +24,7 @@ import { descendenciaDe } from '@/dominio/jerarquia'
 import { motivoParaRechazarNombre } from '@/dominio/accesos'
 import { LOCALE } from '@/lib/fechas'
 import { CabeceraDePanel, MensajeDeError, SIN_VALOR } from './piezas'
-import { SelectorDePersona } from './SelectorDePersona'
+import { SelectorDePersona } from '@/componentes/formularios/SelectorDePersona'
 import type { AreaDeAccesos, CargoDeAccesos, CatalogoDeAccesos, UsoDeArea } from '@/datos/accesos'
 import type { PersonaAsignable } from '@/datos/recursos'
 
@@ -235,7 +235,7 @@ function SeccionAreas ({
                           },
                           {
                             clave: 'borrar',
-                            etiqueta: 'Borrar',
+                            etiqueta: 'Eliminar',
                             peligroso: true,
                             onSeleccionar: () => { setError(null); setBorrando(area) }
                           }
@@ -486,9 +486,9 @@ function DialogoDeBorradoDeArea ({
     <ConfirmarBorrado
       abierto
       onCerrar={cerrar}
-      titulo={`Borrar el área «${area.nombre}»`}
-      advertencia="El área desaparece, pero lo que tenía dentro no: se muda a donde elijas. Ninguna Tarea se borra."
-      etiquetaConfirmar="Borrar el área"
+      titulo={`Eliminar el área «${area.nombre}»`}
+      advertencia="El área desaparece, pero lo que tenía dentro no: se muda a donde elijas. Ninguna Tarea se elimina."
+      etiquetaConfirmar="Eliminar el área"
       deshabilitadoExtra={uso === null || destino === null}
       contenidoExtra={
         <div className="flex flex-col gap-5">
@@ -625,8 +625,8 @@ function SeccionCargos ({ catalogo, recargar }: { catalogo: CatalogoDeAccesos, r
                       <MenuAccionesFila
                         onEditar={() => { setEditando({ cargo }) }}
                         borrado={{
-                          titulo: 'Borrar el cargo',
-                          advertencia: `Quien tenga puesto «${cargo.nombre}» queda sin cargo. Los cargos por defecto de la instalación no se pueden borrar: la API los rechaza.`,
+                          titulo: 'Eliminar el cargo',
+                          advertencia: `Quien tenga puesto «${cargo.nombre}» queda sin cargo. Los cargos por defecto de la instalación no se pueden eliminar: la API los rechaza.`,
                           onConfirmar: () => borrar(cargo)
                         }}
                       />

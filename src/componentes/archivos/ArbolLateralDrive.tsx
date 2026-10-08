@@ -107,7 +107,7 @@ function RamaDrive ({ miga, nivel, bloqueada, esRaiz = false, actualId, carpetas
             sinHijas && 'invisible'
           )}
         >
-          <ChevronRight className={cn('size-3.5 transition-transform duration-150', abierta && 'rotate-90')} aria-hidden="true" />
+          <ChevronRight className={cn('size-3.5 transition-transform duration-rapida ease-neo', abierta && 'rotate-90')} aria-hidden="true" />
         </button>
         <button
           type="button"
@@ -115,7 +115,7 @@ function RamaDrive ({ miga, nivel, bloqueada, esRaiz = false, actualId, carpetas
           onKeyDown={alPulsar}
           title={miga.name}
           className={cn(
-            'rounded-chico flex min-w-0 flex-1 items-center gap-2 py-1.5 pr-2 pl-1 text-left text-sm transition-colors duration-150',
+            'rounded-chico flex min-w-0 flex-1 items-center gap-2 py-1.5 pr-2 pl-1 text-left text-sm transition-colors duration-rapida ease-neo',
             actual ? 'bg-seleccionado text-texto font-semibold' : 'text-texto-tenue hover:bg-hover hover:text-texto'
           )}
         >

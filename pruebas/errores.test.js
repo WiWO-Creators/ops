@@ -133,3 +133,14 @@ test('los ids ajenos de una limpieza y el 403 de administradores tienen frase pr
   assert.equal(mensajeDeCodigo('forbidden', 'x'), 'x')
   assert.equal(mensajeDeCodigo(undefined, 'x'), 'x')
 })
+
+test('los rechazos de adjuntos de ticket dicen el archivo y el limite una sola vez', () => {
+  assert.equal(
+    mensajeConDetalles({ message: '«a.exe»: ese tipo de archivo no está permitido.', details: { attachments: ['extension_not_allowed'] } }),
+    '«a.exe»: ese tipo de archivo no está permitido.'
+  )
+  assert.equal(
+    mensajeConDetalles({ message: 'Puedes adjuntar hasta 4 archivos por mensaje.', details: { attachments: ['max_files'] } }),
+    'Puedes adjuntar hasta 4 archivos por mensaje.'
+  )
+})

@@ -62,7 +62,7 @@ export function camposDePersona (
     { clave: 'hourly_rate', etiqueta: 'Valor hora', tipo: 'numero', ayuda: 'Se usa para valorizar las horas registradas.' },
     { clave: 'empresa_id', etiqueta: 'Empresa', tipo: 'seleccion', opciones: empresas, seccion: 'Organización' },
     { clave: 'cargo_id', etiqueta: 'Cargo', tipo: 'seleccion', opciones: cargos },
-    { clave: 'area_ids', etiqueta: 'Áreas', tipo: 'seleccion-multiple', opciones: areas, ayuda: 'Podés marcar varias áreas. Sin marcas, queda sin área.' }
+    { clave: 'area_ids', etiqueta: 'Áreas', tipo: 'seleccion-multiple', opciones: areas, ayuda: 'Puedes marcar varias áreas. Sin marcas, queda sin área.' }
   ]
 
   // Antes de `hourly_rate`, que es donde estaba: el orden de un formulario que la gente ya conoce no

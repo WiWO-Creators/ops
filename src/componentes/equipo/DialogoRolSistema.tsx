@@ -15,6 +15,7 @@ import {
   ROLES_DE_SISTEMA, cuerpoDeRolDeSistema, rolDeSistemaDe, type RolDeSistema
 } from '@/dominio/rol-sistema'
 import type { FichaPersona } from '@/datos/recursos'
+import { useAviso } from '@/componentes/estado/useAviso'
 
 interface PropsDialogoRolSistema {
   persona: FichaPersona
@@ -76,6 +77,7 @@ interface PropsCuerpo {
 
 function CuerpoDelDialogo ({ persona, actorId, cerrar }: PropsCuerpo) {
   const router = useRouter()
+  const aviso = useAviso()
   const rolPuesto = rolDeSistemaDe(persona)
   const [rol, setRol] = useState<RolDeSistema>(rolPuesto)
   const [guardando, setGuardando] = useState(false)
@@ -109,6 +111,7 @@ function CuerpoDelDialogo ({ persona, actorId, cerrar }: PropsCuerpo) {
       return
     }
 
+    aviso.exito(`Rol de «${persona.full_name}» actualizado.`)
     cerrar()
     router.refresh()
   }

@@ -45,7 +45,7 @@ export default async function PantallaDeSala (props: PageProps<'/sala/[token]'>)
   return (
     <main
       className={
-        'flex min-h-dvh flex-col justify-between p-[4vmin] transition-colors duration-500 '
+        'flex min-h-dvh flex-col justify-between p-[4vmin] transition-colors duration-lenta ease-neo '
         + (ocupada
           ? 'bg-relleno-peligro text-relleno-peligro-contenido'
           : 'bg-relleno-exito text-relleno-exito-contenido')

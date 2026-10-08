@@ -1,5 +1,6 @@
 'use client'
 
+import { Pencil } from 'lucide-react'
 import { useState, type ReactElement } from 'react'
 import { useRouter } from 'next/navigation'
 import { BajaYBorrado } from '@/componentes/datos/BajaYBorrado'
@@ -53,7 +54,10 @@ export function AccionesCliente ({
       />
 
       {puedeEditar && (
-        <Boton variante="secundario" tamano="chico" onClick={() => { setEditando(true) }}>Editar</Boton>
+        <Boton variante="secundario" tamano="chico" onClick={() => { setEditando(true) }}>
+          <Pencil aria-hidden className="size-4" />
+          Editar
+        </Boton>
       )}
 
       <BajaYBorrado
@@ -64,6 +68,7 @@ export function AccionesCliente ({
         puedeEditar={puedeEditar}
         puedeBorrar={capacidades.includes('delete')}
         tamano="chico"
+        enMenu
         advertencia={
           `${cliente.company} va a la papelera con sus proyectos y sus tareas, y deja de verse en ` +
           'todas partes. Se puede restaurar entero desde la Papelera durante 30 días.'
@@ -80,7 +85,7 @@ export function AccionesCliente ({
           campos={camposDeCliente(paises, monedas)}
           ruta={`clients/${cliente.id}`}
           metodo="PATCH"
-          registro={cliente as unknown as Record<string, unknown>}
+          registro={cliente}
           onGuardado={recargar}
           columnas={2}
           ancho="grande"

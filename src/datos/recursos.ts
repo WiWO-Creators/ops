@@ -1,4 +1,4 @@
-import { leerError } from './errores.ts'
+import { escribirEnBff } from '../componentes/datos/mutaciones.ts'
 import type { StaffReferencia } from './tipos.ts'
 import type { AsignadoConAutoria } from '../dominio/autoria-tarea.ts'
 import type { Escalon } from '../dominio/escalon.ts'
@@ -23,6 +23,8 @@ export interface Etiqueta {
 export interface Referencia {
   id: number
   name: string
+  /** Identificador visible (`PAT-001-07`); la API lo trae en Proyectos y Tareas. */
+  patente?: string | null
 }
 
 export interface CampoPersonalizado {
@@ -71,6 +73,11 @@ export interface Proceso {
    * una API sin la migracion no los manda.
    */
   deliverable?: boolean
+  /**
+   * Con qué sistema de WiWO se originó la Tarea (`[{ system, external_id, url }]`). Opcional y sin
+   * tipar a fondo: una API anterior no lo manda, y quien lo lee pasa por `leerVinculos`.
+   */
+  vinculos?: unknown
   deliverable_url?: string | null
   recurring: boolean
   repeat_every?: number
@@ -352,6 +359,12 @@ export interface Espacio {
    * del Proceso.
    */
   patente?: string | null
+  /**
+   * De que oportunidad comercial nacio el Espacio, o `null` si es un Proyecto corriente. Un upsell
+   * abierto solo viaja en el listado acotado a un cliente (`filter[clientid]`); en el resto de los
+   * listados esta oculto hasta que se gana. Ausente en las respuestas del portal.
+   */
+  oportunidad?: 'upsell' | 'licitacion' | null
   /** Imagen propia del proyecto; si es `null`, la interfaz usa el logo del cliente. */
   image_url: string | null
   description: string | null
@@ -2395,7 +2408,7 @@ export interface PresetFiltro {
  * agrega un tipo nuevo, el compilador marca los lugares que no lo contemplan en vez de dejar que la
  * pantalla dibuje un control equivocado en silencio.
  */
-export type TipoDeAjuste = 'bool' | 'entero' | 'enum' | 'rol' | 'texto'
+export type TipoDeAjuste = 'bool' | 'entero' | 'enum' | 'rol' | 'texto' | 'fecha'
 
 /**
  * Una opcion editable con su dominio, tal como la publica `Recursos\RecursoAjustes::presentar()`.
@@ -2456,8 +2469,9 @@ export type ResultadoDeAjustes =
 /**
  * Escribe ajustes por el BFF (`PATCH /settings`).
  *
- * No usa `escribirEnBff()` por una sola razon: ese helper reduce el error a un mensaje y pierde el
- * `details` del 422, que aca es la unica forma de saber que clave rechazo la whitelist.
+ * Pasa por `escribirEnBff()` (limite de tiempo, clave de idempotencia y escritura incierta) y conserva
+ * el `details` del 422, que aca es la unica forma de saber que clave rechazo la whitelist. Si la
+ * respuesta se pierde, el mensaje dice que no se sabe si se guardo y no que fallo.
  *
  * La lectura no esta en este archivo sino en `ajustes.ts`: necesita `pedir()`, que es `server-only`,
  * y a `recursos.ts` lo importan tambien componentes de cliente.
@@ -2467,33 +2481,19 @@ export type ResultadoDeAjustes =
  * @returns Los ajustes releidos por la API, o el error ya legible con su detalle por campo.
  */
 export async function guardarAjustes (cambios: CambiosDeAjustes): Promise<ResultadoDeAjustes> {
-  let respuesta: Response
+  const resultado = await escribirEnBff<Ajustes | undefined>('settings', 'PATCH', cambios)
 
-  try {
-    respuesta = await fetch('/api/bff/settings', {
-      method: 'PATCH',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(cambios)
-    })
-  } catch {
-    return { ok: false, mensaje: 'No se pudo contactar al servidor. Revisa tu conexión.', detalles: {} }
+  if (!resultado.ok) {
+    return { ok: false, mensaje: resultado.mensaje, detalles: (resultado.detalles ?? {}) as Record<string, string[]> }
   }
 
-  if (!respuesta.ok) {
-    const error = await leerError(respuesta)
-
-    return { ok: false, mensaje: error.message, detalles: error.details ?? {} }
-  }
-
-  try {
-    const sobre = await respuesta.json() as { data: Ajustes }
-
-    return { ok: true, ajustes: sobre.data }
-  } catch {
-    // La API responde el cuerpo completo tambien en el PATCH. Si no llego, la escritura igual ocurrio:
-    // decir que fallo mandaria a repetirla.
+  // La API responde el cuerpo completo tambien en el PATCH. Si no llego, la escritura igual ocurrio:
+  // decir que fallo mandaria a repetirla.
+  if (resultado.datos === undefined) {
     return { ok: false, mensaje: 'Los ajustes se guardaron, pero la respuesta no se pudo leer. Recarga la pantalla.', detalles: {} }
   }
+
+  return { ok: true, ajustes: resultado.datos }
 }
 
 // frente: plantillas de Espacio

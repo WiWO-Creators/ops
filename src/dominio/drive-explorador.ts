@@ -9,7 +9,7 @@
  */
 
 import { formatearFecha, formatearRelativo, LOCALE } from '../lib/fechas.ts'
-import { normalizar } from './salas.ts'
+import { normalizar } from './busqueda.ts'
 import type { MigaDrive, NodoDrive, ResultadoTrasladoDrive } from '@/datos/recursos'
 
 /** Tope de ids de un traslado en lote. Es el mismo que valida la API. */

@@ -157,9 +157,9 @@ export function HiloDeComentarios (
         <ConfirmacionEnLinea
           disposicion="linea"
           advertencia={respuestas !== null && respuestas > 0
-            ? `¿Borrar con sus ${respuestas} ${respuestas === 1 ? 'respuesta' : 'respuestas'}?`
-            : '¿Borrar?'}
-          etiquetaConfirmar="Borrar"
+            ? `¿Eliminar con sus ${respuestas} ${respuestas === 1 ? 'respuesta' : 'respuestas'}?`
+            : '¿Eliminar?'}
+          etiquetaConfirmar="Eliminar"
           cargando={borrando === comentario.id}
           onCancelar={() => { setConfirmandoBorrado(null) }}
           onConfirmar={() => { void borrar(comentario.id) }}
@@ -172,10 +172,10 @@ export function HiloDeComentarios (
         variante="sutil"
         tamano="chico"
         soloIcono
-        aria-label="Borrar comentario"
-        title="Borrar comentario"
+        aria-label="Eliminar comentario"
+        title="Eliminar comentario"
         className={cn(
-          'size-7 transition-opacity duration-150',
+          'size-7 transition-opacity duration-rapida ease-neo',
           'opacity-0 focus-visible:opacity-100 pointer-coarse:opacity-100',
           respuestas === null ? 'group-hover/respuesta:opacity-100' : 'group-hover/comentario:opacity-100'
         )}
@@ -264,7 +264,7 @@ export function HiloDeComentarios (
                 : (
                   <button
                     type="button"
-                    className="text-texto-tenue hover:text-texto focus-visible:text-texto mt-1 inline-flex w-fit items-center gap-1 rounded-chico text-xs font-medium transition-colors duration-150"
+                    className="text-texto-tenue hover:text-texto focus-visible:text-texto mt-1 inline-flex w-fit items-center gap-1 rounded-chico text-xs font-medium transition-colors duration-rapida ease-neo"
                     onClick={() => { setRespondiendoA(raiz.id) }}
                   >
                     <CornerDownRight aria-hidden className="size-3.5" strokeWidth={1.75} />

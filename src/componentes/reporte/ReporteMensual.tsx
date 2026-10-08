@@ -3,7 +3,7 @@ import { ArrowUpRight, CalendarClock, Hourglass, PackageCheck } from 'lucide-rea
 import { Bloque } from '@/app/portal/(dentro)/detalle'
 import { TituloModulo } from '@/componentes/estructura/TituloModulo'
 import { Insignia } from '@/componentes/presentadores/Insignia'
-import { BarraProgreso } from '@/componentes/proyecto/CabeceraProyecto'
+import { BarraProgreso } from '@/componentes/presentadores/BarraProgreso'
 import { PARAMETRO_TAREA } from '@/componentes/datos/tabla'
 import { Clave } from '@/componentes/portal/GraficosDelTablero'
 import { SelectorDelReporte } from './SelectorDelReporte'
@@ -550,7 +550,7 @@ function Tendencia ({ tendencia }: { tendencia: Reporte['tendencia'] }) {
                 <div key={mes.mes} className="flex h-full min-w-0 flex-1 items-end justify-center gap-0.5 sm:gap-1">
                   {lectura.series.map((serie) => (
                     <span key={serie} className="relative flex h-full w-full max-w-8 flex-col justify-end">
-                      <span className="text-texto-tenue mb-0.5 text-center text-[0.625rem] leading-none tabular-nums">
+                      <span className="text-texto-tenue mb-0.5 text-center text-micro leading-none tabular-nums">
                         {mes.valores[serie] ?? 0}
                       </span>
                       <span

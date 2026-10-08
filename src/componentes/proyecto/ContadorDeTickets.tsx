@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useState, type ReactElement } from 'react'
-import { useAlCambiarTickets } from '@/componentes/datos/useAlCambiarTickets'
+import { useAlCambiarTickets } from '@/componentes/tickets/useAlCambiarTickets'
 import { pedirSobre } from '@/datos/cliente'
 import { etiquetaDePestana, leerContadores, type ContadoresDeTickets } from '@/dominio/tickets-listados'
 

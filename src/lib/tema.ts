@@ -22,6 +22,15 @@ export const EVENTO_TEMA = 'wiwo:tema'
 export type Tema = 'light' | 'dark' | 'sistema'
 
 /**
+ * Clave de `localStorage` con el modo especial que esta persona apago para si. Guarda la CLAVE del
+ * modo (`halloween`) y no un booleano: apagar Halloween no apaga el modo que venga despues.
+ */
+export const CLAVE_MODO_APAGADO = 'wiwo-modo-apagado'
+
+/** Evento propio que avisa, en esta pestaña, que el modo especial se prendio, se apago o vencio. */
+export const EVENTO_MODO = 'wiwo:modo'
+
+/**
  * Lee el tema guardado.
  *
  * @returns el tema elegido, o `'sistema'` si nadie eligio o el almacenamiento no esta disponible
@@ -65,7 +74,7 @@ export function aplicarTema (tema: Tema): void {
  * Va inyectado en el `<head>` con `dangerouslySetInnerHTML`: cualquier otra via corre despues del
  * primer pintado, que es justo el momento que hay que ganarle.
  */
-export const SCRIPT_TEMA_INICIAL = `try{var t=localStorage.getItem('${CLAVE_TEMA}');if(t==='light'||t==='dark')document.documentElement.setAttribute('data-theme',t)}catch(e){}`
+export const SCRIPT_TEMA_INICIAL = `try{var t=localStorage.getItem('${CLAVE_TEMA}');if(t==='light'||t==='dark')document.documentElement.setAttribute('data-theme',t)}catch(e){}try{var h=document.documentElement;if(localStorage.getItem('${CLAVE_MODO_APAGADO}')===h.getAttribute('data-modo-vigente'))h.removeAttribute('data-modo')}catch(e){}`
 
 /**
  * Resuelve si el documento se esta viendo en oscuro en este momento.

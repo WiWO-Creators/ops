@@ -195,6 +195,9 @@ export function diasHasta (
   return Math.round((objetivo - referencia) / 86400000)
 }
 
+/** Tramo de un vencimiento respecto de hoy, tal como lo clasifica `estadoVencimiento`. */
+export type EstadoVencimiento = 'vencido' | 'hoy' | 'proximo' | 'lejano' | 'sin-fecha'
+
 /**
  * Clasifica un vencimiento respecto de hoy.
  *
@@ -208,7 +211,7 @@ export function diasHasta (
 export function estadoVencimiento (
   vencimiento: string | null | undefined,
   hoy: Date = new Date()
-): 'vencido' | 'hoy' | 'proximo' | 'lejano' | 'sin-fecha' {
+): EstadoVencimiento {
   const dias = diasHasta(vencimiento, hoy)
 
   if (dias === null) return 'sin-fecha'

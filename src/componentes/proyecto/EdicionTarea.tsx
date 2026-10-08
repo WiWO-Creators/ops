@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState, type FormEvent, type ReactElement } from 'react'
 import { useAccionPresencia } from '@/componentes/auditoria/accion'
+import { AvisoEnLinea } from '@/componentes/estado/Estados'
 import { Boton } from '@/componentes/formularios/Boton'
 import { Campo } from '@/componentes/formularios/Campo'
 import { CamposPersonalizados } from '@/componentes/formularios/CamposPersonalizados'
@@ -66,6 +67,7 @@ import type {
   Proceso,
   ValorCampoPersonalizado
 } from '@/datos/recursos'
+import { useAviso } from '@/componentes/estado/useAviso'
 
 /** Lista vacia unica: un `[]` nuevo por render volveria a disparar el efecto de las definiciones. */
 const SIN_CAMPOS: ValorCampoPersonalizado[] = []
@@ -100,6 +102,7 @@ export function EdicionTarea (
   { tarea, lookups, descripcion, onCerrar, onGuardada }: PropsEdicionTarea
 ): ReactElement {
   useAccionPresencia('editando_tarea')
+  const aviso = useAviso()
 
   const [inicial, setInicial] = useState(() => camposDeTarea(tarea, descripcion))
   const [campos, setCampos] = useState<CamposEdicion>(inicial)
@@ -188,7 +191,7 @@ export function EdicionTarea (
       .then((personas) => { if (vivo) setAsignables(personas) })
       .catch(() => {
         if (vivo) {
-          setAvisoCatalogo('No se pudo traer el equipo: sólo quedan las personas que ya están en la tarea.')
+          setAvisoCatalogo(`No se pudo traer el equipo: sólo quedan las personas que ya están en la ${GLOSARIO.proceso.singular.toLowerCase()}.`)
         }
       })
 
@@ -228,7 +231,7 @@ export function EdicionTarea (
         setInicial(reclasificar)
         setCampos(reclasificar)
       } catch {
-        if (!control.signal.aborted) setAvisoCatalogo('No se pudieron cargar los proyectos. Cierra y vuelve a abrir para reintentar.')
+        if (!control.signal.aborted) setAvisoCatalogo(`No se pudieron cargar los ${GLOSARIO.espacio.plural.toLowerCase()}. Cierra y vuelve a abrir para reintentar.`)
       }
     }
     void cargarProyectos()
@@ -258,7 +261,7 @@ export function EdicionTarea (
       setHitos(listaHitos.data)
       setTipos(configuracion.data.task_types)
     }).catch(() => {
-      if (!control.signal.aborted) setAvisoCatalogo('No se pudieron cargar los hitos y tipos del proyecto. Vuelve a elegirlo para reintentar.')
+      if (!control.signal.aborted) setAvisoCatalogo(`No se pudieron cargar los ${GLOSARIO.hito.plural.toLowerCase()} y tipos del ${GLOSARIO.espacio.singular.toLowerCase()}. Vuelve a elegirlo para reintentar.`)
     })
     return () => { control.abort() }
   }, [espacioId])
@@ -319,7 +322,7 @@ export function EdicionTarea (
       .catch(() => {
         // Sin definiciones el resto del formulario funciona igual; se dice y no se rompe la edicion.
         if (!control.signal.aborted) {
-          setAvisoCatalogo('No se pudieron traer los campos personalizados de la tarea.')
+          setAvisoCatalogo(`No se pudieron traer los campos personalizados de la ${GLOSARIO.proceso.singular.toLowerCase()}.`)
         }
       })
 
@@ -371,7 +374,7 @@ export function EdicionTarea (
     const cambioCierre = Number(estado) === ESTADO_COMPLETO && cierre !== cierreGuardado
     const instante = cambioCierre ? instanteDeCierre(cierre) : null
     if (cambioCierre && cierre !== '' && (instante === null || cierre > hoyLocal() || (campos.inicio !== '' && cierre < campos.inicio))) {
-      setError('La fecha de cierre debe estar entre el inicio de la tarea y hoy.')
+      setError(`La fecha de cierre debe estar entre el inicio de la ${GLOSARIO.proceso.singular.toLowerCase()} y hoy.`)
       return
     }
 
@@ -453,6 +456,7 @@ export function EdicionTarea (
     }
 
     setEnCurso(false)
+    aviso.exito(`Cambios de «${campos.nombre.trim()}» guardados.`)
     onCerrar()
     onGuardada()
   }
@@ -531,7 +535,7 @@ export function EdicionTarea (
                 <ContenidoSelector>{listaDe(lookups, 'task_statuses').map((opcion) => <Opcion key={opcion.id} value={String(opcion.id)}>{opcion.name}</Opcion>)}</ContenidoSelector>
               </Selector>}
             </Campo>
-            <Campo etiqueta="Tipo" ayuda={espacioId === null ? 'Elige un proyecto para seleccionar el tipo.' : undefined}>
+            <Campo etiqueta="Tipo" ayuda={espacioId === null ? `Elige un ${GLOSARIO.espacio.singular.toLowerCase()} para seleccionar el tipo.` : undefined}>
               {({ id }) => <Selector disabled={espacioId === null} value={campos.tipo || 'ninguno'} onValueChange={(valor) => setCampos({ ...campos, tipo: valor === 'ninguno' ? '' : valor })}>
                 <DisparadorSelector id={id} />
                 <ContenidoSelector>
@@ -735,7 +739,7 @@ export function EdicionTarea (
               etiqueta="Descripción"
               requerido
               error={errorDescripcion ?? undefined}
-              ayuda="Qué hay que hacer y con qué se da por terminada. Quien abra la Tarea no estuvo en la conversación donde se pidió."
+              ayuda={`Qué hay que hacer y con qué se da por terminada. Quien abra la ${GLOSARIO.proceso.singular.toLowerCase()} no estuvo en la conversación donde se pidió.`}
             >
               {(props) => (
                 <EditorRico
@@ -789,14 +793,14 @@ export function EdicionTarea (
           )}
 
           {error !== null && (
-            <p role="alert" className="text-texto-peligro text-sm">{error}</p>
+            <AvisoEnLinea variante="error" mensaje={error} className="text-sm" />
           )}
 
           <div className="flex justify-end gap-2">
             <CerrarDialogo asChild>
               <Boton variante="secundario" type="button" disabled={enCurso}>Cancelar</Boton>
             </CerrarDialogo>
-            <Boton variante="primario" type="submit" cargando={enCurso}>Guardar</Boton>
+            <Boton variante="primario" type="submit" cargando={enCurso}>Guardar cambios</Boton>
           </div>
           </fieldset>
         </form>

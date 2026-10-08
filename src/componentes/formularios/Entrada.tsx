@@ -9,7 +9,7 @@ import { cn } from '@/lib/clases'
 export const CLASES_CONTROL = [
   'w-full rounded-chico border border-control-borde bg-control px-3 text-texto',
   'placeholder:text-texto-sutil',
-  'transition-[border-color,box-shadow] duration-150 ease-neo',
+  'transition-[border-color,box-shadow] duration-rapida ease-neo',
   'hover:border-linea-fuerte',
   /* Neo: el deshabilitado conserva lectura. Se apaga con superficie, no bajando la opacidad del
      texto, que es lo que vuelve ilegible un valor ya cargado. */

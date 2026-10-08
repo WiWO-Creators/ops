@@ -2,6 +2,7 @@
 
 import { useState } from 'react'
 import { useAccionPresencia } from '@/componentes/auditoria/accion'
+import { AvisoEnLinea } from '@/componentes/estado/Estados'
 import { CerrarDialogo, ContenidoDialogo, Dialogo } from '@/componentes/superposiciones/Dialogo'
 import { Boton } from '@/componentes/formularios/Boton'
 import { Campo } from '@/componentes/formularios/Campo'
@@ -16,8 +17,10 @@ import type { OpcionFiltro } from '@/definiciones/tipos'
 import { TIPOS_DE_FACTURACION } from '@/definiciones/espacios'
 import { GLOSARIO } from '@/dominio/glosario'
 import { esHtml, textoAHtml } from '@/dominio/texto-rico'
+import { SeccionContratoDelProyecto, type VinculoDeContrato } from './SeccionContratoDelProyecto'
 import { hoyLocal } from '@/lib/fechas'
 import { enFormatoTitulo } from '@/lib/titulo'
+import { useAviso } from '@/componentes/estado/useAviso'
 
 /**
  * Alta y edicion de un Proyecto.
@@ -83,6 +86,7 @@ function Campos ({
 }) {
   const esAlta = espacio === null
 
+  const aviso = useAviso()
   const [nombre, setNombre] = useState(espacio?.name ?? '')
   const [cliente, setCliente] = useState(espacio?.client === null || espacio === null ? '' : String(espacio.client.id))
   const [estado, setEstado] = useState(String(espacio?.status ?? 2))
@@ -92,6 +96,7 @@ function Campos ({
   const [horas, setHoras] = useState(espacio?.estimated_hours === null || espacio === null ? '' : String(espacio.estimated_hours))
   // HTML del editor. Parte de la version saneada de la API; sin ella, del texto plano.
   const [descripcion, setDescripcion] = useState(espacio?.description_html ?? espacio?.description ?? '')
+  const [vinculo, setVinculo] = useState<VinculoDeContrato | null>(null)
   const [enviando, setEnviando] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
@@ -115,6 +120,11 @@ function Campos ({
       return
     }
 
+    if (esAlta && vinculo?.dentro === true && vinculo.contrato === null) {
+      setError(`Elige el ${GLOSARIO.contrato.singular.toLowerCase()} del que hereda el ${GLOSARIO.scope.singular.toLowerCase()}.`)
+      return
+    }
+
     const comunes = {
       name: enFormatoTitulo(nombre),
       // Un texto plano que el editor aun no cargo se convierte: `format: 'html'` no puede acompañarlo.
@@ -133,13 +143,16 @@ function Campos ({
       ? await escribirEnBff('projects', 'POST', {
         ...comunes,
         clientid: Number(cliente),
-        billing_type: Number(facturacion)
+        billing_type: Number(facturacion),
+        // Sin vinculo (cliente sin contratos vigentes) no se manda nada: el alta queda como siempre.
+        ...(vinculo?.contrato != null ? { contract_id: vinculo.contrato, dentro_scope: vinculo.dentro } : {})
       })
       : await escribirEnBff(`projects/${espacio.id}`, 'PATCH', comunes)
 
     setEnviando(false)
 
     if (resultado.ok) {
+      aviso.exito(espacio === null ? `«${nombre.trim()}» se creó.` : `Cambios de «${nombre.trim()}» guardados.`)
       onGuardado()
       return
     }
@@ -167,6 +180,10 @@ function Campos ({
               />
             )}
           </Campo>
+
+          {cliente !== '' && (
+            <SeccionContratoDelProyecto key={cliente} clienteId={Number(cliente)} onCambio={setVinculo} />
+          )}
 
           <Campo etiqueta="Tipo de facturación">
             {(props) => (
@@ -226,7 +243,7 @@ function Campos ({
         )}
       </Campo>
 
-      {error !== null && <p role="alert" className="text-texto-peligro text-sm">{error}</p>}
+      {error !== null && <AvisoEnLinea variante="error" mensaje={error} className="text-sm" />}
 
       <div className="flex justify-end gap-2">
         <CerrarDialogo asChild>

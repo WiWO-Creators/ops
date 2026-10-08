@@ -4,6 +4,7 @@ import { usePathname } from 'next/navigation'
 import { useEffect } from 'react'
 import { pantallaDeRuta } from '@/dominio/pantalla'
 import { accionEnCurso, escucharAccion, rutaDeTarea } from './accion'
+import { conLimite, TIEMPO_ESCRITURA_MS } from '@/datos/red'
 
 /**
  * Informa ubicación y acción al navegar o interactuar en cualquier parte del panel.
@@ -33,7 +34,7 @@ export function Latido ({ segundos }: { segundos: number }) {
         method: 'POST',
         headers: { 'content-type': 'application/json' },
         body: JSON.stringify({ route: rutaDeTarea() ?? normalizada, action: accionEnCurso() }),
-        signal: control.signal
+        signal: conLimite(control.signal, TIEMPO_ESCRITURA_MS)
       }).then((respuesta) => {
         if (!respuesta.ok) pendiente = true
       }).catch(() => {

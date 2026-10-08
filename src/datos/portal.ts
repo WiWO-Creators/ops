@@ -14,7 +14,7 @@
  * declarados como numeros mientras la API mandaba objetos.
  */
 
-import type { Referencia, TipoTarea } from './recursos.ts'
+import type { AdjuntoTicket, Referencia, TipoTarea } from './recursos.ts'
 
 export interface TicketPortal {
   id: number
@@ -55,6 +55,11 @@ export interface TicketPortalDetalle extends TicketPortal {
   /** El mensaje como HTML saneado (texto enriquecido). Ausente en una API anterior. */
   message_html?: string | null
   replies: RespuestaTicketPortal[]
+  /**
+   * Adjuntos del mensaje de apertura, con la misma forma que los del equipo (`download_path` baja por
+   * `files/ticket/{id}/download`). Opcional solo para convivir con un backend anterior a los adjuntos.
+   */
+  attachments?: AdjuntoTicket[]
   /** `true` si el ticket lo abrio este contacto (contrato v2, B). Sin el, nadie es «Tú». */
   mio?: boolean
   /** Quien abrio el ticket, para nombrarlo cuando no es este contacto. */
@@ -100,6 +105,8 @@ export interface RespuestaTicketPortal {
    * en un cliente con varios contactos, `from: 'cliente'` puede ser un colega.
    */
   autor?: { tipo: 'equipo' | 'cliente', nombre: string, mio: boolean }
+  /** Adjuntos de esta respuesta. Opcional por lo mismo que {@link TicketPortalDetalle.attachments}. */
+  attachments?: AdjuntoTicket[]
 }
 
 /**
@@ -955,6 +962,12 @@ export interface TareasDelTablero {
   sin_fecha: number
   cerradas_7: number
   cerradas_30: number
+  /**
+   * Cerradas dentro del mes que se mira (desde el día 1; en el mes en curso, hasta hoy).
+   *
+   * Opcional: un backend anterior no lo manda y la pantalla cae a `cerradas_7`.
+   */
+  cerradas_mes?: number
 }
 
 export interface PrioridadDelTablero {

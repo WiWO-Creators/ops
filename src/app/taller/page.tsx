@@ -29,6 +29,11 @@ import {
 } from '@/componentes/datos/Tabla'
 import { nombrar } from '@/dominio/glosario'
 import { ESCENAS } from '@/componentes/estructura/bienvenida/escenas'
+import { SeccionEstadosDeFormulario } from './secciones/SeccionEstadosDeFormulario'
+import { SeccionPiezasDelSistema } from './secciones/SeccionPiezasDelSistema'
+import { SeccionPlazosYCopiado } from './secciones/SeccionPlazosYCopiado'
+import { SeccionSelectoresRelacionales } from './secciones/SeccionSelectoresRelacionales'
+import { SeccionSuperposicionesDeDatos } from './secciones/SeccionSuperposicionesDeDatos'
 
 /** Estados de Proceso tal como los devuelve `lookups`, ordenados por `order` y no por `id`. */
 const ESTADOS = [
@@ -397,6 +402,12 @@ export default function TallerPage () {
           </MenuContextual>
         </Muestra>
       </SeccionTaller>
+
+      <SeccionEstadosDeFormulario />
+      <SeccionSuperposicionesDeDatos />
+      <SeccionSelectoresRelacionales />
+      <SeccionPlazosYCopiado />
+      <SeccionPiezasDelSistema />
 
       <SeccionTaller
         titulo="Tabla"

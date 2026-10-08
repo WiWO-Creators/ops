@@ -10,7 +10,7 @@
  * **Acá no se decide quién ve qué.** Eso ya lo resolvió la API antes de mandar los datos.
  */
 import { ordenDeEscalon } from './escalon.ts'
-import { normalizar } from './salas.ts'
+import { normalizar } from './busqueda.ts'
 import type { AreaDelOrganigrama, Organigrama, PersonaDelOrganigrama } from '../datos/organigrama.ts'
 
 /** Un nodo del árbol de personas: quién es, quién cuelga de ella y si es del área que se mira. */
@@ -265,7 +265,7 @@ export function cuantosSinArea (organigrama: Organigrama): number {
  * @param id el área de la persona, o `null`
  * @returns el nombre para pintar
  */
-export function nombreDeArea (areas: AreaDelOrganigrama[], id: number | null): string {
+export function nombreDeArea (areas: Array<Pick<AreaDelOrganigrama, 'id' | 'nombre'>>, id: number | null): string {
   if (id === null) return 'Sin área'
 
   return areas.find((una) => una.id === id)?.nombre ?? `Área #${id}`

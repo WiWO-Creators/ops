@@ -61,6 +61,18 @@ test('no se puede escalar fuera de la lista con .. ni con segmentos vacios', () 
   assert.equal(rutaPermitida(['tasks', '.']), false)
 })
 
+test('rechaza segmentos con separadores, consulta, ancla o escapes (ya decodificados por Next)', () => {
+  for (const segmento of ['a/b', 'a\\b', '1?x=2', '1#ancla', '%2e%2e', '%2F', '..%2f..', '5%']) {
+    assert.equal(rutaPermitida(['tasks', segmento, 'comments']), false, segmento)
+    assert.equal(rutaPermitida(['portal', segmento], 'contacto'), false, segmento)
+  }
+})
+
+test('los segmentos normales con guion, punto o numero siguen pasando', () => {
+  assert.equal(rutaPermitida(['tasks', '512', 'comments']), true)
+  assert.equal(rutaPermitida(['files', 'abc-123.def', 'download']), true)
+})
+
 /**
  * El matcher del proxy, tal cual lo declara `proxy.ts`.
  *
@@ -177,4 +189,9 @@ test('cambiar la visibilidad de un adjunto pasa por el BFF solo para el equipo',
     assert.equal(rutaPermitida(ruta, 'staff'), true, ruta.join('/'))
     assert.equal(rutaPermitida(ruta, 'contacto'), false, ruta.join('/'))
   }
+})
+
+test('database-export pasa para staff y no para el portal', () => {
+  assert.equal(rutaPermitida(['database-export'], 'staff'), true)
+  assert.equal(rutaPermitida(['database-export'], 'contacto'), false)
 })

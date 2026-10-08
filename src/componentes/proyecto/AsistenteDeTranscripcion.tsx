@@ -16,7 +16,7 @@ import {
   type Transcripcion
 } from '@/dominio/transcripcion'
 import { Segmentado } from '@/componentes/formularios/Segmentado'
-import { Cargando, ErrorEstado } from '@/componentes/estado/Estados'
+import { AvisoEnLinea, Cargando, ErrorEstado } from '@/componentes/estado/Estados'
 import { GrabadoraDeAudio } from './GrabadoraDeAudio'
 import { Paso } from './acta/Paso'
 import { ResultadoDeTranscripcion } from './acta/ResultadoDeTranscripcion'
@@ -284,7 +284,7 @@ export function AsistenteDeTranscripcion ({
                     onChange={(evento) => { elegirArchivo(evento.target.files?.[0] ?? null) }}
                     className="text-texto-tenue file:rounded-control file:border-control-borde file:bg-control file:text-texto hover:file:bg-hover w-full cursor-pointer text-sm file:mr-3 file:cursor-pointer file:border file:px-3 file:py-1.5 file:text-sm file:font-semibold"
                   />
-                  {errorArchivo !== null && <p role="alert" className="text-texto-peligro text-xs">{errorArchivo}</p>}
+                  {errorArchivo !== null && <AvisoEnLinea variante="error" mensaje={errorArchivo} />}
                   {archivo !== null && (
                     <p className="text-texto-tenue text-xs">{archivo.name} ({formatoPeso(archivo.size)})</p>
                   )}
@@ -306,9 +306,7 @@ export function AsistenteDeTranscripcion ({
       </div>
 
       {error !== null && (
-        <p role="alert" className="bg-superficie-peligro text-texto-peligro rounded-chico px-3 py-2 text-sm">
-          {error}
-        </p>
+        <AvisoEnLinea variante="error" mensaje={error} className="bg-superficie-peligro rounded-chico px-3 py-2 text-sm" />
       )}
 
       <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-end">

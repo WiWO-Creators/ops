@@ -139,6 +139,15 @@ export interface Filtro {
    */
   etiquetaSinFiltro?: string
   /**
+   * Texto del disparador mientras el filtro vale exactamente lo que dice `filtrosPorDefecto`.
+   *
+   * Existe para que un filtro puesto sin que nadie lo pidiera no pase desapercibido: la bandeja de
+   * tickets arranca sin los Cerrados, y un disparador que dijera "Abierto +3" obliga a contar para
+   * descubrir que falta algo. Con "Abiertos" la vista dice lo que muestra. Si la persona cambia la
+   * seleccion deja de aplicar y el disparador vuelve a resumir lo marcado.
+   */
+  etiquetaDelDefecto?: string
+  /**
    * Clave del filtro del que este depende: cuando aquel cambia, este se borra.
    *
    * Existe porque un catalogo puede colgar de otro filtro. Los Hitos son de un Espacio: filtrar por
@@ -203,6 +212,17 @@ export interface DefinicionRecurso<T> {
    * Un arreglo compone un orden de varios campos (ej. `['completed', '-date_added']`).
    */
   ordenPorDefecto: string | string[]
+  /**
+   * Filtros que valen mientras la URL no diga nada de ellos. Clave del filtro -> valores separados por
+   * comas, tal como viajan a la API (`'1,2,3,4'`). Cada clave debe estar en `filtros`.
+   *
+   * Existe para listados cuyo reposo no es "todo": la bandeja de tickets arranca sin los Cerrados,
+   * porque son la mayoria y entierran lo pendiente. El criterio es POR FILTRO: si la URL trae
+   * `filter[status]` —con valores o con `todos`— manda la URL; si no lo trae, vale el default. Asi
+   * "Limpiar filtros" (que deja la URL sin filtros) vuelve al default y `todos` es la salida explicita
+   * (ver `FILTRO_TODOS_EN_URL` en `datos/consulta.ts`).
+   */
+  filtrosPorDefecto?: Record<string, string>
   /** El recurso acepta el parametro `q`. */
   busqueda: boolean
   /** Valores que el backend acepta en `include`. */

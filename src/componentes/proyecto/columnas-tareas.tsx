@@ -4,7 +4,7 @@ import { useState, type ReactElement } from 'react'
 import { conCeldasRicas } from '@/componentes/datos/celdas-procesos'
 import { EnlacePersonalizado } from '@/componentes/presentadores/EnlacePersonalizado'
 import { Insignia } from '@/componentes/presentadores/Insignia'
-import { leerError } from '@/datos/errores'
+import { comprobarEntidad, mutarEnBff } from '@/componentes/datos/mutar'
 import { resolverEstado } from '@/dominio/estados-tarea'
 import { ETIQUETA_VEREDICTO, TONO_VEREDICTO } from '@/dominio/scope'
 import type { Veredicto } from '@/datos/scope'
@@ -15,6 +15,7 @@ import type { FuenteDeProyecto } from '@/dominio/fuente-proyecto'
 import { procesosDelEspacio } from '@/definiciones/procesos'
 import { procesosDelContacto } from '@/definiciones/portal-proyectos'
 import { filtrosDeCamposPersonalizados } from '@/definiciones/filtros'
+import { AvisoEnLinea } from '@/componentes/estado/Estados'
 import { EstadoDeTarea } from './EstadoDeTarea'
 import { camposDeTabla, valorDeCampo } from './tareas'
 
@@ -53,8 +54,10 @@ interface PropsEstado {
 function EstadoEditable ({ proceso, estados, editable, onCambiado }: PropsEstado): ReactElement | null {
   const [enCurso, setEnCurso] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  // El valor elegido mientras viaja: sin esto el select vuelve al anterior y parece que el clic no hizo nada.
+  const [pintado, setPintado] = useState<string | null>(null)
 
-  const actual = resolverEstado(proceso.status, estados)
+  const actual = resolverEstado(pintado === null ? proceso.status : Number(pintado), estados)
 
   if (!editable) return <EstadoDeTarea status={proceso.status} catalogo={estados} />
 
@@ -62,22 +65,40 @@ function EstadoEditable ({ proceso, estados, editable, onCambiado }: PropsEstado
   async function cambiar (valor: string): Promise<void> {
     setEnCurso(true)
     setError(null)
+    setPintado(valor)
 
     try {
-      const respuesta = await fetch('/api/bff/tasks/bulk', {
-        method: 'POST',
-        headers: { 'content-type': 'application/json', accept: 'application/json' },
-        body: JSON.stringify({ ids: [proceso.id], accion: 'status', valor: Number(valor) })
-      })
+      const resultado = await mutarEnBff<{ aplicados: number }>(
+        'tasks/bulk', 'POST', { ids: [proceso.id], accion: 'status', valor: Number(valor) },
+        {
+          servidorIdempotente: true,
+          yaAplicada: comprobarEntidad<Proceso>(`tasks/${proceso.id}`, (tarea) => tarea.status === Number(valor))
+        }
+      )
 
-      if (!respuesta.ok) {
-        setError((await leerError(respuesta)).message)
+      if (!resultado.ok) {
+        setPintado(null)
+        setError(resultado.mensaje)
+        if (resultado.incierta === true) onCambiado()
+        return
+      }
+
+      if (resultado.verificada === true) {
+        setPintado(null)
+        onCambiado()
+        return
+      }
+
+      // `aplicados: 0` es un 200 que no cambio nada (permisos, visibilidad): no es un guardado.
+      if (resultado.datos?.aplicados !== 1) {
+        setPintado(null)
+        setError('No se pudo cambiar el estado: puede que ya no tengas acceso a esta tarea.')
+        onCambiado()
         return
       }
 
       onCambiado()
-    } catch {
-      setError('No se pudo cambiar el estado: revisa la conexión.')
+      setPintado(null)
     } finally {
       setEnCurso(false)
     }
@@ -92,7 +113,7 @@ function EstadoEditable ({ proceso, estados, editable, onCambiado }: PropsEstado
   return (
     <span className="flex flex-col gap-1" aria-busy={enCurso}>
       <select
-        value={String(proceso.status)}
+        value={pintado ?? String(proceso.status)}
         disabled={enCurso}
         style={{ borderColor: actual.color }}
         aria-label={`Estado de «${proceso.name}»`}
@@ -103,7 +124,7 @@ function EstadoEditable ({ proceso, estados, editable, onCambiado }: PropsEstado
           <option key={estado.valor} value={estado.valor}>{estado.etiqueta}</option>
         ))}
       </select>
-      {error !== null && <span role="alert" className="text-texto-peligro text-xs">{error}</span>}
+      {error !== null && <AvisoEnLinea variante="error" mensaje={error} elemento="span" />}
     </span>
   )
 }

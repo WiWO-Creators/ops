@@ -1,7 +1,8 @@
 'use client'
 
 import { useRouter } from 'next/navigation'
-import { useState } from 'react'
+import { useId, useState } from 'react'
+import { AvisoEnLinea } from '@/componentes/estado/Estados'
 import { Boton } from '@/componentes/formularios/Boton'
 import {
   CerrarDialogo,
@@ -9,6 +10,7 @@ import {
   Dialogo,
   DisparadorDialogo
 } from '@/componentes/superposiciones/Dialogo'
+import { conLimite, TIEMPO_ESCRITURA_MS } from '@/datos/red'
 
 interface PropsBotonSuplantar {
   personaId: number
@@ -31,6 +33,7 @@ export function BotonSuplantar ({ personaId, nombre, activa }: PropsBotonSuplant
   const [abierto, setAbierto] = useState(false)
   const [entrando, setEntrando] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const idMotivo = useId()
 
   async function suplantar (): Promise<void> {
     setEntrando(true)
@@ -40,7 +43,8 @@ export function BotonSuplantar ({ personaId, nombre, activa }: PropsBotonSuplant
       const respuesta = await fetch('/api/sesion/suplantar', {
         method: 'POST',
         headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({ staffId: personaId })
+        body: JSON.stringify({ staffId: personaId }),
+        signal: conLimite(undefined, TIEMPO_ESCRITURA_MS)
       })
 
       if (!respuesta.ok) {
@@ -64,10 +68,19 @@ export function BotonSuplantar ({ personaId, nombre, activa }: PropsBotonSuplant
     }
   }
 
+  if (!activa) {
+    return (
+      <span className="inline-flex items-center gap-2">
+        <Boton variante="sutil" tamano="chico" disabled aria-describedby={idMotivo}>Ver como</Boton>
+        <span id={idMotivo} className="text-texto-sutil text-xs">Cuenta inactiva: no se puede ver como esta persona.</span>
+      </span>
+    )
+  }
+
   return (
     <Dialogo open={abierto} onOpenChange={setAbierto}>
       <DisparadorDialogo asChild>
-        <Boton variante="sutil" tamano="chico" disabled={!activa}>Ver como</Boton>
+        <Boton variante="sutil" tamano="chico">Ver como</Boton>
       </DisparadorDialogo>
 
       <ContenidoDialogo
@@ -82,7 +95,7 @@ export function BotonSuplantar ({ personaId, nombre, activa }: PropsBotonSuplant
           </p>
 
           {error !== null && (
-            <p role="alert" className="text-texto-peligro text-sm">{error}</p>
+            <AvisoEnLinea variante="error" mensaje={error} className="text-sm" />
           )}
 
           <div className="flex justify-end gap-2">

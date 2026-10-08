@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useRef, useState } from 'react'
-import { Send } from 'lucide-react'
+import { Send, TriangleAlert } from 'lucide-react'
 import { useChat, type ReceivedChatMessage } from '@livekit/components-react'
 import { Entrada } from '@/componentes/formularios/Entrada'
 import { Boton } from '@/componentes/formularios/Boton'
@@ -114,9 +114,13 @@ export function ChatDeSala ({ miIdentidad, alLlegarMensaje, className }: PropsCh
       </div>
 
       {error && (
-        <p role="status" className="text-texto-peligro px-3 text-xs">
-          No se pudo enviar. Prueba de nuevo.
-        </p>
+        <div role="alert" className="text-texto-peligro animate-entrar-abajo flex items-center gap-2 px-3 text-xs">
+          <TriangleAlert aria-hidden="true" className="size-3.5 shrink-0" />
+          <span className="min-w-0 flex-1">No se pudo enviar el mensaje.</span>
+          <Boton tamano="chico" variante="sutil" cargando={isSending} onClick={() => { void enviar() }}>
+            Reintentar
+          </Boton>
+        </div>
       )}
 
       <form
@@ -129,7 +133,10 @@ export function ChatDeSala ({ miIdentidad, alLlegarMensaje, className }: PropsCh
         <div ref={contenedorEntradaRef} className="flex-1">
           <Entrada
             value={texto}
-            onChange={(evento) => setTexto(evento.target.value)}
+            onChange={(evento) => {
+              setTexto(evento.target.value)
+              setError(false)
+            }}
             placeholder="Escribe un mensaje…"
           />
         </div>

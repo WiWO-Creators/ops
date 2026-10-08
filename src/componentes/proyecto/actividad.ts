@@ -1,4 +1,5 @@
 import { formatearFecha } from '../../lib/fechas.ts'
+import { SIN_DATO } from '../../lib/presentacion.ts'
 
 /**
  * Agrupacion del feed de actividad por dia.
@@ -12,8 +13,6 @@ import { formatearFecha } from '../../lib/fechas.ts'
  * de las 22:00 cayera en un dia distinto segun quien la pinte.
  */
 
-/** Lo que `formatearFecha` devuelve cuando no hay fecha. Misma marca en todo el producto. */
-const SIN_DATO = '—'
 
 /**
  * Lo minimo que una entrada tiene que traer para pintarse.

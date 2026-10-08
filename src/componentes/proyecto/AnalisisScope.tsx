@@ -3,7 +3,7 @@
 import { Suspense, useEffect, useMemo, useState, type ReactElement } from 'react'
 import Link from 'next/link'
 import { Boton } from '@/componentes/formularios/Boton'
-import { Cargando } from '@/componentes/estado/Estados'
+import { AvisoEnLinea, Cargando } from '@/componentes/estado/Estados'
 import { Entrada } from '@/componentes/formularios/Entrada'
 import { useParametroEnUrl } from '@/componentes/datos/useFiltrosEnUrl'
 import { Segmentado } from '@/componentes/formularios/Segmentado'
@@ -120,7 +120,7 @@ export function AnalisisDelScope ({ proyectoId, analisis, hayScope, ia, onAnaliz
         </p>
       )}
 
-      {error !== null && <p role="alert" className="text-texto-peligro text-sm">{error}</p>}
+      {error !== null && <AvisoEnLinea variante="error" mensaje={error} className="text-sm" />}
 
       {!hayScope && analisis === null && (
         <p className="text-texto-tenue text-sm">

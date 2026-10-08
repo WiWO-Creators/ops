@@ -1,15 +1,17 @@
 'use client'
 
-import { useEffect, useId, useState } from 'react'
+import { useEffect, useId, useRef, useState } from 'react'
 import { Plus } from 'lucide-react'
+import { AvisoEnLinea } from '@/componentes/estado/Estados'
 import { Boton } from '@/componentes/formularios/Boton'
+import { escribirEnBff } from '@/componentes/datos/mutaciones'
 import { Campo } from '@/componentes/formularios/Campo'
 import { AreaTexto, Entrada } from '@/componentes/formularios/Entrada'
 import { formatearDuracion } from '@/componentes/proyecto/cronometro'
 import { AYUDA_DURACION, validarTimesheet } from '@/componentes/proyecto/timesheet'
 import { ContenidoDialogo, Dialogo } from '@/componentes/superposiciones/Dialogo'
 import { pedirSobre } from '@/datos/cliente'
-import { leerError } from '@/datos/errores'
+import { claveDeIdempotencia } from '@/datos/red'
 import type { ResumenDeJornada } from '@/datos/live'
 import { agruparCierre, nombreDeItem, segundosDeItem } from '@/dominio/cierre-jornada'
 import { GLOSARIO } from '@/dominio/glosario'
@@ -226,7 +228,7 @@ function CuerpoCierre ({ staffId, cerrando, aviso, onSeguir, onConfirmar }: Prop
       />
 
       {aviso !== null && (
-        <p role="alert" className="text-texto-peligro text-sm text-pretty">{aviso}</p>
+        <AvisoEnLinea variante="error" mensaje={aviso} className="text-sm text-pretty" />
       )}
 
       <div className="border-linea flex flex-wrap justify-end gap-2 border-t pt-4">
@@ -374,6 +376,17 @@ function AgregarTiempo ({ staffId, deshabilitado, onAgregado }: PropsAgregar) {
   const [error, setError] = useState<string | null>(null)
   const [agregado, setAgregado] = useState(false)
   const [enCurso, setEnCurso] = useState(false)
+  const claveAlta = useRef<{ huella: string, clave: string } | null>(null)
+
+  /**
+   * Clave de idempotencia del alta en curso: la misma mientras el cuerpo no cambie, para que repetir
+   * tras una respuesta perdida no sume el tiempo dos veces.
+   */
+  function claveDelAlta (huella: string): string {
+    if (claveAlta.current?.huella !== huella) claveAlta.current = { huella, clave: claveDeIdempotencia() }
+
+    return claveAlta.current.clave
+  }
 
   async function agregar (): Promise<void> {
     if (espacio === null) {
@@ -404,17 +417,20 @@ function AgregarTiempo ({ staffId, deshabilitado, onAgregado }: PropsAgregar) {
     setAgregado(false)
 
     try {
-      const respuesta = await fetch(`/api/bff/projects/${espacio}/timesheets`, {
-        method: 'POST',
-        headers: { 'content-type': 'application/json', accept: 'application/json' },
-        body: JSON.stringify(validacion.cuerpo)
+      const huella = JSON.stringify([espacio, validacion.cuerpo])
+      const resultado = await escribirEnBff(`projects/${espacio}/timesheets`, 'POST', validacion.cuerpo, {
+        idempotencia: claveDelAlta(huella)
       })
 
-      if (!respuesta.ok) {
-        setError((await leerError(respuesta)).message)
+      if (!resultado.ok) {
+        // Con la respuesta perdida el formulario queda intacto y la clave se conserva: repetir no duplica.
+        setError(resultado.incierta === true
+          ? 'No sabemos si el tiempo se agregó. Revisa el resumen de arriba antes de repetirlo; si lo pulsas de nuevo, no se duplicará.'
+          : resultado.mensaje)
         return
       }
 
+      claveAlta.current = null
       setTarea(null)
       setDuracion('')
       setNota('')
@@ -422,8 +438,6 @@ function AgregarTiempo ({ staffId, deshabilitado, onAgregado }: PropsAgregar) {
       // El contador de la cabecera cuenta el tiempo cubierto por marcajes, y acaba de cambiar.
       avisarCambioDeMedidor()
       onAgregado()
-    } catch {
-      setError('No se pudo agregar el tiempo: revisa la conexión.')
     } finally {
       setEnCurso(false)
     }
@@ -507,7 +521,7 @@ function AgregarTiempo ({ staffId, deshabilitado, onAgregado }: PropsAgregar) {
       </div>
 
       {error !== null && (
-        <p role="alert" className="text-texto-peligro text-xs text-pretty">{error}</p>
+        <AvisoEnLinea variante="error" mensaje={error} className="text-pretty" />
       )}
 
       {/*

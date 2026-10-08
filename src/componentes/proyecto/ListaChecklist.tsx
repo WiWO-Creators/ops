@@ -1,7 +1,7 @@
 'use client'
 
 import { Trash2 } from 'lucide-react'
-import { useState, type FormEvent, type ReactElement } from 'react'
+import { startTransition, useState, ViewTransition, type FormEvent, type ReactElement } from 'react'
 import { Cargando, ErrorEstado } from '@/componentes/estado/Estados'
 import { escribirEnBff } from '@/componentes/datos/mutaciones'
 import { Boton } from '@/componentes/formularios/Boton'
@@ -83,7 +83,11 @@ export function ListaChecklist ({ procesoId }: { procesoId: number }): ReactElem
       return false
     }
 
-    setEscrita(aplicar(resultado.datos))
+    // Alta y baja van en una transicion para que el `<ViewTransition>` de cada item anime la fila que
+    // entra o sale y el corrimiento de las demas. Tildar no: es un cambio en el lugar.
+    const siguiente = aplicar(resultado.datos)
+    if (metodo === 'PATCH') setEscrita(siguiente)
+    else startTransition(() => { setEscrita(siguiente) })
     return true
   }
 
@@ -141,28 +145,29 @@ export function ListaChecklist ({ procesoId }: { procesoId: number }): ReactElem
       {estado.fase === 'listo' && items.length > 0 && (
         <ul className="border-linea bg-superficie-elevada divide-linea-suave rounded-tarjeta divide-y border">
           {items.map((item) => (
-            <Item
-              key={item.id}
-              item={item}
-              bloqueado={ocupado !== null}
-              onTildar={(finished) => {
-                void escribir(
-                  item.id,
-                  `/${item.id}`,
-                  'PATCH',
-                  (guardado) => items.map((otro) => (otro.id === item.id ? guardado ?? otro : otro)),
-                  { finished }
-                )
-              }}
-              onQuitar={() => {
-                void escribir(
-                  item.id,
-                  `/${item.id}`,
-                  'DELETE',
-                  () => items.filter((otro) => otro.id !== item.id)
-                )
-              }}
-            />
+            <ViewTransition key={item.id} name={`checklist-${item.id}`} enter="fila-entrar" exit="fila-salir" update="auto" default="none">
+              <Item
+                item={item}
+                bloqueado={ocupado !== null}
+                onTildar={(finished) => {
+                  void escribir(
+                    item.id,
+                    `/${item.id}`,
+                    'PATCH',
+                    (guardado) => items.map((otro) => (otro.id === item.id ? guardado ?? otro : otro)),
+                    { finished }
+                  )
+                }}
+                onQuitar={() => {
+                  void escribir(
+                    item.id,
+                    `/${item.id}`,
+                    'DELETE',
+                    () => items.filter((otro) => otro.id !== item.id)
+                  )
+                }}
+              />
+            </ViewTransition>
           ))}
         </ul>
       )}

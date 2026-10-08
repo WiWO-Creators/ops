@@ -1,5 +1,5 @@
 import { Bloque } from '@/app/portal/(dentro)/detalle'
-import { BarraProgreso } from '@/componentes/proyecto/CabeceraProyecto'
+import { BarraProgreso } from '@/componentes/presentadores/BarraProgreso'
 import { formatearNumero } from '@/componentes/proyecto/ResumenProyecto'
 import { Cifra, FilaDeProceso, Nota } from './piezas'
 import {

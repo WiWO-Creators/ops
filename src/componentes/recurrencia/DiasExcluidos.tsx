@@ -4,6 +4,7 @@ import { useId, type ReactElement } from 'react'
 import {
   alternarDia, alternarFinesDeSemana, DIAS_SEMANA, excluyeFinesDeSemana, textoDeDiasExcluidos
 } from '@/dominio/recurrencia'
+import { AvisoEnLinea } from '@/componentes/estado/Estados'
 import { cn } from '@/lib/clases'
 
 /**
@@ -51,7 +52,7 @@ export function DiasExcluidos ({ valor, onCambiar, error, deshabilitado = false 
                 title={excluido ? `Los ${dia.nombre} no se generan copias` : `Los ${dia.nombre} sí se generan copias`}
                 onClick={() => { onCambiar(alternarDia(valor, dia.iso)) }}
                 className={cn(
-                  'rounded-control size-8 border text-xs font-semibold transition-colors duration-150',
+                  'rounded-control size-8 border text-xs font-semibold transition-colors duration-rapida ease-neo',
                   'disabled:cursor-not-allowed disabled:opacity-60',
                   excluido
                     ? 'bg-acento text-acento-contenido border-transparent'
@@ -69,7 +70,7 @@ export function DiasExcluidos ({ valor, onCambiar, error, deshabilitado = false 
           aria-pressed={finDeSemana}
           onClick={() => { onCambiar(alternarFinesDeSemana(valor)) }}
           className={cn(
-            'rounded-control h-8 border px-3 text-xs font-medium transition-colors duration-150',
+            'rounded-control h-8 border px-3 text-xs font-medium transition-colors duration-rapida ease-neo',
             'disabled:cursor-not-allowed disabled:opacity-60',
             finDeSemana
               ? 'border-acento text-acento bg-acento-suave'
@@ -81,7 +82,7 @@ export function DiasExcluidos ({ valor, onCambiar, error, deshabilitado = false 
       </div>
 
       {error !== undefined
-        ? <p id={`${id}-nota`} role="alert" className="text-texto-peligro text-xs">{error}</p>
+        ? <AvisoEnLinea variante="error" mensaje={error} id={`${id}-nota`} />
         : (
           <p id={`${id}-nota`} className="text-texto-sutil text-xs">
             {frase === ''

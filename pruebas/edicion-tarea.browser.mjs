@@ -91,7 +91,7 @@ try {
   }
   /** Guarda y espera el cierre y la actualización del detalle antes del siguiente caso. */
   async function guardar () {
-    await dialogo.getByRole('button', { name: 'Guardar', exact: true }).click()
+    await dialogo.getByRole('button', { name: 'Guardar cambios', exact: true }).click()
     await dialogo.waitFor({ state: 'hidden' })
     await pagina.waitForLoadState('networkidle')
   }
@@ -102,7 +102,7 @@ try {
   // ella, y la fixture viene sin descripción. Se comprueba que bloquea ANTES de rellenarla, porque
   // si no el resto de la prueba pasaría sin saber que esa regla existe.
   await abrir()
-  await dialogo.getByRole('button', { name: 'Guardar', exact: true }).click()
+  await dialogo.getByRole('button', { name: 'Guardar cambios', exact: true }).click()
   await dialogo.waitFor()
   assert.equal(parches.length, 0, 'Guardar sin descripción no puede escribir.')
 
@@ -129,7 +129,7 @@ try {
   await pagina.screenshot({ path: 'output/playwright/edicion-tarea-movil.png', fullPage: true })
   await pagina.setViewportSize({ width: 1440, height: 1100 })
   fallar = true
-  await dialogo.getByRole('button', { name: 'Guardar', exact: true }).click()
+  await dialogo.getByRole('button', { name: 'Guardar cambios', exact: true }).click()
   await dialogo.getByText('Fallo de prueba; vuelve a guardar.', { exact: true }).waitFor()
   assert.equal(await dialogo.getByLabel('Tarifa por hora', { exact: true }).inputValue(), '150.50')
   await guardar()
@@ -156,7 +156,7 @@ try {
   await dialogo.getByLabel('Tarifa por hora', { exact: true }).fill('25')
   await dialogo.getByLabel('Referencia de prueba', { exact: true }).fill('Conservar al reintentar')
   fallarPersonalizados = true
-  await dialogo.getByRole('button', { name: 'Guardar', exact: true }).click()
+  await dialogo.getByRole('button', { name: 'Guardar cambios', exact: true }).click()
   await dialogo.getByText('No se guardaron los campos personalizados: Fallo personalizado de prueba.', { exact: true }).waitFor()
   const parchesAntesDeReintentar = parches.length
   const accionesAntesDeReintentar = acciones.length

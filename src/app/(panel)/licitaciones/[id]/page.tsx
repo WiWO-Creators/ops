@@ -11,7 +11,7 @@ import type { EstadoIa } from '@/dominio/ajustes'
 import { fuenteDelPanel } from '@/dominio/fuente-proyecto'
 import type { OpcionCampo } from '@/componentes/proyecto/formulario'
 import { cargarLookups, listaDe } from '@/datos/lookups'
-import { pedir } from '@/datos/servidor'
+import { cargarYo, pedir } from '@/datos/servidor'
 import type { EstadoLookup, LicitacionDetalle, Lookups } from '@/datos/recursos'
 import type { Yo } from '@/datos/tipos'
 import { GLOSARIO } from '@/dominio/glosario'
@@ -69,7 +69,7 @@ async function cargarDetalle (id: string): Promise<Detalle | ErrorApi> {
     const [licitacion, lookups, yo, ia] = await Promise.all([
       traerLicitacion(id),
       cargarLookups(),
-      pedir<Yo>('/me'),
+      cargarYo(),
       estadoIa()
     ])
 

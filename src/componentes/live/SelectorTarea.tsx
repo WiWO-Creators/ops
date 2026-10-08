@@ -15,7 +15,7 @@ import {
 import { pedirSobre } from '@/datos/cliente'
 import type { Proceso } from '@/datos/recursos'
 import { GLOSARIO } from '@/dominio/glosario'
-import { filtrarPorNombre } from '@/dominio/live'
+import { filtrarPorPatenteYNombre } from '@/dominio/live'
 import { cn } from '@/lib/clases'
 
 /**
@@ -139,7 +139,7 @@ export function SelectorTarea ({
   const cargando = tareas === null
   const todas = tareas ?? []
   const elegida = todas.find((tarea) => tarea.id === valor) ?? null
-  const visibles = filtrarPorNombre(todas, busqueda)
+  const visibles = filtrarPorPatenteYNombre(todas, busqueda)
   const conBuscador = todas.length >= UMBRAL_BUSCADOR
   const nombre = GLOSARIO.proceso.singular.toLowerCase()
 
@@ -171,6 +171,9 @@ export function SelectorTarea ({
         >
           {visibles.map((tarea) => (
             <ItemMenuRadio key={tarea.id} value={String(tarea.id)}>
+              {tarea.patente != null && tarea.patente !== '' && (
+                <span className="text-texto-sutil shrink-0 font-mono text-xs">{tarea.patente}</span>
+              )}
               <span className="truncate">{tarea.name}</span>
             </ItemMenuRadio>
           ))}

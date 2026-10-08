@@ -212,6 +212,32 @@ export function horaDeReloj (ahora: number | null, zona: string | null): string 
 }
 
 /**
+ * El dia de hoy como `YYYY-MM-DD`, en la zona del negocio.
+ *
+ * `sv-SE` porque es el unico locale que `Intl` formatea nativamente como `YYYY-MM-DD`: escribirlo a
+ * mano con `getFullYear()` daria el dia del televisor, que es justo lo que no se quiere.
+ *
+ * @param ahora instante en milisegundos, o `null` antes de hidratar
+ * @param zona  zona IANA de la API, o `null` para dejar que formatee en la del aparato
+ * @returns la fecha en el formato del contrato, o `null` mientras no haya instante
+ */
+export function fechaEnLaZona (ahora: number | null, zona: string | null): string | null {
+  if (ahora === null || !Number.isFinite(ahora)) return null
+
+  const opciones: Intl.DateTimeFormatOptions = { year: 'numeric', month: '2-digit', day: '2-digit' }
+
+  if (zona !== null && zona !== '') opciones.timeZone = zona
+
+  try {
+    return new Intl.DateTimeFormat('sv-SE', opciones).format(new Date(ahora))
+  } catch {
+    // Una zona que no se entiende no puede apagar una columna de la pared: se cae a la del aparato.
+    return new Intl.DateTimeFormat('sv-SE', { year: 'numeric', month: '2-digit', day: '2-digit' })
+      .format(new Date(ahora))
+  }
+}
+
+/**
  * El dia de hoy escrito largo: "lunes 21 de septiembre".
  *
  * Lo usa la portada, que es la escena que nombra el area y no cuenta nada mas. Una pared que dice el
