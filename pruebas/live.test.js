@@ -681,3 +681,20 @@ test('cualquier otro codigo del Cliente da un mensaje, nunca vacio', () => {
   assert.ok(mensajeDeFalloDeCliente(500).includes('500'))
   assert.notEqual(mensajeDeFalloDeCliente(503), '')
 })
+
+test('una escritura sin respuesta no se presenta como un fallo ni como un exito', async () => {
+  const dominio = await import('../src/dominio/live.ts')
+  const mensajes = [
+    dominio.mensajeDeFalloDeJornada(dominio.ESTADO_INCIERTO, true),
+    dominio.mensajeDeFalloDeJornada(dominio.ESTADO_INCIERTO, false),
+    dominio.mensajeDeFalloDeMedidor(dominio.ESTADO_INCIERTO, true),
+    dominio.mensajeDeFalloDeProrroga(dominio.ESTADO_INCIERTO),
+    dominio.mensajeDeFalloDeCliente(dominio.ESTADO_INCIERTO)
+  ]
+
+  for (const mensaje of mensajes) {
+    assert.equal(mensaje, dominio.MENSAJE_ESCRITURA_INCIERTA)
+    assert.match(mensaje, /no sabemos si/i)
+  }
+  assert.notEqual(dominio.ESTADO_INCIERTO, 0, 'no se confunde con «no llegó a salir»')
+})

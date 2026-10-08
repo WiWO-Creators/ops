@@ -9,6 +9,8 @@
  * lo que ninguna otra capa del panel ya resuelve.
  */
 
+import { conLimite, TIEMPO_LECTURA_MS } from './red.ts'
+
 /** Como se cargo el Scope. */
 export type FuenteScope = 'estructurado' | 'texto' | 'pdf'
 
@@ -149,7 +151,7 @@ export function rutasDeScopeContrato (contratoId: number): RutasEditablesDeScope
  */
 export async function leerScopeEnSilencio (ruta: string, senal: AbortSignal): Promise<EstadoScope | null> {
   try {
-    const respuesta = await fetch(`/api/bff/${ruta}`, { signal: senal })
+    const respuesta = await fetch(`/api/bff/${ruta}`, { signal: conLimite(senal, TIEMPO_LECTURA_MS) })
 
     if (!respuesta.ok) return null
 

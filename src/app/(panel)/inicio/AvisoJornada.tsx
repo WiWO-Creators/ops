@@ -5,6 +5,7 @@ import Link from 'next/link'
 import { ArrowRight } from 'lucide-react'
 import { escucharMedidor } from '@/componentes/live/medidor'
 import type { EstadoDeJornada, MedidorEnVivo } from '@/datos/live'
+import { conLimite, TIEMPO_LECTURA_MS } from '@/datos/red'
 import { GLOSARIO } from '@/dominio/glosario'
 
 /**
@@ -133,7 +134,7 @@ export function AvisoJornada ({ inicial }: { inicial: EstadoDeJornada | null }) 
    */
   const refrescar = useCallback(async (senal: AbortSignal): Promise<void> => {
     try {
-      const respuesta = await fetch('/api/bff/me/jornada', { signal: senal })
+      const respuesta = await fetch('/api/bff/me/jornada', { signal: conLimite(senal, TIEMPO_LECTURA_MS) })
 
       if (!respuesta.ok) return
 

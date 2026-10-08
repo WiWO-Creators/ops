@@ -11,6 +11,7 @@ import { Campo } from '@/componentes/formularios/Campo'
 import { Entrada } from '@/componentes/formularios/Entrada'
 import { PanelVidrio } from '@/componentes/superposiciones/PanelVidrio'
 import { destinoDeEntrada } from '@/dominio/portal'
+import { conLimite, TIEMPO_ESCRITURA_MS } from '@/datos/red'
 
 interface RespuestaEntrar {
   ok?: boolean
@@ -64,7 +65,8 @@ export function FormularioEntrarPortal ({ aviso = null }: { aviso?: string | nul
       const respuesta = await fetch('/api/sesion', {
         method: 'POST',
         headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({ ...Object.fromEntries(datos), portal: true })
+        body: JSON.stringify({ ...Object.fromEntries(datos), portal: true }),
+        signal: conLimite(undefined, TIEMPO_ESCRITURA_MS)
       })
 
       const cuerpo = await respuesta.json() as RespuestaEntrar

@@ -11,6 +11,7 @@ import { Campo } from '@/componentes/formularios/Campo'
 import { Entrada } from '@/componentes/formularios/Entrada'
 import { PanelVidrio } from '@/componentes/superposiciones/PanelVidrio'
 import type { AccesoGoogle } from '@/datos/tipos'
+import { conLimite, TIEMPO_ESCRITURA_MS } from '@/datos/red'
 
 type Paso = 'clave' | 'codigo'
 
@@ -98,7 +99,8 @@ export function FormularioEntrar ({ google, aviso = null }: { google: AccesoGoog
       const respuesta = await fetch('/api/sesion', {
         method: 'POST',
         headers: { 'content-type': 'application/json' },
-        body: JSON.stringify(cuerpo)
+        body: JSON.stringify(cuerpo),
+        signal: conLimite(undefined, TIEMPO_ESCRITURA_MS)
       })
 
       const datos = await respuesta.json() as RespuestaEntrar
