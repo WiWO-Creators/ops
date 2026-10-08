@@ -2,7 +2,6 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Segmentado } from '@/componentes/formularios/Segmentado'
-import { Interruptor } from '@/componentes/formularios/Interruptor'
 import { Cargando, ErrorEstado, Vacio } from '@/componentes/estado/Estados'
 import { pedirSobre } from '@/datos/cliente'
 import {
@@ -28,14 +27,13 @@ type Estado =
  * Pestaña "Actividad del portal" de la ficha del Cliente: que hacen sus contactos cuando entran.
  *
  * Pide `GET /clients/{id}/portal-activity` y lo cruza con el catalogo de todo lo que el portal
- * ofrece, para que lo que NUNCA se abrio tambien aparezca. Por defecto deja afuera lo que hizo el
- * equipo con "Ver como cliente": el uso que se mide es el del cliente.
+ * ofrece, para que lo que NUNCA se abrio tambien aparezca. Nunca incluye lo que hizo el equipo
+ * con "Ver como cliente": el uso que se mide es el del cliente.
  *
  * @param clienteId el cliente que se esta mirando
  */
 export function PanelActividadPortal ({ clienteId }: { clienteId: number }) {
   const [dias, setDias] = useState<number>(30)
-  const [conEquipo, setConEquipo] = useState(false)
   const [estado, setEstado] = useState<Estado>({ fase: 'cargando' })
   const [intento, setIntento] = useState(0)
   const raiz = useRef<HTMLDivElement | null>(null)
@@ -44,9 +42,8 @@ export function PanelActividadPortal ({ clienteId }: { clienteId: number }) {
     const control = new AbortController()
     const hasta = hoyLocal()
     const desde = sumarDias(hasta, -(dias - 1)) ?? hasta
-    const consulta = `desde=${desde}&hasta=${hasta}${conEquipo ? '&suplantadas=1' : ''}`
 
-    pedirSobre<ActividadDeCliente>(`clients/${clienteId}/portal-activity?${consulta}`, control.signal)
+    pedirSobre<ActividadDeCliente>(`clients/${clienteId}/portal-activity?desde=${desde}&hasta=${hasta}`, control.signal)
       .then(({ data }) => { setEstado({ fase: 'listo', datos: data }) })
       .catch((fallo: unknown) => {
         if (control.signal.aborted) return
@@ -54,7 +51,7 @@ export function PanelActividadPortal ({ clienteId }: { clienteId: number }) {
       })
 
     return () => { control.abort() }
-  }, [clienteId, dias, conEquipo, intento])
+  }, [clienteId, dias, intento])
 
   const cambiar = useCallback((accion: () => void) => {
     setEstado((previo) => (previo.fase === 'listo' ? previo : { fase: 'cargando' }))
@@ -62,7 +59,7 @@ export function PanelActividadPortal ({ clienteId }: { clienteId: number }) {
   }, [])
 
   const datos = estado.fase === 'listo' ? estado.datos : null
-  const claveDeDatos = datos === null ? null : `${datos.desde}|${datos.hasta}|${datos.kpis.sesiones}|${conEquipo ? 1 : 0}`
+  const claveDeDatos = datos === null ? null : `${datos.desde}|${datos.hasta}|${datos.kpis.sesiones}`
 
   useCoreografia(raiz, claveDeDatos)
 
@@ -88,15 +85,6 @@ export function PanelActividadPortal ({ clienteId }: { clienteId: number }) {
           activo={String(dias)}
           onElegir={(valor) => { cambiar(() => { setDias(Number(valor)) }) }}
         />
-        <label className="text-texto-tenue flex items-center gap-2 text-sm">
-          <Interruptor
-            encendido={conEquipo}
-            etiqueta="Incluir lo que hizo el equipo con Ver como cliente"
-            deshabilitado={false}
-            onPulsar={() => { cambiar(() => { setConEquipo((v) => !v) }) }}
-          />
-          Incluir lo que hizo el equipo con «Ver como cliente»
-        </label>
       </div>
 
       {estado.fase === 'cargando' && <Cargando alto="min-h-64" mensaje="Leyendo la actividad…" />}

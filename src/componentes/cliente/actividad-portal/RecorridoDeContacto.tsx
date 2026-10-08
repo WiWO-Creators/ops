@@ -1,9 +1,8 @@
 'use client'
 
 import { useEffect, useRef, useState } from 'react'
-import { Eye, Layers, MousePointerClick, Monitor, Smartphone, UserRoundCheck, type LucideIcon } from 'lucide-react'
+import { Eye, Layers, MousePointerClick, Monitor, Smartphone, type LucideIcon } from 'lucide-react'
 import { Boton } from '@/componentes/formularios/Boton'
-import { Interruptor } from '@/componentes/formularios/Interruptor'
 import { Cargando, ErrorEstado, Vacio } from '@/componentes/estado/Estados'
 import { pedirRespuesta, mensajeDeRespuesta } from '@/datos/cliente'
 import { formatearDuracion, formatearHora, fraseDePaso, type PasoDeSesion, type SesionDeContacto } from '@/dominio/actividad-portal'
@@ -29,8 +28,8 @@ const ICONOS: Record<PasoDeSesion['tipo'], LucideIcon> = {
  * Las sesiones de un contacto como una linea de tiempo vertical: cada sesion dice cuando fue, cuanto
  * duro y desde que aparato, y se abre en los pasos que dio. La mas reciente viene abierta.
  *
- * Una sesion que abrio el equipo con "Ver como cliente" lleva el nombre de quien la abrio y solo
- * aparece si se pide: el recorrido que se lee es el del cliente.
+ * Las sesiones que abrio el equipo con "Ver como cliente" nunca aparecen: el recorrido que se lee
+ * es el del cliente.
  *
  * @param contactoId el contacto que se mira
  */
@@ -39,7 +38,6 @@ export function RecorridoDeContacto ({ contactoId }: { contactoId: number }) {
   const [nombres, setNombres] = useState<Record<string, string>>({})
   const [total, setTotal] = useState(0)
   const [pagina, setPagina] = useState(1)
-  const [conEquipo, setConEquipo] = useState(false)
   const [cargando, setCargando] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [intento, setIntento] = useState(0)
@@ -53,10 +51,7 @@ export function RecorridoDeContacto ({ contactoId }: { contactoId: number }) {
       setError(null)
 
       try {
-        const respuesta = await pedirRespuesta(
-          `contacts/${contactoId}/portal-activity?pagina=${pagina}${conEquipo ? '&suplantadas=1' : ''}`,
-          control.signal
-        )
+        const respuesta = await pedirRespuesta(`contacts/${contactoId}/portal-activity?pagina=${pagina}`, control.signal)
 
         if (!respuesta.ok) throw new Error(await mensajeDeRespuesta(respuesta, { metodo: 'GET', ruta: 'contacts/portal-activity' }))
 
@@ -75,28 +70,12 @@ export function RecorridoDeContacto ({ contactoId }: { contactoId: number }) {
     void leer()
 
     return () => { control.abort() }
-  }, [contactoId, pagina, conEquipo, intento])
+  }, [contactoId, pagina, intento])
 
-  useCoreografia(raiz, cargando || filas.length === 0 ? null : `${contactoId}|${conEquipo ? 1 : 0}|${filas.length}`)
-
-  function alternarEquipo (): void {
-    setFilas([])
-    setPagina(1)
-    setConEquipo((valor) => !valor)
-  }
+  useCoreografia(raiz, cargando || filas.length === 0 ? null : `${contactoId}|${filas.length}`)
 
   return (
     <div ref={raiz} className="flex flex-col gap-6">
-      <label className="text-texto-tenue flex w-fit items-center gap-2 text-sm">
-        <Interruptor
-          encendido={conEquipo}
-          etiqueta="Incluir lo que hizo el equipo con Ver como cliente"
-          deshabilitado={false}
-          onPulsar={alternarEquipo}
-        />
-        Incluir lo que hizo el equipo con «Ver como cliente»
-      </label>
-
       {error !== null && (
         <ErrorEstado
           titulo="No se pudo leer el recorrido"
@@ -128,12 +107,6 @@ export function RecorridoDeContacto ({ contactoId }: { contactoId: number }) {
                     {sesion.dispositivo === 'movil' ? <Smartphone size={14} aria-hidden="true" /> : <Monitor size={14} aria-hidden="true" />}
                     {sesion.dispositivo === 'movil' ? 'Celular' : 'Computador'}
                   </span>
-                  {sesion.suplantado_por !== null && (
-                    <span className="bg-hover text-texto-tenue rounded-chico inline-flex items-center gap-1 px-2 py-0.5 text-xs">
-                      <UserRoundCheck size={12} aria-hidden="true" />
-                      Ver como cliente: {sesion.suplantado_por.full_name}
-                    </span>
-                  )}
                 </summary>
                 <ul className="border-linea mt-3 flex flex-col gap-2 border-l pl-4">
                   {pasosVisibles(sesion.pasos).length === 0 && <li className="text-texto-tenue text-sm">Sin pasos registrados.</li>}
