@@ -242,6 +242,12 @@ export function DetalleActa ({
         <AvisoEnLinea variante="error" mensaje={error} className="bg-superficie-peligro rounded-chico px-3 py-2 text-sm" />
       )}
 
+      {edicion.editando && conIa && traduccionActiva !== null && (
+        <p className="text-texto-tenue text-xs">
+          La reescritura con IA solo está disponible en el idioma original del acta.
+        </p>
+      )}
+
       {edicion.editando
         ? (
           <EditorDeActa

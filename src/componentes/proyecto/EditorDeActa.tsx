@@ -161,6 +161,13 @@ export function EditorDeActa ({ htmlInicial, onCambio, proyectoId, conIa = true,
       <BarraDeFormato editor={editor} />
 
       {conIa && (
+        <p className="text-texto-tenue flex items-center gap-1.5 text-xs">
+          <Sparkles size={12} strokeWidth={2} aria-hidden="true" className="shrink-0" />
+          Selecciona un fragmento para reescribirlo con IA.
+        </p>
+      )}
+
+      {conIa && (
         <BubbleMenu
           editor={editor}
           // Sin selección real no hay nada que reescribir, y el menú tapando el cursor molesta.

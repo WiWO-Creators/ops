@@ -377,7 +377,7 @@ function ActaAbierta ({
   onBorrada: () => void
   onVolver: () => void
 }): ReactElement {
-  const { estado, recargar } = useRecurso<Acta>(
+  const { estado, recargar, reemplazar } = useRecurso<Acta>(
     conId(fuente.acta, actaId),
     'No se pudo cargar el Meeting Paper.'
   )
@@ -399,8 +399,8 @@ function ActaAbierta ({
       conIa={conIa}
       puedeCrearTareas={puedeCrearTareas}
       destacarTareas={destacarTareas}
-      onCambiada={() => {
-        recargar()
+      onCambiada={(actualizada) => {
+        reemplazar(actualizada)
         onCambiada()
       }}
       onBorrada={onBorrada}

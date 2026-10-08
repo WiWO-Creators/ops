@@ -94,6 +94,8 @@ export const LARGO_MAXIMO_PREGUNTA = 1000
  */
 export const PARAMETRO_PESTANA = 'tab'
 export const PESTANA_ACTAS = 'actas'
+/** Parámetro que abre un acta concreta dentro de la pestaña (`PanelActas`). */
+export const PARAMETRO_ACTA = 'acta'
 
 /** Marcador de cita como lo reescribe el servidor: `[1]`, `[12]`. El indice es 1-based. */
 const MARCADOR = /^\[(\d+)\]$/
@@ -232,7 +234,7 @@ export function hrefDeCita (cita: Cita): string | null {
   if (cita.tipo === 'tarea') return `/tareas?${PARAMETRO_TAREA}=${cita.id}`
   if (cita.tipo === 'espacio') return `/proyectos/${cita.id}`
   if (cita.tipo === 'acta' && cita.espacio_id !== undefined) {
-    return `/proyectos/${cita.espacio_id}?${PARAMETRO_PESTANA}=${PESTANA_ACTAS}`
+    return `/proyectos/${cita.espacio_id}?${PARAMETRO_PESTANA}=${PESTANA_ACTAS}&${PARAMETRO_ACTA}=${cita.id}`
   }
 
   return null
