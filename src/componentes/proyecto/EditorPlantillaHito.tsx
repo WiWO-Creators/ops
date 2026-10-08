@@ -6,8 +6,9 @@ import { Campo } from '@/componentes/formularios/Campo'
 import { AreaTexto, Entrada } from '@/componentes/formularios/Entrada'
 import { ContenidoSelector, DisparadorSelector, Opcion, Selector } from '@/componentes/formularios/Selector'
 import { CerrarDialogo, ContenidoDialogo, Dialogo } from '@/componentes/superposiciones/Dialogo'
+import { escribirEnBff } from '@/componentes/datos/mutaciones'
 import { AvisoEnLinea, Cargando, ErrorEstado } from '@/componentes/estado/Estados'
-import { leerError } from '@/datos/errores'
+import { useAviso } from '@/componentes/estado/useAviso'
 import type { PlantillaHito, PlantillaHitoDetallada } from '@/datos/recursos'
 import type { OpcionFiltro } from '@/definiciones/tipos'
 import { GLOSARIO } from '@/dominio/glosario'
@@ -23,6 +24,7 @@ import {
   type FilaTarea
 } from '@/lib/plantillas-hito'
 import { useRecurso } from './carga'
+import { useClaveEstable } from './clave-estable'
 import { ControlesDeOrden, ListaEditable, useFilasEditables } from './ListaEditable'
 
 /**
@@ -147,6 +149,8 @@ function Formulario ({ plantilla, tiposDeProceso, onGuardado }: PropsFormulario)
   const [errorNombre, setErrorNombre] = useState<string | undefined>(undefined)
   const [fallo, setFallo] = useState<string | null>(null)
   const [guardando, setGuardando] = useState(false)
+  const avisar = useAviso()
+  const clave = useClaveEstable()
 
   /**
    * Guarda la plantilla entera.
@@ -191,39 +195,33 @@ function Formulario ({ plantilla, tiposDeProceso, onGuardado }: PropsFormulario)
       tasks: tareasParaGuardar(filas)
     }
 
-    let respuesta: Response
-
-    try {
-      respuesta = await fetch(
-        plantilla === null ? '/api/bff/hito-plantillas' : `/api/bff/hito-plantillas/${plantilla.id}`,
-        {
-          method: plantilla === null ? 'POST' : 'PATCH',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(cuerpo)
-        }
-      )
-    } catch {
-      setGuardando(false)
-      setFallo('No se pudo contactar al servidor. Revisa tu conexión.')
-      return
-    }
+    const ruta = plantilla === null ? 'hito-plantillas' : `hito-plantillas/${plantilla.id}`
+    const metodo = plantilla === null ? 'POST' : 'PATCH'
+    const resultado = await escribirEnBff(ruta, metodo, cuerpo, { idempotencia: clave.claveDe([metodo, ruta, cuerpo]) })
 
     setGuardando(false)
 
-    if (respuesta.ok) {
+    if (resultado.ok) {
+      clave.olvidar()
       onGuardado()
       return
     }
 
-    const error = await leerError(respuesta)
-    const porFila = erroresDeTareas(error.details)
+    if (resultado.incierta === true) {
+      // No se sabe si quedo: el formulario sigue intacto y reenviar usa la misma clave.
+      avisar.advertencia(resultado.mensaje)
+      setFallo(resultado.mensaje)
+      return
+    }
+
+        const porFila = erroresDeTareas(resultado.detalles as Record<string, string[]> | undefined)
 
     setErroresPorFila(porFila)
     // Con errores por tarea, el parrafo al pie repetiria cien veces lo que ya esta marcado en la
     // fila. Se dice donde mirar y el detalle queda al lado del campo que falla.
     setFallo(Object.keys(porFila).length > 0
       ? `Revisa las ${GLOSARIO.proceso.plural.toLowerCase()} marcadas abajo.`
-      : error.message)
+      : resultado.mensaje)
   }
 
   return (

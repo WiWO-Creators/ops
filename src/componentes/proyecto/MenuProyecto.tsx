@@ -13,7 +13,6 @@ import {
   SeparadorMenu
 } from '@/componentes/superposiciones/MenuContextual'
 import { escribirEnBff } from '@/componentes/datos/mutaciones'
-import { mensajeDeRespuesta } from '@/datos/cliente'
 import { GLOSARIO } from '@/dominio/glosario'
 import { DialogoEliminarProyecto } from './DialogoEliminarProyecto'
 import { FormularioRecurso } from './FormularioRecurso'
@@ -137,31 +136,32 @@ export function MenuProyecto ({
     setEnCurso(true)
     setFallo(null)
 
-    try {
-      const respuesta = await fetch(
-        `/api/bff/projects/${proyecto.id}/actions/${archivar ? 'archive' : 'unarchive'}`,
-        { method: 'POST', headers: { accept: 'application/json' } }
-      )
+    const resultado = await escribirEnBff(`projects/${proyecto.id}/actions/${archivar ? 'archive' : 'unarchive'}`, 'POST')
 
-      if (!respuesta.ok) {
-        setFallo(await mensajeDeRespuesta(respuesta))
-        return
-      }
+    setEnCurso(false)
 
-      setArchivando(false)
-      aviso.exito(archivar ? `«${proyecto.name}» quedó archivado.` : `«${proyecto.name}» volvió a estar activo.`)
-
-      if (archivar) {
-        router.push('/proyectos')
-        return
-      }
-
-      router.refresh()
-    } catch {
-      setFallo(`No se pudo ${archivar ? 'archivar' : 'desarchivar'}: revisa la conexión.`)
-    } finally {
-      setEnCurso(false)
+    if (!resultado.ok && resultado.incierta !== true) {
+      setFallo(resultado.mensaje)
+      return
     }
+
+    setArchivando(false)
+
+    if (!resultado.ok) {
+      // No se sabe si quedo: se vuelve a leer la ficha, que dice como esta de verdad.
+      aviso.advertencia(resultado.mensaje)
+      router.refresh()
+      return
+    }
+
+    aviso.exito(archivar ? `«${proyecto.name}» quedó archivado.` : `«${proyecto.name}» volvió a estar activo.`)
+
+    if (archivar) {
+      router.push('/proyectos')
+      return
+    }
+
+    router.refresh()
   }
 
   /**
@@ -184,8 +184,16 @@ export function MenuProyecto ({
 
     setEnCurso(false)
 
-    if (!resultado.ok) {
+    if (!resultado.ok && resultado.incierta !== true) {
       setFallo(resultado.mensaje)
+      return
+    }
+
+    if (!resultado.ok) {
+      // No se sabe si quedo: la lista de Procesos la pinta el servidor, asi que se vuelve a pedir.
+      aviso.advertencia(resultado.mensaje)
+      setCambiandoVisibilidad(false)
+      router.refresh()
       return
     }
 
@@ -212,8 +220,16 @@ export function MenuProyecto ({
 
     setEnCurso(false)
 
-    if (!resultado.ok) {
+    if (!resultado.ok && resultado.incierta !== true) {
       setFallo(resultado.mensaje)
+      return
+    }
+
+    if (!resultado.ok) {
+      // No se sabe si salio: la ficha vuelve a leerse y dice si todavia eres parte del equipo.
+      aviso.advertencia(resultado.mensaje)
+      setSaliendo(false)
+      router.refresh()
       return
     }
 

@@ -2,8 +2,9 @@
 
 import { useState, type ReactElement } from 'react'
 import { PaginacionTabla } from '@/componentes/datos/ControlesTabla'
+import { escribirEnBff } from '@/componentes/datos/mutaciones'
 import { AvisoEnLinea, Cargando, ErrorEstado } from '@/componentes/estado/Estados'
-import { mensajeDeRespuesta } from '@/datos/cliente'
+import { useAviso } from '@/componentes/estado/useAviso'
 import type { Capacidad } from '@/datos/tipos'
 import { conConsulta, type FuenteDeProyecto } from '@/dominio/fuente-proyecto'
 import { LineaDeActividad } from './LineaDeActividad'
@@ -123,8 +124,16 @@ function InterruptorVisibilidad ({
   const [visible, setVisible] = useState(inicial)
   const [guardando, setGuardando] = useState(false)
   const [fallo, setFallo] = useState<string | null>(null)
+  const avisar = useAviso()
 
-  /** Cambia la visibilidad. Nunca lanza: el fallo vuelve el interruptor a su valor anterior. */
+  // Lo que dice el servidor manda: si la recarga trae otro valor, el interruptor lo adopta.
+  const [inicialPrevio, setInicialPrevio] = useState(inicial)
+  if (inicial !== inicialPrevio) {
+    setInicialPrevio(inicial)
+    setVisible(inicial)
+  }
+
+  /** Cambia la visibilidad. Nunca lanza: un rechazo vuelve el interruptor a su valor anterior. */
   async function cambiar (siguiente: boolean): Promise<void> {
     const previo = visible
 
@@ -132,26 +141,24 @@ function InterruptorVisibilidad ({
     setGuardando(true)
     setFallo(null)
 
-    try {
-      const respuesta = await fetch(`/api/bff/${ruta}/${entrada.id}`, {
-        method: 'PATCH',
-        headers: { 'content-type': 'application/json', accept: 'application/json' },
-        body: JSON.stringify({ visible_to_customer: siguiente })
-      })
+    const resultado = await escribirEnBff(`${ruta}/${entrada.id}`, 'PATCH', { visible_to_customer: siguiente })
 
-      if (!respuesta.ok) {
-        setVisible(previo)
-        setFallo(await mensajeDeRespuesta(respuesta))
-        return
-      }
+    setGuardando(false)
 
+    if (resultado.ok) {
       recargar()
-    } catch {
-      setVisible(previo)
-      setFallo('No se pudo cambiar: revisa la conexión.')
-    } finally {
-      setGuardando(false)
+      return
     }
+
+    if (resultado.incierta === true) {
+      // No se sabe si quedo: se pide el valor real en vez de volver al anterior a ciegas.
+      avisar.advertencia(resultado.mensaje)
+      recargar()
+      return
+    }
+
+    setVisible(previo)
+    setFallo(resultado.mensaje)
   }
 
   /*

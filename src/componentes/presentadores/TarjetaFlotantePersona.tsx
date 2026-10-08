@@ -3,6 +3,7 @@
 import Link from 'next/link'
 import { createPortal } from 'react-dom'
 import { useCallback, useEffect, useRef, useState, type ReactElement } from 'react'
+import { leerDelBff } from '@/componentes/datos/mutaciones'
 import { Avatar, type TamanoAvatar } from '@/componentes/presentadores/Avatar'
 import { cn } from '@/lib/clases'
 import { usePresencia } from '@/lib/usePresencia'
@@ -21,23 +22,13 @@ const cacheDeFichas = new Map<number, Promise<FichaPersona | null>>()
  * o un 500 no dicen nada sobre si la persona existe.
  *
  * @param id id de la persona (`GET /staff/{id}`).
- * @returns la ficha, o `null` si la peticion fallo.
+ * @returns la ficha, o `null` si la peticion fallo o agoto su tiempo.
  */
 function pedirFichaPersona (id: number): Promise<FichaPersona | null> {
   const enCache = cacheDeFichas.get(id)
   if (enCache !== undefined) return enCache
 
-  const promesa = (async (): Promise<FichaPersona | null> => {
-    try {
-      const respuesta = await fetch(`/api/bff/staff/${id}`)
-      if (!respuesta.ok) return null
-
-      const sobre = await respuesta.json() as { data: FichaPersona }
-      return sobre.data
-    } catch {
-      return null
-    }
-  })()
+  const promesa = leerDelBff<FichaPersona>(`staff/${id}`).then((resultado) => (resultado.ok ? resultado.datos : null))
 
   cacheDeFichas.set(id, promesa)
   // Un fallo se saca de la cache para permitir reintentar la proxima vez que se abra.

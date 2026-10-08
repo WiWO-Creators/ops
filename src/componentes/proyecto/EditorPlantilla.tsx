@@ -20,8 +20,9 @@ import {
   MenuContextual
 } from '@/componentes/superposiciones/MenuContextual'
 import { CerrarDialogo, ContenidoDialogo, Dialogo } from '@/componentes/superposiciones/Dialogo'
+import { escribirEnBff } from '@/componentes/datos/mutaciones'
 import { AvisoEnLinea, Cargando, ErrorEstado } from '@/componentes/estado/Estados'
-import { leerError } from '@/datos/errores'
+import { useAviso } from '@/componentes/estado/useAviso'
 import type { PlantillaEspacio, PlantillaEspacioDetallada } from '@/datos/recursos'
 import type { OpcionFiltro } from '@/definiciones/tipos'
 import { GLOSARIO } from '@/dominio/glosario'
@@ -36,6 +37,7 @@ import {
 } from '@/lib/plantillas'
 import { cn } from '@/lib/clases'
 import { useRecurso } from './carga'
+import { useClaveEstable } from './clave-estable'
 import { ControlesDeOrden, ListaEditable, useFilasEditables } from './ListaEditable'
 
 /**
@@ -182,6 +184,8 @@ function Formulario ({ plantilla, tiposDeProceso, equipo, onGuardado }: PropsFor
   const [errorNombre, setErrorNombre] = useState<string | undefined>(undefined)
   const [fallo, setFallo] = useState<string | null>(null)
   const [guardando, setGuardando] = useState(false)
+  const avisar = useAviso()
+  const clave = useClaveEstable()
 
   // `SelectorPersonas` pide la forma de staff; el editor recibe el equipo como opciones de filtro.
   const personasDelEquipo = equipo.map((persona) => ({
@@ -227,37 +231,31 @@ function Formulario ({ plantilla, tiposDeProceso, equipo, onGuardado }: PropsFor
       items: itemsParaGuardar(filas)
     }
 
-    let respuesta: Response
-
-    try {
-      respuesta = await fetch(
-        plantilla === null ? '/api/bff/project-templates' : `/api/bff/project-templates/${plantilla.id}`,
-        {
-          method: plantilla === null ? 'POST' : 'PATCH',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(cuerpo)
-        }
-      )
-    } catch {
-      setGuardando(false)
-      setFallo('No se pudo contactar al servidor. Revisa tu conexión.')
-      return
-    }
+    const ruta = plantilla === null ? 'project-templates' : `project-templates/${plantilla.id}`
+    const metodo = plantilla === null ? 'POST' : 'PATCH'
+    const resultado = await escribirEnBff(ruta, metodo, cuerpo, { idempotencia: clave.claveDe([metodo, ruta, cuerpo]) })
 
     setGuardando(false)
 
-    if (respuesta.ok) {
+    if (resultado.ok) {
+      clave.olvidar()
       onGuardado()
       return
     }
 
-    const error = await leerError(respuesta)
-    const porFila = erroresDeItems(error.details)
+    if (resultado.incierta === true) {
+      // No se sabe si quedo: el formulario sigue intacto y reenviar usa la misma clave.
+      avisar.advertencia(resultado.mensaje)
+      setFallo(resultado.mensaje)
+      return
+    }
+
+        const porFila = erroresDeItems(resultado.detalles as Record<string, string[]> | undefined)
 
     setErroresPorFila(porFila)
     // Con errores por item, el parrafo al pie repetiria cuarenta veces lo que ya esta marcado en la
     // fila. Se dice donde mirar y el detalle queda al lado del campo que falla.
-    setFallo(Object.keys(porFila).length > 0 ? 'Revisa los ítems marcados abajo.' : error.message)
+    setFallo(Object.keys(porFila).length > 0 ? 'Revisa los ítems marcados abajo.' : resultado.mensaje)
   }
 
   return (
