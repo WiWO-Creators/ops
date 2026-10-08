@@ -1,4 +1,5 @@
 import type { Referencia } from '@/datos/recursos'
+import { htmlVacio } from './texto-rico.ts'
 
 /**
  * Alta de una solicitud de soporte desde el portal del cliente.
@@ -31,6 +32,7 @@ export const LARGO_ASUNTO = 191
 /** Lo que el formulario tiene en la mano cuando la persona pulsa «Enviar solicitud». */
 export interface BorradorDeSolicitud {
   asunto: string
+  /** El mensaje como HTML del editor de texto enriquecido; `''` si no hay nada visible. */
   mensaje: string
   /** El valor del selector de {espacio}, o {@link SIN_ESPACIO} si quedo sin elegir. */
   espacio: string
@@ -47,7 +49,10 @@ export interface BorradorDeSolicitud {
  */
 export interface CuerpoDeSolicitud {
   subject: string
+  /** HTML del editor. La API lo sanea y guarda tambien una version en texto. */
   message: string
+  /** Avisa a la API que `message` es HTML y no texto plano. */
+  format: 'html'
   project_id: number
   priority?: number
 }
@@ -91,6 +96,7 @@ export function cuerpoDeSolicitud (borrador: BorradorDeSolicitud): CuerpoDeSolic
   const base: CuerpoDeSolicitud = {
     subject: borrador.asunto.trim(),
     message: borrador.mensaje.trim(),
+    format: 'html',
     project_id: Number(borrador.espacio)
   }
 
@@ -103,7 +109,8 @@ export function cuerpoDeSolicitud (borrador: BorradorDeSolicitud): CuerpoDeSolic
  * Si el borrador alcanza para enviarse.
  *
  * Asunto, mensaje y {espacio}: los tres son obligatorios en el contrato. La prioridad no, porque la
- * define el equipo cuando el cliente no la elige. Se mira el texto ya recortado para que una linea
+ * define el equipo cuando el cliente no la elige. Se mira el texto ya recortado, y del mensaje solo lo visible
+ * (`<p></p>` y `&nbsp;` no cuentan) para que una linea
  * de espacios no habilite el boton y despues se coma un 422.
  *
  * @param borrador lo tipeado hasta ahora
@@ -111,6 +118,6 @@ export function cuerpoDeSolicitud (borrador: BorradorDeSolicitud): CuerpoDeSolic
  */
 export function solicitudCompleta (borrador: BorradorDeSolicitud): boolean {
   return borrador.asunto.trim() !== '' &&
-    borrador.mensaje.trim() !== '' &&
+    !htmlVacio(borrador.mensaje) &&
     borrador.espacio !== SIN_ESPACIO
 }

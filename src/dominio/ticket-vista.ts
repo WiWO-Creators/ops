@@ -1,6 +1,6 @@
 import type { AdjuntoTicket, EstadoLookup, RespuestaTicket, TicketDetalle } from '../datos/recursos.ts'
 import type { RespuestaTicketPortal, TicketPortalDetalle } from '../datos/portal.ts'
-import { htmlVacio } from './texto-rico.ts'
+import { esHtml, htmlVacio, textoAHtml, textoPlano } from './texto-rico.ts'
 
 /**
  * Un ticket tal como lo dibuja el modal, venga del panel o del portal.
@@ -557,17 +557,22 @@ export function enlaceDelEquipoAlTicket (ticketId: number, proyectoId: number): 
  *
  * @param mensaje lo escrito
  * @param estado el estado elegido, o `null` para no tocarlo
+ * @param comoHtml `true` cuando `mensaje` sale del editor de texto enriquecido: se mide lo visible y
+ *        viaja `format: 'html'`. Sin esto es texto plano, como el motivo de poner un ticket en espera.
  * @returns el cuerpo de `POST .../respuestas`, o `null` si el mensaje esta vacio
  */
 export function cuerpoDeRespuesta (
   mensaje: string,
-  estado: number | null
-): { message: string, status?: number } | null {
+  estado: number | null,
+  comoHtml = false
+): { message: string, format?: 'html', status?: number } | null {
   const texto = mensaje.trim()
 
-  if (texto === '') return null
+  if (comoHtml ? htmlVacio(texto) : texto === '') return null
 
-  return estado === null ? { message: texto } : { message: texto, status: estado }
+  const base = comoHtml ? { message: texto, format: 'html' as const } : { message: texto }
+
+  return estado === null ? base : { ...base, status: estado }
 }
 
 /**
@@ -983,20 +988,21 @@ export function guardarBorrador (almacen: AlmacenDeBorrador | null, clave: strin
 /**
  * Inserta una respuesta predefinida en lo escrito.
  *
- * Se suma al final, separada por una linea en blanco, y no reemplaza: quien ya escribio un saludo no
- * quiere perderlo por elegir una plantilla.
+ * Se suma al final, como parrafos nuevos, y no reemplaza: quien ya escribio un saludo no quiere
+ * perderlo por elegir una plantilla. La plantilla es HTML de Perfex: se pasa por texto y se vuelve a
+ * armar con `textoAHtml`, asi lo que llega al editor es siempre marcado propio y escapado.
  *
- * @param actual lo que hay en la caja
+ * @param actual lo que hay en la caja: HTML del editor, o texto plano de un borrador viejo
  * @param plantilla el `message` de la predefinida (HTML de Perfex)
- * @returns el texto nuevo de la caja
+ * @returns el HTML nuevo de la caja
  */
 export function insertarPredefinida (actual: string, plantilla: string): string {
-  const texto = textoDeMensaje(plantilla)
+  const agregado = textoAHtml(textoPlano(plantilla))
 
-  if (texto === '') return actual
-  if (actual.trim() === '') return texto
+  if (agregado === '') return actual
+  if (htmlVacio(actual)) return agregado
 
-  return `${actual.replace(/\s+$/, '')}\n\n${texto}`
+  return (esHtml(actual) ? actual.trim() : textoAHtml(actual)) + agregado
 }
 
 /**

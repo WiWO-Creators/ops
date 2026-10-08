@@ -4,7 +4,8 @@ import { Lock, MessageCircleQuestion, MessageSquareText } from 'lucide-react'
 import { useEffect, useRef, useState, type ReactElement } from 'react'
 import { AvisoEnLinea } from '@/componentes/estado/Estados'
 import { Boton } from '@/componentes/formularios/Boton'
-import { AreaTexto } from '@/componentes/formularios/Entrada'
+import { EditorRico } from '@/componentes/formularios/EditorRico'
+import { Contenido } from '@/componentes/presentadores/Contenido'
 import { ContenidoSelector, DisparadorSelector, Opcion, Selector } from '@/componentes/formularios/Selector'
 import {
   BuscadorMenu, ContenidoMenu, DisparadorMenu, ItemMenu, MenuContextual, SinResultadosMenu
@@ -12,6 +13,7 @@ import {
 import { escribirEnBff } from '@/componentes/datos/mutaciones'
 import type { EstadoLookup, RespuestaPredefinida } from '@/datos/recursos'
 import { normalizar } from '@/dominio/salas'
+import { esHtml, htmlVacio } from '@/dominio/texto-rico'
 import {
   avisoSinRespuesta,
   claveDeBorrador,
@@ -84,7 +86,10 @@ export function CajaDeRespuesta ({
   const idCampo = `respuesta-${ticket.id}`
   const ofrecidos = estadosParaResponder(estados, ticket.estado)
 
+  // HTML del editor (o texto plano de un borrador viejo, que el editor convierte al abrirlo).
   const [mensaje, setMensaje] = useState(() => leerBorrador(almacenDeSesion(), clave))
+  // Cambia al vaciar o insertar una predefinida: el editor no es controlado y se remonta con `key`.
+  const [versionDelEditor, setVersionDelEditor] = useState(0)
   const [elegido, setElegido] = useState<string | null>(null)
   const [enviando, setEnviando] = useState(false)
   const [fallo, setFallo] = useState<string | null>(null)
@@ -100,12 +105,6 @@ export function CajaDeRespuesta ({
   const valorElegido = elegido !== null && (elegido === SIN_CAMBIO || ofrecidos.some((e) => String(e.id) === elegido))
     ? elegido
     : valorPropuesto
-
-  useEffect(() => {
-    if (!ticket.respuesta.permitida) return
-
-    document.getElementById(idCampo)?.focus({ preventScroll: true })
-  }, [idCampo, ticket.respuesta.permitida])
 
   useEffect(() => {
     if (espera === null) return
@@ -130,7 +129,7 @@ export function CajaDeRespuesta ({
   async function responder (): Promise<void> {
     if (enviandoAhora.current || espera !== null) return
 
-    const cuerpo = cuerpoDeRespuesta(mensaje, valorElegido === SIN_CAMBIO ? null : Number(valorElegido))
+    const cuerpo = cuerpoDeRespuesta(mensaje, valorElegido === SIN_CAMBIO ? null : Number(valorElegido), true)
 
     if (cuerpo === null) return
 
@@ -154,16 +153,16 @@ export function CajaDeRespuesta ({
     }
 
     escribir('')
+    setVersionDelEditor((version) => version + 1)
     setElegido(null)
     onRespondido(resultado.datos)
-    document.getElementById(idCampo)?.focus({ preventScroll: true })
   }
 
   if (!ticket.respuesta.permitida) {
     return <SinRespuesta ticket={ticket} nombre={nombreDelTicket(fuente)} escrito={mensaje} fallo={fallo} />
   }
 
-  const vacio = mensaje.trim() === ''
+  const vacio = htmlVacio(mensaje)
 
   return (
     <form
@@ -179,23 +178,23 @@ export function CajaDeRespuesta ({
           Tu respuesta
         </label>
         {fuente.predefinidas !== null && (
-          <MenuPredefinidas ruta={fuente.predefinidas} onElegir={(p) => { escribir(insertarPredefinida(mensaje, p.message)) }} />
+          <MenuPredefinidas ruta={fuente.predefinidas} onElegir={(p) => {
+            escribir(insertarPredefinida(mensaje, p.message))
+            setVersionDelEditor((version) => version + 1)
+          }} />
         )}
       </div>
-      <AreaTexto
+      <EditorRico
+        key={versionDelEditor}
         id={idCampo}
-        rows={4}
-        value={mensaje}
+        etiqueta="Tu respuesta"
+        valorInicial={mensaje}
         placeholder="Escribe tu respuesta."
         aria-describedby={`${idCampo}-atajo`}
         aria-invalid={fallo !== null || undefined}
-        onChange={(evento) => { escribir(evento.target.value) }}
-        onKeyDown={(evento) => {
-          if (evento.key !== 'Enter' || !(evento.ctrlKey || evento.metaKey)) return
-
-          evento.preventDefault()
-          void responder()
-        }}
+        autoenfocar
+        onCambio={escribir}
+        onEnviar={() => { void responder() }}
       />
 
       {fallo !== null && <AvisoEnLinea variante="error" mensaje={fallo} className="text-sm" />}
@@ -243,12 +242,16 @@ function SinRespuesta ({ ticket, nombre, escrito, fallo }: { ticket: TicketVista
         <p className="text-pretty">{avisoSinRespuesta(ticket.respuesta.motivo, nombre)}</p>
       </div>
       {fallo !== null && <AvisoEnLinea variante="error" mensaje={fallo} className="text-sm" />}
-      {escrito.trim() !== '' && (
+      {!htmlVacio(escrito) && (
         <>
-          <label htmlFor={`sin-enviar-${ticket.id}`} className="text-texto-tenue text-sm font-semibold">
+          <p id={`sin-enviar-${ticket.id}`} className="text-texto-tenue text-sm font-semibold">
             Lo que alcanzaste a escribir
-          </label>
-          <AreaTexto id={`sin-enviar-${ticket.id}`} readOnly value={escrito} rows={3} />
+          </p>
+          <Contenido
+            html={esHtml(escrito) ? escrito : null}
+            texto={escrito}
+            className="border-control-borde bg-superficie-hundida text-texto-tenue rounded-chico border px-3 py-2 text-sm"
+          />
         </>
       )}
     </section>

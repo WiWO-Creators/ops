@@ -419,18 +419,49 @@ function itemsDeLista (lista: NodoElemento): string {
     .join('\n')
 }
 
+/** Si el nodo corta la linea: un salto, o un bloque. El blanco pegado a un corte no se ve. */
+function esCorte (nodo: NodoRico | undefined): boolean {
+  return nodo === undefined || (nodo.tipo === 'elemento' && (nodo.etiqueta === 'br' || BLOQUES.has(nodo.etiqueta)))
+}
+
+/**
+ * Aplica a los textos la regla de blancos de HTML: los saltos y espacios seguidos valen uno, y el
+ * que queda pegado a un corte de linea desaparece. Sin esto, el salto de linea que el marcado deja
+ * tras un `<br>` se leeria como un parrafo nuevo.
+ *
+ * @param nodos los hijos a normalizar; se modifican en el sitio
+ */
+function colapsarBlancos (nodos: NodoRico[]): void {
+  nodos.forEach((nodo, indice) => {
+    if (nodo.tipo === 'elemento') {
+      colapsarBlancos(nodo.hijos)
+      return
+    }
+
+    // `\s` incluiria el espacio duro, que es contenido y no separacion.
+    let texto = nodo.texto.replace(/[ \t\r\n\f]+/g, ' ')
+    if (esCorte(nodos[indice - 1])) texto = texto.trimStart()
+    if (esCorte(nodos[indice + 1])) texto = texto.trimEnd()
+    nodo.texto = texto
+  })
+}
+
 /**
  * Texto plano de un HTML, para listas, vistas previas y para medir si hay algo escrito.
  *
  * Extiende `aTextoPlano`: ademas de separar bloques y resolver entidades, pone `• ` o `1.` a los
  * items. Entre dos parrafos deja una linea en blanco y un `<br>` es un salto simple, asi que
- * `textoPlano(textoAHtml(x))` devuelve `x` normalizado.
+ * `textoPlano(textoAHtml(x))` devuelve `x` normalizado. Un texto sin etiquetas se devuelve con sus
+ * saltos de linea intactos.
  *
  * @param html el marcado, o texto plano
  * @returns el texto, sin lineas en blanco de mas y sin espacios en los bordes
  */
 export function textoPlano (html: string | null | undefined): string {
-  return textoDeNodos(nodosDeHtml(html))
+  const nodos = nodosDeHtml(html)
+  if (esHtml(html)) colapsarBlancos(nodos)
+
+  return textoDeNodos(nodos)
     .replace(/[ \t]+\n/g, '\n')
     .replace(/\n{3,}/g, '\n\n')
     .trim()

@@ -17,6 +17,7 @@ import {
   avisoSinRespuesta,
   claveDeBorrador,
   cuerpoDeRespuesta,
+  htmlDe,
   enlaceDelEquipoAlTicket,
   estadoInicialAlResponder,
   estadosParaResponder,
@@ -166,6 +167,10 @@ test('los avisos dicen lo que pidio el producto', () => {
 
 test('el cuerpo de la respuesta omite status si no se eligio y rechaza el vacio', () => {
   assert.deepEqual(cuerpoDeRespuesta('  hola ', null), { message: 'hola' })
+  assert.deepEqual(cuerpoDeRespuesta('<p>hola</p>', 3, true), { message: '<p>hola</p>', format: 'html', status: 3 })
+  assert.equal(cuerpoDeRespuesta('<p>&nbsp;</p>', null, true), null)
+  // Sin `comoHtml` es texto plano: el motivo de poner un ticket en espera no lleva `format`.
+  assert.equal('format' in cuerpoDeRespuesta('motivo', null), false)
   assert.deepEqual(cuerpoDeRespuesta('hola', 3), { message: 'hola', status: 3 })
   assert.equal(cuerpoDeRespuesta('   ', 3), null)
 })
@@ -336,10 +341,25 @@ test('el borrador se guarda por sujeto y ticket, y sobrevive a un almacen que la
   assert.equal(guardarBorrador(null, clave, 'hola'), false)
 })
 
-test('insertar una predefinida suma texto plano al final sin pisar lo escrito', () => {
-  assert.equal(insertarPredefinida('', '<p>Hola</p><p>Gracias</p>'), 'Hola\nGracias')
-  assert.equal(insertarPredefinida('Buenas,  \n', 'Te cuento<br />\r\nque'), 'Buenas,\n\nTe cuento\nque')
+test('el mensaje en HTML de la API llega al hilo; sin el, el hilo queda en texto plano', () => {
+  const conHtml = ticketDelPanel({ ...fichaDelPanel, message: 'Se ve borroso', message_html: '<p>Se ve <strong>borroso</strong></p>' }, [])
+  assert.equal(conHtml.hilo[0].html, '<p>Se ve <strong>borroso</strong></p>')
+  assert.equal(conHtml.hilo[0].texto, 'Se ve borroso')
+
+  assert.equal(ticketDelPanel({ ...fichaDelPanel, message: 'Se ve borroso' }, []).hilo[0].html, null)
+  assert.equal(ticketDelPanel({ ...fichaDelPanel, message_html: '<p>&nbsp;</p>' }, []).hilo[0].html, null)
+  assert.equal(htmlDe(undefined), null)
+  assert.equal(htmlDe('<p>hola</p>'), '<p>hola</p>')
+})
+
+test('insertar una predefinida suma parrafos al final sin pisar lo escrito', () => {
+  assert.equal(insertarPredefinida('', '<p>Hola</p><p>Gracias</p>'), '<p>Hola</p><p>Gracias</p>')
+  assert.equal(insertarPredefinida('Buenas,  \n', 'Te cuento<br />\r\nque'), '<p>Buenas,</p><p>Te cuento<br>que</p>')
+  assert.equal(insertarPredefinida('<p>Algo</p>', '<p>Mas</p>'), '<p>Algo</p><p>Mas</p>')
   assert.equal(insertarPredefinida('Algo', '<p> </p>'), 'Algo')
+  assert.equal(insertarPredefinida('<p></p>', '<p>Hola</p>'), '<p>Hola</p>')
+  // Lo que viene en la plantilla se escapa: el editor nunca recibe marcado ajeno.
+  assert.equal(insertarPredefinida('', '<script>x</script><p>ok</p>'), '<p>ok</p>')
 })
 
 test('el aviso de cambio lleva el id del ticket', () => {

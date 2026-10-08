@@ -148,6 +148,11 @@ test('textoPlano: parrafos, saltos y listas con su marcador', () => {
   assert.equal(textoPlano(null), '')
 })
 
+test('textoPlano: el blanco del marcado no se lee como salto de linea', () => {
+  assert.equal(textoPlano('<p>a</p>\n<p>b<br />\r\n  c   d</p>\n'), 'a\n\nb\nc d')
+  assert.equal(textoPlano('sin etiquetas\nsegunda linea'), 'sin etiquetas\nsegunda linea')
+})
+
 test('textoPlano: ida y vuelta con textoAHtml', () => {
   const original = 'Hola & <chao>\nsegunda linea\n\nOtro parrafo'
   assert.equal(textoPlano(textoAHtml(original)), original)

@@ -6,7 +6,8 @@ import { AvisoEnLinea } from '@/componentes/estado/Estados'
 import { useAviso } from '@/componentes/estado/useAviso'
 import { Boton } from '@/componentes/formularios/Boton'
 import { Campo } from '@/componentes/formularios/Campo'
-import { AreaTexto, Entrada } from '@/componentes/formularios/Entrada'
+import { EditorRico } from '@/componentes/formularios/EditorRico'
+import { Entrada } from '@/componentes/formularios/Entrada'
 import {
   ContenidoSelector, DisparadorSelector, Opcion, Selector
 } from '@/componentes/formularios/Selector'
@@ -75,7 +76,10 @@ export function NuevaSolicitud ({ prioridades, espacios, entradaId = null }: Pro
   const enviandoAhora = useRef(false)
 
   const [asunto, setAsunto] = useState('')
+  // HTML del editor; cadena vacia si no hay nada visible.
   const [mensaje, setMensaje] = useState('')
+  // Cambia al reiniciar: remontar el editor es la forma de vaciarlo, que es no controlado.
+  const [versionDelMensaje, setVersionDelMensaje] = useState(0)
   const [espacio, setEspacio] = useState(() => espacioPorDefecto(espacios, entradaId))
   const [prioridad, setPrioridad] = useState(SIN_PRIORIDAD)
 
@@ -142,6 +146,7 @@ export function NuevaSolicitud ({ prioridades, espacios, entradaId = null }: Pro
   function reiniciar (): void {
     setAsunto('')
     setMensaje('')
+    setVersionDelMensaje((version) => version + 1)
     setEspacio(espacioPorDefecto(espacios, entradaId))
     setPrioridad(SIN_PRIORIDAD)
     setFallo(null)
@@ -207,14 +212,17 @@ export function NuevaSolicitud ({ prioridades, espacios, entradaId = null }: Pro
               </Campo>
             </div>
 
-            <Campo etiqueta="Mensaje" requerido>
+            <Campo etiqueta="Mensaje" requerido ayuda="Ctrl+Enter envía el ticket.">
               {(props) => (
-                <AreaTexto
+                <EditorRico
                   {...props}
-                  rows={5}
-                  value={mensaje}
+                  key={versionDelMensaje}
+                  etiqueta="Mensaje"
+                  filasMinimas={5}
+                  valorInicial={mensaje}
                   placeholder="Cuéntanos qué pasa, desde cuándo y qué esperabas que ocurriera."
-                  onChange={(evento) => { setMensaje(evento.target.value) }}
+                  onCambio={setMensaje}
+                  onEnviar={() => { void crear() }}
                 />
               )}
             </Campo>

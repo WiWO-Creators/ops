@@ -67,6 +67,8 @@ export interface PropsEditorRico {
   onEnviar?: () => void
   /** Subconjunto de herramientas; por omision, todas. */
   herramientas?: readonly HerramientaRica[]
+  /** Pone el cursor al final del texto al montar, sin mover el scroll. */
+  autoenfocar?: boolean
 }
 
 /** Lo que el editor entrega: `''` cuando no hay nada visible, que es lo que las validaciones esperan. */
@@ -150,7 +152,8 @@ export function EditorRicoInterno ({
   maxCaracteres,
   filasMinimas = 4,
   onEnviar,
-  herramientas = TODAS
+  herramientas = TODAS,
+  autoenfocar = false
 }: PropsEditorRico): ReactElement {
   // Los callbacks viajan por ref: el editor se crea una sola vez y no puede quedarse con los de la
   // primera pasada, que cierran sobre estado viejo.
@@ -220,6 +223,7 @@ export function EditorRicoInterno ({
     onCreate: ({ editor: actual }) => {
       setCaracteres(actual.getText().length)
       onListoRef.current?.(htmlDeEditor(actual))
+      if (autoenfocar) actual.commands.focus('end', { scrollIntoView: false })
     },
     onUpdate: ({ editor: actual }) => {
       setCaracteres(actual.getText().length)
