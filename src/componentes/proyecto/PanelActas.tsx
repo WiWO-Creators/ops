@@ -238,6 +238,7 @@ function ActasDelProyecto ({
           conIa={ia.activa}
           puedeCrearTareas={capacidadesTareas.includes('create')}
           destacarTareas={recienGenerada === abierta}
+          esSuperadmin={yo?.is_superadmin === true}
           onCambiada={recargar}
           onBorrada={() => {
             recargar()
@@ -360,6 +361,7 @@ function ActaAbierta ({
   conIa,
   puedeCrearTareas,
   destacarTareas,
+  esSuperadmin,
   onCambiada,
   onBorrada,
   onVolver
@@ -373,6 +375,7 @@ function ActaAbierta ({
   conIa: boolean
   puedeCrearTareas: boolean
   destacarTareas: boolean
+  esSuperadmin: boolean
   onCambiada: () => void
   onBorrada: () => void
   onVolver: () => void
@@ -399,6 +402,7 @@ function ActaAbierta ({
       conIa={conIa}
       puedeCrearTareas={puedeCrearTareas}
       destacarTareas={destacarTareas}
+      esSuperadmin={esSuperadmin}
       onCambiada={(actualizada) => {
         reemplazar(actualizada)
         onCambiada()

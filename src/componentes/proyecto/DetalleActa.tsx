@@ -12,12 +12,14 @@ import { AdjuntosDelActa } from './acta/AdjuntosDelActa'
 import { CabeceraDelActa } from './acta/CabeceraDelActa'
 import { ConfirmacionDelActa } from './acta/ConfirmacionDelActa'
 import { DialogoDeRenombre } from './acta/DialogoDeRenombre'
+import { OriginalDelActa } from './acta/OriginalDelActa'
 import { TareasPropuestas } from './acta/TareasPropuestas'
 import { useEdicionDelActa } from './acta/useEdicionDelActa'
 import { useEscriturasDelActa } from './acta/useEscriturasDelActa'
 import { useExportacionDelActa } from './acta/useExportacionDelActa'
 import { useIdiomaDelActa } from './acta/useIdiomaDelActa'
 import type { Acta } from '@/datos/recursos'
+import { EVENTO_ABRIR_ORBE } from '@/dominio/pantalla'
 
 /**
  * Un Meeting Paper: se lee, se corrige y se imprime.
@@ -123,6 +125,8 @@ interface PropsDetalle {
   puedeCrearTareas?: boolean
   /** El acta se acaba de generar: sus tareas propuestas se abren y se traen a la vista. */
   destacarTareas?: boolean
+  /** Quien mira es superadmin: ve el original de la reunión. La API lo vuelve a exigir con un 403. */
+  esSuperadmin?: boolean
   onCambiada: (acta: Acta) => void
   onBorrada: () => void
   onVolver: () => void
@@ -137,6 +141,7 @@ export function DetalleActa ({
   conIa = false,
   puedeCrearTareas = false,
   destacarTareas = false,
+  esSuperadmin = false,
   onCambiada,
   onBorrada,
   onVolver
@@ -228,6 +233,8 @@ export function DetalleActa ({
           puedeEditar={puedeEditar}
           puedeRenombrar={puedeRenombrar}
           puedeBorrar={puedeBorrar}
+          puedePreguntar={conIa}
+          onPreguntar={() => { window.dispatchEvent(new Event(EVENTO_ABRIR_ORBE)) }}
           onDescartar={edicion.descartar}
           onGuardar={() => { void edicion.guardar() }}
           onExportar={(formato) => { void exportar(formato) }}
@@ -282,6 +289,10 @@ export function DetalleActa ({
             alto="h-[46rem]"
           />
           )}
+
+      {esSuperadmin && (
+        <OriginalDelActa ruta={`${conId(fuente.acta, acta.id)}/fuente`} marca={acta.brand} />
+      )}
 
       {fuente.actaTareas !== null && (
         <TareasPropuestas

@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState, type ReactElement } from 'react'
 import Link from 'next/link'
-import { usePathname, useRouter } from 'next/navigation'
+import { usePathname, useRouter, useSearchParams } from 'next/navigation'
 import { AreaTexto } from '@/componentes/formularios/Entrada'
 import { Boton } from '@/componentes/formularios/Boton'
 import { Cargando, ErrorEstado, Vacio } from '@/componentes/estado/Estados'
@@ -23,7 +23,7 @@ import {
   type FaseMensaje,
   type Mensaje
 } from '@/dominio/ia-chat'
-import { pantallaDeRuta } from '@/dominio/pantalla'
+import { actaAbiertaDeUrl, pantallaDeRuta, SUGERENCIAS_DE_ACTA } from '@/dominio/pantalla'
 import { TarjetaPreguntaIA } from './TarjetaPreguntaIA'
 import { TarjetaPropuestaIA } from './TarjetaPropuestaIA'
 import { MAXIMO_PREGUNTA_AGENTE } from '@/dominio/ia-ejecucion'
@@ -142,6 +142,9 @@ function ConversacionOrbe ({ desplazable = false, proyecto, configuracion }: Pro
   const conProyecto = proyectoId !== undefined
   const router = useRouter()
   const ruta = usePathname()
+  const parametros = useSearchParams()
+  // El acta que la persona está leyendo, solo en el chat del equipo fuera de un Proyecto fijo.
+  const actaId = proyectoId === undefined && sujeto === 'staff' ? actaAbiertaDeUrl(ruta, parametros) : null
   const [mensajes, setMensajes] = useState<Mensaje[]>(() => leerHilo(proyectoId, sujeto).mensajes)
   const [carga, setCarga] = useState<'cargando' | 'listo' | 'error'>(
     () => leerHilo(proyectoId, sujeto).cargado ? 'listo' : 'cargando'
@@ -239,7 +242,10 @@ function ConversacionOrbe ({ desplazable = false, proyecto, configuracion }: Pro
       // En el portal no viaja: el contacto no tiene pantallas del panel, y su contexto es el
       // `proyecto_id` que ya pone la configuracion.
       const pantalla = proyectoId === undefined && sujeto === 'staff' ? pantallaDeRuta(ruta) : null
-      const cuerpo = configuracion.cuerpo(texto, proyectoId, pantalla)
+      const cuerpo = {
+        ...configuracion.cuerpo(texto, proyectoId, pantalla),
+        ...(actaId === null ? {} : { acta_id: actaId })
+      }
 
       for await (const crudo of leerSSE(rutaEnvio, { cuerpo, senal: abortador.signal })) {
         const evento = leerEventoIA(crudo)
@@ -369,7 +375,7 @@ function ConversacionOrbe ({ desplazable = false, proyecto, configuracion }: Pro
             descripcion={textos.descripcion(proyecto === undefined ? undefined : proyecto.name ?? 'este proyecto')}
             accion={
               <div className="flex flex-wrap justify-center gap-2">
-                {textos.sugerencias.map((sugerencia) => (
+                {(actaId === null ? textos.sugerencias : SUGERENCIAS_DE_ACTA).map((sugerencia) => (
                   <Boton key={sugerencia} tamano="chico" onClick={() => setPregunta(sugerencia)}>
                     {sugerencia}
                   </Boton>

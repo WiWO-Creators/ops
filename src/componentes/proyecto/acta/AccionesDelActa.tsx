@@ -1,7 +1,7 @@
 'use client'
 
 import type { ReactElement } from 'react'
-import { Download } from 'lucide-react'
+import { Download, MessageCircleQuestion } from 'lucide-react'
 import { Boton } from '@/componentes/formularios/Boton'
 import {
   ContenidoMenu,
@@ -18,6 +18,9 @@ interface PropsAcciones {
   puedeEditar: boolean
   puedeRenombrar: boolean
   puedeBorrar: boolean
+  /** Ofrece "Preguntar": abre el chat con este acta como contexto. Solo el equipo con IA activa. */
+  puedePreguntar: boolean
+  onPreguntar: () => void
   onDescartar: () => void
   onGuardar: () => void
   onExportar: (formato: FormatoDeExportacion) => void
@@ -39,6 +42,8 @@ export function AccionesDelActa ({
   puedeEditar,
   puedeRenombrar,
   puedeBorrar,
+  puedePreguntar,
+  onPreguntar,
   onDescartar,
   onGuardar,
   onExportar,
@@ -77,6 +82,12 @@ export function AccionesDelActa ({
                 <ItemMenu onSelect={onImprimir}>Imprimir</ItemMenu>
               </ContenidoMenu>
             </MenuContextual>
+            {puedePreguntar && (
+              <Boton variante="secundario" tamano="chico" onClick={onPreguntar}>
+                <MessageCircleQuestion size={14} strokeWidth={2} aria-hidden="true" className="shrink-0" />
+                Preguntar
+              </Boton>
+            )}
             {puedeEditar && (
               <Boton variante="primario" tamano="chico" onClick={onCorregir}>
                 Corregir
