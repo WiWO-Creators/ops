@@ -4,12 +4,11 @@ import { Fecha } from '@/componentes/presentadores/Fecha'
 import { Insignia, type TonoInsignia } from '@/componentes/presentadores/Insignia'
 import { TituloModulo } from '@/componentes/estructura/TituloModulo'
 import { ErrorApi } from '@/datos/errores'
-import { pedir } from '@/datos/servidor'
+import { cargarYo, pedir } from '@/datos/servidor'
 import type {
   ClasificacionCorreoEntrante, ConfiguracionCasillaEntrante, FichaCorreoEntrante, ModoCasillaEntrante,
   ResumenCorreosEntrantes
 } from '@/datos/recursos'
-import type { Yo } from '@/datos/tipos'
 
 export const metadata = { title: 'Correos entrantes · WiWO Ops' }
 
@@ -121,7 +120,7 @@ async function cargar (): Promise<Cargado | ErrorApi> {
  * está la compuerta real— pero pedirla igual gastaría un viaje que sabemos que vuelve 403.
  */
 export default async function CorreosEntrantesPage () {
-  const { data: yo } = await pedir<Yo>('/me')
+  const { data: yo } = await cargarYo()
 
   if (!yo.is_superadmin) return <SinPermiso className="mt-10" />
 

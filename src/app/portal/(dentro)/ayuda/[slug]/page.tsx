@@ -31,7 +31,7 @@ export default async function ArticuloPagina (props: PageProps<'/portal/ayuda/[s
       <Volver href="/portal/ayuda">Ayuda</Volver>
 
       <header>
-        <p className="text-texto-sutil text-xs tracking-wide uppercase">{articulo.group.name}</p>
+        <p className="text-texto-sutil text-xs antetitulo">{articulo.group.name}</p>
         <h1 className="text-texto mt-1 text-xl font-semibold">{articulo.subject}</h1>
       </header>
 

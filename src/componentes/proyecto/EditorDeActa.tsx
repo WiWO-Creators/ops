@@ -6,9 +6,11 @@ import { BubbleMenu } from '@tiptap/react/menus'
 import StarterKit from '@tiptap/starter-kit'
 import Placeholder from '@tiptap/extension-placeholder'
 import { Bold, Expand, GraduationCap, Heading2, Heading3, Italic, List, Quote, Shrink, Sparkles } from 'lucide-react'
+import { AvisoEnLinea } from '@/componentes/estado/Estados'
 import { Boton } from '@/componentes/formularios/Boton'
 import { escribirEnBff } from '@/componentes/datos/mutaciones'
 import { cn } from '@/lib/clases'
+import '@/estilos/acta.css'
 import type { LucideIcon } from 'lucide-react'
 import { claseDeMarca, cssDeMarcas } from '@/dominio/marcas-acta'
 
@@ -183,7 +185,7 @@ export function EditorDeActa ({ htmlInicial, onCambio, proyectoId, conIa = true,
 
       <EditorContent editor={editor} />
 
-      {error !== null && <p role="alert" className="text-texto-peligro text-sm">{error}</p>}
+      {error !== null && <AvisoEnLinea variante="error" mensaje={error} className="text-sm" />}
     </div>
   )
 }

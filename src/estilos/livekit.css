@@ -53,7 +53,7 @@
   --lk-font-size: 0.875rem;
   --lk-line-height: 1.5;
   --lk-border-radius: var(--medium-BorderRadius);
-  --lk-grid-gap: var(--spacing-1_5);
+  --lk-grid-gap: --spacing(3);
 }
 
 /*

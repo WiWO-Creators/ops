@@ -548,6 +548,14 @@ la tabla `tblwiwo_project_patentes` (migración `0160`) — en los dos casos la 
 igual que hace con la del Proceso. A diferencia de aquélla, **acá no hay reparación perezosa**: la
 lectura no asigna nada. `/portal` no devuelve este campo: es un código interno.
 
+**`oportunidad`** (`"upsell"` | `"licitacion"` | `null`) dice de qué oportunidad comercial nació el
+Espacio y viaja en el listado y el detalle. El listado diario **no** trae los upsells ni las licitaciones
+sin ganar, salvo que se pida `include=upsells` (lo hace solo la ficha de un cliente, junto a
+`filter[clientid]`): es una venta de ese cliente y la interfaz la muestra entre sus Proyectos con la marca
+«Upsell». Filtrar por cliente sin ese `include` NO los trae. La licitación sigue oculta (no tiene cliente
+hasta que se gana). Una vez ganado, el Espacio entra a todos los listados y conserva
+`oportunidad`.
+
 Filtros: `status`, `clientid`, `member` (staff id), `date_from`/`date_to` sobre `start_date`, `q`.
 Orden: `name`, `start_date`, `deadline`, `progress`.
 Include: `custom_fields`, `members`.
@@ -1746,6 +1754,8 @@ en las dos direcciones, que es lo que `Nucleo\Consulta` ya hace con los nulos. D
 **`status` es opcional**: por defecto queda el estado actual del ticket. `add_reply()` lo exige
 (`:440`), pero un default duro reabriría en silencio los tickets cerrados cada vez que alguien
 agrega una nota. El `message` pasa por `html_purify`: conserva `<b>`, elimina `<script>`.
+También acepta `multipart/form-data` con los archivos en `attachments[]`: ver
+[Adjuntos de ticket](#adjuntos-de-ticket-multipart).
 
 Errores propios:
 
@@ -1757,6 +1767,7 @@ Errores propios:
 | `message` vacío al responder | `422 {"message":["required"]}` |
 | `status` inexistente al responder | `422 {"status":["invalid"]}` |
 | Clave fuera de `message`/`status` al responder | `422 {"campo":["no_editable"]}` |
+| Archivo inválido al responder (multipart) | `422 {"attachments":["extension_not_allowed" \| "content_mismatch" \| "empty" \| "too_large" \| "max_files" \| "upload_failed"]}`; `413 payload_too_large` si PHP ya descartó el cuerpo |
 | Subrecurso que no sea `respuestas` ni `archivos` | `404 not_found` |
 
 **No existe una feature de permisos `tickets` en Perfex.** No hay un solo `staff_can('view',
@@ -1873,12 +1884,85 @@ actual. `POST /tickets/{hijo}/respuestas` escribe en el principal y devuelve la 
 **Staff: asignado, predefinidas y adjuntos.** El asignado se cambia con `PATCH /tickets/{id}
 { assigned }` (`0` = sin asignar) sobre la lista de `/staff/asignables`. Las predefinidas
 (`GET /tickets/respuestas-predefinidas`) llegan en HTML y se insertan como texto plano. Los adjuntos
-son de solo lectura: los de apertura salen de `GET /tickets/{id}/archivos` y los de cada respuesta
-de `attachments`; se bajan por el BFF (`/api/bff/{download_path}`, solo rutas `files/...`).
+de apertura salen de `GET /tickets/{id}/archivos` y los de cada respuesta de `attachments`; se bajan
+por el BFF (`/api/bff/{download_path}`, solo rutas `files/...`). Subirlos junto con la respuesta es
+multipart: ver [Adjuntos de ticket](#adjuntos-de-ticket-multipart).
 
 **Señal de cambio.** Tras cualquier escritura el modal emite en `window` el evento
 `ops:tickets-cambiados` con `detail: { id }` (`EVENTO_TICKETS_CAMBIADOS`); las listas y bandejas lo
 escuchan para ponerse al día.
+
+#### Adjuntos de ticket (multipart)
+
+Tres escrituras aceptan, además de JSON, `multipart/form-data` con el texto en los mismos campos y los
+archivos en **`attachments[]`** (el nombre del campo de Perfex):
+
+| Ruta | Quién | Campos de texto |
+|---|---|---|
+| `POST /tickets/{id}/respuestas` | equipo | `message` (obligatorio), `status` |
+| `POST /portal/tickets/{id}/respuestas` | contacto | `message` |
+| `POST /portal/tickets` | contacto | `subject`, `message`, `project_id`, `priority` |
+
+Sin archivos, multipart y JSON son equivalentes. Los archivos se guardan en
+`uploads/ticket_attachments/{ticketid}` y en `tblticket_attachments` (`replyid` nulo en el mensaje de
+apertura) dentro de la misma transacción: un fallo borra también los binarios ya movidos. En un
+hilo fusionado cuelgan del principal. **No se manda ningún correo por subir un archivo**: el aviso de
+la respuesta sigue siendo el de siempre, con su interruptor.
+
+**Validación** (todo el lote antes de guardar el primero; un archivo malo rechaza el lote):
+
+- **Extensión**: la **intersección** de `ticket_attachments_file_extensions` (opción de Perfex, hoy
+  `.jpg,.jpeg,.png,.pdf,.doc,.zip,.rar`) con las extensiones que la API sabe contrastar
+  (`png jpg jpeg gif webp pdf txt csv zip rar doc xls ppt docx xlsx pptx`). La opción acota, nunca
+  amplía: `.svg`, `.html` o `.php` se rechazan aunque alguien los agregue en Configuración.
+- **Contenido**: el tipo real (`finfo`) tiene que corresponder a la extensión. `filetype` guarda ese
+  tipo y no el que declara el navegador.
+- **Tamaño por archivo**: `TICKETS_ADJUNTOS_MAX_MB` (defecto **10** MB). **Cantidad por petición**:
+  `maximum_allowed_ticket_attachments` de Perfex (defecto **4**), con techo `TICKETS_ADJUNTOS_MAX_ARCHIVOS`
+  (defecto 10). Ambas variables van en el `.env` del módulo, no en el código.
+- **Nombre**: lo decide el servidor (`sanitize_file_name()` + `unique_filename()`); el del cliente es
+  sólo una semilla: queda únicamente `[A-Za-z0-9_-]` más la extensión validada en minúsculas (`shell.php.png`
+  → `shell-php.png`). Un nombre repetido suma `-1`. Imágenes y PDF con `<?php`/`<?=` son `content_mismatch`.
+
+| Situación | Respuesta |
+|---|---|
+| Extensión no permitida | `422 {"attachments":["extension_not_allowed"]}` |
+| El contenido no corresponde a la extensión | `422 {"attachments":["content_mismatch"]}` |
+| Archivo vacío / sobre el tope / más de los permitidos | `422 {"attachments":["empty" \| "too_large" \| "max_files"]}` |
+| La subida se cortó | `422 {"attachments":["upload_failed"]}` |
+| El cuerpo o un archivo superó `post_max_size` / `upload_max_filesize` | `413 payload_too_large` (JSON, no el HTML de Apache) |
+| Ticket ajeno o inexistente | `404`, **antes** que cualquier validación de archivo |
+
+El `message` del 422 nombra el archivo y el límite («“foto.exe”: ese tipo de archivo no está
+permitido.»). En el portal rigen además las reglas de siempre —`409` por regla de respuesta, `429` por
+tope por hora (los archivos no cuentan aparte: una respuesta con archivos es una respuesta), `20000`
+caracteres en el mensaje—, y una **alta repetida** (60 s, mismo asunto y mensaje) devuelve el ticket
+ya creado, **salvo que traiga archivos**: un alta con archivos nunca es repetición y crea un ticket nuevo
+(devolver el anterior los descartaría en silencio).
+
+**Lectura en el portal.** `GET /portal/tickets/{id}` suma `attachments` (los del mensaje de apertura) y
+cada elemento de `replies` suma los suyos, con la forma del equipo:
+
+```json
+{ "id": 9, "ticket_id": 14, "reply_id": null, "file_name": "captura.png",
+  "filetype": "image/png", "date_added": "2026-10-05 14:04:18",
+  "download_path": "files/ticket/9/download" }
+```
+
+`GET /portal/tickets/{id}/archivos` devuelve sólo los de apertura (espejo de `GET /tickets/{id}/archivos`;
+`403` sin permiso de soporte, `404` si el ticket no está en el alcance del contacto). La descarga es
+`GET /files/ticket/{id}/download`: para un contacto exige que el ticket esté en **su** alcance (su
+empresa, sus propios tickets si la instalación los esconde entre contactos, y el interruptor de
+tickets del Espacio); si no, `404`. Responde siempre `Content-Disposition: attachment` y `nosniff`.
+
+**Cómo lo usa `ops-v2`.** `CajaDeRespuesta` y `NuevaSolicitud` eligen archivos con un tope local (los
+mismos 10 MB / 4 archivos / extensiones por defecto, en `dominio/ticket-adjuntos.ts`), los listan antes
+de enviar y mandan multipart sólo si hay archivos. Es un adelanto de la validación, no la validación:
+si la instalación cambia sus límites, manda el `422` del servidor. **Hay que mantenerlos sincronizados a mano**
+con `maximum_allowed_ticket_attachments` y `ticket_attachments_file_extensions` de Perfex, con
+`TICKETS_ADJUNTOS_MAX_MB`/`TICKETS_ADJUNTOS_MAX_ARCHIVOS` del `.env` y con `Adjunto::MIMES` (el backend
+acepta la **intersección** de las dos listas de extensiones). El hilo del portal pinta
+`attachments` con el mismo componente `Adjuntos` que el panel.
 
 ### Lectura de venta desde el portal
 
@@ -3668,6 +3752,33 @@ Responde `200` con el mismo cuerpo de `GET /settings` ya actualizado.
 Fuera de alcance por decision: **ninguna** opcion de SMTP, credenciales, claves de API o envio de
 correo aparece, ni siquiera como solo lectura.
 
+#### Modo especial (`apariencia`)
+
+Un estilo temporal de toda la interfaz (hoy `halloween`), programado con un rango de dias. Son tres
+editables del grupo `apariencia` (migracion `1160`):
+
+| Clave | Tipo | Nace en |
+|---|---|---|
+| `wiwo_modo_especial` | enum `ninguno`,`halloween` | `ninguno` |
+| `wiwo_modo_desde` | `fecha` (`YYYY-MM-DD` o vacio) | vacio |
+| `wiwo_modo_hasta` | `fecha`, ultimo dia inclusive | vacio |
+
+`fecha` es un tipo nuevo de opcion: valor texto, `YYYY-MM-DD` real del calendario o cadena vacia.
+Con el modo distinto de `ninguno` hacen falta las dos fechas, y `desde <= hasta`; se valida el
+conjunto (lo ya guardado mas lo que viaja) y falla con `422`, por campo, `required` o
+`after_or_equal:wiwo_modo_desde`.
+
+#### `GET /public/modo` — sin sesion
+
+El modo vigente **hoy** (dia en la zona del negocio), para pintar tambien el acceso, el portal y las
+pantallas. No expone nada mas que la clave y el rango.
+
+```json
+{ "data": { "clave": "halloween", "desde": "2026-10-25", "hasta": "2026-11-01" } }
+```
+
+`data` es `null` si no hay modo, si faltan fechas o si hoy cae fuera del rango. Solo `GET`.
+
 ### Panel: búsqueda global, auditoría y tareas personales
 
 Rama `feat/api-panel-transversales`. **Tres secciones nuevas**, ninguna existente cambia.
@@ -3938,6 +4049,18 @@ persona **no se registra en ninguna parte**; para tenerlo, el BFF tendria que re
 `staff` es `null` si la cuenta ya no existe. `impersonated_by` no es `null` cuando la sesion la
 abrio otra persona por `POST /impersonate`.
 
+### `GET /database-export` — exportar la base de datos
+
+Solo superadministracion (403 al resto). Responde un archivo, no el sobre JSON: `application/gzip`
+con `Content-Disposition: attachment; filename="<base>_<fecha>_<hora>.sql.gz"`, el volcado completo de
+`mysqldump` (`--single-transaction`, rutinas y triggers) comprimido al vuelo. Excluye solo los datos
+de `tblsessions`. Incluye hashes de contrasenas y tokens: es la copia entera.
+
+Cada exportacion anota una linea en la auditoria (`tblactivity_log`) con la persona y la IP, antes de
+emitir. Un `503` dice que el servidor no tiene `mysqldump` (o la variable `WIWO_MYSQLDUMP_BIN` apunta
+a algo no ejecutable). Si el volcado falla a mitad de camino la conexion se corta con el cuerpo
+truncado y el error queda en el log del servidor: un `.sql.gz` que no descomprime esta incompleto.
+
 ### `GET /sessions/impersonations` — suplantaciones vivas
 
 Quien esta usando el panel ahora mismo con la cuenta de otra persona. Alimenta el aviso destacado de
@@ -3966,6 +4089,80 @@ la hora con la suplantacion todavia abierta.
 
 Una suplantacion, una entrada: la rotacion deja varios tokens vivos de la misma sesion y se
 devuelve solo el mas reciente de cada par (suplantado, suplantador).
+
+---
+
+### Actividad del portal — qué hacen los contactos cuando entran
+
+Migración `1170`. El portal anota lo que hace cada contacto (páginas y pestañas que abre, cuánto
+las ve, qué botones pulsa) y el equipo lo lee en la pestaña «Actividad del portal» de la ficha del
+Cliente.
+
+#### `POST /portal/actividad` — contacto
+
+Lote de hasta 50 eventos. Responde `204` si se guarda o si el seguimiento está apagado; `422` si el
+lote no cumple el formato o si el uuid de sesión ya es de otro contacto (o de otra forma de entrar,
+suplantada o no); `429` al pasar el tope.
+
+```json
+{ "session": "0f8fad5b-d9cb-469f-a165-70867728950e", "device": "movil",
+  "events": [
+    { "type": "vista",   "route": "/portal/proyectos/12", "duration_ms": 4200 },
+    { "type": "pestana", "route": "/portal/proyectos/12", "tab": "gantt", "duration_ms": 900 },
+    { "type": "click",   "route": "/portal/proyectos/12", "target": "aprobacion.aprobar", "object_id": 55 }
+  ] }
+```
+
+- **Nada de texto libre.** `route` es un pathname `/portal/...` en minúsculas, sin query ni hash;
+  `tab` y `target` cumplen `^[a-z0-9_.-]{1,64}$`; `object_id` y `duration_ms` son enteros. Un evento
+  inválido da `422` para todo el lote y no se guarda nada.
+- `session` es un uuid que genera el navegador y repite en cada lote. Un uuid que ya es de otro
+  contacto da `422`.
+- El contacto, su cliente, la IP, el navegador y si lo suplanta el equipo salen del token, nunca del
+  cuerpo. Lo que hace el equipo con «Ver como cliente» se guarda con `suplantado_por`.
+- Tope `PORTAL_RASTREO_POR_HORA` (2000 por contacto y hora): al pasarlo, `429` con `Retry-After`.
+- Interruptor `wiwo_portal_rastreo` (nace en `1`). `/portal/me` expone `rastreo: boolean`.
+
+#### `GET /clients/{id}/portal-activity` — staff, cliente visible
+
+Parámetros: `desde`, `hasta` (`YYYY-MM-DD`, por defecto los últimos 30 días, máximo 366) y
+`suplantadas=1` para incluir lo que hizo el equipo (por defecto queda fuera). Una fecha que no
+existe da `422`. La respuesta trae `truncado: true` si el periodo superó las 50.000 filas leídas.
+
+```json
+{ "data": {
+  "desde": "2026-09-03", "hasta": "2026-10-02",
+  "kpis": { "sesiones": 25, "contactos_activos": 3, "segundos_activos": 4260,
+            "mediana_segundos": 180, "ultima_visita": "2026-10-02T15:39:00Z" },
+  "por_dia":   [ { "dia": "2026-10-01", "sesiones": 2, "segundos": 340 } ],
+  "vistas":    [ { "ruta": "/portal/proyectos/:id", "pestana": "gantt", "visitas": 4, "segundos": 60 } ],
+  "proyectos": [ { "id": 12, "nombre": "DELCO", "visitas": 9, "segundos": 540 } ],
+  "clicks":    [ { "objetivo": "aprobacion.aprobar", "clicks": 7 } ],
+  "contactos": [ { "id": 1, "nombre": "Renata Ferreyra", "email": "clienta@acme.com", "sesiones": 9,
+                   "segundos": 1500, "ultima_visita": "2026-10-02T15:39:00Z",
+                   "vista_favorita": "/portal/proyectos/:id" } ] } }
+```
+
+`vistas` normaliza los ids (`/portal/proyectos/:id`); una fila con `pestana` cuenta la pestaña dentro
+de la página. `segundos_activos` suma solo las `vista`: las `pestana` van dentro de su vista.
+`proyectos` dice CUÁL proyecto miran (`vistas` normaliza los ids y no puede); un proyecto borrado
+sale con `nombre: null`. Solo se nombran proyectos del propio cliente.
+
+#### `GET /contacts/{id}/portal-activity` — staff, cliente visible
+
+Parámetros: `pagina` (1 a 10.000; 15 sesiones por página) y `suplantadas=1`. Solo trae sesiones del
+cliente actual del contacto. Cada sesión trae sus pasos en orden:
+
+```json
+{ "data": [ { "sesion": "…", "inicio": "2026-10-02T15:33:00Z", "segundos": 62, "dispositivo": "escritorio",
+              "eventos": 10, "suplantado_por": null,
+              "pasos": [ { "tipo": "vista", "ruta": "/portal", "pestana": null, "objetivo": null,
+                           "objeto_id": null, "segundos": 12, "a": "2026-10-02T15:33:00Z" } ] } ],
+  "meta": { "pagina": 1, "por_pagina": 15, "total": 22, "nombres": { "12": "DELCO" } } }
+```
+
+Con el seguimiento apagado las dos lecturas dan `404`. Los eventos se borran a los
+`PORTAL_RASTREO_MESES` (12); las sesiones se conservan.
 
 ---
 
@@ -7379,7 +7576,7 @@ No es implícito ni está "pendiente de conectar": no existe. Pedirlo devuelve `
 | **Facturas recurrentes** | Las genera el cron. La API devuelve `recurring` de sólo lectura y no dispara nada |
 | **Notas de crédito** | Sin recurso. `tblcreditnotes` no se toca |
 | **Subida del comprobante de gasto** | La **lectura** sale en `file`; la subida necesita `upload_helper`, whitelist de extensiones y un `413` propio |
-| **Subida de adjuntos al responder un ticket** | Sigue sin existir **para tickets**. La subida a Procesos y Espacios sí se construyó en la ola 1 (`POST /tasks/{id}/files`, `POST /projects/{id}/files`) y es el único endpoint del módulo que escribe en disco |
+| **Subida de adjuntos al responder un ticket** | Ya existe: ver [Adjuntos de ticket](#adjuntos-de-ticket-multipart) |
 | **`POST /leads/{id}/convertir`** | La conversión a cliente queda en el panel, por decisión del usuario. No es un `INSERT` en `tblclients`: `admin/Leads.php:373-609` copia campos, arrastra los campos personalizados con equivalencia y crea el contacto primario |
 | **Cotizaciones, propuestas y contratos** | Se retiraron enteros el 3 de septiembre de 2026: `/estimates`, `/proposals` y `/contracts` son `404` en cualquier verbo, y con ellos se fueron el embudo de propuestas y de cotizaciones y toda la escritura de contratos. El único embudo que existe es el de `leads`. Lo único vivo de los tres es la lectura desde `/portal/*` |
 | **Borrado de gastos y `PATCH /payments/{id}`** | `DELETE /expenses/{id}` y `PATCH /payments/{id}` son `404` |

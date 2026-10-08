@@ -29,7 +29,7 @@ export function ResumenDelEquipoDias ({ dias, activo }: PropsDias) {
 
   return (
     <nav aria-label="Días anteriores" className="flex flex-col gap-2">
-      <h2 className="border-linea-suave text-texto-sutil border-b pb-1.5 text-xs font-medium tracking-[0.08em] uppercase">
+      <h2 className="border-linea-suave text-texto-sutil border-b pb-1.5 text-xs antetitulo">
         Días anteriores
       </h2>
 

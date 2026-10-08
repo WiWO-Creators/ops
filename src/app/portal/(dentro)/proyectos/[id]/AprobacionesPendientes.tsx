@@ -2,6 +2,7 @@
 
 import { useRouter } from 'next/navigation'
 import { useState } from 'react'
+import { AvisoEnLinea } from '@/componentes/estado/Estados'
 import { Boton } from '@/componentes/formularios/Boton'
 import { AreaTexto } from '@/componentes/formularios/Entrada'
 import { ContenidoDialogo, Dialogo } from '@/componentes/superposiciones/Dialogo'
@@ -9,9 +10,11 @@ import { escribirEnBff } from '@/componentes/datos/mutaciones'
 import { EnlacePanelClasico } from '@/componentes/presentadores/EnlacePanelClasico'
 import { GLOSARIO } from '@/dominio/glosario'
 import { formatearFecha } from '@/lib/fechas'
+import { cn } from '@/lib/clases'
 import { EstadoDeTarea } from '@/componentes/proyecto/EstadoDeTarea'
 import type { AprobacionPortal, TareaPortal } from '@/datos/portal'
 import type { CatalogoDeEstados } from '@/dominio/estados-tarea'
+import { useAviso } from '@/componentes/estado/useAviso'
 
 /**
  * Las {procesos} que esperan el visto bueno del cliente, arriba de la lista de la pestaña Tareas.
@@ -78,6 +81,7 @@ function FilaAprobacion ({ tarea, estados }: {
   estados: CatalogoDeEstados | undefined
 }) {
   const router = useRouter()
+  const aviso = useAviso()
   const [enviando, setEnviando] = useState(false)
   const [fallo, setFallo] = useState<string | null>(null)
   const [rechazando, setRechazando] = useState(false)
@@ -112,6 +116,7 @@ function FilaAprobacion ({ tarea, estados }: {
       return
     }
 
+    aviso.exito(decision === 'aprobada' ? `Visto bueno registrado para «${tarea.name}».` : `Observación sobre «${tarea.name}» enviada al equipo.`)
     setRechazando(false)
     setCambiando(false)
     setDecidida(decision)
@@ -143,27 +148,29 @@ function FilaAprobacion ({ tarea, estados }: {
           </p>
         </div>
 
+        {/* Solo el cambio de esta sesion aparece con movimiento: la lista recien cargada queda quieta. */}
         {respondida && !cambiando
           ? (
-            <div className="flex shrink-0 items-center gap-3">
+            <div className={cn('flex shrink-0 items-center gap-3', decidida !== null && 'animate-aparecer')}>
               <p className="text-texto-tenue text-sm">
                 {estado === 'aprobada' ? 'Aprobaste' : 'Pediste cambios'}
                 {resuelta !== null && ` el ${formatearFecha(resuelta)}`}
               </p>
               {/* Una Tarea puede volver a «Espera de respuesta» en otra vuelta: el cliente tiene que
                   poder contestar de nuevo sin que la respuesta vieja lo trabe. */}
-              <Boton variante="sutil" tamano="chico" onClick={() => { setCambiando(true) }}>
+              <Boton variante="sutil" tamano="chico" data-rastreo="aprobacion.cambiar" onClick={() => { setCambiando(true) }}>
                 Responder de nuevo
               </Boton>
             </div>
             )
           : (
-        <div className="flex shrink-0 gap-2">
+        <div className={cn('flex shrink-0 gap-2', cambiando && 'animate-aparecer')}>
           {/* Aprobar es escritura directa: pedir un modal para decir que si es friccion sobre lo que
               queremos que pase. Rechazar exige motivo, asi que si abre dialogo. */}
           <Boton
             variante="primario"
             tamano="chico"
+            data-rastreo="aprobacion.aprobar"
             cargando={enviando && !rechazando}
             onClick={() => { void responder('aprobada') }}
           >
@@ -171,14 +178,14 @@ function FilaAprobacion ({ tarea, estados }: {
           </Boton>
           {/* Sin `variante="peligro"`: rechazar no es destruir, es pedir un cambio. El rojo asusta y
               hace que el cliente apruebe cosas que no queria aprobar. */}
-          <Boton variante="secundario" tamano="chico" onClick={() => { setRechazando(true) }}>
+          <Boton variante="secundario" tamano="chico" data-rastreo="aprobacion.rechazar" onClick={() => { setRechazando(true) }}>
             Rechazar
           </Boton>
         </div>
             )}
       </div>
 
-      {fallo !== null && <p role="alert" className="text-texto-peligro text-sm">{fallo}</p>}
+      {fallo !== null && <AvisoEnLinea variante="error" mensaje={fallo} className="text-sm" />}
 
       <Dialogo open={rechazando} onOpenChange={setRechazando}>
         <ContenidoDialogo
@@ -203,13 +210,13 @@ function FilaAprobacion ({ tarea, estados }: {
               onChange={(evento) => { setMotivo(evento.target.value) }}
             />
 
-            {fallo !== null && <p role="alert" className="text-texto-peligro text-sm">{fallo}</p>}
+            {fallo !== null && <AvisoEnLinea variante="error" mensaje={fallo} className="text-sm" />}
 
             <div className="flex justify-end gap-2">
-              <Boton type="button" variante="sutil" onClick={() => { setRechazando(false) }}>
+              <Boton type="button" variante="sutil" data-rastreo="aprobacion.cancelar" onClick={() => { setRechazando(false) }}>
                 Cancelar
               </Boton>
-              <Boton type="submit" variante="primario" cargando={enviando} disabled={motivo.trim() === ''}>
+              <Boton type="submit" variante="primario" data-rastreo="aprobacion.comentar" cargando={enviando} disabled={motivo.trim() === ''}>
                 Enviar comentario
               </Boton>
             </div>

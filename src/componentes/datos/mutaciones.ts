@@ -1,4 +1,4 @@
-import { mensajeDeRespuesta } from '@/datos/cliente'
+import { mensajeDeLectura, mensajeDeRespuesta } from '@/datos/cliente'
 import { avisarCambioDeTareas } from '@/datos/refresco-lista'
 import { segundosParaReintentar } from '@/dominio/ticket-vista'
 
@@ -137,7 +137,7 @@ export async function leerDelBff<T> (ruta: string): Promise<Resultado<T>> {
     return { ok: false, mensaje: 'No se pudo contactar al servidor. Revisa tu conexión.' }
   }
 
-  if (!respuesta.ok) return { ok: false, mensaje: await mensajeDeRespuesta(respuesta) }
+  if (!respuesta.ok) return { ok: false, mensaje: await mensajeDeLectura(respuesta) }
 
   try {
     const sobre = await respuesta.json() as { data: T }

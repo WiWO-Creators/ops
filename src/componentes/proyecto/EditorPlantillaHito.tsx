@@ -1,13 +1,12 @@
 'use client'
 
 import { useState } from 'react'
-import { ArrowDown, ArrowUp, Trash2 } from 'lucide-react'
 import { Boton } from '@/componentes/formularios/Boton'
 import { Campo } from '@/componentes/formularios/Campo'
 import { AreaTexto, Entrada } from '@/componentes/formularios/Entrada'
 import { ContenidoSelector, DisparadorSelector, Opcion, Selector } from '@/componentes/formularios/Selector'
 import { CerrarDialogo, ContenidoDialogo, Dialogo } from '@/componentes/superposiciones/Dialogo'
-import { Cargando, ErrorEstado } from '@/componentes/estado/Estados'
+import { AvisoEnLinea, Cargando, ErrorEstado } from '@/componentes/estado/Estados'
 import { leerError } from '@/datos/errores'
 import type { PlantillaHito, PlantillaHitoDetallada } from '@/datos/recursos'
 import type { OpcionFiltro } from '@/definiciones/tipos'
@@ -24,6 +23,7 @@ import {
   type FilaTarea
 } from '@/lib/plantillas-hito'
 import { useRecurso } from './carga'
+import { ControlesDeOrden, ListaEditable, useFilasEditables } from './ListaEditable'
 
 /**
  * Armado y edicion de una plantilla de Hito.
@@ -139,36 +139,14 @@ function filaNueva (): FilaTarea {
 function Formulario ({ plantilla, tiposDeProceso, onGuardado }: PropsFormulario) {
   const [nombre, setNombre] = useState(plantilla?.name ?? '')
   const [descripcion, setDescripcion] = useState(plantilla?.description ?? '')
-  const [filas, setFilas] = useState<FilaTarea[]>(
+  const lista = useFilasEditables<FilaTarea>(
     () => (plantilla === null ? [filaNueva()] : filasDeTareas(plantilla.tasks))
   )
+  const { filas } = lista
   const [erroresPorFila, setErroresPorFila] = useState<Record<number, Record<string, string>>>({})
   const [errorNombre, setErrorNombre] = useState<string | undefined>(undefined)
   const [fallo, setFallo] = useState<string | null>(null)
   const [guardando, setGuardando] = useState(false)
-
-  /** Aplica un cambio a una fila sin tocar las demas. */
-  function cambiarFila (indice: number, parcial: Partial<FilaTarea>) {
-    setFilas((previas) => previas.map((fila, i) => (i === indice ? { ...fila, ...parcial } : fila)))
-  }
-
-  /** Mueve una fila un lugar arriba o abajo. El orden ES el dato: se guarda como posicion. */
-  function mover (indice: number, salto: -1 | 1) {
-    const destino = indice + salto
-
-    setFilas((previas) => {
-      if (destino < 0 || destino >= previas.length) return previas
-
-      const siguientes = [...previas]
-      const [movida] = siguientes.splice(indice, 1)
-
-      if (movida === undefined) return previas
-
-      siguientes.splice(destino, 0, movida)
-
-      return siguientes
-    })
-  }
 
   /**
    * Guarda la plantilla entera.
@@ -271,13 +249,13 @@ function Formulario ({ plantilla, tiposDeProceso, onGuardado }: PropsFormulario)
         filas={filas}
         tiposDeProceso={tiposDeProceso}
         errores={erroresPorFila}
-        onCambiar={cambiarFila}
-        onMover={mover}
-        onQuitar={(indice) => { setFilas((previas) => previas.filter((_, i) => i !== indice)) }}
-        onAgregar={() => { setFilas((previas) => [...previas, filaNueva()]) }}
+        onCambiar={lista.cambiar}
+        onMover={lista.mover}
+        onQuitar={lista.quitar}
+        onAgregar={() => { lista.agregar(filaNueva()) }}
       />
 
-      {fallo !== null && <p role="alert" className="text-texto-peligro text-sm">{fallo}</p>}
+      {fallo !== null && <AvisoEnLinea variante="error" mensaje={fallo} className="text-sm" />}
 
       <div className="flex justify-end gap-2">
         <CerrarDialogo asChild>
@@ -306,50 +284,36 @@ function ListaDeTareas ({ filas, tiposDeProceso, errores, onCambiar, onMover, on
   const lleno = filas.length >= TOPE_TAREAS
 
   return (
-    <section className="flex flex-col gap-2">
-      <div className="border-linea-suave flex flex-wrap items-center justify-between gap-2 border-b pb-2">
-        <h3 className="text-texto font-titular text-sm font-semibold">
-          {GLOSARIO.proceso.plural} de la plantilla
-          {filas.length > 0 && <span className="text-texto-sutil ml-2 font-normal">{filas.length}</span>}
-        </h3>
+    <ListaEditable
+      titulo={`${GLOSARIO.proceso.plural} de la plantilla`}
+      acciones={
         <Boton tamano="chico" disabled={lleno} onClick={onAgregar}>
           Agregar {GLOSARIO.proceso.singular.toLowerCase()}
         </Boton>
-      </div>
-
-      {lleno && (
+      }
+      nota={lleno && (
         <p className="text-texto-tenue text-xs">
           Una plantilla admite hasta {TOPE_TAREAS} {GLOSARIO.proceso.plural.toLowerCase()}.
         </p>
       )}
-
-      {filas.length === 0
-        ? (
-          /* Sin marco: un estado vacio enmarcado se lee como "algo fallo", y esta lista no es un
-             error sino el paso que falta. */
-          <p className="text-texto-sutil text-sm">
-            Una plantilla sin {GLOSARIO.proceso.plural.toLowerCase()} no se puede guardar: agrega al
-            menos una.
-          </p>
-          )
-        : (
-          <ol className="divide-linea-suave border-linea rounded-tarjeta divide-y border">
-            {filas.map((fila, indice) => (
-              <FilaDeTarea
-                key={fila.clave}
-                fila={fila}
-                indice={indice}
-                tiposDeProceso={tiposDeProceso}
-                errores={errores[indice] ?? {}}
-                ultima={indice === filas.length - 1}
-                onCambiar={onCambiar}
-                onMover={onMover}
-                onQuitar={onQuitar}
-              />
-            ))}
-          </ol>
-          )}
-    </section>
+      vacio={
+        `Una plantilla sin ${GLOSARIO.proceso.plural.toLowerCase()} no se puede guardar: agrega al menos una.`
+      }
+      filas={filas}
+      prefijoTransicion="plantilla-hito"
+      renderFila={(fila, indice) => (
+        <FilaDeTarea
+          fila={fila}
+          indice={indice}
+          tiposDeProceso={tiposDeProceso}
+          errores={errores[indice] ?? {}}
+          ultima={indice === filas.length - 1}
+          onCambiar={onCambiar}
+          onMover={onMover}
+          onQuitar={onQuitar}
+        />
+      )}
+    />
   )
 }
 
@@ -380,37 +344,13 @@ function FilaDeTarea ({ fila, indice, tiposDeProceso, errores, ultima, onCambiar
           {...(errores.name === undefined ? {} : { 'aria-invalid': true })}
         />
 
-        <div className="flex shrink-0 items-center gap-1">
-          <Boton
-            variante="sutil"
-            tamano="chico"
-            soloIcono
-            aria-label="Subir"
-            disabled={indice === 0}
-            onClick={() => { onMover(indice, -1) }}
-          >
-            <ArrowUp size={14} aria-hidden />
-          </Boton>
-          <Boton
-            variante="sutil"
-            tamano="chico"
-            soloIcono
-            aria-label="Bajar"
-            disabled={ultima}
-            onClick={() => { onMover(indice, 1) }}
-          >
-            <ArrowDown size={14} aria-hidden />
-          </Boton>
-          <Boton
-            variante="sutil"
-            tamano="chico"
-            soloIcono
-            aria-label={`Quitar ${GLOSARIO.proceso.singular.toLowerCase()}`}
-            onClick={() => { onQuitar(indice) }}
-          >
-            <Trash2 size={14} aria-hidden />
-          </Boton>
-        </div>
+        <ControlesDeOrden
+          indice={indice}
+          ultima={ultima}
+          etiquetaQuitar={`Quitar ${GLOSARIO.proceso.singular.toLowerCase()}`}
+          onMover={onMover}
+          onQuitar={onQuitar}
+        />
       </div>
 
       <div className="flex flex-wrap items-end gap-2 pl-7">
@@ -496,9 +436,7 @@ function FilaDeTarea ({ fila, indice, tiposDeProceso, errores, ultima, onCambiar
       </Campo>
 
       {Object.keys(errores).length > 0 && (
-        <p role="alert" className="text-texto-peligro pl-7 text-xs">
-          {Object.values(errores).join(' ')}
-        </p>
+        <AvisoEnLinea variante="error" mensaje={Object.values(errores).join(' ')} className="pl-7" />
       )}
     </li>
   )

@@ -1,9 +1,10 @@
 'use client'
 
 import Link from 'next/link'
+import { Pencil } from 'lucide-react'
 import { useState, type ReactElement } from 'react'
 import { useRouter } from 'next/navigation'
-import { ConfirmarBorrado } from '@/componentes/datos/ConfirmarBorrado'
+import { MenuAccionesFila, type AccionDeBorrado } from '@/componentes/datos/MenuAccionesFila'
 import { escribirEnBff } from '@/componentes/datos/mutaciones'
 import { useAviso } from '@/componentes/estado/useAviso'
 import { Boton } from '@/componentes/formularios/Boton'
@@ -34,7 +35,7 @@ interface PropsAcciones {
 export function AccionesProspecto ({ prospecto, paises, capacidades }: PropsAcciones): ReactElement {
   const router = useRouter()
   const [editando, setEditando] = useState(false)
-  const [borrando, setBorrando] = useState(false)
+  const borrado = useBorradoDeProspecto(prospecto)
 
   return (
     <div className="flex flex-wrap items-center gap-2">
@@ -49,14 +50,13 @@ export function AccionesProspecto ({ prospecto, paises, capacidades }: PropsAcci
 
       {capacidades.includes('edit') && (
         <Boton variante="secundario" tamano="chico" onClick={() => { setEditando(true) }}>
+          <Pencil aria-hidden className="size-4" />
           Editar
         </Boton>
       )}
 
       {capacidades.includes('delete') && (
-        <Boton variante="peligro" tamano="chico" onClick={() => { setBorrando(true) }}>
-          Borrar
-        </Boton>
+        <MenuAccionesFila ariaLabel={`Más acciones de ${prospecto.empresa}`} borrado={borrado} />
       )}
 
       {capacidades.includes('edit') && (
@@ -72,41 +72,30 @@ export function AccionesProspecto ({ prospecto, paises, capacidades }: PropsAcci
           campos={camposDeProspecto(paises)}
           ruta={`prospectos/${prospecto.id}`}
           metodo="PATCH"
-          registro={prospecto as unknown as Record<string, unknown>}
+          registro={prospecto}
           onGuardado={() => { router.refresh() }}
           columnas={2}
           ancho="grande"
         />
       )}
-
-      <DialogoBorrar
-        prospecto={prospecto}
-        abierto={borrando}
-        onCerrar={() => { setBorrando(false) }}
-      />
     </div>
   )
 }
 
 /**
- * Confirmacion de borrado, sobre la primitiva comun `ConfirmarBorrado`.
+ * El borrado del prospecto para el menu ⋯, que lo confirma con la primitiva comun `ConfirmarBorrado`.
  *
  * La API responde **409 si el prospecto tiene licitaciones**, porque borrarlo dejaria sus Espacios
- * huerfanos. El dialogo lo dice antes de apretar; si la llamada falla, `ConfirmarBorrado` muestra el
- * mensaje y no se cierra.
+ * huerfanos. La advertencia lo dice antes de apretar; si la llamada falla, `ConfirmarBorrado` muestra
+ * el mensaje y no se cierra.
  *
  * Al borrar se navega a la lista, a diferencia de las acciones de una licitacion: la ficha que se
  * estaba mirando ya no existe, y refrescarla daria un 404.
+ *
+ * @param prospecto el prospecto de la ficha
+ * @returns el contrato de borrado de `MenuAccionesFila`
  */
-function DialogoBorrar ({
-  prospecto,
-  abierto,
-  onCerrar
-}: {
-  prospecto: ProspectoDetalle
-  abierto: boolean
-  onCerrar: () => void
-}): ReactElement {
+function useBorradoDeProspecto (prospecto: ProspectoDetalle): AccionDeBorrado {
   const router = useRouter()
   const aviso = useAviso()
 
@@ -123,18 +112,11 @@ function DialogoBorrar ({
     router.refresh()
   }
 
-  return (
-    <ConfirmarBorrado
-      abierto={abierto}
-      onCerrar={onCerrar}
-      titulo={`Borrar ${prospecto.empresa}`}
-      advertencia={
-        conLicitaciones
-          ? `Este prospecto tiene ${prospecto.licitaciones_total} licitación(es): hay que borrarlas primero, una por una, desde cada una. El borrado va a fallar.`
-          : 'Se borra el prospecto con sus personas de contacto. No se puede deshacer.'
-      }
-      etiquetaConfirmar="Borrar"
-      onConfirmar={confirmar}
-    />
-  )
+  return {
+    titulo: 'Eliminar prospecto',
+    advertencia: conLicitaciones
+      ? `Este prospecto tiene ${prospecto.licitaciones_total} licitación(es): hay que eliminarlas primero, una por una, desde cada una. Eliminarlo va a fallar.`
+      : 'Se elimina el prospecto con sus personas de contacto. No se puede deshacer.',
+    onConfirmar: confirmar
+  }
 }

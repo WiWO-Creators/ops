@@ -43,7 +43,7 @@ export function TarjetaProyecto ({ espacio, estados, className }: PropsTarjetaPr
     <article
       className={cn(
         'border-linea bg-superficie-elevada rounded-tarjeta shadow-1 relative flex h-full flex-col gap-3 border p-4',
-        'ease-neo transition-[transform,box-shadow,border-color] duration-150',
+        'ease-neo transition-[transform,box-shadow,border-color] duration-rapida',
         // Se levanta en vez de agrandarse: escalar reescala tambien el texto, y una grilla entera de
         // nombres que se reencuadran al pasar el puntero se lee como un temblor. El desplazamiento es
         // `transform`, que es lo que pide el guardrail de rendimiento.
@@ -108,7 +108,7 @@ export function TarjetaProyecto ({ espacio, estados, className }: PropsTarjetaPr
 function Dato ({ etiqueta, children }: { etiqueta: string, children: React.ReactNode }) {
   return (
     <div className="flex min-w-0 flex-col gap-0.5">
-      <dt className="text-texto-sutil truncate text-xs font-medium tracking-[0.08em] uppercase">
+      <dt className="text-texto-sutil truncate text-xs antetitulo">
         {etiqueta}
       </dt>
       <dd className="truncate">{children}</dd>
@@ -145,7 +145,7 @@ function BarraAvance ({ valor, de }: { valor: number, de: string }) {
         className="bg-relleno-neutro rounded-control h-1.5 min-w-0 flex-1 overflow-hidden"
       >
         <div
-          className="bg-acento ease-neo h-full rounded-control transition-[width] duration-300"
+          className="bg-acento ease-neo h-full rounded-control transition-[width] duration-media"
           style={{ width: `${porcentaje}%` }}
         />
       </div>

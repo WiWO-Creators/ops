@@ -14,7 +14,7 @@
  * declarados como numeros mientras la API mandaba objetos.
  */
 
-import type { Referencia, TipoTarea } from './recursos.ts'
+import type { AdjuntoTicket, Referencia, TipoTarea } from './recursos.ts'
 
 export interface TicketPortal {
   id: number
@@ -53,6 +53,11 @@ export interface TicketPortalDetalle extends TicketPortal {
   /** Texto limpio de la API (contrato v2, A). Opcional para convivir con un backend anterior. */
   message_texto?: string
   replies: RespuestaTicketPortal[]
+  /**
+   * Adjuntos del mensaje de apertura, con la misma forma que los del equipo (`download_path` baja por
+   * `files/ticket/{id}/download`). Opcional solo para convivir con un backend anterior a los adjuntos.
+   */
+  attachments?: AdjuntoTicket[]
   /** `true` si el ticket lo abrio este contacto (contrato v2, B). Sin el, nadie es «Tú». */
   mio?: boolean
   /** Quien abrio el ticket, para nombrarlo cuando no es este contacto. */
@@ -96,6 +101,8 @@ export interface RespuestaTicketPortal {
    * en un cliente con varios contactos, `from: 'cliente'` puede ser un colega.
    */
   autor?: { tipo: 'equipo' | 'cliente', nombre: string, mio: boolean }
+  /** Adjuntos de esta respuesta. Opcional por lo mismo que {@link TicketPortalDetalle.attachments}. */
+  attachments?: AdjuntoTicket[]
 }
 
 /**

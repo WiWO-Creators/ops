@@ -7,7 +7,7 @@ import { sinColumnasVacias, unirConsultas } from '@/componentes/datos/tabla'
 import { Cargando, ErrorEstado, SinPermiso } from '@/componentes/estado/Estados'
 import { staffParaFiltros } from '@/datos/asignables'
 import { opcionesDeFiltros } from '@/datos/catalogos'
-import { mensajeDeRespuesta, pedirRespuesta, pedirSobre } from '@/datos/cliente'
+import { mensajeDeLectura, pedirRespuesta, pedirSobre } from '@/datos/cliente'
 import { construirConsulta, leerConsulta } from '@/datos/consulta'
 import type { Lookups, TableroDePreset } from '@/datos/recursos'
 import type { Capacidad, Sobre } from '@/datos/tipos'
@@ -244,7 +244,7 @@ async function primeraPagina<T> (
     // Un 403 se dibuja como falta de acceso y no como error rojo: un contratista que abre la pestaña
     // Tickets no tiene nada que reintentar. Es la misma regla de `SeccionDePortal`.
     if (respuesta.status === 403) return { fase: 'sinPermiso' }
-    if (!respuesta.ok) throw new Error(await mensajeDeRespuesta(respuesta))
+    if (!respuesta.ok) throw new Error(await mensajeDeLectura(respuesta))
 
     const lista = await respuesta.json() as Sobre<T[]>
 

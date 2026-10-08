@@ -2,26 +2,24 @@
 
 import { ChevronDown } from 'lucide-react'
 import { useState, type ReactElement } from 'react'
+import { AvisoEnLinea } from '@/componentes/estado/Estados'
 import { Avatar } from '@/componentes/presentadores/Avatar'
 import {
   BuscadorMenu, ContenidoMenu, DisparadorMenu, GrupoRadioMenu, ItemMenuRadio, MenuContextual, SinResultadosMenu
 } from '@/componentes/superposiciones/MenuContextual'
 import { escribirEnBff } from '@/componentes/datos/mutaciones'
-import { useAviso } from '@/componentes/estado/useAviso'
 import { cargarAsignables } from '@/datos/asignables'
 import type { PersonaAsignable } from '@/datos/recursos'
-import { filtrarPersonas } from '@/dominio/salas'
-import { falloDeTicket, type PersonaDelTicket } from '@/dominio/ticket-vista'
+import { filtrarPersonas } from '@/dominio/busqueda'
+import type { PersonaDelTicket } from '@/dominio/ticket-vista'
 import { cn } from '@/lib/clases'
+import { useEdicionOptimista } from './useEdicionOptimista'
+import { useListaPerezosa, type ListaPerezosa } from './useListaPerezosa'
 
 /** Valor del menu para «Sin asignar». Perfex guarda `0` en `tbltickets.assigned` cuando no hay nadie. */
 const SIN_ASIGNAR = '0'
 
-type Personas =
-  | { fase: 'sinPedir' }
-  | { fase: 'cargando' }
-  | { fase: 'error', mensaje: string }
-  | { fase: 'listo', lista: PersonaAsignable[] }
+type Personas = ListaPerezosa<PersonaAsignable>
 
 /**
  * A quien del equipo esta asignado un ticket, y el menu para cambiarlo.
@@ -45,18 +43,10 @@ export function MenuAsignadoTicket ({
   puedeEditar: boolean
   onCambiado: () => void
 }): ReactElement {
-  const avisar = useAviso()
-  const [pintado, setPintado] = useState(asignado)
-  const [ultimoDeLaApi, setUltimoDeLaApi] = useState(asignado)
-  const [personas, setPersonas] = useState<Personas>({ fase: 'sinPedir' })
+  // Se compara por id: la ficha recargada trae un objeto nuevo aunque la persona sea la misma.
+  const { pintado, enCurso, aplicar } = useEdicionOptimista(asignado, (persona) => persona?.id)
+  const { estado: personas, pedir } = useListaPerezosa(cargarAsignables, 'No se pudo cargar el equipo.')
   const [busqueda, setBusqueda] = useState('')
-  const [enCurso, setEnCurso] = useState(false)
-
-  // Se realinea cuando la ficha recargada trae otro asignado, como `MenuCatalogoTicket`.
-  if (ultimoDeLaApi?.id !== asignado?.id) {
-    setUltimoDeLaApi(asignado)
-    setPintado(asignado)
-  }
 
   const nombre = pintado?.nombre ?? 'Sin asignar'
 
@@ -71,14 +61,7 @@ export function MenuAsignadoTicket ({
       return
     }
 
-    if (personas.fase === 'listo' || personas.fase === 'cargando') return
-
-    setPersonas({ fase: 'cargando' })
-    cargarAsignables()
-      .then((lista) => { setPersonas({ fase: 'listo', lista }) })
-      .catch((fallo: unknown) => {
-        setPersonas({ fase: 'error', mensaje: fallo instanceof Error ? fallo.message : 'No se pudo cargar el equipo.' })
-      })
+    pedir()
   }
 
   /**
@@ -91,24 +74,13 @@ export function MenuAsignadoTicket ({
 
     if (!Number.isInteger(destino) || destino < 0 || destino === (pintado?.id ?? 0) || enCurso) return
 
-    const previo = pintado
     const persona = personas.fase === 'listo' ? personas.lista.find((p) => p.id === destino) : undefined
 
-    setPintado(destino === 0 ? null : { id: destino, nombre: persona?.full_name ?? `Persona #${destino}` })
-    setEnCurso(true)
-
-    const resultado = await escribirEnBff<unknown>(rutaEditar, 'PATCH', { assigned: destino })
-
-    setEnCurso(false)
-
-    if (!resultado.ok) {
-      setPintado(previo)
-      avisar.error(falloDeTicket(resultado, 'editar').texto)
-
-      return
-    }
-
-    onCambiado()
+    await aplicar(
+      destino === 0 ? null : { id: destino, nombre: persona?.full_name ?? `Persona #${destino}` },
+      () => escribirEnBff<unknown>(rutaEditar, 'PATCH', { assigned: destino }),
+      onCambiado
+    )
   }
 
   return (
@@ -121,7 +93,7 @@ export function MenuAsignadoTicket ({
             aria-label={`Asignado: ${nombre}. Cambiar asignado.`}
             className={cn(
               'rounded-control hover:bg-hover -mx-1.5 inline-flex max-w-full cursor-pointer items-center gap-1.5 px-1.5 py-0.5',
-              'transition-colors duration-150',
+              'transition-colors duration-rapida ease-neo',
               enCurso && 'cursor-progress opacity-60'
             )}
           >
@@ -163,7 +135,7 @@ function OpcionesDePersonas ({
   deshabilitado: boolean
 }): ReactElement {
   if (personas.fase === 'error') {
-    return <p role="alert" className="text-texto-peligro px-2.5 py-2 text-sm">{personas.mensaje}</p>
+    return <AvisoEnLinea variante="error" mensaje={personas.mensaje} className="px-2.5 py-2 text-sm" />
   }
 
   if (personas.fase !== 'listo') {

@@ -4,7 +4,7 @@ import { useEffect, useState } from 'react'
 import { Boton } from '@/componentes/formularios/Boton'
 import { SelectorPersonas } from '@/componentes/formularios/SelectorPersonas'
 import { EnlacePersona } from '@/componentes/presentadores/EnlacePersona'
-import { Cargando, Vacio } from '@/componentes/estado/Estados'
+import { AvisoEnLinea, Cargando, Vacio } from '@/componentes/estado/Estados'
 import { escribirEnBff } from '@/componentes/datos/mutaciones'
 import { cargarAsignables } from '@/datos/asignables'
 import { pedirSobre } from '@/datos/cliente'
@@ -106,9 +106,11 @@ export function PanelEquipoCliente ({ clienteId, capacidades }: {
 
   if (!cargado) {
     return (
-      <p role="alert" className="text-texto-peligro text-sm">
-        {error ?? 'No se pudo cargar el equipo.'} Recarga la página si el problema continúa.
-      </p>
+      <AvisoEnLinea
+        variante="error"
+        mensaje={`${error ?? 'No se pudo cargar el equipo.'} Recarga la página si el problema continúa.`}
+        className="text-sm"
+      />
     )
   }
 
@@ -131,7 +133,7 @@ export function PanelEquipoCliente ({ clienteId, capacidades }: {
         )}
       </fieldset>
 
-      {error !== null && <p role="alert" className="text-texto-peligro text-sm">{error}</p>}
+      {error !== null && <AvisoEnLinea variante="error" mensaje={error} className="text-sm" />}
       {guardado && <p role="status" className="text-texto-tenue text-xs">Equipo actualizado.</p>}
 
       <div>

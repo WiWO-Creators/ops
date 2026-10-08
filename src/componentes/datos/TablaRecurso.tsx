@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import { useRouter } from 'next/navigation'
-import { alternarOrden, construirConsulta, direccionDe, leerConsulta } from '@/datos/consulta'
+import { alternarOrden, construirConsulta, construirConsultaDeUrl, direccionDe, leerConsulta } from '@/datos/consulta'
 import type { Columna, DefinicionRecurso, EstadoConsulta, OpcionFiltro, ResultadoLista } from '@/definiciones/tipos'
 import { Insignia } from '@/componentes/presentadores/Insignia'
 import type { Capacidad, Sobre } from '@/datos/tipos'
@@ -11,6 +11,7 @@ import { leerError } from '@/datos/errores'
 import { ErrorEstado, Vacio } from '@/componentes/estado/Estados'
 import { CargandoConOrbe } from '@/componentes/estado/Orbe'
 import { useAviso } from '@/componentes/estado/useAviso'
+import { EntradaEscalonada } from '@/componentes/estructura/EntradaEscalonada'
 import { CLASES_CASILLA } from '@/componentes/formularios/Entrada'
 import { Segmentado, type OpcionSegmentada } from '@/componentes/formularios/Segmentado'
 import { MenuAccionesFila, type AccionDeBorrado } from '@/componentes/datos/MenuAccionesFila'
@@ -18,6 +19,7 @@ import { cn } from '@/lib/clases'
 import { CeldaEncabezado, CeldaTabla, CuerpoTabla, EncabezadoTabla, FilaTabla, Tabla } from './Tabla'
 import { ControlesTabla, PaginacionTabla } from './ControlesTabla'
 import { useFiltrosEnUrl } from './useFiltrosEnUrl'
+import { ProveedorUrlDeDetalle, type ConstructorDeUrlDeDetalle } from './url-de-detalle'
 import {
   clavesVisiblesPorDefecto,
   columnasVisibles,
@@ -208,26 +210,6 @@ const VISTAS: readonly OpcionSegmentada[] = [
   { valor: 'tarjetas', etiqueta: 'Tarjetas', icono: 'tarjetas' }
 ]
 
-/** Cuantos elementos escalonan antes de que el retraso deje de crecer. */
-const TOPE_ESCALONADO = 12
-
-/** Distancia entre la entrada de un elemento y la del siguiente, en milisegundos. */
-const PASO_ESCALONADO_MS = 20
-
-/**
- * Retraso de entrada de un elemento de lista, para que la lista aparezca de a poco y no de golpe.
- *
- * El retraso se topa a proposito: crece con el indice, asi que sin tope una pagina de cien filas
- * tardaria dos segundos en terminar de aparecer y la ultima llegaria mucho despues de que la persona
- * ya empezo a leer la primera. Pasado el tope todas entran juntas, que a esa altura ya no se nota.
- *
- * @param indice posicion del elemento dentro de la pagina vigente
- * @returns el valor listo para `animation-delay`
- */
-export function retrasoDeAparicion (indice: number): string {
-  return `${Math.min(indice, TOPE_ESCALONADO) * PASO_ESCALONADO_MS}ms`
-}
-
 export function TablaRecurso<T> ({
   definicion,
   inicial,
@@ -255,13 +237,22 @@ export function TablaRecurso<T> ({
 
   const leerEstado = useCallback((p: URLSearchParams) => leerConsulta(p, definicion), [definicion])
   const construirQuery = useCallback((e: EstadoConsulta) => construirConsulta(e, definicion), [definicion])
+  // Lo que se escribe en la URL difiere de lo que va a la API solo en el "todos" de los filtros con
+  // default: la API no lo recibe, la URL lo necesita para no volver al default.
+  const construirParaUrl = useCallback((e: EstadoConsulta) => construirConsultaDeUrl(e, definicion), [definicion])
 
   const { estado, params, cambiar: cambiarEnUrl, escribirParametro, leerParametro } = useFiltrosEnUrl<EstadoConsulta>({
     leer: leerEstado,
-    construir: construirQuery,
+    construir: construirParaUrl,
     prefijo: prefijoUrl
   })
   const consulta = useMemo(() => construirQuery(estado), [estado, construirQuery])
+
+  // Lo comparten `urlDeFila` y los enlaces de las celdas (`EnlaceATicket`): una sola lectura de la URL.
+  const urlDeDetalle = useCallback<ConstructorDeUrlDeDetalle>(
+    (clave, valor) => urlConParametroGlobal(new URLSearchParams(params.toString()), clave, String(valor)),
+    [params]
+  )
 
   // La consulta con la que llegaron los datos del servidor. Mientras la URL no se mueva de ahi no
   // hay nada que volver a pedir: pedirlo igual es una peticion de mas en cada montaje.
@@ -272,6 +263,8 @@ export function TablaRecurso<T> ({
   const [seleccion, setSeleccion] = useState<{ consulta: string, ids: Array<string | number> }>({ consulta: '', ids: [] })
   const [revision, setRevision] = useState(0)
   const [resultadoRemoto, setResultado] = useState<ResultadoLista<T>>(inicial)
+  // La consulta de las filas que se ven, que no es la de la URL mientras la pagina nueva viaja.
+  const [consultaRemota, setConsultaRemota] = useState(consultaDelInicial ?? consulta)
   const [error, setError] = useState<CuerpoError | null>(null)
   const [cargando, setCargando] = useState(false)
   const [visibles, setVisibles] = useState(() => clavesVisiblesPorDefecto(definicion.columnas))
@@ -300,6 +293,7 @@ export function TablaRecurso<T> ({
 
       if (respuesta.ok) {
         setResultado(respuesta.resultado)
+        setConsultaRemota(consulta)
         setError(null)
       } else {
         setError(respuesta.error)
@@ -351,6 +345,7 @@ export function TablaRecurso<T> ({
 
     inicialAdoptado.current = inicial
     setResultado(inicial)
+    setConsultaRemota(consulta)
   }, [inicial, consulta, consultaDelInicial, revision, refresco])
 
   // La presentacion vive en la URL (`?vista=`) y en ningun otro lado, igual que el filtro y el
@@ -381,7 +376,7 @@ export function TablaRecurso<T> ({
   function urlDeFila (fila: T): string | null {
     if (abrirEn === undefined) return null
 
-    return urlConParametroGlobal(new URLSearchParams(params.toString()), abrirEn.clave, String(abrirEn.valor(fila)))
+    return urlDeDetalle(abrirEn.clave, abrirEn.valor(fila))
   }
 
   /**
@@ -450,15 +445,8 @@ export function TablaRecurso<T> ({
   function tarjetas (dibujar: NonNullable<typeof tarjeta>): ReactNode {
     return (
       <ul className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-3">
-        {/* Mismo escalonado que las filas, y por el mismo motivo: la animacion corre al
-            nacer el nodo, asi que el `key` por fila hace que un refresco reutilice los
-            `<li>` ya pintados en vez de volver a hacerlos entrar. */}
-        {resultado.filas.map((fila, indice) => (
-          <li
-            key={claveFila(fila)}
-            className="animate-entrar-abajo flex"
-            style={{ animationDelay: retrasoDeAparicion(indice) }}
-          >
+        {resultado.filas.map((fila) => (
+          <li key={claveFila(fila)} data-entrada="item" className="flex">
             {dibujar(fila, opcionesDeFiltro)}
           </li>
         ))}
@@ -469,7 +457,7 @@ export function TablaRecurso<T> ({
   /** El listado en tabla. */
   function tabla (): ReactNode {
     return (
-      <Tabla>
+      <Tabla entrada={false}>
         <EncabezadoTabla>
           <tr>
             {seleccionMasiva !== undefined && (
@@ -521,20 +509,16 @@ export function TablaRecurso<T> ({
         </EncabezadoTabla>
 
         <CuerpoTabla>
-          {/* La entrada escalonada es solo del montaje, y lo garantiza el `key`: una animacion
-              de CSS corre cuando nace el nodo, y un refresco que devuelve las mismas filas
-              reutiliza los mismos `<tr>`. Volver a animarlas encima del chip de "Actualizando…"
-              seria justo el parpadeo que ese chip vino a evitar. */}
-          {resultado.filas.map((fila, indice) => {
+          {resultado.filas.map((fila) => {
             const href = urlDeFila(fila)
             const clicable = href !== null || alCliquearFila !== undefined
 
             return (
             <FilaTabla
               key={claveFila(fila)}
-              className={cn('animate-entrar-abajo', claseFila?.(fila), idsSeleccionados.includes(claveFila(fila)) && 'bg-seleccionado')}
+              data-entrada="item"
+              className={cn(claseFila?.(fila), idsSeleccionados.includes(claveFila(fila)) && 'bg-seleccionado')}
               aria-selected={seleccionMasiva === undefined ? undefined : idsSeleccionados.includes(claveFila(fila))}
-              style={{ animationDelay: retrasoDeAparicion(indice) }}
               interactiva={clicable}
               onClick={clicable ? (evento) => { abrirFila(evento, fila, href) } : undefined}
             >
@@ -588,6 +572,7 @@ export function TablaRecurso<T> ({
   }
 
   return (
+    <ProveedorUrlDeDetalle value={urlDeDetalle}>
     <div className={cn('flex flex-col gap-3', className)}>
       <div className="flex flex-wrap items-start justify-between gap-2">
         <ControlesTabla
@@ -645,7 +630,14 @@ export function TablaRecurso<T> ({
                   pantalla, asi que se atenuan en vez de taparse, y el aviso va en un chip encima de la
                   esquina. Antes esto era solo la atenuacion, que sin indicador se lee como un fallo. */}
               {cargando && <CargandoConOrbe mensaje="Actualizando…" className="absolute right-2 top-2 z-10" />}
-              <div className={cn(cargando && 'opacity-60 transition-opacity')}>
+              {/* Las filas entran al cambiar de pagina, filtro, orden o presentacion. Un refresco que
+                  devuelve la misma consulta no las vuelve a animar: seria, encima del chip de
+                  "Actualizando…", justo el parpadeo que ese chip vino a evitar. */}
+              <EntradaEscalonada
+                densa
+                clave={`${datos === undefined ? consultaRemota : consulta}|${enTarjetas ? 'tarjetas' : 'tabla'}`}
+                className={cn(cargando && 'opacity-60 transition-opacity')}
+              >
               {enTarjetas && tarjeta !== undefined
                 ? tarjetas(tarjeta)
                 : tarjetasEnMovil && tarjeta !== undefined
@@ -656,12 +648,13 @@ export function TablaRecurso<T> ({
                     </>
                     )
                   : tabla()}
-              </div>
+              </EntradaEscalonada>
             </div>
             )}
 
       <PaginacionTabla paginacion={resultado.paginacion} onCambiar={cambiar} />
     </div>
+    </ProveedorUrlDeDetalle>
   )
 }
 
@@ -716,7 +709,7 @@ function MenuAcciones ({ acciones, id, onError, onListo, onEditar, borrado }: Pr
 
       onError(await leerError(respuesta))
     } catch {
-      aviso.error('No se pudo completar la acción: revisá tu conexión e intentá de nuevo.')
+      aviso.error('No se pudo completar la acción: revisa tu conexión e intenta de nuevo.')
     } finally {
       setEnCurso(false)
     }

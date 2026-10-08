@@ -8,7 +8,7 @@ import { ConfirmacionEnLinea } from '@/componentes/datos/ConfirmacionEnLinea'
 import { Campo } from '@/componentes/formularios/Campo'
 import { AreaTexto, Entrada } from '@/componentes/formularios/Entrada'
 import { ContenidoSelector, DisparadorSelector, Opcion, Selector } from '@/componentes/formularios/Selector'
-import { Cargando, ErrorEstado, Vacio } from '@/componentes/estado/Estados'
+import { AvisoEnLinea, Cargando, ErrorEstado, Vacio } from '@/componentes/estado/Estados'
 import { Fecha } from '@/componentes/presentadores/Fecha'
 import { mensajeDeRespuesta, pedirSobre } from '@/datos/cliente'
 import { cn } from '@/lib/clases'
@@ -231,9 +231,7 @@ export function AnunciosDePantalla ({ pantallas, inicial, avisoDeCarga = null }:
       </div>
 
       {error !== null && (
-        <p role="alert" className="border-linea bg-superficie-peligro text-texto-peligro rounded-lg border px-3 py-2 text-sm">
-          {error}
-        </p>
+        <AvisoEnLinea variante="error" mensaje={error} className="border-linea bg-superficie-peligro rounded-lg border px-3 py-2 text-sm" />
       )}
 
       {editando !== null && (
@@ -409,7 +407,7 @@ function FilaDeAnuncio ({
           ? (
             <ConfirmacionEnLinea
               disposicion="linea"
-              etiquetaConfirmar="Borrar de verdad"
+              etiquetaConfirmar="Eliminar de verdad"
               cargando={ocupado}
               onConfirmar={onBorrar}
               onCancelar={onCancelarBorrado}
@@ -440,7 +438,7 @@ function FilaDeAnuncio ({
               <Boton variante="sutil" tamano="chico" soloIcono aria-label="Editar este anuncio" onClick={onEditar}>
                 <Pencil className="size-4" aria-hidden />
               </Boton>
-              <Boton variante="sutil" tamano="chico" soloIcono aria-label="Borrar este anuncio" onClick={onBorrar}>
+              <Boton variante="sutil" tamano="chico" soloIcono aria-label="Eliminar este anuncio" onClick={onBorrar}>
                 <Trash2 className="size-4" aria-hidden />
               </Boton>
             </>

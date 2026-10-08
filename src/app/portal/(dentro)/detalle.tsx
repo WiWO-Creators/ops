@@ -194,7 +194,7 @@ export function Datos ({ filas }: { filas: Array<[string, React.ReactNode]> }) {
     <dl className="grid gap-x-8 gap-y-3 sm:grid-cols-2 lg:grid-cols-3">
       {visibles.map(([rotulo, valor]) => (
         <div key={rotulo}>
-          <dt className="text-texto-sutil text-xs tracking-wide uppercase">{rotulo}</dt>
+          <dt className="text-texto-sutil text-xs antetitulo">{rotulo}</dt>
           <dd className="text-texto mt-0.5 text-sm">{valor}</dd>
         </div>
       ))}

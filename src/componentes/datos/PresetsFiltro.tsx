@@ -2,6 +2,7 @@
 
 import { useEffect, useId, useRef, useState } from 'react'
 import { Download, Trash2 } from 'lucide-react'
+import { AvisoEnLinea } from '@/componentes/estado/Estados'
 import { CerrarDialogo, ContenidoDialogo, Dialogo } from '@/componentes/superposiciones/Dialogo'
 import { Boton } from '@/componentes/formularios/Boton'
 import { Entrada } from '@/componentes/formularios/Entrada'
@@ -11,6 +12,7 @@ import { pedirSobre } from '@/datos/cliente'
 import { descripcionDeCondicion, conflictosDePreset, leerPreset, TOPE_PRESET, type PresetPortable } from './presets'
 import type { Hito, PresetFiltro } from '@/datos/recursos'
 import type { DefinicionRecurso, OpcionFiltro } from '@/definiciones/tipos'
+import { useAviso } from '@/componentes/estado/useAviso'
 
 interface PropsPresetsFiltro<T> {
   board: PresetFiltro['board']
@@ -23,6 +25,7 @@ interface PropsPresetsFiltro<T> {
 
 /** Presets personales compartidos entre vistas, con importación validada y referencias revisables. */
 export function PresetsFiltro<T> ({ board, filtrosActuales, busqueda, definicion, opcionesDeFiltro, onAplicar }: PropsPresetsFiltro<T>) {
+  const aviso = useAviso()
   const [presets, setPresets] = useState<PresetFiltro[] | null>(null)
   const [revision, setRevision] = useState(0)
   const [menuAbierto, setMenuAbierto] = useState(false)
@@ -86,6 +89,7 @@ export function PresetsFiltro<T> ({ board, filtrosActuales, busqueda, definicion
     if (!resultado.ok) { setError(resultado.mensaje); return }
     if (resultado.datos === undefined) { setError('El servidor no devolvió el preset guardado. Reintenta cargar los presets.'); return }
     setPresets((actuales) => [resultado.datos, ...(actuales ?? [])])
+    aviso.exito(`Preset «${nombre.trim()}» guardado.`)
     aplicar(pendiente.filters)
   }
 
@@ -125,13 +129,13 @@ export function PresetsFiltro<T> ({ board, filtrosActuales, busqueda, definicion
         <DisparadorMenu asChild><Boton tamano="chico" variante="sutil">Presets{presets === null ? '' : ` (${presets.length})`}</Boton></DisparadorMenu>
         <ContenidoMenu align="end" className="min-w-56">
           {errorCarga !== null
-            ? <div className="p-2"><p role="alert" className="text-texto-peligro text-sm">{errorCarga}</p><Boton tamano="chico" onClick={() => { setRevision(revision + 1) }}>Reintentar</Boton></div>
+            ? <div className="p-2"><AvisoEnLinea variante="error" mensaje={errorCarga} className="text-sm" /><Boton tamano="chico" onClick={() => { setRevision(revision + 1) }}>Reintentar</Boton></div>
             : presets === null ? <p className="p-2 text-sm">Cargando…</p> : presets.length === 0 ? <p className="p-2 text-sm">Sin presets guardados</p> : null}
           {presets?.map((preset) => (
             <div key={preset.id} className="flex items-center gap-1">
               <Boton variante="sutil" className="min-w-0 flex-1 justify-start truncate" disabled={preparando} onClick={() => { void preparar(preset.filters, preset.name, false) }}>{preset.name}</Boton>
               <Boton variante="sutil" soloIcono aria-label={`Exportar ${preset.name}`} onClick={() => { exportar(preset.filters, preset.name) }}><Download size={16} aria-hidden="true" /></Boton>
-              <Boton variante="sutil" soloIcono aria-label={`Borrar ${preset.name}`} disabled={borrandoId === preset.id} onClick={() => { void borrar(preset.id) }}><Trash2 size={16} aria-hidden="true" /></Boton>
+              <Boton variante="sutil" soloIcono aria-label={`Eliminar ${preset.name}`} disabled={borrandoId === preset.id} onClick={() => { void borrar(preset.id) }}><Trash2 size={16} aria-hidden="true" /></Boton>
             </div>
           ))}
         </ContenidoMenu>
@@ -139,7 +143,7 @@ export function PresetsFiltro<T> ({ board, filtrosActuales, busqueda, definicion
       <Boton tamano="chico" variante="sutil" disabled={preparando} onClick={() => { void preparar(actuales, '', true) }}>Guardar preset</Boton>
       <Boton tamano="chico" variante="sutil" disabled={preparando} onClick={() => { archivo.current?.click() }}>Importar preset</Boton>
       <input ref={archivo} type="file" accept=".json,application/json" className="sr-only" aria-label="Archivo de preset" onChange={(evento) => { void importar(evento.target.files?.[0]); evento.target.value = '' }} />
-      {error !== null && pendiente === null && <p role="alert" className="text-texto-peligro text-sm">{error}</p>}
+      {error !== null && pendiente === null && <AvisoEnLinea variante="error" mensaje={error} className="text-sm" />}
       <Dialogo open={pendiente !== null} onOpenChange={(abierto) => { if (!abierto && !guardando) setPendiente(null) }}>
         <ContenidoDialogo ancho="chico" titulo={pendiente?.guardar ? 'Guardar preset' : 'Adaptar preset a esta vista'}>
           <p className="mb-3 text-sm">Los presets son personales y se pueden reutilizar en otras vistas del mismo recurso.</p>
@@ -164,7 +168,7 @@ export function PresetsFiltro<T> ({ board, filtrosActuales, busqueda, definicion
               }}>Quitar condición</Boton>
             </div>
           ))}
-          {error !== null && <p role="alert" className="text-texto-peligro mb-3 text-sm">{error}</p>}
+          {error !== null && <AvisoEnLinea variante="error" mensaje={error} className="mb-3 text-sm" />}
           <div className="mt-4 flex justify-end gap-2">
             <CerrarDialogo asChild><Boton variante="sutil" disabled={guardando}>Cancelar</Boton></CerrarDialogo>
             <Boton variante="primario" cargando={guardando} disabled={preparando || conflictos.length > 0 || (pendiente?.guardar === true && nombre.trim() === '')} onClick={() => { if (pendiente?.guardar) void guardar(); else if (pendiente !== null) aplicar(pendiente.filters) }}>{pendiente?.guardar ? 'Guardar y aplicar' : 'Aplicar'}</Boton>

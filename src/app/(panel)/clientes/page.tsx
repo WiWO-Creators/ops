@@ -6,11 +6,11 @@ import { construirConsulta, leerConsulta, paramsDeUrl } from '@/datos/consulta'
 import { listaDe } from '@/datos/catalogos'
 import { ErrorApi } from '@/datos/errores'
 import { cargarLookups, opcionesDeFiltros } from '@/datos/lookups'
-import { pedir } from '@/datos/servidor'
+import { cargarYo, pedir } from '@/datos/servidor'
 import type { Cliente, ClienteMinimo, EstadoLookup } from '@/datos/recursos'
 import type { OpcionCampo } from '@/componentes/proyecto/formulario'
 import { TituloModulo } from '@/componentes/estructura/TituloModulo'
-import type { Sobre, Yo } from '@/datos/tipos'
+import type { Sobre } from '@/datos/tipos'
 import { CLIENTES } from '@/definiciones/clientes'
 
 export const metadata = { title: 'Clientes · WiWO Ops' }
@@ -35,7 +35,7 @@ export default async function ClientesPage (props: PageProps<'/clientes'>) {
   const [lista, lookups, yo] = await Promise.all([
     pedirCartera(consulta),
     cargarLookups(),
-    pedir<Yo>('/me')
+    cargarYo()
   ])
 
   // Sin permiso para ver la cartera queda el directorio: los clientes que existen, y nada mas. Es

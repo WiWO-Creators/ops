@@ -14,6 +14,8 @@ interface PropsPersonaje {
   cuerpoRef?: Ref<SVGGElement>
   /** El brazo de adelante. Gira desde el hombro: negativo lo levanta. */
   brazoRef?: Ref<SVGGElement>
+  /** No dibuja la cabeza: quien lo usa pone otra encima, centrada en `(0, -42)`. */
+  sinCabeza?: boolean
 }
 
 /**
@@ -25,7 +27,7 @@ interface PropsPersonaje {
  *
  * @returns Grupo SVG decorativo; va dentro de una escena que ya es `aria-hidden`.
  */
-export function Personaje ({ x, y, mirando = 'derecha', escala = 1, camisa = 'fill-superficie', cuerpoRef, brazoRef }: PropsPersonaje) {
+export function Personaje ({ x, y, mirando = 'derecha', escala = 1, camisa = 'fill-superficie', cuerpoRef, brazoRef, sinCabeza = false }: PropsPersonaje) {
   const espejo = mirando === 'izquierda' ? -1 : 1
 
   return (
@@ -43,9 +45,13 @@ export function Personaje ({ x, y, mirando = 'derecha', escala = 1, camisa = 'fi
         <line x1="3" y1="-15" x2="5" y2="0" />
         <line x1="-5" y1="-29" x2="-11" y2="-19" />
         <rect className={camisa} x="-7" y="-34" width="14" height="20" rx="6" />
-        <circle className="fill-superficie" cx="0" cy="-42" r="7.5" />
-        <circle cx="3" cy="-43" r="0.7" fill="currentColor" stroke="none" className="text-texto-tenue" />
-        <path d="M1 -38.5q2.5 1.6 4.5 -0.8" strokeWidth="1.3" />
+        {!sinCabeza && (
+          <>
+            <circle className="fill-superficie" cx="0" cy="-42" r="7.5" />
+            <circle cx="3" cy="-43" r="0.7" fill="currentColor" stroke="none" className="text-texto-tenue" />
+            <path d="M1 -38.5q2.5 1.6 4.5 -0.8" strokeWidth="1.3" />
+          </>
+        )}
         <g ref={brazoRef} style={{ transformBox: 'fill-box', transformOrigin: '0% 0%' }}>
           <line x1="5" y1="-29" x2="13" y2="-21" />
         </g>

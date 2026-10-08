@@ -1,16 +1,17 @@
+import { Suspense } from 'react'
 import Link from 'next/link'
 import { SelectorTema } from '@/componentes/estructura/SelectorTema'
 import { Avatar } from '@/componentes/presentadores/Avatar'
 import { Logo } from '@/componentes/estructura/Logo'
 import { ProveedorEnlaces } from '@/componentes/presentadores/ProveedorEnlaces'
-import { pedirOpcional, pedirPortal, proyectoUnicoDelPortal } from '@/datos/servidor'
-import type { YoPortal } from '@/datos/tipos'
+import { pedirOpcional, proyectoUnicoDelPortal, yoDelPortal } from '@/datos/servidor'
 import { navegacionDelPortal } from '@/dominio/portal'
 import { BarraVerComoCliente } from '../BarraVerComoCliente'
 import { BotonSalirPortal } from '../BotonSalirPortal'
 import { NavegacionPortal } from '../NavegacionPortal'
 import { ScrollSuave } from '@/componentes/estructura/ScrollSuave'
 import { OrbeChatIA } from '@/componentes/ia/OrbeChatIA'
+import { RastreadorPortal } from '@/componentes/portal/rastreo/RastreadorPortal'
 
 /**
  * Armazon del portal del cliente.
@@ -32,7 +33,7 @@ import { OrbeChatIA } from '@/componentes/ia/OrbeChatIA'
  */
 export default async function PortalLayout ({ children }: { children: React.ReactNode }) {
   const [{ data: yo }, capacidades] = await Promise.all([
-    pedirPortal<YoPortal>('/portal/me'),
+    yoDelPortal(),
     pedirOpcional<{ habilitado?: boolean }>('/portal/ia/capacidades', 'contacto')
   ])
   const conOrbe = capacidades.datos?.habilitado === true
@@ -43,6 +44,11 @@ export default async function PortalLayout ({ children }: { children: React.Reac
     // `esPortal` fijo en `true`: en el portal ninguna persona, cliente o proyecto se enlaza, sea cual
     // sea la capacidad. Ver `ProveedorEnlaces`.
     <ProveedorEnlaces permisos={{}} esPortal>
+    {/* Primero, para que sus efectos corran antes que los de la pagina. `useSearchParams` pide
+        `Suspense`. Con `rastreo` ausente o apagado no registra nada. */}
+    <Suspense fallback={null}>
+      <RastreadorPortal activo={yo.rastreo === true} quien={`${yo.id}-${yo.suplantado_por?.id ?? 0}`} />
+    </Suspense>
     <div className="flex h-dvh flex-col overflow-hidden">
       {yo.suplantado_por != null && (
         <BarraVerComoCliente
@@ -58,20 +64,22 @@ export default async function PortalLayout ({ children }: { children: React.Reac
             del propio contacto. El avatar es el lugar donde se lo busca, y lleva la marca de la
             empresa y no la cara de la persona: el portal es del cliente.
 
-            El logo va grande y se sale por el borde inferior de la barra: el `Link` guarda el hueco
-            en la fila y el avatar se posiciona absoluto dentro de el. Vive en la cabecera y no en el
-            area que se desplaza, asi que queda fijo mientras el contenido corre por debajo. El anillo
-            del color del fondo es el corte que lo separa de la linea de la barra. */}
+            En escritorio el logo va grande y se sale por el borde inferior de la barra: el `Link`
+            guarda el hueco en la fila y el avatar se posiciona absoluto dentro de el. En movil queda
+            chico y dentro de la fila, para no robarle ancho a la navegacion que baja debajo. Vive en
+            la cabecera y no en el area que se desplaza, asi que queda fijo mientras el contenido
+            corre por debajo. El anillo del color del fondo es el corte que lo separa de la linea de
+            la barra. */}
         <Link
           href="/portal/perfil"
           title="Mi perfil"
           aria-label="Mi perfil"
-          className="relative size-20 shrink-0 self-start"
+          className="relative size-10 shrink-0 md:size-20 md:self-start"
         >
           <Avatar
             nombre={yo.client?.company ?? yo.full_name}
             imagen={yo.client?.image_url ?? null}
-            className="ring-superficie bg-superficie-elevada absolute top-2 left-0 size-20 text-2xl shadow-md ring-4"
+            className="ring-superficie bg-superficie-elevada absolute top-0 left-0 size-10 text-sm shadow-md ring-2 md:top-2 md:size-20 md:text-2xl md:ring-4"
           />
         </Link>
         <Link href="/portal" aria-label="Inicio del portal" className="shrink-0">
@@ -86,11 +94,11 @@ export default async function PortalLayout ({ children }: { children: React.Reac
           esconderla detras de un menu obliga a dos toques para lo unico que el portal ofrece. */}
       <NavegacionPortal
         secciones={secciones}
-        className="border-linea flex shrink-0 gap-1 overflow-x-auto border-b py-2 pr-4 pl-28 md:hidden"
+        className="border-linea flex shrink-0 gap-1 overflow-x-auto border-b px-4 py-2 md:hidden"
       />
 
       {/* En escritorio el logo cuelga sobre el contenido: el `pt-12` lo deja pasar sin tapar la
-          primera linea. En movil lo absorbe la fila de navegacion, que ya corre su inicio. */}
+          primera linea. En movil el logo no cuelga y no hace falta. */}
       <ScrollSuave className="min-h-0 min-w-0 flex-1 p-4 md:pt-12">{children}</ScrollSuave>
 
       {conOrbe && <OrbeChatIA sujeto="contacto" />}

@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import type { ReactNode } from 'react'
 import { cn } from '@/lib/clases'
+import { formatearDuracion } from '@/lib/duraciones'
 import { coloresAvatar, iniciales } from '@/lib/personas'
 import {
   ANCHO_MAYUSCULA_EM, ANCHO_SOBRIO_EM, TOPE_DE_CONTADOR, TOPE_DE_GLIFOS, cupoDeFichas, esNumerico,
@@ -514,12 +515,7 @@ function relojDeContador (desde: string | null, ahora: number | null): string {
 
   if (Number.isNaN(arranque)) return '--:--'
 
-  const segundos = Math.max(Math.floor((ahora - arranque) / 1000), 0)
-  const horas = Math.floor(segundos / 3600)
-  const minutos = Math.floor((segundos % 3600) / 60)
-  const resto = segundos % 60
-
-  return `${horas}:${String(minutos).padStart(2, '0')}:${String(resto).padStart(2, '0')}`
+  return formatearDuracion((ahora - arranque) / 1000)
 }
 
 /**

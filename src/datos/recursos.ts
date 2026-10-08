@@ -23,6 +23,8 @@ export interface Etiqueta {
 export interface Referencia {
   id: number
   name: string
+  /** Identificador visible (`PAT-001-07`); la API lo trae en Proyectos y Tareas. */
+  patente?: string | null
 }
 
 export interface CampoPersonalizado {
@@ -347,6 +349,12 @@ export interface Espacio {
    * del Proceso.
    */
   patente?: string | null
+  /**
+   * De que oportunidad comercial nacio el Espacio, o `null` si es un Proyecto corriente. Un upsell
+   * abierto solo viaja en el listado acotado a un cliente (`filter[clientid]`); en el resto de los
+   * listados esta oculto hasta que se gana. Ausente en las respuestas del portal.
+   */
+  oportunidad?: 'upsell' | 'licitacion' | null
   /** Imagen propia del proyecto; si es `null`, la interfaz usa el logo del cliente. */
   image_url: string | null
   description: string | null
@@ -2371,7 +2379,7 @@ export interface PresetFiltro {
  * agrega un tipo nuevo, el compilador marca los lugares que no lo contemplan en vez de dejar que la
  * pantalla dibuje un control equivocado en silencio.
  */
-export type TipoDeAjuste = 'bool' | 'entero' | 'enum' | 'rol' | 'texto'
+export type TipoDeAjuste = 'bool' | 'entero' | 'enum' | 'rol' | 'texto' | 'fecha'
 
 /**
  * Una opcion editable con su dominio, tal como la publica `Recursos\RecursoAjustes::presentar()`.

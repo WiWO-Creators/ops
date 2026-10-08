@@ -3,6 +3,7 @@
 import { useState, type FormEvent } from 'react'
 import { FileSpreadsheet } from 'lucide-react'
 import { escribirEnBff } from '@/componentes/datos/mutaciones'
+import { AvisoEnLinea } from '@/componentes/estado/Estados'
 import { Boton } from '@/componentes/formularios/Boton'
 import { ContenidoDialogo, Dialogo, DisparadorDialogo } from '@/componentes/superposiciones/Dialogo'
 /** Resultado de una exportación nueva, incluido un posible fallo al compartirla. */
@@ -61,7 +62,7 @@ export function ExportarTareasSheets ({ personaId, nombre, email }: Props) {
           <div className="flex flex-col gap-4" role="status">
             <p className="text-sm">Hoja creada con {hoja.total} {hoja.total === 1 ? 'tarea' : 'tareas'}.</p>
             <p className="text-texto-tenue text-sm">{hoja.compartida ? `${nombre} tiene acceso de edición.` : 'La hoja conserva los permisos del Drive compartido de WiWO.'}</p>
-            {hoja.advertencia && <p role="alert" className="text-texto-peligro text-sm">{hoja.advertencia}</p>}
+            {hoja.advertencia && <AvisoEnLinea variante="error" mensaje={hoja.advertencia} className="text-sm" />}
             <a href={hoja.url} target="_blank" rel="noopener noreferrer" className="text-acento font-medium underline underline-offset-4">Abrir Google Sheets</a>
             <Boton variante="sutil" onClick={() => { setHoja(null); setError(null) }}>Crear otra exportación</Boton>
           </div>
@@ -74,7 +75,7 @@ export function ExportarTareasSheets ({ personaId, nombre, email }: Props) {
               <span>Dar acceso de edición a {nombre}<span className="text-texto-tenue block break-all">{email || 'Esta persona no tiene correo registrado.'}</span></span>
             </label>
             <p className="text-texto-sutil text-xs">Se crea una hoja nueva. Lo que se escriba en ella no cambia las tareas de Ops.</p>
-            {error !== null && <p role="alert" className="text-texto-peligro text-sm">{error}</p>}
+            {error !== null && <AvisoEnLinea variante="error" mensaje={error} className="text-sm" />}
             <div className="flex justify-end gap-2">
               <Boton variante="sutil" disabled={exportando} onClick={() => { setAbierto(false) }}>Cancelar</Boton>
               <Boton type="submit" disabled={exportando} cargando={exportando}>{exportando ? 'Creando hoja…' : 'Crear Google Sheets'}</Boton>

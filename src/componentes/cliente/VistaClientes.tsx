@@ -5,10 +5,10 @@ import { useRouter, useSearchParams } from 'next/navigation'
 import { useAccionPresencia } from '@/componentes/auditoria/accion'
 import { ControlesTabla, PaginacionTabla } from '@/componentes/datos/ControlesTabla'
 import { clavesVisiblesPorDefecto } from '@/componentes/datos/tabla'
-import { retrasoDeAparicion } from '@/componentes/datos/TablaRecurso'
 import { useFiltrosEnUrl } from '@/componentes/datos/useFiltrosEnUrl'
 import { Vacio } from '@/componentes/estado/Estados'
 import { CargandoConOrbe } from '@/componentes/estado/Orbe'
+import { EntradaEscalonada } from '@/componentes/estructura/EntradaEscalonada'
 import { Boton } from '@/componentes/formularios/Boton'
 import { Segmentado, type OpcionSegmentada } from '@/componentes/formularios/Segmentado'
 import { FormularioRecurso } from '@/componentes/proyecto/FormularioRecurso'
@@ -201,24 +201,22 @@ function TarjetasClientes ({
             {/* Igual que en la tabla: refrescar atenua las tarjetas viejas en vez de taparlas, y el
                 aviso va en un chip sobre la esquina. Sin indicador, la atenuacion se lee como un fallo. */}
             {pendiente && <CargandoConOrbe mensaje="Actualizando…" className="absolute right-2 top-2 z-10" />}
-            <ul
-              className={cn(
-                'grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-3',
-                pendiente && 'opacity-60 transition-opacity'
-              )}
-            >
-              {/* El escalonado es del montaje: el `key` por id hace que un refresco reutilice los
-                  mismos `<li>`, asi que las tarjetas ya pintadas no vuelven a entrar. */}
-              {resultado.filas.map((cliente, indice) => (
-                <li
-                  key={cliente.id}
-                  className="animate-entrar-abajo flex"
-                  style={{ animationDelay: retrasoDeAparicion(indice) }}
-                >
-                  <TarjetaCliente cliente={cliente} className="w-full" />
-                </li>
-              ))}
-            </ul>
+            {/* La URL y la pagina nueva llegan juntas al terminar la transicion, asi que la consulta
+                cambia cuando cambian las tarjetas; un refresco de la misma consulta no las reanima. */}
+            <EntradaEscalonada densa clave={construirQuery(estado)}>
+              <ul
+                className={cn(
+                  'grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-3',
+                  pendiente && 'opacity-60 transition-opacity'
+                )}
+              >
+                {resultado.filas.map((cliente) => (
+                  <li key={cliente.id} data-entrada="item" className="flex">
+                    <TarjetaCliente cliente={cliente} className="w-full" />
+                  </li>
+                ))}
+              </ul>
+            </EntradaEscalonada>
           </div>
           )}
 

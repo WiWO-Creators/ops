@@ -1,7 +1,10 @@
 'use client'
 
 import { useState, type ReactElement, type ReactNode } from 'react'
+import { RotateCcw, PowerOff } from 'lucide-react'
 import { ConfirmarBorrado, useConfirmarBorrado } from './ConfirmarBorrado'
+import { MenuAccionesFila, type AccionDeBorrado, type AccionDeFila } from './MenuAccionesFila'
+import { AvisoEnLinea } from '@/componentes/estado/Estados'
 import { Boton } from '@/componentes/formularios/Boton'
 import { useAviso } from '@/componentes/estado/useAviso'
 import { mensajeDeRespuesta } from '@/datos/cliente'
@@ -47,6 +50,11 @@ interface PropsBajaYBorrado {
    */
   alBorrar?: () => void
   tamano?: 'chico' | 'medio'
+  /**
+   * Agrupa baja, reactivacion y borrado en el menu ⋯ de `MenuAccionesFila`, como en la cabecera de
+   * una ficha. Sin el, se dibujan como botones sueltos, que es lo que usa la fila de un listado.
+   */
+  enMenu?: boolean
 }
 
 export function BajaYBorrado ({
@@ -61,7 +69,8 @@ export function BajaYBorrado ({
   alAbrirBorrado,
   recargar,
   alBorrar,
-  tamano = 'medio'
+  tamano = 'medio',
+  enMenu = false
 }: PropsBajaYBorrado): ReactElement {
   const confirmarBorrado = useConfirmarBorrado()
   const [enCurso, setEnCurso] = useState(false)
@@ -124,6 +133,43 @@ export function BajaYBorrado ({
     }
   }
 
+  const avisoDeFallo = fallo !== null && !confirmarBorrado.abierto && (
+    <AvisoEnLinea variante="error" mensaje={fallo} className="w-full" />
+  )
+
+  if (enMenu) {
+    const cambioDeEstado: AccionDeFila = activo
+      ? { clave: 'baja', etiqueta: 'Dar de baja', icono: PowerOff, onSeleccionar: () => { void escribir(usaPapelera ? 'PATCH' : 'DELETE', usaPapelera ? { active: false } : undefined) } }
+      : { clave: 'reactivar', etiqueta: 'Reactivar', icono: RotateCcw, onSeleccionar: () => { void escribir('PATCH', { active: true }) } }
+    const borrado: AccionDeBorrado | undefined = puedeBorrar && !activo
+      ? {
+          titulo: accion,
+          etiquetaConfirmar: accion,
+          advertencia,
+          confirmacionEscrita: usaPapelera ? undefined : confirmacion,
+          contenidoExtra: extra?.control,
+          deshabilitadoExtra: extra !== undefined && extra.consulta === null,
+          tamano: tamano === 'chico' ? 'chico' : 'medio',
+          alAbrir: () => { setFallo(null); alAbrirBorrado?.() },
+          onConfirmar: eliminarDefinitivo
+        }
+      : undefined
+
+    return (
+      <>
+        {(puedeEditar || borrado !== undefined) && (
+          <MenuAccionesFila
+            ariaLabel={`Más acciones de ${nombre}`}
+            cargando={enCurso}
+            acciones={puedeEditar ? [cambioDeEstado] : []}
+            borrado={borrado}
+          />
+        )}
+        {avisoDeFallo}
+      </>
+    )
+  }
+
   return (
     <>
       {puedeEditar && (activo
@@ -149,9 +195,7 @@ export function BajaYBorrado ({
         </Boton>
       )}
 
-      {fallo !== null && !confirmarBorrado.abierto && (
-        <p role="alert" className="text-texto-peligro w-full text-xs">{fallo}</p>
-      )}
+      {avisoDeFallo}
 
       <ConfirmarBorrado
         abierto={confirmarBorrado.abierto}

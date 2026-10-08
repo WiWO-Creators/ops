@@ -1,4 +1,5 @@
 import Link from 'next/link'
+import { BotonVolver } from '@/componentes/estructura/BotonVolver'
 import { Suspense, cache } from 'react'
 import { AccionesProspecto } from '@/componentes/prospecto/AccionesProspecto'
 import { FichaProspecto } from '@/componentes/prospecto/FichaProspecto'
@@ -7,6 +8,7 @@ import {
   PanelContactosProspecto,
   PanelLicitacionesProspecto
 } from '@/componentes/prospecto/PanelesProspecto'
+import { FirmaDeMarca, TituloDeFicha } from '@/componentes/estructura/TituloModulo'
 import { Insignia } from '@/componentes/presentadores/Insignia'
 import { Pestanas, type Panel } from '@/componentes/proyecto/Pestanas'
 import type { OpcionCampo } from '@/componentes/proyecto/formulario'
@@ -14,7 +16,7 @@ import { Cargando, ErrorEstado, SinPermiso, Vacio } from '@/componentes/estado/E
 import { listaDe } from '@/datos/catalogos'
 import { ErrorApi } from '@/datos/errores'
 import { cargarLookups } from '@/datos/lookups'
-import { pedir } from '@/datos/servidor'
+import { cargarYo, pedir } from '@/datos/servidor'
 import type { EstadoLookup, Lookups, ProspectoDetalle } from '@/datos/recursos'
 import type { Yo } from '@/datos/tipos'
 import { etiquetaDeEstadoDeProspecto } from '@/definiciones/prospectos'
@@ -71,7 +73,7 @@ async function cargarDetalle (id: string): Promise<Detalle | ErrorApi> {
     const [prospecto, lookups, yo] = await Promise.all([
       traerProspecto(id),
       cargarLookups(),
-      pedir<Yo>('/me')
+      cargarYo()
     ])
 
     return { prospecto: prospecto.data, lookups, yo: yo.data }
@@ -151,19 +153,16 @@ export default async function ProspectoPage (props: PageProps<'/prospectos/[id]'
     <section className="flex flex-col gap-6">
       <div className="flex flex-wrap items-start justify-between gap-3">
         <header className="flex flex-col gap-3">
-          <Link
-            href="/prospectos"
-            className="text-texto-sutil hover:text-texto w-fit text-xs font-medium transition-colors"
-          >
-            ← Licitaciones
-          </Link>
+          <BotonVolver href="/prospectos" etiqueta="Licitaciones" />
 
           <div className="flex flex-wrap items-center gap-2">
-            <h1 className="text-texto text-seccion leading-tight font-semibold">{prospecto.empresa}</h1>
+            <TituloDeFicha>{prospecto.empresa}</TituloDeFicha>
             <Insignia tono={tonoDelEstado(prospecto.estado)}>
               {etiquetaDeEstadoDeProspecto(prospecto.estado)}
             </Insignia>
           </div>
+
+          <FirmaDeMarca />
         </header>
 
         <AccionesProspecto

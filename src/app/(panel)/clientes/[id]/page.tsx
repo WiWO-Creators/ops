@@ -8,6 +8,7 @@ import { PanelEquipoCliente } from '@/componentes/cliente/EquipoCliente'
 import { FichaCliente } from '@/componentes/cliente/FichaCliente'
 import { PanelFocalesCliente } from '@/componentes/cliente/FocalesCliente'
 import { PanelSupervisoresCliente } from '@/componentes/cliente/SupervisoresCliente'
+import { PanelActividadPortal } from '@/componentes/cliente/actividad-portal/PanelActividadPortal'
 import { PanelContactos } from '@/componentes/cliente/PanelContactos'
 import { PanelProyectosCliente } from '@/componentes/cliente/PanelProyectosCliente'
 import { SemaforoCliente } from '@/componentes/clientes/SemaforoCliente'
@@ -21,7 +22,7 @@ import { Cargando, ErrorEstado, SinPermiso, Vacio } from '@/componentes/estado/E
 import { listaDe } from '@/datos/catalogos'
 import { ErrorApi } from '@/datos/errores'
 import { cargarLookups } from '@/datos/lookups'
-import { pedir } from '@/datos/servidor'
+import { cargarYo, pedir } from '@/datos/servidor'
 import type { Yo } from '@/datos/tipos'
 import type {
   ClienteConEnvio, ContactoCompleto, EstadoLookup, Lookups, Moneda, ScoreCliente
@@ -110,7 +111,7 @@ async function cargarDetalle (id: string): Promise<Detalle | ErrorApi> {
       // Con los dados de baja incluidos: la pestaña los muestra atenuados para poder reactivarlos.
       pedir<ContactoCompleto[]>(`/clients/${id}/contacts`),
       cargarLookups(),
-      pedir<Yo>('/me'),
+      cargarYo(),
       traerScore(id)
     ])
 
@@ -194,14 +195,14 @@ export default async function ClientePage (props: PageProps<'/clientes/[id]'>) {
     {
       clave: 'focales',
       etiqueta: GLOSARIO.focal.plural,
-      contenido: <PanelFocalesCliente clienteId={cliente.id} capacidades={yo.permissions.customers} />
+      contenido: <PanelFocalesCliente clienteId={cliente.id} nombreCliente={cliente.company} capacidades={yo.permissions.customers} />
     },
     // Supervisión va aparte de Focales por lo mismo que Focales va aparte de Equipo: el Focal
     // responde por la cuenta; el supervisor revisa cada día sus Tareas vencidas y firma la hoja.
     {
       clave: 'supervision',
       etiqueta: 'Supervisión',
-      contenido: <PanelSupervisoresCliente clienteId={cliente.id} capacidades={yo.permissions.customers} />
+      contenido: <PanelSupervisoresCliente clienteId={cliente.id} nombreCliente={cliente.company} capacidades={yo.permissions.customers} />
     },
     {
       clave: 'proyectos',
@@ -220,6 +221,9 @@ export default async function ClientePage (props: PageProps<'/clientes/[id]'>) {
       etiqueta: GLOSARIO.proceso.plural,
       contenido: <PanelTareasCliente clienteId={cliente.id} capacidades={capacidadesTareas} />
     },
+    // Lo que hacen los contactos cuando entran al portal. La pestaña se pide a la API sola: con el
+    // seguimiento apagado responde 404 y el panel lo dice, sin tumbar la ficha.
+    { clave: 'actividad', etiqueta: 'Actividad del portal', contenido: <PanelActividadPortal clienteId={cliente.id} /> },
     { clave: 'notas', etiqueta: 'Notas', contenido: <PanelNotasCliente clienteId={cliente.id} /> },
     { clave: 'archivos', etiqueta: 'Archivos', contenido: <PanelArchivosCliente clienteId={cliente.id} /> }
   ]
@@ -271,7 +275,7 @@ function comoOpciones (lista: EstadoLookup[]): OpcionCampo[] {
  * @returns Las monedas, o vacio si el backend todavia no expone el catalogo.
  */
 function monedasDe (lookups: Lookups): Moneda[] {
-  const lista = (lookups as unknown as Record<string, unknown>).currencies
+  const lista: unknown = Reflect.get(lookups, 'currencies')
 
   return Array.isArray(lista) ? lista as Moneda[] : []
 }

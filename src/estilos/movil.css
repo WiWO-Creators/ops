@@ -253,7 +253,7 @@
   position: fixed;
   top: 0;
   left: 0;
-  z-index: 60;
+  z-index: var(--z-index-telon);
   margin: 0;
   pointer-events: none;
   box-shadow: var(--sombra-flotante);

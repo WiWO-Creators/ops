@@ -1,4 +1,6 @@
 import { formatearRelativo } from '../lib/fechas.ts'
+import { GLOSARIO } from './glosario.ts'
+import { ESTADO_TICKET_CERRADO } from './ticket-estados.ts'
 
 /**
  * Reglas de los listados de tickets: la pestaña del Proyecto, la bandeja global del equipo y la
@@ -10,13 +12,6 @@ import { formatearRelativo } from '../lib/fechas.ts'
  *
  * Fuente: `CONTRATO2.md`, secciones E (portal) y F (listados del equipo).
  */
-
-// El evento que avisa que un ticket cambio vive junto a quien lo emite (`avisarCambioDeTicket`, en
-// `ticket-vista.ts`). Se reexporta aca para que los listados lo nombren desde su propio modulo.
-export { EVENTO_TICKETS_CAMBIADOS } from './ticket-vista.ts'
-
-/** Estado «Cerrado» de Perfex (`tbltickets_status`, id 5). Un ticket cerrado no espera a nadie. */
-const CERRADO = 5
 
 /** Quien escribio el ultimo mensaje del hilo, tal como lo manda la API (`ultimo_de`). */
 export type LadoDelTicket = 'equipo' | 'cliente'
@@ -33,8 +28,8 @@ export interface FilaConEspera {
   adminread?: boolean | number | null
 }
 
-/** Espera de un ticket, lista para pintar. */
-export interface EsperaDeTicket {
+/** Espera de un ticket, lista para pintar. El componente que la dibuja es `EsperaDeTicket`. */
+export interface EsperaCalculada {
   /** A quien le toca mover: `equipo` si el cliente escribio lo ultimo, `cliente` al reves. */
   lado: LadoDelTicket
   etiqueta: string
@@ -55,8 +50,8 @@ export interface EsperaDeTicket {
  * @param ahora referencia para el tiempo relativo, inyectable en pruebas
  * @returns la espera, o `null`
  */
-export function esperaDelTicket (fila: FilaConEspera, ahora: Date = new Date()): EsperaDeTicket | null {
-  if (fila.status === CERRADO) return null
+export function esperaDelTicket (fila: FilaConEspera, ahora: Date = new Date()): EsperaCalculada | null {
+  if (fila.status === ESTADO_TICKET_CERRADO) return null
   if (fila.ultimo_de !== 'equipo' && fila.ultimo_de !== 'cliente') return null
 
   const lado: LadoDelTicket = fila.ultimo_de === 'cliente' ? 'equipo' : 'cliente'
@@ -176,7 +171,7 @@ export function noLeidoPorElCliente (fila: Pick<FilaDelPortal, 'no_leido'>): boo
  * @returns `true` si hay que mostrar "Esperando tu respuesta"
  */
 export function esperaTuRespuesta (fila: FilaDelPortal): boolean {
-  if (fila.status === CERRADO) return false
+  if (fila.status === ESTADO_TICKET_CERRADO) return false
   if (fila.ultimo_de === 'equipo' || fila.ultimo_de === 'cliente') return fila.ultimo_de === 'equipo'
 
   return noLeidoPorElCliente(fila)
@@ -224,4 +219,20 @@ export function alternarEsperandoAlEquipo (params: URLSearchParams): string {
   siguientes.delete('page')
 
   return `?${siguientes.toString()}`
+}
+
+/**
+ * Como se nombra el {espacio} de un ticket en un listado.
+ *
+ * @param id el `project_id` de la fila; `null` o `undefined` si el ticket no tiene {espacio}
+ * @param nombrePorId como se nombra un {espacio} por su id; ausente o `null` = se deja el `#id`
+ * @returns el nombre, `#id` si no se conoce, o "Sin {espacio}"
+ */
+export function nombreDeEspacio (
+  id: number | null | undefined,
+  nombrePorId?: (id: number) => string | null | undefined
+): string {
+  if (id === null || id === undefined) return `Sin ${GLOSARIO.espacio.singular.toLowerCase()}`
+
+  return nombrePorId?.(id) ?? `#${id}`
 }

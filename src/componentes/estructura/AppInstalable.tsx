@@ -2,7 +2,8 @@
 
 import { useEffect } from 'react'
 import { COLOR_BARRA, decidirActualizacion, urlDeRegistro } from '@/lib/pwa'
-import { EVENTO_TEMA, esOscuro } from '@/lib/tema'
+import { MODOS, esClaveDeModo } from '@/dominio/modos-especiales'
+import { EVENTO_MODO, EVENTO_TEMA, esOscuro } from '@/lib/tema'
 
 interface PropsAppInstalable {
   /** Versión del build que sirvió esta página. La resuelve el servidor (`versionDelServidor`). */
@@ -90,17 +91,21 @@ function useServiceWorker (version: string): void {
 export function ColorDeBarraDelSistema (): null {
   useEffect(() => {
     const pintar = () => {
-      const color = esOscuro() ? COLOR_BARRA.oscuro : COLOR_BARRA.claro
+      const modo = document.documentElement.getAttribute('data-modo')
+      const paleta = esClaveDeModo(modo) ? MODOS[modo].colorBarra : COLOR_BARRA
+      const color = esOscuro() ? paleta.oscuro : paleta.claro
       for (const meta of document.querySelectorAll('meta[name="theme-color"]')) meta.setAttribute('content', color)
     }
     const esquema = window.matchMedia('(prefers-color-scheme: dark)')
 
     pintar()
     window.addEventListener(EVENTO_TEMA, pintar)
+    window.addEventListener(EVENTO_MODO, pintar)
     window.addEventListener('storage', pintar)
     esquema.addEventListener('change', pintar)
     return () => {
       window.removeEventListener(EVENTO_TEMA, pintar)
+      window.removeEventListener(EVENTO_MODO, pintar)
       window.removeEventListener('storage', pintar)
       esquema.removeEventListener('change', pintar)
     }

@@ -28,6 +28,7 @@ export function SelectorDeMesDelTablero (
         <span className="text-texto-tenue text-xs font-medium">Mes</span>
         <select
           name="mes"
+          data-rastreo="tablero.ver-mes"
           defaultValue={mes ?? ''}
           onChange={(evento) => { evento.currentTarget.form?.requestSubmit() }}
           className="border-linea rounded-medio bg-superficie text-texto h-9 border px-2 text-sm"
@@ -41,6 +42,7 @@ export function SelectorDeMesDelTablero (
       <noscript>
         <button
           type="submit"
+          data-rastreo="tablero.ver-mes"
           className="border-linea rounded-medio bg-superficie-elevada text-texto hover:bg-hover h-9 cursor-pointer border px-4 text-sm font-medium"
         >
           Ver mes

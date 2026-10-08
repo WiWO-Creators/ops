@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect, useRef, useState, type ReactElement } from 'react'
+import { AvisoEnLinea } from '@/componentes/estado/Estados'
 import { Boton } from '@/componentes/formularios/Boton'
 import { escribirEnBff } from '@/componentes/datos/mutaciones'
 import { leerAccion, type AccionIA } from '@/dominio/ia'
@@ -198,7 +199,7 @@ export function TarjetaPropuestaIA (
           </p>
           )}
 
-      {error !== '' && <p role="alert" className="text-texto-peligro text-xs">{error}</p>}
+      {error !== '' && <AvisoEnLinea variante="error" mensaje={error} />}
     </div>
   )
 }

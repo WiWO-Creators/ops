@@ -24,13 +24,14 @@ import { PanelTiempos } from '@/componentes/proyecto/PanelTiempos'
 import { PanelTickets } from '@/componentes/proyecto/PanelTickets'
 import { ContadorDeTickets } from '@/componentes/proyecto/ContadorDeTickets'
 import { Pestanas, type Panel } from '@/componentes/proyecto/Pestanas'
-import { Cargando, ErrorEstado, SinPermiso, Vacio } from '@/componentes/estado/Estados'
+import { Cargando, SinPermiso, Vacio } from '@/componentes/estado/Estados'
+import { ErrorRecargable } from '@/componentes/estado/ErrorRecargable'
 import { listaDe, nombreDe } from '@/datos/catalogos'
 import { ErrorApi } from '@/datos/errores'
 import { estadoIa } from '@/datos/ajustes'
 import type { EstadoIa } from '@/dominio/ajustes'
 import { cargarLookups } from '@/datos/lookups'
-import { pedir } from '@/datos/servidor'
+import { cargarYo, pedir } from '@/datos/servidor'
 import type { Espacio, Lookups } from '@/datos/recursos'
 import type { Capacidad, Yo } from '@/datos/tipos'
 import { ASISTENTE, GLOSARIO } from '@/dominio/glosario'
@@ -115,7 +116,7 @@ async function cargarDetalle (id: string): Promise<Detalle | ErrorApi> {
     const [proyecto, lookups, yo, ia] = await Promise.all([
       traerProyecto(id),
       cargarLookups(),
-      pedir<Yo>('/me'),
+      cargarYo(),
       estadoIa()
     ])
 
@@ -169,7 +170,7 @@ export default async function ProyectoPage (props: PageProps<'/proyectos/[id]'>)
     if (detalle.codigo === 'not_found') return <NoEncontrado />
     if (detalle.codigo === 'forbidden') return <SinPermiso />
 
-    return <ErrorEstado detalle={detalle.message} />
+    return <ErrorRecargable detalle={detalle.message} />
   }
 
   const { proyecto, lookups, yo, ia } = detalle

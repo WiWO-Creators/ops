@@ -1,5 +1,5 @@
 import Link from 'next/link'
-import { pedir, pedirOpcional } from '@/datos/servidor'
+import { cargarYo, pedirOpcional } from '@/datos/servidor'
 import { leerSuplantador } from '@/datos/sesion'
 import type { Yo } from '@/datos/tipos'
 import { GLOSARIO } from '@/dominio/glosario'
@@ -47,7 +47,7 @@ const SIN_FIJADOS: Fijado[] = []
  * logica de permisos al navegador, que es exactamente lo que no se quiere.
  */
 export default async function PanelLayout ({ children }: { children: React.ReactNode }) {
-  const { data: yo } = await pedir<Yo>('/me')
+  const { data: yo } = await cargarYo()
   const secciones = seccionesDe(yo)
   const segundosDeLive = intervaloDeLive()
   // Los dos van con `pedirOpcional`: son accesorios de la cabecera y ninguno puede tumbar el armazon

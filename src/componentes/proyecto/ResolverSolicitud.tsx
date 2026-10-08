@@ -2,11 +2,13 @@
 
 import { useRouter } from 'next/navigation'
 import { useState, type ReactElement } from 'react'
+import { AvisoEnLinea } from '@/componentes/estado/Estados'
 import { Boton } from '@/componentes/formularios/Boton'
 import { AreaTexto } from '@/componentes/formularios/Entrada'
 import { Dialogo, ContenidoDialogo } from '@/componentes/superposiciones/Dialogo'
 import { escribirEnBff } from '@/componentes/datos/mutaciones'
 import type { SolicitudDeEliminacion } from '@/datos/recursos'
+import { useAviso } from '@/componentes/estado/useAviso'
 
 /**
  * Aprobar o rechazar una solicitud de eliminación, desde la bandeja del administrador.
@@ -26,6 +28,7 @@ const RESPUESTA_MAXIMA = 1000
 
 export function ResolverSolicitud ({ solicitud }: { solicitud: SolicitudDeEliminacion }): ReactElement {
   const router = useRouter()
+  const aviso = useAviso()
   const [decision, setDecision] = useState<'approve' | 'reject' | null>(null)
   const [respuesta, setRespuesta] = useState('')
   const [enviando, setEnviando] = useState(false)
@@ -68,6 +71,7 @@ export function ResolverSolicitud ({ solicitud }: { solicitud: SolicitudDeElimin
       return
     }
 
+    aviso.exito(aprobando ? `Solicitud sobre «${nombre}» aprobada.` : `Solicitud sobre «${nombre}» rechazada.`)
     setDecision(null)
     router.refresh()
   }
@@ -101,12 +105,12 @@ export function ResolverSolicitud ({ solicitud }: { solicitud: SolicitudDeElimin
                 autoFocus
                 onChange={(evento) => { setRespuesta(evento.target.value) }}
                 placeholder={aprobando
-                  ? 'Si querés dejar dicho algo más…'
+                  ? 'Si quieres dejar dicho algo más…'
                   : 'El contrato sigue vigente, falta facturar, hablalo con el cliente…'}
               />
             </label>
 
-            {fallo !== null && <p role="alert" className="text-texto-peligro text-sm">{fallo}</p>}
+            {fallo !== null && <AvisoEnLinea variante="error" mensaje={fallo} className="text-sm" />}
 
             <div className="flex justify-end gap-2">
               <Boton variante="sutil" onClick={() => { setDecision(null) }}>Cancelar</Boton>

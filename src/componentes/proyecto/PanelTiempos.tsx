@@ -14,7 +14,7 @@ import {
   Tabla
 } from '@/componentes/datos/Tabla'
 import { MenuAccionesFila } from '@/componentes/datos/MenuAccionesFila'
-import { Cargando, ErrorEstado, Vacio } from '@/componentes/estado/Estados'
+import { AvisoEnLinea, Cargando, ErrorEstado, Vacio } from '@/componentes/estado/Estados'
 import { CargandoConOrbe } from '@/componentes/estado/Orbe'
 import { useAviso } from '@/componentes/estado/useAviso'
 import { Boton } from '@/componentes/formularios/Boton'
@@ -304,12 +304,11 @@ function TiemposDelProyecto ({ proyectoId, fuente, capacidades }: PropsPanelTiem
       </div>
 
       {aviso !== null && (
-        <p
-          role="alert"
-          className="border-linea bg-superficie-peligro text-texto-peligro rounded-tarjeta border px-3 py-2 text-sm"
-        >
-          {aviso}
-        </p>
+        <AvisoEnLinea
+          variante="error"
+          mensaje={aviso}
+          className="border-linea bg-superficie-peligro rounded-tarjeta border px-3 py-2 text-sm"
+        />
       )}
 
       {carga.fase === 'cargando' && <Cargando alto="min-h-60" mensaje="Cargando las horas…" />}

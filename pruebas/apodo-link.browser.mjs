@@ -54,7 +54,7 @@ try {
   }
   /** Guarda y espera el detalle actualizado antes de volver a editar. */
   async function guardar () {
-    await dialogo.getByRole('button', { name: 'Guardar', exact: true }).click()
+    await dialogo.getByRole('button', { name: 'Guardar cambios', exact: true }).click()
     await dialogo.waitFor({ state: 'hidden' })
     await pagina.waitForLoadState('networkidle')
   }

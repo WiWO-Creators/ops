@@ -11,12 +11,13 @@ import {
   Opcion,
   Selector
 } from '@/componentes/formularios/Selector'
-import { Cargando, ErrorEstado } from '@/componentes/estado/Estados'
+import { AvisoEnLinea, Cargando, ErrorEstado } from '@/componentes/estado/Estados'
 import { ConfirmacionEnLinea } from '@/componentes/datos/ConfirmacionEnLinea'
 import { useAviso } from '@/componentes/estado/useAviso'
 import { ContenidoDialogo, Dialogo } from '@/componentes/superposiciones/Dialogo'
 import { escribirEnBff } from '@/componentes/datos/mutaciones'
 import { pedirSobre } from '@/datos/cliente'
+import type { EstadoCarga } from './carga'
 import { GLOSARIO } from '@/dominio/glosario'
 import {
   cargarProyectosOrigen,
@@ -65,12 +66,6 @@ type Fase = 'elegir' | 'informe'
 
 /** Modo del selector de destino. */
 type ModoHito = EleccionHito['modo']
-
-/** Carga de una lista que alimenta un selector. */
-type Carga<T> =
-  | { fase: 'cargando' }
-  | { fase: 'error', mensaje: string }
-  | { fase: 'listo', datos: T }
 
 interface PropsImportarTareas {
   /** El Proyecto que recibe las tareas: el que se esta mirando. */
@@ -161,8 +156,8 @@ export function CuerpoImportarTareas ({
   const [confirmandoArchivo, setConfirmandoArchivo] = useState(false)
   const aviso = useAviso()
 
-  const [origenes, setOrigenes] = useState<Carga<ProyectoCandidato[]>>({ fase: 'cargando' })
-  const [hitos, setHitos] = useState<Carga<HitoDestino[]>>(
+  const [origenes, setOrigenes] = useState<EstadoCarga<ProyectoCandidato[]>>({ fase: 'cargando' })
+  const [hitos, setHitos] = useState<EstadoCarga<HitoDestino[]>>(
     hitoFijo === undefined ? { fase: 'cargando' } : { fase: 'listo', datos: [hitoFijo] }
   )
 
@@ -301,7 +296,7 @@ export function CuerpoImportarTareas ({
       return
     }
 
-    aviso.exito(`"${informe.origen.nombre}" quedó archivado.`)
+    aviso.exito(`«${informe.origen.nombre}» quedó archivado.`)
     onCerrar()
     onArchivado()
   }
@@ -342,7 +337,7 @@ export function CuerpoImportarTareas ({
           <PasoInforme informe={informe} />
           )}
 
-      {error !== null && <p role="alert" className="text-texto-peligro mt-3 text-sm">{error}</p>}
+      {error !== null && <AvisoEnLinea variante="error" mensaje={error} className="mt-3 text-sm" />}
 
       {/* Confirmacion en el mismo cuerpo y no en otro dialogo: este paso YA vive dentro de un modal
           (`ImportarTareas`), y un `Dialogo` sobre otro deja los dos peleando por el foco. */}
@@ -430,8 +425,8 @@ function PasoElegir ({
   onNombreHito,
   onReintentar
 }: {
-  origenes: Carga<ProyectoCandidato[]>
-  hitos: Carga<HitoDestino[]>
+  origenes: EstadoCarga<ProyectoCandidato[]>
+  hitos: EstadoCarga<HitoDestino[]>
   hitoFijo?: HitoDestino
   candidatos: ProyectoCandidato[]
   busqueda: string
@@ -603,7 +598,7 @@ function DestinoDeLasTareas ({
                   onValueChange={(valor) => { onHito(Number(valor)) }}
                   disabled={enCurso}
                 >
-                  <DisparadorSelector marcador={`Elegí un ${GLOSARIO.hito.singular.toLowerCase()}`} id={props.id} />
+                  <DisparadorSelector marcador={`Elige un ${GLOSARIO.hito.singular.toLowerCase()}`} id={props.id} />
                   <ContenidoSelector>
                     {hitos.map((hito) => (
                       <Opcion key={hito.id} value={String(hito.id)}>{hito.name}</Opcion>

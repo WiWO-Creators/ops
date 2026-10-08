@@ -11,7 +11,8 @@ import {
   parametrosPropios,
   prefijarQuery,
   urlConCambio,
-  urlConParametroPropio
+  urlConParametroPropio,
+  urlConParametros
 } from '../src/componentes/datos/filtros-en-url.ts'
 
 test('agregarPrefijo antepone el prefijo; sin prefijo devuelve la clave intacta', () => {
@@ -101,4 +102,29 @@ test('urlConParametroPropio escribe la clave con su prefijo y conserva el resto'
   const resultado = new URLSearchParams(url.slice(1))
   assert.equal(resultado.get('t1_vista'), 'tarjetas')
   assert.equal(resultado.get('otro'), '1')
+})
+
+test('urlConParametros pone y quita varios parametros en una sola URL, conservando los ajenos', () => {
+  const params = new URLSearchParams('buscar=ana&filtro=rojo&vista=tarjetas')
+  const url = urlConParametros(params, { buscar: null, filtro: '', orden: 'nombre' }, undefined)
+  const resultado = new URLSearchParams(url.slice(1))
+
+  assert.equal(resultado.get('buscar'), null)
+  assert.equal(resultado.get('filtro'), null)
+  assert.equal(resultado.get('orden'), 'nombre')
+  assert.equal(resultado.get('vista'), 'tarjetas')
+})
+
+test('urlConParametros respeta el prefijo y no toca las claves de otra instancia', () => {
+  const params = new URLSearchParams('t1_page=2&t2_page=5')
+  const url = urlConParametros(params, { page: '3', sort: 'name' }, 't1_')
+  const resultado = new URLSearchParams(url.slice(1))
+
+  assert.equal(resultado.get('t1_page'), '3')
+  assert.equal(resultado.get('t1_sort'), 'name')
+  assert.equal(resultado.get('t2_page'), '5')
+})
+
+test('urlConParametros devuelve "?" cuando no queda ningun parametro', () => {
+  assert.equal(urlConParametros(new URLSearchParams('buscar=x&filtro=rojo'), { buscar: null, filtro: null }, undefined), '?')
 })

@@ -1,6 +1,7 @@
 'use client'
 
 import { Fragment, useState, type ReactElement, type ReactNode } from 'react'
+import { AvisoEnLinea } from '@/componentes/estado/Estados'
 import { Boton } from '@/componentes/formularios/Boton'
 import { Campo } from '@/componentes/formularios/Campo'
 import { AreaTexto, Entrada } from '@/componentes/formularios/Entrada'
@@ -17,12 +18,15 @@ import { cn } from '@/lib/clases'
 import { aFechaDelContrato, aFechaLocal, enmascararFechaLocal } from '@/lib/fechas'
 import { AsistenteDescripcion } from './AsistenteDescripcion'
 import {
+  avisoDeGuardado,
   cuerpoDelFormulario,
+  etiquetaDeEnvio,
   validarFormulario,
   valoresIniciales,
   type CampoFormulario,
   type ValoresFormulario
 } from './formulario'
+import { useAviso } from '@/componentes/estado/useAviso'
 
 /**
  * Formulario de alta y edicion, generico y en dialogo.
@@ -35,7 +39,7 @@ import {
  * reimplementan.
  */
 
-interface PropsFormulario {
+interface PropsFormulario<T extends object> {
   abierto: boolean
   onAbiertoCambia: (abierto: boolean) => void
   titulo: string
@@ -45,7 +49,7 @@ interface PropsFormulario {
   ruta: string
   metodo: 'POST' | 'PATCH'
   /** Registro a editar, o `null` para un alta. Se lee por las claves de los campos. */
-  registro?: Record<string, unknown> | null
+  registro?: T | null
   /** Se llama despues de guardar bien, para que la pestaña recargue su listado. */
   onGuardado: () => void
   /**
@@ -74,9 +78,16 @@ interface PropsFormulario {
    * cuerpo ya armado y devuelve el mensaje de error a mostrar, o `null` si todo se guardo.
    */
   enviar?: (cuerpo: Record<string, unknown>) => Promise<string | null>
+  /**
+   * Texto del aviso de exito al guardar. Por defecto nombra el registro con «» (`avisoDeGuardado`);
+   * `null` lo apaga, para quien confirma de otra manera.
+   */
+  avisoExito?: string | null
+  /** Texto del boton de envio. Por defecto `etiquetaDeEnvio`: «Crear X» en un alta, «Guardar cambios» en una edicion. */
+  etiquetaEnviar?: string
 }
 
-export function FormularioRecurso ({
+export function FormularioRecurso<T extends object> ({
   abierto,
   onAbiertoCambia,
   titulo,
@@ -89,8 +100,11 @@ export function FormularioRecurso ({
   columnas = 1,
   ancho = 'medio',
   pie,
-  enviar: enviarPropio
-}: PropsFormulario): ReactElement {
+  enviar: enviarPropio,
+  avisoExito,
+  etiquetaEnviar
+}: PropsFormulario<T>): ReactElement {
+  const aviso = useAviso()
   const [valores, setValores] = useState<ValoresFormulario>(() => valoresIniciales(campos, registro))
   const [errores, setErrores] = useState<Record<string, string>>({})
   const [fallo, setFallo] = useState<string | null>(null)
@@ -150,6 +164,7 @@ export function FormularioRecurso ({
         }
       }
 
+      if (avisoExito !== null) aviso.exito(avisoExito ?? avisoDeGuardado(metodo, cuerpo, registro))
       onAbiertoCambia(false)
       onGuardado()
     } catch {
@@ -167,7 +182,7 @@ export function FormularioRecurso ({
             {campos.map((campo) => (
               <Fragment key={campo.clave}>
                 {campo.seccion !== undefined && (
-                  <h3 className="text-texto-tenue border-linea-suave mt-2 border-b pb-1 text-xs font-semibold tracking-wide uppercase sm:col-span-full">
+                  <h3 className="text-texto-tenue border-linea-suave mt-2 border-b pb-1 text-xs antetitulo sm:col-span-full">
                     {campo.seccion}
                   </h3>
                 )}
@@ -186,14 +201,14 @@ export function FormularioRecurso ({
           {pie?.(valores)}
 
           {fallo !== null && (
-            <p role="alert" className="text-texto-peligro text-sm">{fallo}</p>
+            <AvisoEnLinea variante="error" mensaje={fallo} className="text-sm" />
           )}
 
           <div className="flex justify-end gap-2">
             <Boton type="button" variante="sutil" onClick={() => { onAbiertoCambia(false) }}>
               Cancelar
             </Boton>
-            <Boton type="submit" variante="primario" cargando={guardando}>Guardar</Boton>
+            <Boton type="submit" variante="primario" cargando={guardando}>{etiquetaEnviar ?? etiquetaDeEnvio(metodo, titulo)}</Boton>
           </div>
         </form>
       </ContenidoDialogo>
@@ -309,7 +324,7 @@ export function ControlDeCampo (
           ))}
           {campo.opciones?.length === 0 && <p className="text-texto-sutil text-xs">No hay opciones disponibles.</p>}
         </div>
-        {error !== undefined && <p role="alert" className="text-texto-peligro text-xs">{error}</p>}
+        {error !== undefined && <AvisoEnLinea variante="error" mensaje={error} />}
       </fieldset>
     )
   }

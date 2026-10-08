@@ -52,7 +52,7 @@ test('las areas viajan como numeros, sin repetir y en el orden en que se marcaro
   assert.deepEqual(cuerpoDelFormulario(campos, { area_ids: ['9', '4', '9'] }).area_ids, [9, 4])
   assert.deepEqual(cuerpoDelFormulario(campos, {}).area_ids, [])
   assert.equal(validarFormulario(campos, { prospecto_id: '7', 'espacio.name': 'A', 'espacio.start_date': '2026-01-05', area_ids: ['77'] }).area_ids,
-    'Elegí opciones válidas.')
+    'Elige opciones válidas.')
 })
 
 test('owner y focal son dos campos distintos, los dos sobre el staff', () => {

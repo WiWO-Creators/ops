@@ -63,7 +63,7 @@ export function ContenidoDialogo ({
     <Radix.Portal>
       <Radix.Overlay
         className={cn(
-          'bg-superficie-inversa/40 fixed inset-0 z-50',
+          'bg-superficie-inversa/40 fixed inset-0 z-superposicion',
           'data-[state=open]:animate-aparecer data-[state=closed]:animate-desaparecer'
         )}
       />
@@ -74,7 +74,7 @@ export function ContenidoDialogo ({
           // `transform`, y una animacion pisa entera la propiedad `transform` del elemento. Con el
           // centrado apoyado en `translate`, el dialogo salta al cuadrante inferior derecho apenas
           // arranca la animacion. Con margenes automaticos, `transform` queda libre para animar.
-          'fixed inset-0 z-50 m-auto h-fit w-[calc(100vw-2rem)]',
+          'fixed inset-0 z-superposicion m-auto h-fit w-[calc(100vw-2rem)]',
           'border-linea bg-superficie-flotante rounded-tarjeta shadow-flotante border p-6',
           // El contenido largo hace scroll dentro del panel, no en la pagina de atras.
           'max-h-[calc(100dvh-4rem)] overflow-y-auto',
@@ -102,7 +102,7 @@ export function ContenidoDialogo ({
             aria-label="Cerrar"
             className={cn(
               'text-texto-sutil hover:text-texto hover:bg-hover absolute right-4 top-4',
-              'rounded-control inline-flex size-7 items-center justify-center transition-colors duration-150'
+              'rounded-control inline-flex size-7 items-center justify-center transition-colors duration-rapida ease-neo'
             )}
           >
             <X size={16} strokeWidth={2} aria-hidden="true" />

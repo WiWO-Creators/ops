@@ -47,7 +47,7 @@ export function ExportarInforme (
   }
 
   return (
-    <Boton cargando={generando} onClick={() => { void exportar() }}>
+    <Boton data-rastreo="tablero.exportar-informe" cargando={generando} onClick={() => { void exportar() }}>
       <FileDown className="size-4" aria-hidden="true" />
       Exportar informe
     </Boton>
