@@ -8,6 +8,7 @@ import { Insignia } from '@/componentes/presentadores/Insignia'
 import type { Capacidad, Sobre } from '@/datos/tipos'
 import type { TableroDePreset } from '@/datos/recursos'
 import { leerError } from '@/datos/errores'
+import { escribirEnBff } from './mutaciones'
 import { ErrorEstado, Vacio } from '@/componentes/estado/Estados'
 import { CargandoConOrbe } from '@/componentes/estado/Orbe'
 import { useAviso } from '@/componentes/estado/useAviso'
@@ -700,16 +701,20 @@ function MenuAcciones ({ acciones, id, onError, onListo, onEditar, borrado }: Pr
     setEnCurso(true)
 
     try {
-      const respuesta = await fetch(`/api/bff/${rutaDeAccion(ruta, id)}`, { method: metodo })
+      const resultado = await escribirEnBff(rutaDeAccion(ruta, id), metodo)
 
-      if (respuesta.ok) {
+      if (resultado.ok) {
         onListo()
         return
       }
 
-      onError(await leerError(respuesta))
-    } catch {
-      aviso.error('No se pudo completar la acción: revisa tu conexión e intenta de nuevo.')
+      if (resultado.incierta === true) {
+        aviso.advertencia(resultado.mensaje)
+        onListo()
+        return
+      }
+
+      onError({ code: (resultado.codigo ?? 'server_error') as CuerpoError['code'], message: resultado.mensaje })
     } finally {
       setEnCurso(false)
     }

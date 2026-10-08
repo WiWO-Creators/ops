@@ -73,3 +73,15 @@ export function esperaDeModoEspecial (): number {
 
   return Number.isInteger(configurada) && configurada > 0 ? configurada : 1500
 }
+
+/**
+ * Espera maxima del BFF a la API en una peticion corriente, en milisegundos.
+ *
+ * Sin limite, una API lenta deja la peticion del navegador colgada hasta que algun intermediario la
+ * corte, y la persona no sabe si lo que hizo se guardo. `API_TIEMPO_MS` lo cambia sin tocar codigo.
+ */
+export function tiempoDeApiMs (): number {
+  const configurado = Number(process.env.API_TIEMPO_MS)
+
+  return Number.isInteger(configurado) && configurado > 0 ? configurado : 25_000
+}

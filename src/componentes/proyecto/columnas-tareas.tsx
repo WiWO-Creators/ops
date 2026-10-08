@@ -4,7 +4,7 @@ import { useState, type ReactElement } from 'react'
 import { conCeldasRicas } from '@/componentes/datos/celdas-procesos'
 import { EnlacePersonalizado } from '@/componentes/presentadores/EnlacePersonalizado'
 import { Insignia } from '@/componentes/presentadores/Insignia'
-import { leerError } from '@/datos/errores'
+import { escribirEnBff } from '@/componentes/datos/mutaciones'
 import { resolverEstado } from '@/dominio/estados-tarea'
 import { ETIQUETA_VEREDICTO, TONO_VEREDICTO } from '@/dominio/scope'
 import type { Veredicto } from '@/datos/scope'
@@ -65,20 +65,23 @@ function EstadoEditable ({ proceso, estados, editable, onCambiado }: PropsEstado
     setError(null)
 
     try {
-      const respuesta = await fetch('/api/bff/tasks/bulk', {
-        method: 'POST',
-        headers: { 'content-type': 'application/json', accept: 'application/json' },
-        body: JSON.stringify({ ids: [proceso.id], accion: 'status', valor: Number(valor) })
-      })
+      const resultado = await escribirEnBff<{ aplicados: number }>(
+        'tasks/bulk', 'POST', { ids: [proceso.id], accion: 'status', valor: Number(valor) }
+      )
 
-      if (!respuesta.ok) {
-        setError((await leerError(respuesta)).message)
+      if (!resultado.ok) {
+        setError(resultado.mensaje)
+        return
+      }
+
+      // `aplicados: 0` es un 200 que no cambio nada (permisos, visibilidad): no es un guardado.
+      if (resultado.datos?.aplicados !== 1) {
+        setError('No se pudo cambiar el estado: puede que ya no tengas acceso a esta tarea.')
+        onCambiado()
         return
       }
 
       onCambiado()
-    } catch {
-      setError('No se pudo cambiar el estado: revisa la conexión.')
     } finally {
       setEnCurso(false)
     }

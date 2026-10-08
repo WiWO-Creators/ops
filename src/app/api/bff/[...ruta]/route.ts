@@ -1,5 +1,6 @@
 import { NextResponse, type NextRequest } from 'next/server'
 import { llamarApi } from '@/datos/api'
+import { tiempoDeApiMs } from '@/datos/config'
 import { ErrorApi, incidenteDe, recorteDelCuerpo } from '@/datos/errores'
 import { registrarIncidente } from '@/datos/incidentes'
 import { cabecerasDeOrigen } from '@/datos/origen'
@@ -98,17 +99,35 @@ async function reenviar (peticion: NextRequest, ctx: RouteContext<'/api/bff/[...
   const origen = cabecerasDeOrigen(peticion.headers)
   const cabeceras = { ...origen, ...cabecerasDeEntrada(peticion) }
 
-  const llamada = await llamarConRefresco(sesion, {
-    llamar: async (token) => await llamarApi(destino, {
-      metodo: peticion.method as 'GET',
-      cuerpo,
-      cabeceras,
-      token
-    }),
-    refrescar: async () => await intentarRefrescar(sesion, origen),
-    guardar: guardarSesion,
-    borrar: async () => { await borrarSesion(sujeto) }
-  })
+  // Las descargas, los flujos SSE y las subidas son largos por naturaleza: un limite corto los cortaria.
+  const sinLimite = descarga || cabeceras.accept === 'text/event-stream' || cuerpo instanceof FormData
+  const senal = sinLimite ? undefined : AbortSignal.timeout(tiempoDeApiMs())
+
+  let llamada: Awaited<ReturnType<typeof llamarConRefresco>>
+
+  try {
+    llamada = await llamarConRefresco(sesion, {
+      llamar: async (token) => await llamarApi(destino, {
+        metodo: peticion.method as 'GET',
+        cuerpo,
+        cabeceras,
+        token,
+        senal
+      }),
+      refrescar: async () => await intentarRefrescar(sesion, origen),
+      guardar: guardarSesion,
+      borrar: async () => { await borrarSesion(sujeto) }
+    })
+  } catch (fallo) {
+    if (fallo instanceof DOMException && fallo.name === 'TimeoutError') {
+      return NextResponse.json(
+        { error: { code: 'upstream_timeout', message: 'La API tardo demasiado en responder' } },
+        { status: 504 }
+      )
+    }
+
+    throw fallo
+  }
 
   if ('sesionCerrada' in llamada) {
     return NextResponse.json(
@@ -281,6 +300,12 @@ export function cabecerasDeEntrada (peticion: NextRequest): Record<string, strin
 
   const origen = peticion.headers.get('origin')
   if (origen !== null) cabeceras.origin = origen
+
+  // Para que un reintento no duplique y una version vieja no pise a la nueva.
+  for (const nombre of ['idempotency-key', 'if-match']) {
+    const valor = peticion.headers.get(nombre)
+    if (valor !== null) cabeceras[nombre] = valor
+  }
 
   return cabeceras
 }

@@ -4,6 +4,7 @@ import { ArrowLeft, ArrowRight, GripVertical } from 'lucide-react'
 import { Fragment, useCallback, useRef, useState, type ReactNode } from 'react'
 import { Boton } from '@/componentes/formularios/Boton'
 import { Vacio } from '@/componentes/estado/Estados'
+import { escribirEnBff } from './mutaciones'
 import { useAviso } from '@/componentes/estado/useAviso'
 import {
   ContenidoMenu,
@@ -224,22 +225,21 @@ export function Tablero<T extends FilaConId> ({
     setOcupado(true)
 
     try {
-      const respuesta = await fetch(`/api/bff/${tablero.rutaMover.replace(':id', String(idTarjeta))}`, {
-        method: 'POST',
-        headers: { 'content-type': 'application/json', accept: 'application/json' },
-        body: JSON.stringify(adaptarCuerpo(movimiento.cuerpo))
-      })
+      const resultado = await escribirEnBff(
+        tablero.rutaMover.replace(':id', String(idTarjeta)), 'POST', adaptarCuerpo(movimiento.cuerpo)
+      )
 
-      if (!respuesta.ok) {
-        setGrupos(previo)
-        avisar.error(await mensajeDeError(respuesta))
-        return
+      if (!resultado.ok) {
+        // Sin respuesta no se sabe si la API lo aplico: se muestra lo que hay de verdad, no el previo.
+        if (resultado.incierta === true) avisar.advertencia(resultado.mensaje)
+        else {
+          setGrupos(previo)
+          avisar.error(resultado.mensaje)
+          return
+        }
       }
 
       await recargar()
-    } catch {
-      setGrupos(previo)
-      avisar.error('No se pudo mover: revisa la conexión.')
     } finally {
       setOcupado(false)
     }
@@ -260,18 +260,13 @@ export function Tablero<T extends FilaConId> ({
     setOcupado(true)
     setGrupos(siguientes)
     try {
-      const respuesta = await fetch(`/api/bff/${rutaOrdenColumnas}`, {
-        method: 'PATCH',
-        headers: { 'content-type': 'application/json', accept: 'application/json' },
-        body: JSON.stringify({ orden: siguientes.map((g) => g.columna.id).filter((id) => id > 0) })
-      })
-      if (!respuesta.ok) {
+      const resultado = await escribirEnBff(
+        rutaOrdenColumnas, 'PATCH', { orden: siguientes.map((g) => g.columna.id).filter((id) => id > 0) }
+      )
+      if (!resultado.ok) {
         setGrupos(previo)
-        avisar.error(await mensajeDeError(respuesta))
+        avisar.error(resultado.mensaje)
       }
-    } catch {
-      setGrupos(previo)
-      avisar.error('No se pudo guardar el orden: revisa la conexión e inténtalo de nuevo.')
     } finally {
       guardandoOrden.current = false
       setOcupado(false)
