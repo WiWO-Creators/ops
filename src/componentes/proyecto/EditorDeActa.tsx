@@ -162,11 +162,17 @@ export function EditorDeActa ({ htmlInicial, onCambio, proyectoId, conIa = true,
   function contextoDe (actual: Editor, posicion: number): string {
     const bloques: string[] = []
     let dentro = false
+    let terminado = false
 
     actual.state.doc.forEach((nodo, desplazamiento) => {
+      if (terminado) return
       const fin = desplazamiento + nodo.nodeSize
       if (nodo.type.name === 'heading') {
-        if (dentro) return
+        if (dentro) {
+          terminado = true
+
+          return
+        }
         bloques.length = 0
       }
       bloques.push(nodo.textContent)
@@ -202,7 +208,7 @@ export function EditorDeActa ({ htmlInicial, onCambio, proyectoId, conIa = true,
 
     setReescribiendo(true)
     setError(null)
-    actual.setEditable(false)
+    actual.setEditable(false, false)
 
     const resultado = await escribirEnBff<{ html: string }>(
       `ia/proyectos/${encodeURIComponent(String(proyectoId))}/acta-transformar`,
@@ -215,7 +221,8 @@ export function EditorDeActa ({ htmlInicial, onCambio, proyectoId, conIa = true,
     const html = resultado.ok ? resultado.datos?.html ?? '' : ''
 
     if (!resultado.ok || html === '') {
-      actual.setEditable(true)
+      // Con una propuesta en pantalla el editor sigue bloqueado: su rango solo vale mientras nadie escriba.
+      if (propuesta === null) actual.setEditable(true, false)
       setError(resultado.ok ? 'La reescritura llegó vacía.' : resultado.mensaje)
 
       return
@@ -228,7 +235,7 @@ export function EditorDeActa ({ htmlInicial, onCambio, proyectoId, conIa = true,
   function aplicar (actual: Editor): void {
     if (propuesta === null) return
 
-    actual.setEditable(true)
+    actual.setEditable(true, false)
     actual.chain().focus().insertContentAt({ from: propuesta.from, to: propuesta.to }, propuesta.despues).run()
     setPropuesta(null)
     setInstruccion('')
@@ -237,7 +244,7 @@ export function EditorDeActa ({ htmlInicial, onCambio, proyectoId, conIa = true,
   }
 
   function descartar (actual: Editor): void {
-    actual.setEditable(true)
+    actual.setEditable(true, false)
     setPropuesta(null)
   }
 

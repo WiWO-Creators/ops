@@ -247,7 +247,7 @@ export function DetalleActa ({
           puedeEditar={puedeEditar}
           puedeRenombrar={puedeRenombrar}
           puedeBorrar={puedeBorrar}
-          puedeVerHistorial={puedeEditar && traduccionActiva === null}
+          puedeVerHistorial={puedeEditar && traduccionActiva === null && !edicion.editando}
           onHistorial={() => { setVerHistorial(true) }}
           puedePreguntar={conIa}
           onPreguntar={() => { window.dispatchEvent(new Event(EVENTO_ABRIR_ORBE)) }}
