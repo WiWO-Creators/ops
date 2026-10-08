@@ -222,7 +222,7 @@ export async function subirArchivoEnBff<T> (ruta: string, archivo: File, campo: 
   let respuesta: Response
 
   try {
-    respuesta = await fetch(`/api/bff/${ruta}`, { method: 'POST', body: cuerpo })
+    respuesta = await fetch(`/api/bff/${ruta}`, { method: 'POST', body: cuerpo, signal: conLimite(undefined, TIEMPO_SUBIDA_MS) })
   } catch {
     return { ok: false, mensaje: 'No se pudo contactar al servidor. Revisa tu conexión.' }
   }

@@ -5,7 +5,7 @@ export const EVENTO_TAREAS_CAMBIADAS = 'ops:tareas-cambiadas'
 export const EVENTO_RECURSO_CAMBIADO = 'ops:recurso-cambiado'
 
 /** Escrituras periódicas o de presencia, que no cambian ningún listado y no deben invalidarlos. */
-const RUTAS_SIN_INVALIDACION = /^(?:live\/|audit\/|me\/(?:presence|jornada)|push\/)/
+const RUTAS_SIN_INVALIDACION = /^(?:live\/|audit\/|ia\/|me\/(?:presence|jornada|foto)|push\/)/
 
 const EVENTOS_POR_DEFECTO: readonly string[] = [EVENTO_TAREAS_CAMBIADAS]
 
