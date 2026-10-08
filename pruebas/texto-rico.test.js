@@ -9,6 +9,7 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import {
+  direccionDeEnlace,
   esHtml,
   esSoloEspacios,
   hrefSeguro,
@@ -169,4 +170,13 @@ test('esSoloEspacios: incluye lo invisible', () => {
   assert.equal(esSoloEspacios(''), true)
   assert.equal(esSoloEspacios('​⁠﻿ \n'), true)
   assert.equal(esSoloEspacios('a'), false)
+})
+
+test('direccionDeEnlace: completa el esquema y rechaza lo peligroso', () => {
+  assert.equal(direccionDeEnlace('wiwo.me/ayuda'), 'https://wiwo.me/ayuda')
+  assert.equal(direccionDeEnlace('  https://wiwo.me '), 'https://wiwo.me')
+  assert.equal(direccionDeEnlace('ana@wiwo.me'), 'mailto:ana@wiwo.me')
+  assert.equal(direccionDeEnlace('javascript:alert(1)'), null)
+  assert.equal(direccionDeEnlace('data:text/html,x'), null)
+  assert.equal(direccionDeEnlace('   '), null)
 })

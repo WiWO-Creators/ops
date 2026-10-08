@@ -161,6 +161,24 @@ export function hrefSeguro (crudo: string): string | null {
   }
 }
 
+/**
+ * La direccion que escribio la persona en el cuadro de enlace, lista para guardar.
+ *
+ * Sin esquema se completa: `ana@wiwo.me` es un `mailto:` y todo lo demas es `https://`. El resultado
+ * pasa por `hrefSeguro`, asi que `javascript:` y compania vuelven `null` igual que en la lectura.
+ *
+ * @param escrito lo que hay en el cuadro
+ * @returns la direccion segura, o `null` si esta vacia o no es `http`, `https` ni `mailto`
+ */
+export function direccionDeEnlace (escrito: string): string | null {
+  const limpio = escrito.trim()
+  if (limpio === '') return null
+
+  if (/^[a-z][a-z0-9+.-]*:/i.test(limpio)) return hrefSeguro(limpio)
+
+  return hrefSeguro(limpio.includes('@') && !limpio.includes('/') ? `mailto:${limpio}` : `https://${limpio}`)
+}
+
 /** Un elemento abierto mientras se lee el marcado. */
 interface Abierto {
   etiqueta: EtiquetaRica
