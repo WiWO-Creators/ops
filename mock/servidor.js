@@ -3727,7 +3727,9 @@ async function transformarActaIaRuta (cuerpo) {
   const accion = String(datos.accion ?? '')
   const texto = String(datos.texto ?? '').trim()
 
-  if (!['alargar', 'acortar', 'complejizar', 'simplificar'].includes(accion)) {
+  const instruccion = String(datos.instruccion ?? '').trim()
+
+  if (instruccion === '' && !['alargar', 'acortar', 'complejizar', 'simplificar', 'resumir', 'tono_cliente'].includes(accion)) {
     throw new ErrorApi(422, 'validation_failed', 'No se puede reescribir ese fragmento.', { accion: ['invalid'] })
   }
   if (texto === '') {
@@ -7932,8 +7934,51 @@ async function resolverRuta (metodo, segmentos, parametros, token, cuerpo, petic
       return { estado: 200, cuerpo: conDatos(crearTareasDelActa(acta.id, datos.propuestas)) }
     }
 
+    // El original de la reunión: solo superadmin, igual que la API.
+    if (resto[3] === 'fuente' && resto.length === 4 && metodo === 'GET') {
+      if (actual.is_superadmin !== true) {
+        throw new ErrorApi(403, 'forbidden', 'Solo un superadministrador puede ver el original de una reunión.')
+      }
+
+      return {
+        estado: 200,
+        cuerpo: conDatos({
+          acta_id: acta.id,
+          transcription: acta.transcripcion_original ?? '',
+          initial_html: acta.contenido_inicial ?? acta.content ?? '',
+          fields: {},
+          date_added: acta.date_added
+        })
+      }
+    }
+
+    // El historial de versiones: lista, una versión y restaurar.
+    if (resto[3] === 'revisiones') {
+      acta.revisiones ??= []
+      if (resto.length === 4 && metodo === 'GET') {
+        return { estado: 200, cuerpo: conDatos(acta.revisiones.map(({ content, ...resumen }) => ({ ...resumen, preview: content.replace(/<[^>]+>/g, ' ').trim().slice(0, 140) })).reverse()) }
+      }
+      const revision = acta.revisiones.find((r) => r.id === Number(resto[4]))
+      if (revision === undefined) throw new ErrorApi(404, 'not_found', 'No existe esa versión del Meeting Paper.')
+      if (resto.length === 5 && metodo === 'GET') return { estado: 200, cuerpo: conDatos(revision) }
+      if (resto[5] === 'restaurar' && metodo === 'POST') {
+        acta.revisiones.push({ id: acta.revisiones.length + 1, origin: 'restauracion', staff_id: actual.id, content: acta.content ?? '', date_added: new Date().toISOString() })
+        acta.content = revision.content
+        acta.date_updated = new Date().toISOString().replace(/\.\d{3}Z$/, 'Z')
+
+        return { estado: 200, cuerpo: conDatos(presentarActa(acta, { conContenido: true })) }
+      }
+    }
+
     if (metodo === 'PATCH') {
       const datos = await cuerpo()
+      if (datos.revision !== undefined && datos.revision !== acta.date_updated) {
+        throw new ErrorApi(409, 'conflict', 'El Meeting Paper cambió mientras lo editabas. Recarga para ver la última versión.')
+      }
+      if (datos.content !== undefined && datos.content !== acta.content) {
+        acta.revisiones ??= []
+        acta.revisiones.push({ id: acta.revisiones.length + 1, origin: datos.origen === 'ia' ? 'ia' : 'manual', staff_id: actual.id, content: acta.content ?? '', date_added: new Date().toISOString() })
+      }
       for (const clave of ['title', 'content', 'client', 'meeting_date', 'place', 'modality', 'brand']) {
         if (datos[clave] !== undefined) acta[clave] = datos[clave]
       }

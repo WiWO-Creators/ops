@@ -12,6 +12,7 @@ import { AdjuntosDelActa } from './acta/AdjuntosDelActa'
 import { CabeceraDelActa } from './acta/CabeceraDelActa'
 import { ConfirmacionDelActa } from './acta/ConfirmacionDelActa'
 import { DialogoDeRenombre } from './acta/DialogoDeRenombre'
+import { HistorialDelActa } from './acta/HistorialDelActa'
 import { OriginalDelActa } from './acta/OriginalDelActa'
 import { TareasPropuestas } from './acta/TareasPropuestas'
 import { useEdicionDelActa } from './acta/useEdicionDelActa'
@@ -148,7 +149,9 @@ export function DetalleActa ({
 }: PropsDetalle): ReactElement {
   const [confirmando, setConfirmando] = useState(false)
   const [confirmandoSalida, setConfirmandoSalida] = useState(false)
+  const [confirmandoDescarte, setConfirmandoDescarte] = useState(false)
   const [renombrando, setRenombrando] = useState(false)
+  const [verHistorial, setVerHistorial] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
   const marco = useRef<HTMLIFrameElement>(null)
@@ -188,6 +191,17 @@ export function DetalleActa ({
    * que se guardaron las dos.
    */
   const puedeRenombrar = puedeEditar && !edicion.editando
+
+  /** Descartar con correcciones sin guardar (incluidas las de la IA) pierde trabajo: se pregunta antes. */
+  function descartar (): void {
+    if (edicion.sucio) {
+      setConfirmandoDescarte(true)
+
+      return
+    }
+
+    edicion.descartar()
+  }
 
   /** Salir sin guardar pierde las correcciones, así que se pregunta antes. */
   function volver (): void {
@@ -233,9 +247,11 @@ export function DetalleActa ({
           puedeEditar={puedeEditar}
           puedeRenombrar={puedeRenombrar}
           puedeBorrar={puedeBorrar}
+          puedeVerHistorial={puedeEditar && traduccionActiva === null}
+          onHistorial={() => { setVerHistorial(true) }}
           puedePreguntar={conIa}
           onPreguntar={() => { window.dispatchEvent(new Event(EVENTO_ABRIR_ORBE)) }}
-          onDescartar={edicion.descartar}
+          onDescartar={descartar}
           onGuardar={() => { void edicion.guardar() }}
           onExportar={(formato) => { void exportar(formato) }}
           onImprimir={() => { marco.current?.contentWindow?.print() }}
@@ -266,6 +282,8 @@ export function DetalleActa ({
             // de verdad se necesita ahi, que es corregir a mano una palabra que el modelo erro.
             conIa={conIa && traduccionActiva === null}
             marca={acta.brand}
+            actaId={acta.id}
+            onReescrituraIa={edicion.marcarIa}
             onCambio={edicion.cambiar}
           />
           )
@@ -310,6 +328,15 @@ export function DetalleActa ({
 
       {/* Montado solo mientras está abierto: cerrarlo desmonta el borrador, así que cancelar o
           pulsar `Escape` descarta lo tecleado sin una línea que lo limpie. */}
+      {verHistorial && (
+        <HistorialDelActa
+          ruta={ruta}
+          revision={acta.date_updated}
+          onRestaurada={onCambiada}
+          onCerrar={() => { setVerHistorial(false) }}
+        />
+      )}
+
       {renombrando && (
         <DialogoDeRenombre
           titulo={tituloActivo}
@@ -339,6 +366,16 @@ export function DetalleActa ({
         etiquetaConfirmar="Volver a traducir"
         cargando={lectura.cambiandoIdioma}
         onConfirmar={() => { lectura.setConfirmandoRetraduccion(false); void lectura.traducir(idioma) }}
+      />
+
+      <ConfirmacionDelActa
+        abierto={confirmandoDescarte}
+        onCambiar={setConfirmandoDescarte}
+        titulo="Descartar los cambios"
+        descripcion="Los cambios que hiciste en este Meeting Paper, también los de la IA, no se guardarán."
+        etiquetaCancelar="Seguir editando"
+        etiquetaConfirmar="Descartar cambios"
+        onConfirmar={() => { setConfirmandoDescarte(false); edicion.descartar() }}
       />
 
       <ConfirmacionDelActa

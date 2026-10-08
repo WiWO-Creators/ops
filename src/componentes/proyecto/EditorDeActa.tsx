@@ -5,7 +5,8 @@ import { EditorContent, useEditor, type Editor } from '@tiptap/react'
 import { BubbleMenu } from '@tiptap/react/menus'
 import StarterKit from '@tiptap/starter-kit'
 import Placeholder from '@tiptap/extension-placeholder'
-import { Bold, Expand, GraduationCap, Heading2, Heading3, Italic, List, Quote, Shrink, Sparkles } from 'lucide-react'
+import { Bold, Expand, GraduationCap, Handshake, Heading2, Heading3, Italic, List, ListCollapse, Quote, Shrink, Sparkles } from 'lucide-react'
+import { DOMSerializer } from '@tiptap/pm/model'
 import { AvisoEnLinea } from '@/componentes/estado/Estados'
 import { Boton } from '@/componentes/formularios/Boton'
 import { escribirEnBff } from '@/componentes/datos/mutaciones'
@@ -13,6 +14,14 @@ import { cn } from '@/lib/clases'
 import '@/estilos/acta.css'
 import type { LucideIcon } from 'lucide-react'
 import { claseDeMarca, cssDeMarcas } from '@/dominio/marcas-acta'
+import {
+  ACCIONES_DE_REESCRITURA,
+  armarReescritura,
+  LARGO_MAXIMO_INSTRUCCION,
+  textoDeFragmento,
+  type ClaveDeAccion,
+  type PedidoDeReescritura
+} from '@/dominio/reescritura-acta'
 
 /**
  * Editor del Meeting Paper, con reescritura por IA del fragmento seleccionado.
@@ -48,19 +57,36 @@ import { claseDeMarca, cssDeMarcas } from '@/dominio/marcas-acta'
  */
 
 /**
- * Las cuatro acciones de reescritura, con el verbo que ve la persona y su icono.
+ * Los iconos de cada acción atajo. El verbo y la clave salen de `ACCIONES_DE_REESCRITURA`, que es lo
+ * que el servidor acepta; acá solo se les pone cara.
  *
  * El icono acompaña al verbo, no lo reemplaza: "Acortar" y "Simplificar" no tienen un dibujo que
- * signifique eso sin ayuda, y un menú de cuatro pictogramas sueltos obligaría a probarlos uno por uno
- * para saber qué hace cada cual. Lo que aporta el icono acá es reconocer la fila de un vistazo cuando
- * ya se sabe cuál es cuál.
+ * signifique eso sin ayuda.
  */
-const ACCIONES: Array<{ clave: string, etiqueta: string, Icono: LucideIcon }> = [
-  { clave: 'acortar', etiqueta: 'Acortar', Icono: Shrink },
-  { clave: 'alargar', etiqueta: 'Alargar', Icono: Expand },
-  { clave: 'simplificar', etiqueta: 'Simplificar', Icono: Sparkles },
-  { clave: 'complejizar', etiqueta: 'Formalizar', Icono: GraduationCap }
-]
+const ICONOS: Record<ClaveDeAccion, LucideIcon> = {
+  acortar: Shrink,
+  alargar: Expand,
+  simplificar: Sparkles,
+  complejizar: GraduationCap,
+  resumir: ListCollapse,
+  tono_cliente: Handshake
+}
+
+/** Caracteres de la sección que rodea al fragmento que viajan como contexto. */
+const CONTEXTO_MAXIMO = 3500
+
+/** Un cambio propuesto por la IA, esperando que alguien lo acepte. */
+interface Propuesta {
+  /** Rango del documento que se reemplaza. El editor queda bloqueado mientras exista, así que no se corre. */
+  from: number
+  to: number
+  antes: string
+  despues: string
+  pedido: PedidoDeReescritura
+  /** Fragmento y contexto que se mandaron, para poder reintentar sin volver a leer la selección. */
+  fragmento: string
+  contexto: string
+}
 
 interface PropsEditor {
   /** HTML inicial. Se monta una sola vez: los cambios posteriores los maneja el editor. */
@@ -78,11 +104,18 @@ interface PropsEditor {
    * con los de la marca: quien corrige estaría trabajando sobre algo que no es lo que se manda.
    */
   marca?: string | null
+  /** El acta que se edita: la API valida que sea de este Proyecto y usa el respaldo de su reunión. */
+  actaId: number
+  /** Avisa que un cambio de la IA se aplicó, para rotular el historial como `ia` al guardar. */
+  onReescrituraIa?: () => void
 }
 
-export function EditorDeActa ({ htmlInicial, onCambio, proyectoId, conIa = true, marca = null }: PropsEditor): ReactElement {
+export function EditorDeActa ({ htmlInicial, onCambio, proyectoId, conIa = true, marca = null, actaId, onReescrituraIa }: PropsEditor): ReactElement {
   const [reescribiendo, setReescribiendo] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [propuesta, setPropuesta] = useState<Propuesta | null>(null)
+  const [instruccion, setInstruccion] = useState('')
+  const [pidiendoAlActa, setPidiendoAlActa] = useState(false)
 
   const editor = useEditor({
     immediatelyRender: false,
@@ -117,38 +150,102 @@ export function EditorDeActa ({ htmlInicial, onCambio, proyectoId, conIa = true,
 
   if (editor === null) return <p className="text-texto-tenue text-sm">Cargando el editor…</p>
 
-  /** Manda la selección a la API y la reemplaza por lo que devuelve. */
-  async function reescribir (accion: string, actual: Editor): Promise<void> {
-    const { from, to } = actual.state.selection
-    const seleccion = actual.state.doc.textBetween(from, to, ' ').trim()
+  /** El HTML del rango, tal como el editor lo serializa (conserva listas y negritas). */
+  function htmlDelRango (actual: Editor, from: number, to: number): string {
+    const contenedor = document.createElement('div')
+    contenedor.appendChild(DOMSerializer.fromSchema(actual.schema).serializeFragment(actual.state.doc.slice(from, to).content))
 
-    if (seleccion === '') return
+    return contenedor.innerHTML
+  }
+
+  /** El texto de la sección (hasta el siguiente título) que contiene la posición, como contexto. */
+  function contextoDe (actual: Editor, posicion: number): string {
+    const bloques: string[] = []
+    let dentro = false
+
+    actual.state.doc.forEach((nodo, desplazamiento) => {
+      const fin = desplazamiento + nodo.nodeSize
+      if (nodo.type.name === 'heading') {
+        if (dentro) return
+        bloques.length = 0
+      }
+      bloques.push(nodo.textContent)
+      if (posicion >= desplazamiento && posicion <= fin) dentro = true
+    })
+
+    return bloques.join('\n').slice(0, CONTEXTO_MAXIMO)
+  }
+
+  /**
+   * Pide el cambio a la API y lo deja como propuesta: nada toca el documento hasta "Aplicar".
+   *
+   * El editor se bloquea mientras corre la llamada y mientras la propuesta espera, así el rango
+   * `from..to` sigue siendo el que se eligió.
+   */
+  async function pedir (actual: Editor, pedido: PedidoDeReescritura, rango?: { from: number, to: number }): Promise<void> {
+    const from = rango?.from ?? actual.state.selection.from
+    const to = rango?.to ?? actual.state.selection.to
+    const fragmento = htmlDelRango(actual, from, to)
+    const contexto = contextoDe(actual, from)
+
+    await enviar(actual, { from, to, antes: textoDeFragmento(fragmento), despues: '', pedido, fragmento, contexto })
+  }
+
+  async function enviar (actual: Editor, base: Propuesta): Promise<void> {
+    const armado = armarReescritura(base.pedido, base.fragmento, base.contexto, actaId)
+
+    if (!armado.ok) {
+      setError(armado.motivo)
+
+      return
+    }
 
     setReescribiendo(true)
     setError(null)
+    actual.setEditable(false)
 
     const resultado = await escribirEnBff<{ html: string }>(
       `ia/proyectos/${encodeURIComponent(String(proyectoId))}/acta-transformar`,
       'POST',
-      { accion, texto: seleccion }
+      armado.cuerpo
     )
 
     setReescribiendo(false)
 
-    if (!resultado.ok) {
-      setError(resultado.mensaje)
+    const html = resultado.ok ? resultado.datos?.html ?? '' : ''
+
+    if (!resultado.ok || html === '') {
+      actual.setEditable(true)
+      setError(resultado.ok ? 'La reescritura llegó vacía.' : resultado.mensaje)
 
       return
     }
 
-    const html = resultado.datos?.html ?? ''
-    if (html === '') {
-      setError('La reescritura llegó vacía.')
+    setPropuesta({ ...base, despues: html })
+  }
 
-      return
-    }
+  /** Aplica la propuesta como una sola transacción: un Ctrl+Z la deshace entera. */
+  function aplicar (actual: Editor): void {
+    if (propuesta === null) return
 
-    actual.chain().focus().deleteRange({ from, to }).insertContent(html).run()
+    actual.setEditable(true)
+    actual.chain().focus().insertContentAt({ from: propuesta.from, to: propuesta.to }, propuesta.despues).run()
+    setPropuesta(null)
+    setInstruccion('')
+    setPidiendoAlActa(false)
+    onReescrituraIa?.()
+  }
+
+  function descartar (actual: Editor): void {
+    actual.setEditable(true)
+    setPropuesta(null)
+  }
+
+  /** Manda la instrucción escrita sobre la selección, o sobre el acta completa. */
+  function pedirInstruccion (actual: Editor, alActa: boolean): void {
+    const pedido: PedidoDeReescritura = { tipo: 'instruccion', instruccion }
+
+    void pedir(actual, pedido, alActa ? { from: 0, to: actual.state.doc.content.size } : undefined)
   }
 
   return (
@@ -174,25 +271,96 @@ export function EditorDeActa ({ htmlInicial, onCambio, proyectoId, conIa = true,
           shouldShow={({ from, to }) => from !== to}
         >
           <div className="border-linea bg-superficie-flotante rounded-control shadow-1 flex items-center gap-1 border p-1">
-            {ACCIONES.map((accion) => (
-              <Boton
-                key={accion.clave}
-                variante="sutil"
-                tamano="chico"
-                cargando={reescribiendo}
-                onClick={() => { void reescribir(accion.clave, editor) }}
-              >
-                <accion.Icono size={14} strokeWidth={2} aria-hidden="true" className="shrink-0" />
-                {accion.etiqueta}
-              </Boton>
-            ))}
+            {ACCIONES_DE_REESCRITURA.map((accion) => {
+              const Icono = ICONOS[accion.clave]
+
+              return (
+                <Boton
+                  key={accion.clave}
+                  variante="sutil"
+                  tamano="chico"
+                  cargando={reescribiendo}
+                  onClick={() => { void pedir(editor, { tipo: 'accion', accion: accion.clave }) }}
+                >
+                  <Icono size={14} strokeWidth={2} aria-hidden="true" className="shrink-0" />
+                  {accion.etiqueta}
+                </Boton>
+              )
+            })}
+            <form
+              className="flex items-center gap-1"
+              onSubmit={(evento) => { evento.preventDefault(); pedirInstruccion(editor, false) }}
+            >
+              <input
+                type="text"
+                value={instruccion}
+                maxLength={LARGO_MAXIMO_INSTRUCCION}
+                onChange={(evento) => { setInstruccion(evento.target.value) }}
+                placeholder="Pídele un cambio…"
+                aria-label="Pídele un cambio a la IA sobre la selección"
+                className="border-linea bg-superficie rounded-chico h-8 w-44 border px-2 text-sm"
+              />
+              <Boton variante="primario" tamano="chico" type="submit" cargando={reescribiendo}>Pedir</Boton>
+            </form>
           </div>
         </BubbleMenu>
       )}
 
-      <EditorContent editor={editor} />
+      {conIa && propuesta === null && (
+        pidiendoAlActa
+          ? (
+            <form
+              className="flex items-center gap-2"
+              onSubmit={(evento) => { evento.preventDefault(); pedirInstruccion(editor, true) }}
+            >
+              <input
+                type="text"
+                value={instruccion}
+                maxLength={LARGO_MAXIMO_INSTRUCCION}
+                onChange={(evento) => { setInstruccion(evento.target.value) }}
+                placeholder="Qué cambio quieres en todo el acta…"
+                aria-label="Pídele un cambio a la IA sobre todo el acta"
+                className="border-linea bg-superficie rounded-chico h-8 flex-1 border px-2 text-sm"
+              />
+              <Boton variante="primario" tamano="chico" type="submit" cargando={reescribiendo}>Pedir</Boton>
+              <Boton variante="sutil" tamano="chico" type="button" onClick={() => { setPidiendoAlActa(false) }}>Cancelar</Boton>
+            </form>
+            )
+          : (
+            <div>
+              <Boton variante="sutil" tamano="chico" onClick={() => { setPidiendoAlActa(true) }}>
+                <Sparkles size={14} strokeWidth={2} aria-hidden="true" className="shrink-0" />
+                Pedir un cambio al acta completa
+              </Boton>
+            </div>
+            )
+      )}
 
       {error !== null && <AvisoEnLinea variante="error" mensaje={error} className="text-sm" />}
+
+      {propuesta !== null && (
+        <section aria-label="Cambio propuesto por la IA" className="border-linea bg-superficie-flotante rounded-chico flex flex-col gap-3 border p-3">
+          <div className="grid gap-3 sm:grid-cols-2">
+            <div>
+              <h4 className="text-texto-tenue mb-1 text-xs font-medium uppercase">Antes</h4>
+              <p className="max-h-60 overflow-y-auto text-sm whitespace-pre-wrap">{propuesta.antes}</p>
+            </div>
+            <div>
+              <h4 className="text-texto-tenue mb-1 text-xs font-medium uppercase">Después</h4>
+              <p className="max-h-60 overflow-y-auto text-sm whitespace-pre-wrap">{textoDeFragmento(propuesta.despues)}</p>
+            </div>
+          </div>
+          <div className="flex flex-wrap justify-end gap-2">
+            <Boton variante="sutil" tamano="chico" onClick={() => { descartar(editor) }}>Descartar</Boton>
+            <Boton variante="secundario" tamano="chico" cargando={reescribiendo} onClick={() => { void enviar(editor, propuesta) }}>
+              Reintentar
+            </Boton>
+            <Boton variante="primario" tamano="chico" onClick={() => { aplicar(editor) }}>Aplicar</Boton>
+          </div>
+        </section>
+      )}
+
+      <EditorContent editor={editor} />
     </div>
   )
 }

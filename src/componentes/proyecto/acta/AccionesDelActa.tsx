@@ -18,6 +18,9 @@ interface PropsAcciones {
   puedeEditar: boolean
   puedeRenombrar: boolean
   puedeBorrar: boolean
+  /** Ofrece "Historial de versiones": cualquiera que pueda corregir el acta. */
+  puedeVerHistorial: boolean
+  onHistorial: () => void
   /** Ofrece "Preguntar": abre el chat con este acta como contexto. Solo el equipo con IA activa. */
   puedePreguntar: boolean
   onPreguntar: () => void
@@ -42,6 +45,8 @@ export function AccionesDelActa ({
   puedeEditar,
   puedeRenombrar,
   puedeBorrar,
+  puedeVerHistorial,
+  onHistorial,
   puedePreguntar,
   onPreguntar,
   onDescartar,
@@ -98,7 +103,7 @@ export function AccionesDelActa ({
 
       {/* El `⋯` se dibuja solo si tiene algo dentro: un menú que se abre vacío promete acciones
           que este sujeto no tiene. */}
-      {(puedeRenombrar || puedeBorrar) && (
+      {(puedeRenombrar || puedeBorrar || puedeVerHistorial) && (
         <MenuContextual>
           <DisparadorMenu asChild>
             <Boton variante="sutil" tamano="chico" soloIcono aria-label="Más acciones del Meeting Paper">
@@ -108,6 +113,9 @@ export function AccionesDelActa ({
           <ContenidoMenu align="end">
             {puedeRenombrar && (
               <ItemMenu onSelect={onRenombrar}>Renombrar</ItemMenu>
+            )}
+            {puedeVerHistorial && (
+              <ItemMenu onSelect={onHistorial}>Historial de versiones</ItemMenu>
             )}
             {puedeBorrar && (
               <ItemMenu peligroso onSelect={onEliminar}>Eliminar</ItemMenu>
