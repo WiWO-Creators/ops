@@ -141,7 +141,7 @@ test('el documento arma, lleva el texto y respeta la fecha de emisión inyectada
   const texto = textoDe(contenidoDelInforme(modelo, COLORES.wiwo))
 
   assert.match(texto, /Proyecto Demo/)
-  assert.match(texto, /emitido el 2026-10-08/)
+  assert.match(texto, /emitido el 08\s+oct\s+2026/)
   assert.match(texto, /Tareas por prioridad/)
   assert.match(texto, /Newsletter Agosto/)
 })

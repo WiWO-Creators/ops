@@ -485,14 +485,20 @@ function bandaDeCabecera (colores: ColoresDeMarca): CustomTableLayout {
 }
 
 /** El pie firmado, repetido en cada página y con la numeración a la derecha. */
-export function pieDelActa (tema: TemaDeMarca, colores: ColoresDeMarca, pagina: number, total: number): Content {
+export function pieDelActa (
+  tema: TemaDeMarca,
+  colores: ColoresDeMarca,
+  pagina: number,
+  total: number,
+  texto: string = tema.pie
+): Content {
   return {
     margin: [MARGEN_LATERAL, 12, MARGEN_LATERAL, 0],
     stack: [
       filete(colores.filete, 1, [0, 0, 0, 0]),
       {
         columns: [
-          { text: tema.pie, color: colores.tinta, fontSize: 8.5, bold: true },
+          { text: texto, color: colores.tinta, fontSize: 8.5, bold: true },
           { text: `${pagina} / ${total}`, color: colores.texto, fontSize: 8.5, alignment: 'right' }
         ],
         margin: [0, 6, 0, 0]

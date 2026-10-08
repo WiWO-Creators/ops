@@ -192,7 +192,7 @@ export function contenidoDelInforme (modelo: ModeloDelInforme, colores: ColoresD
   const contenido: Content[] = [
     { text: modelo.proyecto, fontSize: 21, bold: true, color: colores.tinta, margin: [0, 16, 0, 4] },
     {
-      text: `Informe de avance  ·  ${modelo.periodo}  ·  emitido el ${modelo.emitido}`,
+      text: `Informe de avance  ·  ${modelo.periodo}  ·  emitido el ${formatearFecha(modelo.emitido)}`,
       fontSize: 9.5,
       margin: [0, 0, 0, 14]
     },

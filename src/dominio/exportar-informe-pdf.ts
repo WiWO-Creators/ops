@@ -68,7 +68,7 @@ export async function descargarInformePdf (
       await cabeceraDeMarca(tema, colores, ROTULO_DEL_INFORME),
       ...contenidoDelInforme(modelo, colores)
     ],
-    footer: (pagina: number, total: number) => pieDelActa(tema, colores, pagina, total)
+    footer: (pagina: number, total: number) => pieDelActa(tema, colores, pagina, total, `Informe de avance · ${tema.nombre}`)
   }
 
   const blob = await pdfMake.createPdf(definicion).getBlob()
