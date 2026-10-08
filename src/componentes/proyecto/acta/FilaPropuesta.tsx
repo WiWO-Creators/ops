@@ -4,9 +4,11 @@ import { useState, type ReactElement } from 'react'
 import { Pencil, Trash2 } from 'lucide-react'
 import { Boton } from '@/componentes/formularios/Boton'
 import { CLASES_CASILLA, Entrada } from '@/componentes/formularios/Entrada'
+import { Contenido } from '@/componentes/presentadores/Contenido'
 import { EnlacePersona } from '@/componentes/presentadores/EnlacePersona'
 import { Fecha } from '@/componentes/presentadores/Fecha'
 import { Insignia } from '@/componentes/presentadores/Insignia'
+import { esHtml, textoPlano } from '@/dominio/texto-rico'
 import { cn } from '@/lib/clases'
 import { EstadoDeTarea } from '../EstadoDeTarea'
 import type { EstadoLookup } from '@/datos/recursos'
@@ -172,16 +174,12 @@ export function FilaPropuesta ({
 
         {propuesta.descripcion !== null && (
           <div className="flex flex-col items-start gap-1">
-            {/* Desplegar anima el alto desde las cuatro lineas hasta el contenido (`interpolate-size`, donde
-                el navegador lo tiene; donde no, salta como antes). Replegar es inmediato. */}
-            <p
-              className={cn(
-                'text-texto-tenue ease-neo overflow-hidden whitespace-pre-line text-sm transition-[max-height] duration-rapida [interpolate-size:allow-keywords]',
-                descripcionAbierta ? 'max-h-max' : 'line-clamp-4 max-h-[4lh]'
-              )}
-            >
-              {propuesta.descripcion}
-            </p>
+            <Contenido
+              html={esHtml(propuesta.descripcion) ? propuesta.descripcion : null}
+              texto={propuesta.descripcion}
+              className="text-texto-tenue text-sm"
+              recortar={descripcionAbierta ? undefined : 4}
+            />
             {esDescripcionLarga(propuesta.descripcion) && (
               <button
                 type="button"
@@ -220,5 +218,7 @@ export function FilaPropuesta ({
  * que a ancho de fila ocupa más de cuatro, es lo que el recorte corta.
  */
 function esDescripcionLarga (descripcion: string): boolean {
-  return descripcion.split('\n').length > 4 || descripcion.length > 320
+  const plano = textoPlano(descripcion)
+
+  return plano.split('\n').length > 4 || plano.length > 320
 }

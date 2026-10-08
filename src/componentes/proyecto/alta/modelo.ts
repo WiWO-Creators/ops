@@ -387,6 +387,7 @@ export function cuerpoComunDelAlta (borrador: BorradorAlta): Record<string, unkn
     // Siempre viaja: es obligatoria, y omitirla cuando esta vacia le escondia al servidor
     // justamente el caso que ahora tiene que rechazar.
     description: borrador.descripcion.trim(),
+    format: 'html',
     ...(horas === null ? {} : { estimated_hours: horas }),
     ...(pedidas.length === 0 ? {} : { tags: pedidas })
   }

@@ -1,6 +1,6 @@
-import type { ReactElement, RefObject } from 'react'
+import { useState, type ReactElement, type RefObject } from 'react'
 import { Campo } from '@/componentes/formularios/Campo'
-import { AreaTexto } from '@/componentes/formularios/Entrada'
+import { EditorRico } from '@/componentes/formularios/EditorRico'
 import { AdjuntosDeAlta } from '../AdjuntosDeAlta'
 import { AsistenteDescripcion } from '../AsistenteDescripcion'
 
@@ -8,13 +8,14 @@ interface PropsCampoDescripcion {
   /**
    * Caja del campo, solo para poder enfocarlo.
    *
-   * Se apunta al contenedor y se busca el `textarea` adentro, como ya hace `ChatDeSala`: `AreaTexto`
-   * no reenvia `ref`, y el `id` que cablea `Campo` lo genera `Campo` con su `useId()` y no sale de
-   * su funcion hija.
+   * Se apunta al contenedor y se busca el cuadro de texto (`[role="textbox"]`) adentro, como ya hace
+   * `ChatDeSala`: el editor no reenvia `ref`, y el `id` que cablea `Campo` lo genera `Campo` con su
+   * `useId()` y no sale de su funcion hija.
    */
   caja: RefObject<HTMLDivElement | null>
   /** El nombre de la tarea, que usa el asistente como contexto. */
   titulo: string
+  /** HTML del editor de texto enriquecido; `''` si no hay nada visible. */
   descripcion: string
   onDescripcion: (texto: string) => void
   error: string | null
@@ -28,10 +29,25 @@ interface PropsCampoDescripcion {
   deshabilitado: boolean
 }
 
-/** La descripción obligatoria con sus adjuntos, y el asistente que la redacta cuando la IA está encendida. */
+/**
+ * La descripción obligatoria con sus adjuntos, y el asistente que la redacta cuando la IA está encendida.
+ *
+ * El editor no es controlado: toma `descripcion` solo al montarse. Cuando el valor cambia por algo
+ * que no escribió la persona en el editor (interpretación de IA, asistente, deshacer, reinicio del
+ * alta) se remonta con otra `key`, así siempre muestra lo que hay en el borrador.
+ */
 export function CampoDescripcion ({
   caja, titulo, descripcion, onDescripcion, error, adjuntos, onAdjuntos, onAdjuntosRechazados, conIa, proyectoId, deshabilitado
 }: PropsCampoDescripcion): ReactElement {
+  // Ultimo valor que salio del editor; si el borrador trae otro, lo escribio alguien de afuera.
+  const [emitido, setEmitido] = useState(descripcion)
+  const [version, setVersion] = useState(0)
+
+  if (descripcion !== emitido) {
+    setEmitido(descripcion)
+    setVersion((actual) => actual + 1)
+  }
+
   return (
     <div ref={caja} className="flex flex-col gap-2">
       <Campo
@@ -41,11 +57,17 @@ export function CampoDescripcion ({
         ayuda="Qué hay que hacer y con qué se da por terminada. Quien abra la tarea no estuvo en esta conversación."
       >
         {(campo) => (
-          <AreaTexto
+          <EditorRico
             {...campo}
-            rows={4}
-            value={descripcion}
-            onChange={(evento) => { onDescripcion(evento.target.value) }}
+            key={version}
+            etiqueta="Descripción"
+            filasMinimas={4}
+            valorInicial={descripcion}
+            deshabilitado={deshabilitado}
+            onCambio={(html) => {
+              setEmitido(html)
+              onDescripcion(html)
+            }}
           />
         )}
       </Campo>

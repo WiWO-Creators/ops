@@ -2,6 +2,7 @@ import type { AdjuntoTicket, EstadoLookup, Referencia, RespuestaTicket, Solicita
 import type { RespuestaTicketPortal, TicketPortalDetalle } from '../datos/portal.ts'
 import { ESTADO_TICKET_ABIERTO, ESTADO_TICKET_CERRADO, ESTADO_TICKET_RESPONDIDO } from './ticket-estados.ts'
 import type { FuenteDeTicket, MotivoSinRespuesta } from './ticket-fuente.ts'
+import { htmlVacio } from './texto-rico.ts'
 
 /**
  * La traduccion de las dos formas de la API (ficha del panel y ficha del contacto) a la vista unica
@@ -25,7 +26,13 @@ export interface MensajeDeTicket {
   /** De que lado vino. El dibujo lo usa para alinear y teñir, no para decidir nada. */
   lado: 'equipo' | 'cliente'
   fecha: string | null
+  /** El mensaje como texto plano: lo que usan las listas y la reserva si no hay `html`. */
   texto: string
+  /**
+   * El mensaje como HTML saneado por la API (texto enriquecido). `null` cuando la API no lo manda o
+   * viene vacio: entonces se pinta `texto`.
+   */
+  html: string | null
   /** Adjuntos del mensaje, para bajar. Vacio si el mensaje no tiene o el backend aun no los manda. */
   adjuntos: AdjuntoVista[]
 }
@@ -138,6 +145,7 @@ export function ticketDelPanel (
     lado: 'cliente',
     fecha: detalle.date,
     texto: textoDe(detalle.message, detalle.message_texto),
+    html: htmlDe(detalle.message_html),
     adjuntos: archivos.map(adjuntoVista)
   }
 
@@ -177,6 +185,7 @@ function mensajeDelPanel (respuesta: RespuestaTicket): MensajeDeTicket {
     lado: respuesta.autor.tipo === 'staff' ? 'equipo' : 'cliente',
     fecha: respuesta.date,
     texto: textoDe(respuesta.message, respuesta.message_texto),
+    html: htmlDe(respuesta.message_html),
     adjuntos: (respuesta.attachments ?? []).map(adjuntoVista)
   }
 }
@@ -218,6 +227,7 @@ export function ticketDelPortal (detalle: TicketPortalDetalle): TicketVista {
         lado: 'cliente',
         fecha: detalle.date,
         texto: textoDe(detalle.message, detalle.message_texto),
+        html: htmlDe(detalle.message_html),
         adjuntos: (detalle.attachments ?? []).map(adjuntoVista)
       },
       ...detalle.replies.map(mensajeDelPortal)
@@ -252,6 +262,7 @@ function mensajeDelPortal (respuesta: RespuestaTicketPortal): MensajeDeTicket {
     lado: autor?.tipo ?? respuesta.from,
     fecha: respuesta.date,
     texto: textoDe(respuesta.message, respuesta.message_texto),
+    html: htmlDe(respuesta.message_html),
     adjuntos: (respuesta.attachments ?? []).map(adjuntoVista)
   }
 }
@@ -331,17 +342,22 @@ export function reglaDeRespuestaLocal (estado: number, equipoRespondio: boolean)
  *
  * @param mensaje lo escrito
  * @param estado el estado elegido, o `null` para no tocarlo
+ * @param comoHtml `true` cuando `mensaje` sale del editor de texto enriquecido: se mide lo visible y
+ *        viaja `format: 'html'`. Sin esto es texto plano, como el motivo de poner un ticket en espera.
  * @returns el cuerpo de `POST .../respuestas`, o `null` si el mensaje esta vacio
  */
 export function cuerpoDeRespuesta (
   mensaje: string,
-  estado: number | null
-): { message: string, status?: number } | null {
+  estado: number | null,
+  comoHtml = false
+): { message: string, format?: 'html', status?: number } | null {
   const texto = mensaje.trim()
 
-  if (texto === '') return null
+  if (comoHtml ? htmlVacio(texto) : texto === '') return null
 
-  return estado === null ? { message: texto } : { message: texto, status: estado }
+  const base = comoHtml ? { message: texto, format: 'html' as const } : { message: texto }
+
+  return estado === null ? base : { ...base, status: estado }
 }
 
 /**
@@ -422,6 +438,19 @@ function decodificarEntidades (texto: string): string {
  */
 export function textoDe (message: string | null | undefined, messageTexto: string | undefined): string {
   return typeof messageTexto === 'string' ? messageTexto : textoDeMensaje(message)
+}
+
+/**
+ * El HTML de un mensaje, o `null` si la API no lo manda o no trae nada visible.
+ *
+ * Un backend anterior no manda `message_html`, y una fila vieja puede traerlo vacio: en los dos casos
+ * el hilo cae al texto plano, que es lo que siempre se mostro.
+ *
+ * @param messageHtml el `message_html` de la API, si vino
+ * @returns el HTML a pintar con `Contenido`, o `null`
+ */
+export function htmlDe (messageHtml: string | null | undefined): string | null {
+  return typeof messageHtml === 'string' && !htmlVacio(messageHtml) ? messageHtml : null
 }
 
 /**

@@ -4,6 +4,7 @@ import { ArrowDown } from 'lucide-react'
 import { memo, useRef, type ReactElement } from 'react'
 import { Boton } from '@/componentes/formularios/Boton'
 import { Avatar } from '@/componentes/presentadores/Avatar'
+import { Contenido } from '@/componentes/presentadores/Contenido'
 import { EnlacePersona } from '@/componentes/presentadores/EnlacePersona'
 import { Fecha } from '@/componentes/presentadores/Fecha'
 import { Insignia } from '@/componentes/presentadores/Insignia'
@@ -56,9 +57,12 @@ export const Hilo = memo(function Hilo ({ mensajes }: { mensajes: MensajeDeTicke
                 <Fecha valor={mensaje.fecha} conHora className="text-texto-sutil text-xs" />
               </span>
 
-              {mensaje.texto.trim() === ''
-                ? <p className="text-texto-sutil text-sm">Sin texto.</p>
-                : <p className="text-texto text-sm break-words whitespace-pre-line text-pretty">{mensaje.texto}</p>}
+              <Contenido
+                html={mensaje.html}
+                texto={mensaje.texto}
+                className="text-texto text-sm break-words text-pretty"
+                vacio={<p className="text-texto-sutil text-sm">Sin texto.</p>}
+              />
 
               {mensaje.adjuntos.length > 0 && <Adjuntos adjuntos={mensaje.adjuntos} />}
             </div>

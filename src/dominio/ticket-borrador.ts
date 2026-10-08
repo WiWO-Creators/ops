@@ -1,5 +1,5 @@
 import type { FuenteDeTicket } from './ticket-fuente.ts'
-import { textoDeMensaje } from './ticket-mapeo.ts'
+import { esHtml, htmlVacio, textoAHtml, textoPlano } from './texto-rico.ts'
 
 /**
  * El borrador de respuesta o de solicitud: se guarda en el almacen de sesion para no perder lo
@@ -84,18 +84,19 @@ export function guardarBorrador (almacen: AlmacenDeBorrador | null, clave: strin
 /**
  * Inserta una respuesta predefinida en lo escrito.
  *
- * Se suma al final, separada por una linea en blanco, y no reemplaza: quien ya escribio un saludo no
- * quiere perderlo por elegir una plantilla.
+ * Se suma al final, como parrafos nuevos, y no reemplaza: quien ya escribio un saludo no quiere
+ * perderlo por elegir una plantilla. La plantilla es HTML de Perfex: se pasa por texto y se vuelve a
+ * armar con `textoAHtml`, asi lo que llega al editor es siempre marcado propio y escapado.
  *
- * @param actual lo que hay en la caja
+ * @param actual lo que hay en la caja: HTML del editor, o texto plano de un borrador viejo
  * @param plantilla el `message` de la predefinida (HTML de Perfex)
- * @returns el texto nuevo de la caja
+ * @returns el HTML nuevo de la caja
  */
 export function insertarPredefinida (actual: string, plantilla: string): string {
-  const texto = textoDeMensaje(plantilla)
+  const agregado = textoAHtml(textoPlano(plantilla))
 
-  if (texto === '') return actual
-  if (actual.trim() === '') return texto
+  if (agregado === '') return actual
+  if (htmlVacio(actual)) return agregado
 
-  return `${actual.replace(/\s+$/, '')}\n\n${texto}`
+  return (esHtml(actual) ? actual.trim() : textoAHtml(actual)) + agregado
 }

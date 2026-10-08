@@ -5,13 +5,15 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import { readdirSync, readFileSync } from 'node:fs'
+import { textoPlano } from '../src/dominio/texto-rico.ts'
 import { LARGO_MENSAJE_TICKET, contadorDeLargo, topeDeMensaje } from '../src/dominio/ticket-limites.ts'
 import {
   LARGO_ASUNTO,
   SIN_PRIORIDAD,
   claveDeBorradorDeSolicitud,
   leerBorradorDeSolicitud,
-  serializarBorradorDeSolicitud
+  serializarBorradorDeSolicitud,
+  solicitudCompleta
 } from '../src/dominio/tickets-del-portal.ts'
 
 const ESPACIOS = [{ id: 4, name: 'Alfa' }, { id: 9, name: 'Beta' }]
@@ -42,7 +44,7 @@ test('un borrador sin texto no se guarda, aunque haya espacio o prioridad elegid
 })
 
 test('el borrador sobrevive a la ida y vuelta', () => {
-  const borrador = { asunto: 'No carga', mensaje: 'Desde ayer', espacio: '9', prioridad: '2' }
+  const borrador = { asunto: 'No carga', mensaje: '<p>Desde <strong>ayer</strong></p>', espacio: '9', prioridad: '2' }
   const guardado = serializarBorradorDeSolicitud(borrador)
 
   assert.deepEqual(leerBorradorDeSolicitud(guardado, ESPACIOS, PRIORIDADES), borrador)
@@ -53,8 +55,20 @@ test('un borrador con espacio o prioridad que ya no existen cae a los valores po
 
   assert.deepEqual(
     leerBorradorDeSolicitud(guardado, ESPACIOS, PRIORIDADES, 4),
-    { asunto: 'a', mensaje: 'b', espacio: '4', prioridad: SIN_PRIORIDAD }
+    { asunto: 'a', mensaje: '<p>b</p>', espacio: '4', prioridad: SIN_PRIORIDAD }
   )
+})
+
+test('un borrador guardado como texto plano se restaura como HTML del editor', () => {
+  const guardado = JSON.stringify({ asunto: 'a', mensaje: 'uno\n\ndos', espacio: '4', prioridad: SIN_PRIORIDAD })
+
+  assert.equal(leerBorradorDeSolicitud(guardado, ESPACIOS, PRIORIDADES).mensaje, '<p>uno</p><p>dos</p>')
+})
+
+test('un mensaje vacio de HTML se restaura vacio', () => {
+  const guardado = JSON.stringify({ asunto: 'a', mensaje: '<p></p>', espacio: '4', prioridad: SIN_PRIORIDAD })
+
+  assert.equal(leerBorradorDeSolicitud(guardado, ESPACIOS, PRIORIDADES).mensaje, '')
 })
 
 test('un guardado vacio, roto o de otra forma da el formulario vacio', () => {
@@ -75,7 +89,17 @@ test('un borrador mas largo que los topes se recorta', () => {
   const leido = leerBorradorDeSolicitud(guardado, ESPACIOS, PRIORIDADES)
 
   assert.equal(leido.asunto.length, LARGO_ASUNTO)
-  assert.equal(leido.mensaje.length, LARGO_MENSAJE_TICKET)
+  // El tope se mide sobre el texto visible y el HTML que queda es valido (no se corta a la mitad).
+  assert.equal(textoPlano(leido.mensaje).length, LARGO_MENSAJE_TICKET)
+  assert.match(leido.mensaje, /^<p>b+<\/p>$/)
+})
+
+test('la solicitud no se puede enviar si el texto visible pasa el tope', () => {
+  const base = { asunto: 'a', espacio: '4', prioridad: SIN_PRIORIDAD }
+
+  assert.equal(solicitudCompleta({ ...base, mensaje: `<p>${'b'.repeat(LARGO_MENSAJE_TICKET)}</p>` }), true)
+  assert.equal(solicitudCompleta({ ...base, mensaje: `<p>${'b'.repeat(LARGO_MENSAJE_TICKET + 1)}</p>` }), false)
+  assert.equal(solicitudCompleta({ ...base, mensaje: '<p></p>' }), false)
 })
 
 test('ningun componente de tickets inyecta HTML crudo', () => {

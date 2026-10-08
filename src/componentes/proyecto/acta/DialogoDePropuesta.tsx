@@ -3,7 +3,8 @@
 import { useState, type ReactElement } from 'react'
 import { Boton } from '@/componentes/formularios/Boton'
 import { Campo } from '@/componentes/formularios/Campo'
-import { AreaTexto, Entrada } from '@/componentes/formularios/Entrada'
+import { EditorRico } from '@/componentes/formularios/EditorRico'
+import { Entrada } from '@/componentes/formularios/Entrada'
 import {
   ContenidoSelector,
   DisparadorSelector,
@@ -12,6 +13,7 @@ import {
 } from '@/componentes/formularios/Selector'
 import { SelectorPersonas } from '@/componentes/formularios/SelectorPersonas'
 import { Dialogo, ContenidoDialogo } from '@/componentes/superposiciones/Dialogo'
+import { htmlVacio } from '@/dominio/texto-rico'
 import type { EstadoLookup } from '@/datos/recursos'
 import type { StaffReferencia } from '@/datos/tipos'
 import type { ParcheDePropuesta, PropuestaDeTarea } from '@/definiciones/actas'
@@ -37,6 +39,9 @@ export function DialogoDePropuesta ({ propuesta, personas, errorEquipo, priorida
 }): ReactElement {
   const [titulo, setTitulo] = useState(propuesta.titulo)
   const [descripcion, setDescripcion] = useState(propuesta.descripcion ?? '')
+  // Con que se compara lo escrito: el HTML tal como el editor normaliza la descripcion original. Sin
+  // esto, abrir y guardar sin tocar nada mandaria un `PATCH` por una diferencia de formato.
+  const [descripcionBase, setDescripcionBase] = useState(propuesta.descripcion ?? '')
   const [vence, setVence] = useState(propuesta.vence ?? '')
   const [prioridad, setPrioridad] = useState(String(propuesta.prioridad))
   const [asignados, setAsignados] = useState(propuesta.asignados.map((persona) => persona.id))
@@ -50,7 +55,7 @@ export function DialogoDePropuesta ({ propuesta, personas, errorEquipo, priorida
   async function guardar (): Promise<void> {
     if (errorTitulo !== undefined) return
 
-    const parche = parcheDeCambios(propuesta, { titulo: limpio, descripcion, vence, prioridad, asignados })
+    const parche = parcheDeCambios(propuesta, descripcionBase, { titulo: limpio, descripcion, vence, prioridad, asignados })
 
     if (Object.keys(parche).length === 0) {
       onCerrar()
@@ -86,10 +91,15 @@ export function DialogoDePropuesta ({ propuesta, personas, errorEquipo, priorida
 
           <Campo etiqueta="Descripción" ayuda="Lo que haga falta para que se entienda sin volver al acta.">
             {(props) => (
-              <AreaTexto
+              <EditorRico
                 {...props}
-                value={descripcion}
-                onChange={(evento) => { setDescripcion(evento.target.value) }}
+                etiqueta="Descripción"
+                valorInicial={propuesta.descripcion}
+                onListo={(normalizado) => {
+                  setDescripcionBase(normalizado)
+                  setDescripcion(normalizado)
+                }}
+                onCambio={setDescripcion}
               />
             )}
           </Campo>
@@ -165,10 +175,12 @@ interface CamposDePropuesta {
  * Compara lo escrito con la propuesta y deja solo lo que cambió.
  *
  * @param propuesta la propuesta como la devolvió la API
+ * @param descripcionBase la descripción original tal como la normaliza el editor, para no mandar un
+ *   cambio por una simple diferencia de formato
  * @param campos lo que hay en el diálogo, con el título ya recortado
  * @returns el parche; vacío si no cambió nada
  */
-function parcheDeCambios (propuesta: PropuestaDeTarea, campos: CamposDePropuesta): ParcheDePropuesta {
+function parcheDeCambios (propuesta: PropuestaDeTarea, descripcionBase: string, campos: CamposDePropuesta): ParcheDePropuesta {
   const { titulo, descripcion, vence, prioridad, asignados } = campos
   const mismosAsignados =
     asignados.length === propuesta.asignados.length &&
@@ -176,7 +188,9 @@ function parcheDeCambios (propuesta: PropuestaDeTarea, campos: CamposDePropuesta
 
   return {
     ...(titulo === propuesta.titulo ? {} : { titulo }),
-    ...(descripcion === (propuesta.descripcion ?? '') ? {} : { descripcion: descripcion === '' ? null : descripcion }),
+    ...(descripcion === descripcionBase
+      ? {}
+      : { descripcion: htmlVacio(descripcion) ? null : descripcion, format: 'html' as const }),
     ...(vence === (propuesta.vence ?? '') ? {} : { vence: vence === '' ? null : vence }),
     ...(prioridad === String(propuesta.prioridad) ? {} : { prioridad: Number(prioridad) }),
     ...(mismosAsignados ? {} : { asignados })
