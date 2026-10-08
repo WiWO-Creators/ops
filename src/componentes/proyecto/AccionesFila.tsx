@@ -1,9 +1,9 @@
 'use client'
 
 import { useState, type ReactElement } from 'react'
+import { escribirEnBff } from '@/componentes/datos/mutaciones'
 import { MenuAccionesFila } from '@/componentes/datos/MenuAccionesFila'
 import { useAviso } from '@/componentes/estado/useAviso'
-import { mensajeDeRespuesta } from '@/datos/cliente'
 import { FormularioRecurso } from './FormularioRecurso'
 import type { CampoFormulario } from './formulario'
 
@@ -54,14 +54,23 @@ export function AccionesFila<T extends object> ({
   const [editando, setEditando] = useState(false)
   const aviso = useAviso()
 
-  /** Borra el registro y refresca el listado. Lanza si falla: `ConfirmarBorrado` muestra el mensaje. */
+  /**
+   * Borra el registro y refresca el listado.
+   *
+   * Lanza si falla: `ConfirmarBorrado` muestra el mensaje. Si no llego respuesta no se afirma que no
+   * se borro: se avisa y se vuelve a pedir la lista, que dice como quedo.
+   */
   async function borrar (): Promise<void> {
-    const respuesta = await fetch(`/api/bff/${ruta}`, {
-      method: 'DELETE',
-      headers: { accept: 'application/json' }
-    })
+    const resultado = await escribirEnBff(ruta, 'DELETE')
 
-    if (!respuesta.ok) throw new Error(await mensajeDeRespuesta(respuesta))
+    if (!resultado.ok) {
+      if (resultado.incierta !== true) throw new Error(resultado.mensaje)
+
+      aviso.advertencia(resultado.mensaje)
+      recargar()
+
+      return
+    }
 
     recargar()
     aviso.exito(`«${nombre}» se eliminó.`)

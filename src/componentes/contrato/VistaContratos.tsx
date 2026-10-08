@@ -6,11 +6,11 @@ import { useRouter } from 'next/navigation'
 import { ShieldCheck } from 'lucide-react'
 import { TablaRecurso } from '@/componentes/datos/TablaRecurso'
 import { MenuAccionesFila } from '@/componentes/datos/MenuAccionesFila'
+import { escribirEnBff } from '@/componentes/datos/mutaciones'
 import { Boton } from '@/componentes/formularios/Boton'
 import { FormularioRecurso } from '@/componentes/proyecto/FormularioRecurso'
 import type { OpcionCampo } from '@/componentes/proyecto/formulario'
 import { EnlaceCliente } from '@/componentes/presentadores/EnlaceCliente'
-import { mensajeDeRespuesta } from '@/datos/cliente'
 import type { AccesoContratos, Contrato } from '@/datos/recursos'
 import type { OpcionFiltro, ResultadoLista } from '@/definiciones/tipos'
 import { CONTRATOS } from '@/definiciones/contratos'
@@ -96,13 +96,14 @@ export function VistaContratos ({ inicial, opcionesDeFiltro, clientes, tipos, ac
    * @returns El mensaje de error, o `null` si se guardo.
    */
   async function guardarAcceso (cuerpo: Record<string, unknown>): Promise<string | null> {
-    const respuesta = await fetch('/api/bff/contratos/acceso', {
-      method: 'PUT',
-      headers: { 'content-type': 'application/json', accept: 'application/json' },
-      body: JSON.stringify(cuerpo)
-    })
+    const resultado = await escribirEnBff('contratos/acceso', 'PUT', cuerpo)
 
-    return respuesta.ok ? null : await mensajeDeRespuesta(respuesta)
+    if (resultado.ok) return null
+
+    // Sin respuesta no se sabe si quedo: el mensaje no lo niega y la pagina vuelve a pedir el acceso.
+    if (resultado.incierta === true) router.refresh()
+
+    return resultado.mensaje
   }
 
   return (
@@ -139,6 +140,7 @@ export function VistaContratos ({ inicial, opcionesDeFiltro, clientes, tipos, ac
         metodo="POST"
         registro={REGISTRO_NUEVO_CONTRATO}
         avisoExito="Contrato creado."
+        // La tabla se actualiza sola; el refresh es por el total del listado, que lo pinta el servidor.
         onGuardado={() => { router.refresh() }}
         columnas={2}
         ancho="grande"

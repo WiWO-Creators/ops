@@ -2,6 +2,8 @@
 
 import { useEffect, useState, type ReactElement } from 'react'
 import { escribirEnBff } from '@/componentes/datos/mutaciones'
+import { useAviso } from '@/componentes/estado/useAviso'
+import { conLimite, esTiempoAgotado, TIEMPO_LECTURA_MS } from '@/datos/red'
 import { AvisoEnLinea, Cargando } from '@/componentes/estado/Estados'
 import { Boton } from '@/componentes/formularios/Boton'
 import { Campo } from '@/componentes/formularios/Campo'
@@ -59,7 +61,8 @@ async function validar (reglaId: number): Promise<Paso> {
     const respuesta = await fetch(`/api/bff/${rutaDeLimpieza(reglaId)}`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ modo: 'validar' })
+      body: JSON.stringify({ modo: 'validar' }),
+      signal: conLimite(undefined, TIEMPO_LECTURA_MS)
     })
     if (!respuesta.ok) {
       const codigo = await respuesta.clone().json()
@@ -70,13 +73,19 @@ async function validar (reglaId: number): Promise<Paso> {
     const sobre = await respuesta.json() as { data: ValidacionDeLimpieza }
 
     return { fase: 'eligiendo', validacion: sobre.data }
-  } catch {
-    return { fase: 'error', mensaje: 'No se pudo contactar al servidor. Revisa tu conexión.' }
+  } catch (fallo) {
+    return {
+      fase: 'error',
+      mensaje: esTiempoAgotado(fallo)
+        ? 'El servidor tardó demasiado en responder. Intenta de nuevo.'
+        : 'No se pudo contactar al servidor. Revisa tu conexión.'
+    }
   }
 }
 
 /** Los pasos del flujo, de validar al resultado. */
 function FlujoDeLimpieza ({ regla, onCerrar }: { regla: ReglaALimpiar, onCerrar: () => void }): ReactElement {
+  const aviso = useAviso()
   const [paso, setPaso] = useState<Paso>({ fase: 'validando' })
   const [elegidas, setElegidas] = useState<number[]>([])
   const [detener, setDetener] = useState<'' | Detencion>('')
@@ -102,6 +111,16 @@ function FlujoDeLimpieza ({ regla, onCerrar }: { regla: ReglaALimpiar, onCerrar:
     setEnCurso(false)
 
     if (!resultado.ok) {
+      if (resultado.incierta === true) {
+        // No se sabe cuanto se movio: se vuelve a validar, que cuenta lo que queda de verdad.
+        aviso.advertencia(resultado.mensaje)
+        setPaso({ fase: 'validando' })
+        const siguiente = await validar(regla.id)
+        setPaso(siguiente)
+        if (siguiente.fase === 'eligiendo') setElegidas(seleccionInicial(siguiente.validacion.candidatas))
+        return
+      }
+
       setError(mensajeDeCodigo(resultado.codigo, resultado.mensaje))
       setPaso({ fase: 'eligiendo', validacion })
       return

@@ -1,6 +1,8 @@
 'use client'
 
 import { useCallback, useEffect, useState, type ReactElement } from 'react'
+import { escribirEnBff } from '@/componentes/datos/mutaciones'
+import { useAviso } from '@/componentes/estado/useAviso'
 import { Boton } from '@/componentes/formularios/Boton'
 import { AvisoEnLinea, Cargando, ErrorEstado, Vacio } from '@/componentes/estado/Estados'
 import { EntradaEscalonada } from '@/componentes/estructura/EntradaEscalonada'
@@ -61,6 +63,7 @@ export function Cronometros ({ procesoId, className }: PropsCronometros): ReactE
   const [datos, setDatos] = useState<Datos | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [aviso, setAviso] = useState<string | null>(null)
+  const avisar = useAviso()
   const [enCurso, setEnCurso] = useState(false)
   const [intento, setIntento] = useState(0)
   const [ahora, setAhora] = useState(() => new Date())
@@ -110,15 +113,11 @@ export function Cronometros ({ procesoId, className }: PropsCronometros): ReactE
     setEnCurso(true)
     setAviso(null)
 
-    const respuesta = await fetch(`/api/bff/tasks/${procesoId}/timer`, {
-      method: metodo,
-      headers: { 'content-type': 'application/json' },
-      body: metodo === 'POST' ? '{}' : undefined
-    })
+    const resultado = await escribirEnBff(`tasks/${procesoId}/timer`, metodo, metodo === 'POST' ? {} : undefined)
 
     setEnCurso(false)
 
-    if (respuesta.ok) {
+    if (resultado.ok) {
       // El control de jornada de la cabecera mira el mismo cronometro: sin este aviso se queda con el
       // estado viejo hasta su proximo intervalo.
       avisarCambioDeMedidor()
@@ -126,7 +125,15 @@ export function Cronometros ({ procesoId, className }: PropsCronometros): ReactE
       return
     }
 
-    setAviso(mensajeDeFalloDeCronometro(respuesta.status, metodo === 'POST'))
+    if (resultado.incierta === true) {
+      // No se sabe si quedo: se vuelve a leer en vez de afirmar que no se guardo.
+      avisar.advertencia(resultado.mensaje)
+      avisarCambioDeMedidor()
+      recargar()
+      return
+    }
+
+    setAviso(resultado.estado === undefined ? resultado.mensaje : mensajeDeFalloDeCronometro(resultado.estado, metodo === 'POST'))
   }
 
   const mio = cronometroAbierto(datos.timers, datos.yoId)
