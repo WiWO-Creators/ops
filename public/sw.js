@@ -92,18 +92,33 @@ self.addEventListener('fetch', (evento) => {
   }
 })
 
+/** Reintentos de una navegación antes de dar la red por caída, y espera entre ellos (ms). */
+const REINTENTOS_NAVEGACION = 2
+const ESPERA_REINTENTO_MS = 600
+
 /**
- * Navegación: siempre la red, y la página sin red solo si la red falla.
+ * Navegación: siempre la red, y la página sin red solo si la red falla de verdad.
+ *
+ * Un fallo suelto de `fetch` no es "sin conexión": al reanudar la app en iOS la red tarda un
+ * instante en volver y el primer intento muere aunque haya Wi-Fi. Por eso se reintenta unas veces
+ * con una espera corta antes de mostrar `offline.html`. Si el navegador ya sabe que no hay red
+ * (`navigator.onLine === false`) no se pierde tiempo: se muestra de inmediato.
  * La respuesta de la red no se guarda (ver el encabezado del archivo).
  */
 async function navegar (peticion) {
-  try {
-    return await fetch(peticion)
-  } catch (error) {
-    const guardada = await caches.match(PAGINA_SIN_RED)
-    if (guardada) return guardada
-    throw error
+  let ultimoError
+  for (let intento = 0; intento <= REINTENTOS_NAVEGACION; intento++) {
+    try {
+      return await fetch(peticion.clone())
+    } catch (error) {
+      ultimoError = error
+      if (self.navigator.onLine === false || intento === REINTENTOS_NAVEGACION) break
+      await new Promise((resolver) => setTimeout(resolver, ESPERA_REINTENTO_MS * (intento + 1)))
+    }
   }
+  const guardada = await caches.match(PAGINA_SIN_RED)
+  if (guardada) return guardada
+  throw ultimoError
 }
 
 /** Archivos con hash: la copia guardada si existe; si no, la red, y se guarda si salió bien. */

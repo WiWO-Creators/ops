@@ -214,10 +214,20 @@ test('sw.js nunca intercepta /api, RSC ni navegaciones para guardarlas', () => {
   // La navegacion va a la red y solo cae a la pagina sin red: nunca se hace put de una navegacion.
   const navegar = sw.slice(sw.indexOf('async function navegar'), sw.indexOf('async function primeroCache'))
   assert.doesNotMatch(navegar, /\.put\(/)
+  // Un fallo suelto de red se reintenta antes de dar por caída la conexion.
+  assert.match(navegar, /REINTENTOS_NAVEGACION/)
+  assert.match(navegar, /onLine === false/)
   assert.match(sw, /importScripts\('\/sw-push\.js'\)/)
   assert.match(sw, /try \{\s*importScripts/)
   assert.match(sw, /SALTAR_ESPERA/)
   assert.doesNotMatch(sw, /self\.skipWaiting\(\)\s*\n\s*\}\)\s*\n\s*self\.addEventListener\('activate'/, 'skipWaiting no va en install')
+})
+
+test('offline.html reintenta solo y comprueba la red antes de recargar', () => {
+  const html = leer('../public/offline.html')
+  assert.match(html, /visibilitychange/)
+  assert.match(html, /setInterval\(intentar/)
+  assert.match(html, /fetch\('\/offline\.html\?sonda=/, 'la sonda no la intercepta el service worker')
 })
 
 test('los cortes escritos a mano en movil.css son los del tema', () => {

@@ -94,11 +94,7 @@ export function FormularioEntrar ({ google, aviso = null }: { google: AccesoGoog
     establecerEstadoOrbe('thinking')
 
     try {
-      const respuesta = await fetch('/api/sesion', {
-        method: 'POST',
-        headers: { 'content-type': 'application/json' },
-        body: JSON.stringify(cuerpo)
-      })
+      const respuesta = await pedirSesion(cuerpo)
 
       const datos = await respuesta.json() as RespuestaEntrar
 
@@ -128,7 +124,11 @@ export function FormularioEntrar ({ google, aviso = null }: { google: AccesoGoog
       router.replace('/inicio')
       router.refresh()
     } catch {
-      establecerError('No se pudo contactar al servidor. Revisa tu conexión.')
+      establecerError(
+        via === 'google'
+          ? 'Se perdió la conexión al volver de Google. Pulsa el botón de Google para reintentar.'
+          : 'No se pudo contactar al servidor. Revisa tu conexión e intenta de nuevo.'
+      )
       establecerEnviando(false)
       señalarError()
     }
@@ -536,6 +536,35 @@ function CabeceraMovil ({ estado }: { estado: EstadoOrbe | undefined }) {
       <Logo />
     </div>
   )
+}
+
+/** Espera antes de repetir una petición de sesión que murió por la red (ms). */
+const ESPERA_REINTENTO_SESION_MS = 1200
+
+/**
+ * Pide la sesión y repite una vez si la red falla.
+ *
+ * Al volver de la app de Gmail (verificación en 2 pasos de Google) iOS suele haber cortado las
+ * conexiones abiertas: el primer `fetch` muere con un `TypeError` aunque haya señal. Solo se repite
+ * ese caso; una respuesta del servidor, buena o mala, nunca se repite.
+ *
+ * @param cuerpo credencial para `POST /api/sesion`
+ * @returns la respuesta del servidor
+ * @throws TypeError si la red falla también en el segundo intento
+ */
+async function pedirSesion (cuerpo: Record<string, unknown>): Promise<Response> {
+  const pedir = (): Promise<Response> => fetch('/api/sesion', {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify(cuerpo)
+  })
+
+  try {
+    return await pedir()
+  } catch {
+    await new Promise((resolver) => setTimeout(resolver, ESPERA_REINTENTO_SESION_MS))
+    return await pedir()
+  }
 }
 
 /**

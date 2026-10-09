@@ -71,8 +71,33 @@
     <button type="button" id="reintentar">Reintentar</button>
   </main>
   <script>
-    document.getElementById('reintentar').addEventListener('click', function () { location.reload() })
-    window.addEventListener('online', function () { location.reload() })
+    var INTERVALO_MS = 4000
+    var recargando = false
+
+    /** Recarga una sola vez; la página sin red no tiene nada que conservar. */
+    function recargar () {
+      if (recargando) return
+      recargando = true
+      location.reload()
+    }
+
+    /**
+     * Comprueba que el servidor responde antes de recargar. Recargar a ciegas dentro del service
+     * worker volvería a servir esta misma página y se vería como un parpadeo sin salida. La sonda
+     * es esta misma página con un parámetro: el service worker no intercepta esa ruta y va a la red.
+     */
+    function intentar () {
+      fetch('/offline.html?sonda=' + Date.now(), { cache: 'no-store' })
+        .then(function (r) { if (r.ok) recargar() })
+        .catch(function () {})
+    }
+
+    document.getElementById('reintentar').addEventListener('click', intentar)
+    window.addEventListener('online', intentar)
+    document.addEventListener('visibilitychange', function () {
+      if (document.visibilityState === 'visible') intentar()
+    })
+    setInterval(intentar, INTERVALO_MS)
   </script>
 </body>
 </html>
