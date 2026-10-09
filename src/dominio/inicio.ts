@@ -1,6 +1,6 @@
 import type { Proceso } from '../datos/recursos.ts'
 import { estadoVencimiento } from '../lib/fechas.ts'
-import { ESTADO_COMPLETO } from '../componentes/proyecto/tareas.ts'
+import { estaCerrada } from '../componentes/proyecto/tareas.ts'
 
 /** Lo que devuelve `estadoVencimiento`. Se deriva en vez de duplicar la union en dos archivos. */
 type EstadoVencimiento = ReturnType<typeof estadoVencimiento>
@@ -54,7 +54,7 @@ export function agruparPorVencimiento (procesos: Proceso[], hoy = new Date()): G
   return TRAMOS_ACTIVOS
     .map((tramo) => {
       const delTramo = procesos.filter((proceso) =>
-        proceso.status !== ESTADO_COMPLETO && tramoDe(proceso, hoy) === tramo)
+        !estaCerrada(proceso.status) && tramoDe(proceso, hoy) === tramo)
 
       return {
         tramo,

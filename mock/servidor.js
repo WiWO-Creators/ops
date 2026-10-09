@@ -336,7 +336,7 @@ const CONSULTA_PROCESOS = {
     task_type_name: campoFiltrable((p) => p.task_type?.name ?? null),
     added_from: campoFiltrable((p) => p.added_from, 'numero'),
     // `completed` no es una columna ni aca ni alla: sale del estado.
-    completed: campoFiltrable((p) => (p.status === ESTADO_COMPLETADO ? 1 : 0), 'numero'),
+    completed: campoFiltrable((p) => ([ESTADO_COMPLETADO, 9].includes(p.status) ? 1 : 0), 'numero'),
     billable: campoFiltrable((p) => Number(p.billable), 'numero'),
     billed: campoFiltrable((p) => Number(p.billed), 'numero'),
     is_public: campoFiltrable((p) => Number(p.is_public), 'numero'),
@@ -367,7 +367,7 @@ const CONSULTA_PROCESOS = {
   // Procesos —`['completed', '-date_added']`— respondia 422 contra el mock. `etapa` tampoco:
   // es `RecursoProcesos::etapaComoOrden()`, con la misma tabla de escalones.
   derivadas: {
-    completed: (p) => (p.status === ESTADO_COMPLETADO ? 1 : 0),
+    completed: (p) => ([ESTADO_COMPLETADO, 9].includes(p.status) ? 1 : 0),
     etapa: (p) => ETAPA_POR_ESTADO[p.status] ?? 5
   },
   // Nombre y patente, como `RecursoProcesos::consulta()`.
@@ -8645,6 +8645,11 @@ async function resolverRuta (metodo, segmentos, parametros, token, cuerpo, petic
         proceso.date_finished = new Date().toISOString().replace(/\.\d{3}Z$/, 'Z')
         return { estado: 200, cuerpo: conDatos(proceso) }
       }
+      if (extra === 'mark-billed') {
+        proceso.status = 9
+        proceso.date_finished = proceso.date_finished ?? new Date().toISOString().replace(/\.\d{3}Z$/, 'Z')
+        return { estado: 200, cuerpo: conDatos(proceso) }
+      }
       if (extra === 'reopen') {
         proceso.status = 4
         proceso.date_finished = null
@@ -10142,7 +10147,7 @@ const CONSULTA_TAREAS_PORTAL = {
   },
   orden: ['name', 'due_date', 'status', 'completed', 'date_added'],
   // `completed` no es una columna de `tbltasks`: en la API es un CASE sobre `status`.
-  derivadas: { completed: (p) => (p.status === 5 ? 1 : 0) },
+  derivadas: { completed: (p) => ([5, 9].includes(p.status) ? 1 : 0) },
   busqueda: ['name']
 }
 
@@ -10167,8 +10172,8 @@ function tableroDeProcesos (tareas, parametros, presentar, consulta = CONSULTA_P
     .map((clave) => [clave, parametros.get(`filter[${clave}]`)?.trim()])
     .filter(([, valor]) => valor)
   const columnas = ESTADOS_PROCESO
-    .filter((estado) => filtrosEstado.length === 0 ? estado.id !== 5 : filtrosEstado.every(([clave, valor]) =>
-      valor.split(',').map(Number).includes(clave.startsWith('completed') ? Number(estado.id === 5) : estado.id)))
+    .filter((estado) => filtrosEstado.length === 0 ? ![5, 9].includes(estado.id) : filtrosEstado.every(([clave, valor]) =>
+      valor.split(',').map(Number).includes(clave.startsWith('completed') ? Number([5, 9].includes(estado.id)) : estado.id)))
     .sort((a, b) => a.order - b.order)
 
   return columnas.map((columna) => {

@@ -41,7 +41,7 @@ import { HiloDeComentarios } from './HiloDeComentarios'
 import {
   Dato, MarcasDeControl, SeccionDeAdjuntos, SeccionDeComentarios, SeccionDeLectura, SIN_DATO
 } from './ficha-de-lectura'
-import { ESTADO_COMPLETO, comentarioParaMostrar, type ProcesoDeFicha } from './tareas'
+import { comentarioParaMostrar, estaCerrada, type ProcesoDeFicha } from './tareas'
 import { CompartirTarea } from './CompartirTarea'
 import { BotonDuplicarTarea } from './DuplicarTarea'
 import { EstadoDeTarea } from './EstadoDeTarea'
@@ -315,7 +315,7 @@ export function DetalleTarea (
 
           {/* Completar vive en la ficha porque es donde se mira la tarea para decidir que ya esta.
               El listado ya tiene su propia accion; esta ademas deja elegir con que fecha cierra. */}
-          {puedeEditar && tarea.status !== ESTADO_COMPLETO && (
+          {puedeEditar && !estaCerrada(tarea.status) && (
             <CompletarTarea tarea={tarea} onCompletada={alCambiar} />
           )}
 

@@ -19,6 +19,7 @@ import { AgregarAlHito } from './AgregarAlHito'
 import { BotonDuplicarTarea } from './DuplicarTarea'
 import { MenuEstadoTarea } from './MenuEstadoTarea'
 import { COLUMNA_SIN_CATEGORIZAR, cuerpoMoverHito, ordenarColumnasHitos } from './hitos'
+import { estaCerrada } from './tareas'
 import { segundosAHoraMinuto } from './formatos'
 import type { ColumnaTablero, CuerpoMover, GrupoTablero } from '@/componentes/datos/tablero'
 import type { DefinicionRecurso, OpcionFiltro } from '@/definiciones/tipos'
@@ -338,7 +339,7 @@ function TarjetaDeHito ({
         href={`?${siguientes.toString()}`}
         scroll={false}
         className={
-          tarea.status === 5
+          estaCerrada(tarea.status)
             ? 'text-texto-tenue hover:text-acento text-sm underline-offset-4 line-through hover:underline'
             : 'text-texto hover:text-acento text-sm font-medium underline-offset-4 hover:underline'
         }

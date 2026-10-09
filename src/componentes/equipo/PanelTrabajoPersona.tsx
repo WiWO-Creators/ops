@@ -10,7 +10,7 @@ import { TareasAsignadas } from '@/componentes/mis-tareas/TareasAsignadas'
 import { pedirSobre } from '@/datos/cliente'
 import { construirConsulta, leerConsulta } from '@/datos/consulta'
 import { GLOSARIO } from '@/dominio/glosario'
-import { ESTADO_COMPLETO } from '@/componentes/proyecto/tareas'
+import { estaCerrada } from '@/componentes/proyecto/tareas'
 import { espaciosAcotados } from '@/definiciones/espacios'
 import type { EstadoConsulta, OpcionFiltro, ResultadoLista } from '@/definiciones/tipos'
 import type { EstadoLookup, Espacio } from '@/datos/recursos'
@@ -27,7 +27,7 @@ import type { EstadoLookup, Espacio } from '@/datos/recursos'
  *          en vez de mandar un `filter[status]=` vacio, que el backend rechaza
  */
 function filtroDeAbiertos (estados: EstadoLookup[]): string | undefined {
-  const abiertos = estados.filter((estado) => estado.id !== ESTADO_COMPLETO).map((estado) => estado.id).join(',')
+  const abiertos = estados.filter((estado) => !estaCerrada(estado.id)).map((estado) => estado.id).join(',')
 
   return abiertos === '' ? undefined : `filter[status]=${abiertos}`
 }
