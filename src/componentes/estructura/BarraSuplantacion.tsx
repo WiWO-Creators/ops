@@ -3,6 +3,7 @@
 import { useRouter } from 'next/navigation'
 import { useState } from 'react'
 import { Boton } from '@/componentes/formularios/Boton'
+import { conLimite, TIEMPO_ESCRITURA_MS } from '@/datos/red'
 
 /**
  * Franja fija que avisa que el panel se está mirando con la sesión de otra persona.
@@ -22,7 +23,9 @@ export function BarraSuplantacion ({ nombre }: { nombre: string }) {
     setVolviendo(true)
 
     try {
-      await fetch('/api/sesion/suplantar', { method: 'DELETE' })
+      await fetch('/api/sesion/suplantar', { method: 'DELETE', signal: conLimite(undefined, TIEMPO_ESCRITURA_MS) })
+    } catch {
+      // Sin respuesta la sesion se da por terminada igual: el destino la revalida.
     } finally {
       // Pase lo que pase con la revocación, la cookie ya volvió a ser la propia o la sesión prestada
       // quedó inservible: en los dos casos corresponde recargar con la identidad de vuelta.

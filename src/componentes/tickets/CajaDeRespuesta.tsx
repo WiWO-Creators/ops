@@ -4,15 +4,20 @@ import { Lock, MessageCircleQuestion, MessageSquareText } from 'lucide-react'
 import { useEffect, useRef, useState, type ReactElement } from 'react'
 import { AvisoEnLinea } from '@/componentes/estado/Estados'
 import { Boton } from '@/componentes/formularios/Boton'
-import { AreaTexto } from '@/componentes/formularios/Entrada'
+import { EditorRico } from '@/componentes/formularios/EditorRico'
+import { Contenido } from '@/componentes/presentadores/Contenido'
 import { ContenidoSelector, DisparadorSelector, Opcion, Selector } from '@/componentes/formularios/Selector'
 import {
   BuscadorMenu, ContenidoMenu, DisparadorMenu, ItemMenu, MenuContextual, SinResultadosMenu
 } from '@/componentes/superposiciones/MenuContextual'
 import { escribirEnBff } from '@/componentes/datos/mutaciones'
 import type { EstadoLookup, RespuestaPredefinida } from '@/datos/recursos'
-import { normalizar } from '@/dominio/salas'
+import { normalizar } from '@/dominio/busqueda'
+import { esHtml, htmlVacio, textoPlano } from '@/dominio/texto-rico'
+import { cuerpoConArchivos } from '@/dominio/ticket-adjuntos'
+import { contadorDeLargo, topeDeMensaje } from '@/dominio/ticket-limites'
 import {
+  almacenDeSesion,
   avisoSinRespuesta,
   claveDeBorrador,
   cuerpoDeRespuesta,
@@ -24,30 +29,16 @@ import {
   leerBorrador,
   nombreDelTicket,
   rutaDeTicket,
-  type AlmacenDeBorrador,
   type FuenteDeTicket,
   type NombreDeTicket,
   type TicketVista
 } from '@/dominio/ticket-vista'
+import { ArchivosParaAdjuntar } from './ArchivosParaAdjuntar'
 import { cargarPredefinidas } from './carga-de-ticket'
+import { useListaPerezosa, type ListaPerezosa } from './useListaPerezosa'
 
 /** Centinela de «no cambiar el estado al responder». Radix no admite un `value` vacio. */
 const SIN_CAMBIO = 'sin-cambio'
-
-/**
- * `sessionStorage`, o `null` si el navegador no lo deja tocar.
- *
- * En algunos modos privados leer la propiedad ya lanza, asi que ni siquiera se puede preguntar.
- */
-function almacenDeSesion (): AlmacenDeBorrador | null {
-  if (typeof window === 'undefined') return null
-
-  try {
-    return window.sessionStorage
-  } catch {
-    return null
-  }
-}
 
 /**
  * La caja para sumar una respuesta, o el aviso de por que no se puede.
@@ -56,6 +47,10 @@ function almacenDeSesion (): AlmacenDeBorrador | null {
  * aparecer en otro. Lo escrito se guarda en `sessionStorage` (`ticket-borrador:{sujeto}:{id}`) a
  * cada tecla, asi cerrar el modal por error, recargar o ir a mirar otra cosa no lo pierde; se borra
  * cuando la API confirma el envio.
+ *
+ * Los archivos se eligen aca y viajan **con** el mensaje (`multipart/form-data`, ver
+ * `cuerpoConArchivos`); sin archivos el envio es JSON, igual que antes. No entran al borrador: se
+ * conservan mientras la caja siga montada y se vacian cuando la API confirma.
  *
  * Sin estado optimista: el mensaje aparece en el hilo cuando la API lo confirmo. Un rechazo deja lo
  * escrito intacto, lo explica por su codigo (`falloDeTicket`) y pide la ficha de nuevo: si la regla
@@ -83,14 +78,24 @@ export function CajaDeRespuesta ({
   const clave = claveDeBorrador(fuente, ticket.id)
   const idCampo = `respuesta-${ticket.id}`
   const ofrecidos = estadosParaResponder(estados, ticket.estado)
+  const tope = topeDeMensaje(fuente.sujeto)
 
+  // HTML del editor (o texto plano de un borrador viejo, que el editor convierte al abrirlo).
   const [mensaje, setMensaje] = useState(() => leerBorrador(almacenDeSesion(), clave))
+  // Cambia al vaciar o insertar una predefinida: el editor no es controlado y se remonta con `key`.
+  const [versionDelEditor, setVersionDelEditor] = useState(0)
   const [elegido, setElegido] = useState<string | null>(null)
+  const [archivos, setArchivos] = useState<File[]>([])
   const [enviando, setEnviando] = useState(false)
   const [fallo, setFallo] = useState<string | null>(null)
   // Segundos que pidio esperar un 429; mientras no es `null` el envio queda bloqueado.
   const [espera, setEspera] = useState<number | null>(null)
   const enviandoAhora = useRef(false)
+
+  // El tope se mide sobre el texto visible y no sobre el marcado, que la persona no escribio.
+  const largo = textoPlano(mensaje).length
+  const excedido = tope !== undefined && largo > tope
+  const contador = tope === undefined ? null : contadorDeLargo(largo, tope)
 
   // El estado propuesto sale del estado del ticket mientras la persona no elija otro: si el hilo en
   // vivo trae el ticket cambiado, la propuesta se mueve con el. Lo que ya no se ofrece cae a «sin
@@ -102,12 +107,6 @@ export function CajaDeRespuesta ({
     : valorPropuesto
 
   useEffect(() => {
-    if (!ticket.respuesta.permitida) return
-
-    document.getElementById(idCampo)?.focus({ preventScroll: true })
-  }, [idCampo, ticket.respuesta.permitida])
-
-  useEffect(() => {
     if (espera === null) return
 
     const id = window.setTimeout(() => { setEspera(null) }, espera * 1000)
@@ -115,10 +114,15 @@ export function CajaDeRespuesta ({
     return () => { window.clearTimeout(id) }
   }, [espera])
 
-  /** Guarda en pantalla y en el borrador. */
-  function escribir (texto: string): void {
-    setMensaje(texto)
-    guardarBorrador(almacenDeSesion(), clave, texto)
+  /**
+   * Guarda en pantalla y en el borrador.
+   *
+   * No recorta: cortar HTML por la mitad deja marcado roto. Si una predefinida pasa el tope, el
+   * contador lo marca y el envio queda bloqueado hasta que se acorte.
+   */
+  function escribir (html: string): void {
+    setMensaje(html)
+    guardarBorrador(almacenDeSesion(), clave, html)
   }
 
   /**
@@ -128,9 +132,9 @@ export function CajaDeRespuesta ({
    * verian los dos `enviando === false`, porque el estado recien cambia en el render siguiente.
    */
   async function responder (): Promise<void> {
-    if (enviandoAhora.current || espera !== null) return
+    if (enviandoAhora.current || espera !== null || excedido) return
 
-    const cuerpo = cuerpoDeRespuesta(mensaje, valorElegido === SIN_CAMBIO ? null : Number(valorElegido))
+    const cuerpo = cuerpoDeRespuesta(mensaje, valorElegido === SIN_CAMBIO ? null : Number(valorElegido), true)
 
     if (cuerpo === null) return
 
@@ -138,7 +142,11 @@ export function CajaDeRespuesta ({
     setEnviando(true)
     setFallo(null)
 
-    const resultado = await escribirEnBff<unknown>(rutaDeTicket(fuente.responder, ticket.id), 'POST', cuerpo)
+    const resultado = await escribirEnBff<unknown>(
+      rutaDeTicket(fuente.responder, ticket.id),
+      'POST',
+      cuerpoConArchivos(cuerpo, archivos)
+    )
 
     enviandoAhora.current = false
     setEnviando(false)
@@ -154,20 +162,21 @@ export function CajaDeRespuesta ({
     }
 
     escribir('')
+    setVersionDelEditor((version) => version + 1)
     setElegido(null)
+    setArchivos([])
     onRespondido(resultado.datos)
-    document.getElementById(idCampo)?.focus({ preventScroll: true })
   }
 
   if (!ticket.respuesta.permitida) {
     return <SinRespuesta ticket={ticket} nombre={nombreDelTicket(fuente)} escrito={mensaje} fallo={fallo} />
   }
 
-  const vacio = mensaje.trim() === ''
+  const vacio = htmlVacio(mensaje)
 
   return (
     <form
-      className="flex flex-col gap-3"
+      className="border-linea-suave flex flex-col gap-3 border-t pt-4"
       aria-label="Responder"
       onSubmit={(evento) => {
         evento.preventDefault()
@@ -179,24 +188,27 @@ export function CajaDeRespuesta ({
           Tu respuesta
         </label>
         {fuente.predefinidas !== null && (
-          <MenuPredefinidas ruta={fuente.predefinidas} onElegir={(p) => { escribir(insertarPredefinida(mensaje, p.message)) }} />
+          <MenuPredefinidas ruta={fuente.predefinidas} onElegir={(p) => {
+            escribir(insertarPredefinida(mensaje, p.message))
+            setVersionDelEditor((version) => version + 1)
+          }} />
         )}
       </div>
-      <AreaTexto
+      <EditorRico
+        key={versionDelEditor}
         id={idCampo}
-        rows={4}
-        value={mensaje}
+        etiqueta="Tu respuesta"
+        valorInicial={mensaje}
+        maxCaracteres={tope}
         placeholder="Escribe tu respuesta."
         aria-describedby={`${idCampo}-atajo`}
         aria-invalid={fallo !== null || undefined}
-        onChange={(evento) => { escribir(evento.target.value) }}
-        onKeyDown={(evento) => {
-          if (evento.key !== 'Enter' || !(evento.ctrlKey || evento.metaKey)) return
-
-          evento.preventDefault()
-          void responder()
-        }}
+        autoenfocar
+        onCambio={escribir}
+        onEnviar={() => { void responder() }}
       />
+
+      <ArchivosParaAdjuntar archivos={archivos} onCambiar={setArchivos} deshabilitado={enviando} />
 
       {fallo !== null && <AvisoEnLinea variante="error" mensaje={fallo} className="text-sm" />}
 
@@ -204,6 +216,7 @@ export function CajaDeRespuesta ({
         <p id={`${idCampo}-atajo`} className="text-texto-sutil mr-auto text-xs">
           Ctrl o ⌘ + Enter para enviar
         </p>
+        {contador !== null && <p className="text-texto-tenue text-xs" aria-live="polite">{contador}</p>}
         {ofrecidos.length > 0 && (
           <Selector value={valorElegido} onValueChange={setElegido}>
             <DisparadorSelector aria-label="Estado al responder" className="w-auto min-w-48" />
@@ -215,7 +228,7 @@ export function CajaDeRespuesta ({
             </ContenidoSelector>
           </Selector>
         )}
-        <Boton type="submit" variante="primario" cargando={enviando} disabled={vacio || espera !== null}>
+        <Boton type="submit" variante="primario" cargando={enviando} disabled={vacio || excedido || espera !== null}>
           Responder
         </Boton>
       </div>
@@ -243,23 +256,23 @@ function SinRespuesta ({ ticket, nombre, escrito, fallo }: { ticket: TicketVista
         <p className="text-pretty">{avisoSinRespuesta(ticket.respuesta.motivo, nombre)}</p>
       </div>
       {fallo !== null && <AvisoEnLinea variante="error" mensaje={fallo} className="text-sm" />}
-      {escrito.trim() !== '' && (
+      {!htmlVacio(escrito) && (
         <>
-          <label htmlFor={`sin-enviar-${ticket.id}`} className="text-texto-tenue text-sm font-semibold">
+          <p id={`sin-enviar-${ticket.id}`} className="text-texto-tenue text-sm font-semibold">
             Lo que alcanzaste a escribir
-          </label>
-          <AreaTexto id={`sin-enviar-${ticket.id}`} readOnly value={escrito} rows={3} />
+          </p>
+          <Contenido
+            html={esHtml(escrito) ? escrito : null}
+            texto={escrito}
+            className="border-control-borde bg-superficie-hundida text-texto-tenue rounded-chico border px-3 py-2 text-sm"
+          />
         </>
       )}
     </section>
   )
 }
 
-type Predefinidas =
-  | { fase: 'sinPedir' }
-  | { fase: 'cargando' }
-  | { fase: 'error', mensaje: string }
-  | { fase: 'listo', lista: RespuestaPredefinida[] }
+type Predefinidas = ListaPerezosa<RespuestaPredefinida>
 
 /**
  * Menu para insertar una respuesta predefinida en la caja.
@@ -267,7 +280,7 @@ type Predefinidas =
  * Se piden al abrirlo, una vez por pestaña. Insertar suma al final de lo escrito, no lo reemplaza.
  */
 function MenuPredefinidas ({ ruta, onElegir }: { ruta: string, onElegir: (predefinida: RespuestaPredefinida) => void }): ReactElement {
-  const [predefinidas, setPredefinidas] = useState<Predefinidas>({ fase: 'sinPedir' })
+  const { estado: predefinidas, pedir } = useListaPerezosa(() => cargarPredefinidas(ruta), 'No se pudieron cargar.')
   const [busqueda, setBusqueda] = useState('')
 
   /** Pide la lista al abrir por primera vez, o de nuevo si la anterior fallo. */
@@ -277,14 +290,7 @@ function MenuPredefinidas ({ ruta, onElegir }: { ruta: string, onElegir: (predef
       return
     }
 
-    if (predefinidas.fase === 'listo' || predefinidas.fase === 'cargando') return
-
-    setPredefinidas({ fase: 'cargando' })
-    cargarPredefinidas(ruta)
-      .then((lista) => { setPredefinidas({ fase: 'listo', lista }) })
-      .catch((fallo: unknown) => {
-        setPredefinidas({ fase: 'error', mensaje: fallo instanceof Error ? fallo.message : 'No se pudieron cargar.' })
-      })
+    pedir()
   }
 
   return (
@@ -315,7 +321,7 @@ function CuerpoPredefinidas ({
   onElegir: (predefinida: RespuestaPredefinida) => void
 }): ReactElement {
   if (predefinidas.fase === 'error') {
-    return <p role="alert" className="text-texto-peligro px-2.5 py-2 text-sm">{predefinidas.mensaje}</p>
+    return <AvisoEnLinea variante="error" mensaje={predefinidas.mensaje} className="px-2.5 py-2 text-sm" />
   }
 
   if (predefinidas.fase !== 'listo') {

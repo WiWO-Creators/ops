@@ -6,7 +6,7 @@ import { Boton } from '@/componentes/formularios/Boton'
 import { Campo } from '@/componentes/formularios/Campo'
 import { Entrada } from '@/componentes/formularios/Entrada'
 import { Segmentado, type OpcionSegmentada } from '@/componentes/formularios/Segmentado'
-import { Cargando, ErrorEstado } from '@/componentes/estado/Estados'
+import { AvisoEnLinea, Cargando, ErrorEstado } from '@/componentes/estado/Estados'
 import {
   CerrarDialogo,
   ContenidoDialogo,
@@ -25,7 +25,9 @@ import {
 import { cuerpoMoverHito } from './hitos'
 import { AltaRapidaProceso } from './AltaRapidaProceso'
 import { CuerpoImportarTareas } from './ImportarTareas'
+import type { EstadoCarga } from './carga'
 import type { OpcionFiltro } from '@/definiciones/tipos'
+import { useAviso } from '@/componentes/estado/useAviso'
 
 /**
  * El "+" de la cabecera de una columna del kanban de Hitos.
@@ -50,12 +52,6 @@ const CAMINOS: readonly OpcionSegmentada[] = [
   { valor: 'importar', etiqueta: 'Traer de otro proyecto' }
 ]
 
-/** Lo que hace falta para pintar la lista de tareas sin hito. El error es un texto listo. */
-type CargaSueltas =
-  | { fase: 'cargando' }
-  | { fase: 'error', mensaje: string }
-  | { fase: 'listo', tareas: TareaCandidata[] }
-
 interface PropsAgregarAlHito {
   proyectoId: number
   /** Nombre del Proyecto que se esta mirando. Lo pide el camino de importar, que lo muestra. */
@@ -77,12 +73,13 @@ export function AgregarAlHito ({
   hito,
   onListo
 }: PropsAgregarAlHito): ReactElement {
+  const aviso = useAviso()
   const [abierto, setAbierto] = useState(false)
   const [creando, setCreando] = useState(false)
   const [camino, setCamino] = useState<'nueva' | 'existente' | 'importar'>('nueva')
 
   const [busqueda, setBusqueda] = useState('')
-  const [sueltas, setSueltas] = useState<CargaSueltas>({ fase: 'cargando' })
+  const [sueltas, setSueltas] = useState<EstadoCarga<TareaCandidata[]>>({ fase: 'cargando' })
   const [intento, setIntento] = useState(0)
 
   const [enCurso, setEnCurso] = useState(false)
@@ -99,7 +96,7 @@ export function AgregarAlHito ({
 
     void pedirSobre<TareaCandidata[]>(rutaTareasSinHito(proyectoId), control.signal)
       .then((sobre) => {
-        if (!control.signal.aborted) setSueltas({ fase: 'listo', tareas: sobre.data })
+        if (!control.signal.aborted) setSueltas({ fase: 'listo', datos: sobre.data })
       })
       .catch((fallo: unknown) => {
         if (control.signal.aborted) return
@@ -153,10 +150,12 @@ export function AgregarAlHito ({
       return
     }
 
+    const sumada = sueltas.fase === 'listo' ? sueltas.datos.find((tarea) => tarea.id === idTarea) : undefined
+    aviso.exito(`«${sumada?.name ?? `#${idTarea}`}» se sumó a «${hito.name}».`)
     await terminar()
   }
 
-  const candidatas = sueltas.fase === 'listo' ? filtrarCandidatas(sueltas.tareas, busqueda) : []
+  const candidatas = sueltas.fase === 'listo' ? filtrarCandidatas(sueltas.datos, busqueda) : []
 
   return (
     <Dialogo
@@ -179,7 +178,7 @@ export function AgregarAlHito ({
       </DisparadorDialogo>
 
       <ContenidoDialogo
-        titulo={`Agregar a "${hito.name}"`}
+        titulo={`Agregar a «${hito.name}»`}
         descripcion={`Crea una ${GLOSARIO.proceso.singular.toLowerCase()} nueva en este `
           + `${GLOSARIO.hito.singular.toLowerCase()}, suma una que hoy no tiene ninguno, o trae `
           + `todas las de otro ${GLOSARIO.espacio.singular.toLowerCase()}.`}
@@ -230,7 +229,7 @@ export function AgregarAlHito ({
                     <Entrada
                       value={busqueda}
                       onChange={(evento) => setBusqueda(evento.target.value)}
-                      placeholder="Parte del nombre"
+                      placeholder="Patente o parte del nombre"
                       {...props}
                     />
                   )}
@@ -250,7 +249,7 @@ export function AgregarAlHito ({
 
                 {sueltas.fase === 'listo' && candidatas.length === 0 && (
                   <p className="text-texto-sutil px-1 py-6 text-center text-xs">
-                    {sueltas.tareas.length === 0
+                    {sueltas.datos.length === 0
                       ? `No queda ninguna ${GLOSARIO.proceso.singular.toLowerCase()} sin ${GLOSARIO.hito.singular.toLowerCase()} en este ${GLOSARIO.espacio.singular.toLowerCase()}.`
                       : 'Ninguna coincide con lo que escribiste.'}
                   </p>
@@ -266,6 +265,9 @@ export function AgregarAlHito ({
                           className="w-full justify-start rounded-none text-left"
                           onClick={() => { void sumar(tarea.id) }}
                         >
+                          {tarea.patente != null && tarea.patente !== '' && (
+                            <span className="text-texto-sutil mr-2 font-mono text-xs">{tarea.patente}</span>
+                          )}
                           {tarea.name}
                         </Boton>
                       </li>
@@ -273,7 +275,7 @@ export function AgregarAlHito ({
                   </ul>
                 )}
 
-                {error !== null && <p role="alert" className="text-texto-peligro text-xs">{error}</p>}
+                {error !== null && <AvisoEnLinea variante="error" mensaje={error} />}
 
                 <div className="flex justify-end">
                   <CerrarDialogo asChild>

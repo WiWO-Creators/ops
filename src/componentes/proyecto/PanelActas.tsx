@@ -238,6 +238,7 @@ function ActasDelProyecto ({
           conIa={ia.activa}
           puedeCrearTareas={capacidadesTareas.includes('create')}
           destacarTareas={recienGenerada === abierta}
+          esSuperadmin={yo?.is_superadmin === true}
           onCambiada={recargar}
           onBorrada={() => {
             recargar()
@@ -360,6 +361,7 @@ function ActaAbierta ({
   conIa,
   puedeCrearTareas,
   destacarTareas,
+  esSuperadmin,
   onCambiada,
   onBorrada,
   onVolver
@@ -373,11 +375,12 @@ function ActaAbierta ({
   conIa: boolean
   puedeCrearTareas: boolean
   destacarTareas: boolean
+  esSuperadmin: boolean
   onCambiada: () => void
   onBorrada: () => void
   onVolver: () => void
 }): ReactElement {
-  const { estado, recargar } = useRecurso<Acta>(
+  const { estado, recargar, reemplazar } = useRecurso<Acta>(
     conId(fuente.acta, actaId),
     'No se pudo cargar el Meeting Paper.'
   )
@@ -401,8 +404,9 @@ function ActaAbierta ({
       conIa={conIa}
       puedeCrearTareas={puedeCrearTareas}
       destacarTareas={destacarTareas}
-      onCambiada={() => {
-        recargar()
+      esSuperadmin={esSuperadmin}
+      onCambiada={(actualizada) => {
+        reemplazar(actualizada)
         onCambiada()
       }}
       onBorrada={onBorrada}

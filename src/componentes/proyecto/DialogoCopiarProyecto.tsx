@@ -1,6 +1,7 @@
 'use client'
 
 import { useState } from 'react'
+import { AvisoEnLinea } from '@/componentes/estado/Estados'
 import { CerrarDialogo, ContenidoDialogo, Dialogo } from '@/componentes/superposiciones/Dialogo'
 import { Boton } from '@/componentes/formularios/Boton'
 import { Campo } from '@/componentes/formularios/Campo'
@@ -13,6 +14,7 @@ import type { Espacio } from '@/datos/recursos'
 import type { OpcionFiltro } from '@/definiciones/tipos'
 import { GLOSARIO } from '@/dominio/glosario'
 import { hoyLocal } from '@/lib/fechas'
+import { useAviso } from '@/componentes/estado/useAviso'
 
 /**
  * Copia de un Proyecto, con las mismas opciones que el panel viejo.
@@ -106,6 +108,7 @@ function FormularioCopia ({
   estadosDeTarea: OpcionFiltro[]
   onCopiado: () => void
 }) {
+  const aviso = useAviso()
   const [nombre, setNombre] = useState(`${espacio.name} (copia)`)
   const [cliente, setCliente] = useState(espacio.client === null ? '' : String(espacio.client.id))
   const [inicio, setInicio] = useState(hoyLocal())
@@ -144,6 +147,7 @@ function FormularioCopia ({
     setEnviando(false)
 
     if (resultado.ok) {
+      aviso.exito(`«${nombre.trim()}» se creó como copia de «${espacio.name}».`)
       onCopiado()
       return
     }
@@ -214,7 +218,7 @@ function FormularioCopia ({
       </Campo>
 
       {error !== null && (
-        <p role="alert" className="text-texto-peligro text-sm">{error}</p>
+        <AvisoEnLinea variante="error" mensaje={error} className="text-sm" />
       )}
 
       <div className="flex justify-end gap-2">

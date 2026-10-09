@@ -6,6 +6,7 @@ import { useEffect } from 'react'
 import { sembrarFijados, useFijados } from '@/componentes/fijados/almacen'
 import { claveDeElemento, hrefDeElemento, type ElementoPersonal, type Fijado, type Reciente } from '@/componentes/fijados/fijados'
 import { abrirPaleta } from '@/componentes/paleta/abrir'
+import { EntradaEscalonada } from '@/componentes/estructura/EntradaEscalonada'
 import { TituloModulo } from '@/componentes/estructura/TituloModulo'
 import { formatearRelativo } from '@/lib/fechas'
 
@@ -41,11 +42,11 @@ export function FijadosYRecientes ({ fijados: iniciales, recientes }: { fijados:
     <section className="flex flex-col gap-5">
       <TituloModulo nivel="h2" titulo="Fijados y recientes" acciones={<BotonBuscar />} />
 
-      <div className="grid gap-5 lg:grid-cols-5">
+      <EntradaEscalonada trasEntradaDePagina densa className="grid gap-5 lg:grid-cols-5">
         {fijados.length > 0 && (
           <ul aria-label="Fijados" className="grid content-start gap-3 sm:grid-cols-2 lg:col-span-3">
-            {fijados.map((fijado, orden) => (
-              <li key={claveDeElemento(fijado)} className="animate-entrar-abajo" style={{ animationDelay: `${Math.min(orden, 8) * 30}ms` }}>
+            {fijados.map((fijado) => (
+              <li key={claveDeElemento(fijado)} data-entrada="item">
                 <TarjetaFijado elemento={fijado} />
               </li>
             ))}
@@ -57,14 +58,14 @@ export function FijadosYRecientes ({ fijados: iniciales, recientes }: { fijados:
             <h3 className="text-texto-sutil mb-2 px-1 text-sm font-semibold">Abiertos hace poco</h3>
             <ul className="divide-linea border-linea bg-superficie-elevada rounded-tarjeta shadow-1 flex flex-col divide-y overflow-hidden border">
               {soloRecientes.map((reciente) => (
-                <li key={claveDeElemento(reciente)}>
+                <li key={claveDeElemento(reciente)} data-entrada="item">
                   <FilaReciente elemento={reciente} />
                 </li>
               ))}
             </ul>
           </div>
         )}
-      </div>
+      </EntradaEscalonada>
     </section>
   )
 }
@@ -89,7 +90,7 @@ function TarjetaFijado ({ elemento }: { elemento: Fijado }) {
   return (
     <Link
       href={hrefDeElemento(elemento)}
-      className="group border-linea bg-superficie-elevada rounded-tarjeta shadow-1 hover:border-linea-fuerte flex items-center gap-3 border px-4 py-3 transition-[border-color,transform] duration-150 ease-neo active:scale-[0.99]"
+      className="group border-linea bg-superficie-elevada rounded-tarjeta shadow-1 hover:border-linea-fuerte flex items-center gap-3 border px-4 py-3 transition-[border-color,transform] duration-rapida ease-neo active:scale-[0.99]"
     >
       <span className="bg-acento/10 text-acento rounded-control inline-flex size-9 shrink-0 items-center justify-center">
         <IconoDe elemento={elemento} />
@@ -112,7 +113,7 @@ function FilaReciente ({ elemento }: { elemento: Reciente }) {
   return (
     <Link
       href={hrefDeElemento(elemento)}
-      className="hover:bg-hover focus-visible:bg-hover flex items-center gap-3 px-4 py-3 transition-colors duration-150 ease-neo"
+      className="hover:bg-hover focus-visible:bg-hover flex items-center gap-3 px-4 py-3 transition-colors duration-rapida ease-neo"
     >
       <IconoDe elemento={elemento} className="text-texto-sutil shrink-0" />
       <span className="flex min-w-0 flex-1 flex-col">
@@ -132,7 +133,7 @@ function BotonBuscar () {
     <button
       type="button"
       onClick={abrirPaleta}
-      className="text-acento hover:bg-hover rounded-control flex items-center gap-1.5 px-3 py-2 text-base font-semibold transition-colors duration-150 ease-neo"
+      className="text-acento hover:bg-hover rounded-control flex items-center gap-1.5 px-3 py-2 text-base font-semibold transition-colors duration-rapida ease-neo"
     >
       <Search size={18} strokeWidth={2.25} aria-hidden="true" />
       Buscar o ir a

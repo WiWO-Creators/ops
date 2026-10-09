@@ -1,12 +1,16 @@
 import { notFound } from 'next/navigation'
-import type { ReactElement, ReactNode } from 'react'
+import type { ReactElement } from 'react'
 import { Logo } from '@/componentes/estructura/Logo'
+import { Contenido } from '@/componentes/presentadores/Contenido'
 import { Fecha } from '@/componentes/presentadores/Fecha'
 import { Etiquetas } from '@/componentes/presentadores/Etiqueta'
 import { Insignia } from '@/componentes/presentadores/Insignia'
 import { InsigniaDePrioridad } from '@/componentes/presentadores/InsigniaDePrioridad'
-import { BarraProgreso } from '@/componentes/proyecto/CabeceraProyecto'
+import { BarraProgreso } from '@/componentes/presentadores/BarraProgreso'
 import { CabeceraFichaTarea } from '@/componentes/proyecto/CabeceraFichaTarea'
+import {
+  Dato, MarcasDeControl, SeccionDeAdjuntos, SeccionDeComentarios, SeccionDeLectura, SIN_DATO
+} from '@/componentes/proyecto/ficha-de-lectura'
 import { llamarApiTipado } from '@/datos/api'
 import { ErrorApi } from '@/datos/errores'
 import { camposLegibles } from '@/dominio/campos-personalizados'
@@ -91,11 +95,14 @@ export default async function FichaPublicaDeTarea (props: PageProps<'/tarea/[tok
       </header>
 
       {tarea.description !== undefined && (
-        <Seccion titulo="Descripción">
-          {tarea.description === ''
-            ? <p className="text-texto-sutil text-sm">Sin descripción.</p>
-            : <p className="text-texto-tenue max-w-prose text-sm whitespace-pre-line">{tarea.description}</p>}
-        </Seccion>
+        <SeccionDeLectura titulo="Descripción" nivel={2}>
+          <Contenido
+            html={tarea.description_html}
+            texto={tarea.description}
+            className="text-texto-tenue max-w-prose text-sm"
+            vacio={<p className="text-texto-sutil text-sm">Sin descripción.</p>}
+          />
+        </SeccionDeLectura>
       )}
 
       <section
@@ -116,22 +123,10 @@ export default async function FichaPublicaDeTarea (props: PageProps<'/tarea/[tok
         <p className="text-texto-sutil text-xs">{avance.detalle}</p>
 
         {tarea.checklist !== undefined && tarea.checklist.length > 0 && (
-          <ul className="border-linea-suave mt-1 flex flex-col gap-1 border-t pt-3">
-            {tarea.checklist.map((item, indice) => (
-              <li key={indice} className="flex items-baseline gap-2 text-sm">
-                <span
-                  aria-hidden
-                  className={`w-3 shrink-0 text-center ${item.finished ? 'text-texto-exito' : 'text-texto-sutil'}`}
-                >
-                  {item.finished ? '✓' : '·'}
-                </span>
-                <span className={item.finished ? 'text-texto-tenue line-through' : 'text-texto'}>
-                  {item.description}
-                </span>
-                <span className="sr-only">{item.finished ? '(hecho)' : '(pendiente)'}</span>
-              </li>
-            ))}
-          </ul>
+          <MarcasDeControl
+            className="border-linea-suave mt-1 border-t pt-3"
+            items={tarea.checklist.map((item, indice) => ({ clave: indice, hecho: item.finished, texto: item.description }))}
+          />
         )}
       </section>
 
@@ -181,48 +176,28 @@ export default async function FichaPublicaDeTarea (props: PageProps<'/tarea/[tok
       </dl>
 
       {tarea.attachments !== undefined && (
-        <Seccion titulo="Archivos">
-          {tarea.attachments.length === 0
-            ? <p className="text-texto-sutil text-sm">Sin archivos adjuntos.</p>
-            : (
-              <ul className="flex flex-col gap-2">
-                {tarea.attachments.map((adjunto, indice) => (
-                  <li key={indice} className="rounded-chico border-linea border p-3 text-sm">
-                    {adjunto.url === null
-                      ? <span className="text-texto break-all">{adjunto.name}</span>
-                      : (
-                        <a href={adjunto.url} target="_blank" rel="noreferrer noopener" className="text-acento break-all underline underline-offset-4">
-                          {adjunto.name}
-                        </a>
-                        )}
-                  </li>
-                ))}
-              </ul>
-              )}
-        </Seccion>
+        <SeccionDeAdjuntos
+          nivel={2}
+          adjuntos={tarea.attachments.map((adjunto, indice) => ({ clave: indice, nombre: adjunto.name, url: adjunto.url }))}
+        />
       )}
 
       {tarea.comments !== undefined && (
-        <Seccion titulo="Comentarios">
-          {tarea.comments.length === 0
-            ? <p className="text-texto-sutil text-sm">Todavía no hay comentarios.</p>
-            : (
-              <ul className="flex flex-col gap-2">
-                {tarea.comments.map((comentario, indice) => (
-                  <li key={indice} className="rounded-chico border-linea bg-superficie-elevada flex flex-col gap-1 border p-3">
-                    <div className="flex flex-wrap items-baseline gap-x-2 text-xs">
-                      <span className="text-texto font-semibold">{comentario.author ?? 'Sin nombre'}</span>
-                      {comentario.from_client && <span className="text-texto-sutil">· Cliente</span>}
-                      {comentario.date_added !== null && (
-                        <span className="text-texto-sutil"><Fecha valor={comentario.date_added} conHora /></span>
-                      )}
-                    </div>
-                    <p className="text-texto-tenue text-sm break-words whitespace-pre-line">{comentario.content}</p>
-                  </li>
-                ))}
-              </ul>
-              )}
-        </Seccion>
+        <SeccionDeComentarios
+          nivel={2}
+          comentarios={tarea.comments.map((comentario, indice) => ({
+            clave: indice,
+            comentario: {
+              content: comentario.content,
+              html: comentario.content_html,
+              created: comentario.date_added,
+              author: comentario.author === null
+                ? null
+                : { full_name: comentario.author, es_cliente: comentario.from_client },
+              file: null
+            }
+          }))}
+        />
       )}
 
       <footer className="text-texto-sutil mt-auto flex items-center gap-2 pt-6 text-xs">
@@ -230,33 +205,5 @@ export default async function FichaPublicaDeTarea (props: PageProps<'/tarea/[tok
         <span>· Vista de sólo lectura</span>
       </footer>
     </main>
-  )
-}
-
-const SIN_DATO = '—'
-
-/** Una seccion opcional de la ficha, con su titulo. */
-function Seccion ({ titulo, children }: { titulo: string, children: ReactNode }): ReactElement {
-  return (
-    <section className="flex flex-col gap-2">
-      <h2 className="text-texto-tenue text-sm font-semibold">{titulo}</h2>
-      {children}
-    </section>
-  )
-}
-
-/**
- * Un par etiqueta/valor de la ficha, con la etiqueta en versalita.
- *
- * Es el mismo `Dato` que usa `DetalleTarea`, escrito de nuevo aca en vez de exportado desde alli: ese
- * archivo es `'use client'` y arrastra el detalle entero —catalogos, cronometros, arbol de Drive— a
- * una ruta anonima que no tiene sesion para pedir nada de eso.
- */
-function Dato ({ etiqueta, children }: { etiqueta: string, children: ReactNode }): ReactElement {
-  return (
-    <div className="flex min-w-0 flex-col gap-1">
-      <dt className="text-texto-sutil text-xs font-medium tracking-[0.08em] uppercase">{etiqueta}</dt>
-      <dd className="text-texto min-w-0 text-sm">{children}</dd>
-    </div>
   )
 }

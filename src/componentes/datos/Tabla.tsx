@@ -1,3 +1,4 @@
+import { EntradaEscalonada } from '@/componentes/estructura/EntradaEscalonada'
 import { cn } from '@/lib/clases'
 import { EtiquetadorDeTabla } from './EtiquetadorDeTabla'
 import type { PrioridadDeColumna } from './tarjetasDeTabla'
@@ -18,22 +19,37 @@ import type { PrioridadDeColumna } from './tarjetasDeTabla'
  *
  * @param tarjetas `false` mantiene la grilla con scroll lateral tambien en el telefono, para las
  *   tablas que son una matriz y no una lista (comparar filas entre si pierde sentido en tarjetas)
+ * Las filas del cuerpo entran escalonadas al montar, como las de `TablaRecurso`: el contenedor es
+ * una `EntradaEscalonada` que las busca por posicion, asi que quien arma la tabla no marca nada.
+ *
  * @param principales cuantas columnas forman el titulo de la tarjeta
+ * @param entrada `false` deja las filas sin entrada propia, para quien ya las anima desde afuera
+ *   —`TablaRecurso`, que repite la entrada al paginar y marca sus filas—
  */
 export function Tabla ({
   className,
   children,
   tarjetas = true,
   principales = 1,
+  entrada = true,
   ...resto
-}: React.TableHTMLAttributes<HTMLTableElement> & { tarjetas?: boolean, principales?: number }) {
-  return (
-    <div className={cn('border-linea rounded-tarjeta overflow-x-auto border', tarjetas && 'tabla-tarjetas')}>
+}: React.TableHTMLAttributes<HTMLTableElement> & { tarjetas?: boolean, principales?: number, entrada?: boolean }) {
+  const claseContenedor = cn('border-linea rounded-tarjeta overflow-x-auto border', tarjetas && 'tabla-tarjetas')
+  const contenido = (
+    <>
       <table className={cn('w-full border-collapse text-sm', className)} {...resto}>
         {children}
       </table>
       {tarjetas && <EtiquetadorDeTabla principales={principales} />}
-    </div>
+    </>
+  )
+
+  if (!entrada) return <div className={claseContenedor}>{contenido}</div>
+
+  return (
+    <EntradaEscalonada densa items=":scope > table > tbody > tr" className={claseContenedor}>
+      {contenido}
+    </EntradaEscalonada>
   )
 }
 
@@ -68,7 +84,7 @@ export function FilaTabla ({ interactiva = false, className, ...resto }: PropsFi
   return (
     <tr
       className={cn(
-        'transition-colors duration-150',
+        'transition-colors duration-rapida ease-neo',
         // El `has-[:focus-visible]` no es adorno: quien llega con el teclado enfoca el enlace de la
         // celda, no la fila, y sin esto la fila que se va a abrir es la unica que no se marca.
         interactiva && 'hover:bg-hover has-[:focus-visible]:bg-hover cursor-pointer',

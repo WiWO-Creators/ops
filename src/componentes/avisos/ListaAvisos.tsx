@@ -3,7 +3,7 @@
 import Link from 'next/link'
 import { useEffect, useState } from 'react'
 import { Avatar } from '@/componentes/presentadores/Avatar'
-import { Cargando, Vacio } from '@/componentes/estado/Estados'
+import { AvisoEnLinea, Cargando, Vacio } from '@/componentes/estado/Estados'
 import { pedirSobre } from '@/datos/cliente'
 import { AVISOS_POR_PAGINA, type Aviso } from '@/datos/avisos'
 import { rutaDeAviso } from '@/dominio/enlace-de-aviso'
@@ -50,7 +50,7 @@ export function ListaAvisos () {
       <p className="border-linea text-texto border-b px-3 py-2 text-sm font-semibold">Avisos</p>
 
       {error !== null && (
-        <p role="alert" className="text-texto-peligro text-pretty px-3 py-4 text-sm">{error}</p>
+        <AvisoEnLinea variante="error" mensaje={error} className="text-pretty px-3 py-4 text-sm" />
       )}
 
       {error === null && avisos === null && (

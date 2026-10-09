@@ -5,9 +5,11 @@
  * leer los nombres. Por eso vive en el ícono y en el fondo de su baldosa, a baja intensidad, y nunca
  * en el texto: la fila se lee en tinta como el resto del panel.
  *
- * Cada tono sale de la marca o de sus estados cuando hay uno cerca (azul, violeta, peligro, ok) y
- * tiene su pareja clara para el tema oscuro. Todos pasan 3:1 contra la tarjeta en los dos temas, que
- * es lo que pide un ícono (WCAG 1.4.11): no son texto.
+ * Cada tono sale de la marca o de sus tokens de estado cuando hay uno cerca (azul, violeta, peligro,
+ * éxito, aviso, texto sutil), que ya traen su pareja para el tema oscuro. Imagen, video, audio,
+ * comprimido, documento y carpeta de tarea no tienen tono en el sistema y declaran su pareja propia.
+ * Todos pasan 3:1 contra la tarjeta en los dos temas, que es lo que pide un ícono (WCAG 1.4.11): no
+ * son texto.
  */
 .tipo-drive {
   --tipo: var(--texto-tenue);
@@ -17,15 +19,15 @@
 
 .tipo-drive[data-tipo='carpeta'] { --tipo: light-dark(var(--wiwo-blue), var(--wiwo-blue-200)); }
 .tipo-drive[data-tipo='carpeta-tarea'] { --tipo: light-dark(#6a55e6, var(--wiwo-purple-300)); }
-.tipo-drive[data-tipo='pdf'] { --tipo: light-dark(#c3463d, #f08a80); }
+.tipo-drive[data-tipo='pdf'] { --tipo: var(--texto-peligro); }
 .tipo-drive[data-tipo='imagen'] { --tipo: light-dark(#a3399a, #e592dc); }
-.tipo-drive[data-tipo='hoja'] { --tipo: light-dark(var(--wiwo-ok), #6fd08a); }
+.tipo-drive[data-tipo='hoja'] { --tipo: var(--texto-exito); }
 .tipo-drive[data-tipo='documento'] { --tipo: light-dark(#2563c9, #8cb4ff); }
-.tipo-drive[data-tipo='presentacion'] { --tipo: light-dark(#b8620b, #ffb84d); }
+.tipo-drive[data-tipo='presentacion'] { --tipo: var(--texto-aviso); }
 .tipo-drive[data-tipo='video'] { --tipo: light-dark(#c2185b, #f48fb1); }
 .tipo-drive[data-tipo='audio'] { --tipo: light-dark(#0f7a72, #6fd6cb); }
 .tipo-drive[data-tipo='comprimido'] { --tipo: light-dark(#7a6340, #cdb58c); }
-.tipo-drive[data-tipo='texto'] { --tipo: light-dark(#5b5b66, #b9b9c4); }
+.tipo-drive[data-tipo='texto'] { --tipo: var(--texto-sutil); }
 
 /*
  * Destino de un arrastre. Se marca con un atributo y no con una clase condicional para que las tres

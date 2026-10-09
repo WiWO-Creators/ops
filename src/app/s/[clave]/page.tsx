@@ -1,11 +1,20 @@
 import { notFound } from 'next/navigation'
 import { pedir } from '@/datos/servidor'
 import { ErrorApi } from '@/datos/errores'
-import type { Estado } from './tipos'
+import type { Estado, Horario, TextosHorario } from './tipos'
 import { Tablero } from './Tablero'
 import './panel.css'
 
 export const metadata = { title: 'WiWO Ops' }
+
+type EstadoApi = Omit<Estado, 'horario'> & { rutina: Horario }
+
+const TEXTOS_HORARIO: TextosHorario = {
+  rotulo: 'Rutina',
+  interruptor: 'Rutina diaria',
+  nota: 'Lunes a viernes, a la hora fijada. Se salta los días omitidos, los que ya tienen registro y los '
+    + 'que pasaron más de una hora de la fijada.'
+}
 
 /**
  * El segmento no se valida aca y no hace falta: no es una credencial.
@@ -17,8 +26,8 @@ export default async function Pagina () {
   let estado: Estado
 
   try {
-    const sobre = await pedir<Estado>('/mantenimiento/estado')
-    estado = sobre.data
+    const { rutina: horario, ...resto } = (await pedir<EstadoApi>('/mantenimiento/estado')).data
+    estado = { ...resto, horario }
   } catch (error) {
     // La API contesta 404 a quien no entra, igual que a un recurso inexistente. Se respeta tal cual:
     // una pantalla de "sin permiso" diria que aca hay algo.
@@ -26,8 +35,15 @@ export default async function Pagina () {
     throw error
   }
 
-  // El camino de escritura viaja como prop y no escrito dentro de `Tablero`. `Tablero` es de
-  // cliente: cualquier literal suyo termina en un chunk servido como archivo estatico. Esto en
-  // cambio viaja en la carga RSC, que solo recibe quien ya entro.
-  return <Tablero estado={estado} escritura="/api/bff/mantenimiento/interruptores" />
+  // Los caminos de escritura y los textos de la rutina viajan como props y no escritos
+  // dentro de `Tablero`. `Tablero` es de cliente: cualquier literal suyo termina en un chunk servido
+  // como archivo estatico. Esto en cambio viaja en la carga RSC, que solo recibe quien ya entro.
+  return (
+    <Tablero
+      estado={estado}
+      escritura="mantenimiento/interruptores"
+      escrituraHorario="mantenimiento/rutina"
+      textosHorario={TEXTOS_HORARIO}
+    />
+  )
 }

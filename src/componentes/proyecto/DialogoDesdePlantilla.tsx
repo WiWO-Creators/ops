@@ -9,7 +9,7 @@ import {
   ContenidoSelector, DisparadorSelector, Opcion, Selector, SelectorBuscable
 } from '@/componentes/formularios/Selector'
 import { CerrarDialogo, ContenidoDialogo, Dialogo } from '@/componentes/superposiciones/Dialogo'
-import { Cargando, ErrorEstado, Vacio } from '@/componentes/estado/Estados'
+import { AvisoEnLinea, Cargando, ErrorEstado, Vacio } from '@/componentes/estado/Estados'
 import { escribirEnBff } from '@/componentes/datos/mutaciones'
 import type { Espacio, PlantillaEspacio, PlantillaEspacioDetallada } from '@/datos/recursos'
 import type { OpcionFiltro } from '@/definiciones/tipos'
@@ -18,6 +18,7 @@ import { formatearFecha, hoyLocal } from '@/lib/fechas'
 import { entregaPrevista, factorDeEscalado, previsualizarPlantilla } from '@/lib/plantillas'
 import { cn } from '@/lib/clases'
 import { useRecurso } from './carga'
+import { useAviso } from '@/componentes/estado/useAviso'
 
 /**
  * Alta de un {espacio} a partir de una plantilla.
@@ -71,6 +72,7 @@ interface PropsFormulario {
 
 function Formulario ({ plantillas, clientes, onCerrar }: PropsFormulario) {
   const router = useRouter()
+  const aviso = useAviso()
   const [plantillaId, setPlantillaId] = useState(String(plantillas[0]?.id ?? ''))
   const [nombre, setNombre] = useState('')
   const [cliente, setCliente] = useState('')
@@ -135,6 +137,7 @@ function Formulario ({ plantillas, clientes, onCerrar }: PropsFormulario) {
       return
     }
 
+    aviso.exito(`«${nombre.trim()}» se creó desde la plantilla.`)
     onCerrar()
     // Al {espacio} recien creado y no de vuelta al listado: lo que sigue es mirar los hitos que
     // acaban de nacer, y volver a una lista obliga a buscarlo entre los demas.
@@ -214,7 +217,7 @@ function Formulario ({ plantillas, clientes, onCerrar }: PropsFormulario) {
         previsualizacion={previsualizacion}
       />
 
-      {fallo !== null && <p role="alert" className="text-texto-peligro text-sm">{fallo}</p>}
+      {fallo !== null && <AvisoEnLinea variante="error" mensaje={fallo} className="text-sm" />}
 
       <div className="flex justify-end gap-2">
         <CerrarDialogo asChild>

@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState, type ReactElement } from 'react'
 import Link from 'next/link'
-import { usePathname, useRouter } from 'next/navigation'
+import { usePathname, useRouter, useSearchParams } from 'next/navigation'
 import { AreaTexto } from '@/componentes/formularios/Entrada'
 import { Boton } from '@/componentes/formularios/Boton'
 import { Cargando, ErrorEstado, Vacio } from '@/componentes/estado/Estados'
@@ -23,7 +23,7 @@ import {
   type FaseMensaje,
   type Mensaje
 } from '@/dominio/ia-chat'
-import { pantallaDeRuta } from '@/dominio/pantalla'
+import { actaAbiertaDeUrl, pantallaDeRuta, SUGERENCIAS_DE_ACTA } from '@/dominio/pantalla'
 import { TarjetaPreguntaIA } from './TarjetaPreguntaIA'
 import { TarjetaPropuestaIA } from './TarjetaPropuestaIA'
 import { MAXIMO_PREGUNTA_AGENTE } from '@/dominio/ia-ejecucion'
@@ -142,6 +142,9 @@ function ConversacionOrbe ({ desplazable = false, proyecto, configuracion }: Pro
   const conProyecto = proyectoId !== undefined
   const router = useRouter()
   const ruta = usePathname()
+  const parametros = useSearchParams()
+  // El acta que la persona está leyendo, solo en el chat del equipo fuera de un Proyecto fijo.
+  const actaId = proyectoId === undefined && sujeto === 'staff' ? actaAbiertaDeUrl(ruta, parametros) : null
   const [mensajes, setMensajes] = useState<Mensaje[]>(() => leerHilo(proyectoId, sujeto).mensajes)
   const [carga, setCarga] = useState<'cargando' | 'listo' | 'error'>(
     () => leerHilo(proyectoId, sujeto).cargado ? 'listo' : 'cargando'
@@ -239,7 +242,10 @@ function ConversacionOrbe ({ desplazable = false, proyecto, configuracion }: Pro
       // En el portal no viaja: el contacto no tiene pantallas del panel, y su contexto es el
       // `proyecto_id` que ya pone la configuracion.
       const pantalla = proyectoId === undefined && sujeto === 'staff' ? pantallaDeRuta(ruta) : null
-      const cuerpo = configuracion.cuerpo(texto, proyectoId, pantalla)
+      const cuerpo = {
+        ...configuracion.cuerpo(texto, proyectoId, pantalla),
+        ...(actaId === null ? {} : { acta_id: actaId })
+      }
 
       for await (const crudo of leerSSE(rutaEnvio, { cuerpo, senal: abortador.signal })) {
         const evento = leerEventoIA(crudo)
@@ -369,7 +375,7 @@ function ConversacionOrbe ({ desplazable = false, proyecto, configuracion }: Pro
             descripcion={textos.descripcion(proyecto === undefined ? undefined : proyecto.name ?? 'este proyecto')}
             accion={
               <div className="flex flex-wrap justify-center gap-2">
-                {textos.sugerencias.map((sugerencia) => (
+                {(actaId === null ? textos.sugerencias : SUGERENCIAS_DE_ACTA).map((sugerencia) => (
                   <Boton key={sugerencia} tamano="chico" onClick={() => setPregunta(sugerencia)}>
                     {sugerencia}
                   </Boton>
@@ -420,8 +426,8 @@ function ConversacionOrbe ({ desplazable = false, proyecto, configuracion }: Pro
           {confirmandoBorrado
             ? (
               <ConfirmacionEnLinea
-                advertencia={`Se borra la conversación entera, también la que ${ASISTENTE} recuerda.`}
-                etiquetaConfirmar="Borrar"
+                advertencia={`Se elimina la conversación entera, también la que ${ASISTENTE} recuerda.`}
+                etiquetaConfirmar="Eliminar"
                 cargando={borrando}
                 onCancelar={() => { setConfirmandoBorrado(false) }}
                 onConfirmar={() => { void borrar() }}
@@ -434,7 +440,7 @@ function ConversacionOrbe ({ desplazable = false, proyecto, configuracion }: Pro
                 disabled={enviando}
                 onClick={() => { setConfirmandoBorrado(true) }}
               >
-                Borrar chat
+                Eliminar chat
               </Boton>
               )}
         </div>
@@ -498,7 +504,7 @@ function ConversacionOrbe ({ desplazable = false, proyecto, configuracion }: Pro
 /** La burbuja de la persona: alineada a la derecha, sin citas y sin estados. */
 function BurbujaPersona ({ texto }: { texto: string }): ReactElement {
   return (
-    <li className="flex justify-end">
+    <li className="animate-aparecer flex justify-end">
       <p className="bg-relleno-neutro text-relleno-neutro-contenido rounded-tarjeta max-w-[85%] whitespace-pre-wrap px-3 py-2 text-sm">
         {texto}
       </p>
@@ -554,7 +560,7 @@ function BurbujaIA ({
     : { mensaje: configuracion.textos.buscando(conProyecto), estado: 'thinking' as const }
 
   return (
-    <li className="border-linea bg-superficie-hundida rounded-tarjeta flex flex-col gap-2 border p-3">
+    <li className="border-linea bg-superficie-hundida rounded-tarjeta animate-aparecer flex flex-col gap-2 border p-3">
       {esperando
         ? <CargandoConOrbe mensaje={indicador.mensaje} estado={indicador.estado} retardoMs={0} />
         : (
@@ -583,7 +589,7 @@ function BurbujaIA ({
       )}
 
       {mensaje.citas.length > 0 && (
-        <div className="flex flex-col gap-1">
+        <div className="animate-aparecer flex flex-col gap-1">
           <p className="text-texto-sutil text-xs font-medium">Fuentes</p>
           <ul className="flex flex-wrap gap-1.5">
             {mensaje.citas.map((cita, indice) => (
@@ -596,7 +602,7 @@ function BurbujaIA ({
       )}
 
       {configuracion.conPropuestas && mensaje.acciones.length > 0 && (
-        <ul aria-label="Acciones propuestas" className="flex flex-col gap-2">
+        <ul aria-label="Acciones propuestas" className="animate-aparecer flex flex-col gap-2">
           {mensaje.acciones.map((accion) => (
             <li key={accion.id}>
               <TarjetaPropuestaIA accion={accion} onResuelta={onAccionResuelta} proyectoId={proyectoId} />
@@ -606,7 +612,7 @@ function BurbujaIA ({
       )}
 
       {configuracion.conPropuestas && mensaje.preguntas.length > 0 && (
-        <ul aria-label={`Preguntas de ${ASISTENTE}`} className="flex flex-col gap-2">
+        <ul aria-label={`Preguntas de ${ASISTENTE}`} className="animate-aparecer flex flex-col gap-2">
           {mensaje.preguntas.map((pregunta, indice) => (
             <li key={indice}>
               <TarjetaPreguntaIA pregunta={pregunta} respuesta={respuesta} onResponder={onResponder} />

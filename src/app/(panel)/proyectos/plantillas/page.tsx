@@ -5,9 +5,8 @@ import { PantallaPlantillas } from '@/componentes/proyecto/PantallaPlantillas'
 import { TituloModulo } from '@/componentes/estructura/TituloModulo'
 import { RUTA_DE_ASIGNABLES } from '@/datos/asignables'
 import { cargarLookups } from '@/datos/lookups'
-import { pedir, pedirOpcional } from '@/datos/servidor'
+import { cargarYo, pedir, pedirOpcional } from '@/datos/servidor'
 import type { PersonaAsignable, PlantillaEspacio } from '@/datos/recursos'
-import type { Yo } from '@/datos/tipos'
 import { TITULO_PLANTILLAS } from '@/definiciones/plantillas'
 import { GLOSARIO } from '@/dominio/glosario'
 import { urlClasica } from '@/lib/panel-clasico'
@@ -24,7 +23,7 @@ export const metadata = { title: `${TITULO_PLANTILLAS} · WiWO Ops` }
 export default async function PlantillasPage () {
   const [lista, yo, lookups, equipo] = await Promise.all([
     pedir<PlantillaEspacio[]>('/project-templates'),
-    pedir<Yo>('/me'),
+    cargarYo(),
     cargarLookups(),
     // Misma fuente que el selector de asignados de la tarea: `/staff` exige `staff.view` —lo tienen
     // 19 de 184 personas— y cortaba en 100, asi que el selector de responsables no era el mismo para

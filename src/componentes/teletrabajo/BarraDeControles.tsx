@@ -193,7 +193,7 @@ export function BarraDeControles ({ lateral, alCambiarLateral, participantes, si
         >
           <MessageSquare size={18} aria-hidden="true" />
           {sinLeer > 0 && (
-            <span className="bg-relleno-peligro text-relleno-peligro-contenido absolute -top-1 -right-1 flex h-4 min-w-4 items-center justify-center rounded-control px-1 text-[10px] font-semibold">
+            <span className="bg-relleno-peligro text-relleno-peligro-contenido absolute -top-1 -right-1 flex h-4 min-w-4 items-center justify-center rounded-control px-1 text-micro font-semibold">
               {sinLeer}
             </span>
           )}

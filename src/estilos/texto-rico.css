@@ -1,0 +1,105 @@
+/*
+ * Texto enriquecido: la hoja que comparten el presentador (`presentadores/Contenido.tsx`) y el
+ * editor (`formularios/EditorRicoInterno.tsx`).
+ *
+ * Es la misma por la misma razon que `acta.css`: quien escribe tiene que ver lo que va a leer el
+ * otro. A diferencia del acta, esto es parte de la interfaz y no una hoja de papel, asi que usa los
+ * colores del tema (claro u oscuro) y el tamaño del texto de formulario, no el de un documento.
+ *
+ * Vive en un archivo porque lo que se estila son los nodos que producen el editor y el
+ * presentador (`h2`, `li`, `blockquote`), y escribirlo como variantes de Tailwind en cada vista
+ * seria repetir lo mismo en doce lugares.
+ *
+ * Va en `@layer components` para que las utilidades de Tailwind (`text-texto-tenue`, `text-sm`) que
+ * cada vista le suma al contenedor ganen: el color y el tamaño del texto los decide quien lo usa,
+ * esta hoja solo da forma a los bloques.
+ */
+
+@layer components {
+  .texto-rico {
+    overflow-wrap: anywhere;
+    text-wrap: pretty;
+  }
+
+  .texto-rico > :first-child {
+    margin-top: 0;
+  }
+
+  .texto-rico > :last-child {
+    margin-bottom: 0;
+  }
+
+  .texto-rico p {
+    margin: 0 0 0.6rem;
+  }
+
+  .texto-rico h2 {
+    margin: 1rem 0 0.4rem;
+    font-size: 1.05rem;
+    font-weight: 700;
+    line-height: 1.4;
+  }
+
+  .texto-rico h3 {
+    margin: 0.85rem 0 0.35rem;
+    font-size: 0.95rem;
+    font-weight: 700;
+    line-height: 1.4;
+  }
+
+  .texto-rico :is(strong, b) {
+    font-weight: 650;
+  }
+
+  .texto-rico :is(ul, ol) {
+    margin: 0 0 0.6rem;
+    padding-left: 1.4rem;
+  }
+
+  .texto-rico ul {
+    list-style: disc;
+  }
+
+  .texto-rico ol {
+    list-style: decimal;
+  }
+
+  .texto-rico li {
+    margin: 0.15rem 0;
+    padding-left: 0.2rem;
+  }
+
+  .texto-rico li > p {
+    margin: 0;
+  }
+
+  .texto-rico li::marker {
+    color: var(--texto-sutil);
+  }
+
+  .texto-rico blockquote {
+    margin: 0.6rem 0;
+    padding-left: 0.85rem;
+    border-left: 3px solid var(--linea-fuerte);
+    color: var(--texto-tenue);
+  }
+
+  .texto-rico a {
+    color: var(--acento);
+    text-decoration: underline;
+    text-underline-offset: 2px;
+  }
+
+  .texto-rico a:hover {
+    text-decoration-thickness: 2px;
+  }
+
+  /* El editor: el marcador de posicion lo pinta Placeholder en el primer parrafo vacio. */
+  .texto-rico-editor p.is-editor-empty:first-child::before {
+    content: attr(data-placeholder);
+    float: left;
+    height: 0;
+    color: var(--texto-sutil);
+    pointer-events: none;
+  }
+}

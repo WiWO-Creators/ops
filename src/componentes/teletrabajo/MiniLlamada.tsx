@@ -27,7 +27,7 @@ import { pistaDestacada } from './destacada'
  * pagina la taparia en sus primeros fotogramas al navegar, justo cuando aparece.
  */
 const FLOTANTE = cn(
-  'border-linea bg-superficie-flotante shadow-flotante rounded-tarjeta animate-entrar-abajo fixed z-50 border',
+  'border-linea bg-superficie-flotante shadow-flotante rounded-tarjeta animate-entrar-abajo fixed z-superposicion border',
   'bottom-[calc(1.5rem_+_var(--barra-inferior,0px))] right-[5.5rem] w-72 max-sm:w-56 max-w-[calc(100vw-6.5rem)]'
 )
 
@@ -89,7 +89,7 @@ export function MiniLlamada ({ titulo, miIdentidad, alVolver, alSalir }: PropsMi
       )}
 
       <div className="flex items-center gap-2 px-1">
-        <span className="bg-relleno-exito size-2 shrink-0 animate-pulse rounded-full" aria-hidden="true" />
+        <span className="bg-relleno-exito size-2 shrink-0 motion-safe:animate-pulse rounded-full" aria-hidden="true" />
         <p className="text-texto min-w-0 flex-1 truncate text-sm font-semibold">{titulo}</p>
         <span className="text-texto-tenue flex shrink-0 items-center gap-1 text-xs" title="Participantes">
           <Users size={14} aria-hidden="true" />

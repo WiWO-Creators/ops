@@ -3,8 +3,10 @@
 import Link from 'next/link'
 import { createPortal } from 'react-dom'
 import { useCallback, useEffect, useRef, useState, type ReactElement } from 'react'
+import { leerDelBff } from '@/componentes/datos/mutaciones'
 import { Avatar, type TamanoAvatar } from '@/componentes/presentadores/Avatar'
 import { cn } from '@/lib/clases'
+import { usePresencia } from '@/lib/usePresencia'
 import type { FichaPersona } from '@/datos/recursos'
 
 /** Cuanto tarda en desaparecer la tarjeta tras salir del disparador o de la tarjeta con el mouse. */
@@ -20,23 +22,13 @@ const cacheDeFichas = new Map<number, Promise<FichaPersona | null>>()
  * o un 500 no dicen nada sobre si la persona existe.
  *
  * @param id id de la persona (`GET /staff/{id}`).
- * @returns la ficha, o `null` si la peticion fallo.
+ * @returns la ficha, o `null` si la peticion fallo o agoto su tiempo.
  */
 function pedirFichaPersona (id: number): Promise<FichaPersona | null> {
   const enCache = cacheDeFichas.get(id)
   if (enCache !== undefined) return enCache
 
-  const promesa = (async (): Promise<FichaPersona | null> => {
-    try {
-      const respuesta = await fetch(`/api/bff/staff/${id}`)
-      if (!respuesta.ok) return null
-
-      const sobre = await respuesta.json() as { data: FichaPersona }
-      return sobre.data
-    } catch {
-      return null
-    }
-  })()
+  const promesa = leerDelBff<FichaPersona>(`staff/${id}`).then((resultado) => (resultado.ok ? resultado.datos : null))
 
   cacheDeFichas.set(id, promesa)
   // Un fallo se saca de la cache para permitir reintentar la proxima vez que se abra.
@@ -45,6 +37,9 @@ function pedirFichaPersona (id: number): Promise<FichaPersona | null> {
   return promesa
 }
 
+/** Lo que la mini-ficha muestra de `GET /staff/{id}`. */
+type MiniFicha = Pick<FichaPersona, 'cargo' | 'area' | 'email' | 'phonenumber'>
+
 interface PropsTarjetaFlotantePersona {
   id: number
   nombre: string
@@ -52,6 +47,8 @@ interface PropsTarjetaFlotantePersona {
   tamano?: TamanoAvatar
   /** `false` en una pila de avatares, donde el nombre ya se lee en el `sr-only` del grupo. */
   mostrarNombre?: boolean
+  /** Ficha ya conocida: con ella la tarjeta no pide nada al abrirse. La usa el taller. */
+  fichaInicial?: MiniFicha
   className?: string
 }
 
@@ -75,13 +72,15 @@ export function TarjetaFlotantePersona ({
   imagen = null,
   tamano = 'medio',
   mostrarNombre = true,
+  fichaInicial,
   className
 }: PropsTarjetaFlotantePersona): ReactElement {
   const disparadorRef = useRef<HTMLAnchorElement>(null)
   const cierrePendiente = useRef<ReturnType<typeof setTimeout> | null>(null)
   const [abierto, setAbierto] = useState(false)
+  const { montado, saliendo, alTerminarAnimacion } = usePresencia(abierto)
   const [posicion, setPosicion] = useState({ top: 0, left: 0 })
-  const [ficha, setFicha] = useState<FichaPersona | null | undefined>(undefined)
+  const [ficha, setFicha] = useState<MiniFicha | null | undefined>(fichaInicial)
 
   useEffect(() => () => {
     if (cierrePendiente.current !== null) clearTimeout(cierrePendiente.current)
@@ -153,17 +152,21 @@ export function TarjetaFlotantePersona ({
         {mostrarNombre && <span className="truncate">{nombre}</span>}
       </Link>
 
-      {/* `abierto` solo se enciende desde un evento del navegador (mouse, foco): para cuando esto es
+      {/* `montado` solo se enciende desde un evento del navegador (mouse, foco): para cuando esto es
           `true`, `document` ya existe. El chequeo evita el error del render en el servidor, que sí
           lo ejecuta con `abierto` siempre en `false`. */}
-      {abierto && typeof document !== 'undefined' && createPortal(
+      {montado && typeof document !== 'undefined' && createPortal(
         <div
           role="group"
           aria-label={`Ficha de ${nombre}`}
           onMouseEnter={cancelarCierre}
           onMouseLeave={programarCierre}
+          onAnimationEnd={alTerminarAnimacion}
           style={{ position: 'fixed', top: posicion.top, left: posicion.left }}
-          className="border-linea bg-superficie-flotante rounded-tarjeta shadow-flotante z-50 w-72 border p-4"
+          className={cn(
+            saliendo ? 'animate-salir-escala pointer-events-none' : 'animate-entrar-escala',
+            'border-linea bg-superficie-flotante rounded-tarjeta shadow-flotante z-superposicion w-72 origin-top-left border p-4'
+          )}
         >
           <ContenidoDeFicha nombre={nombre} imagen={imagen} ficha={ficha} />
         </div>,
@@ -181,7 +184,7 @@ function ContenidoDeFicha ({
 }: {
   nombre: string
   imagen: string | null
-  ficha: FichaPersona | null | undefined
+  ficha: MiniFicha | null | undefined
 }): ReactElement {
   return (
     <div className="flex flex-col gap-3">

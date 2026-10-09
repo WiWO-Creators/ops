@@ -1,4 +1,4 @@
-import { leerError } from './errores.ts'
+import { escribirEnBff } from '../componentes/datos/mutaciones.ts'
 import type { StaffReferencia } from './tipos.ts'
 import type { AsignadoConAutoria } from '../dominio/autoria-tarea.ts'
 import type { Escalon } from '../dominio/escalon.ts'
@@ -23,6 +23,8 @@ export interface Etiqueta {
 export interface Referencia {
   id: number
   name: string
+  /** Identificador visible (`PAT-001-07`); la API lo trae en Proyectos y Tareas. */
+  patente?: string | null
 }
 
 export interface CampoPersonalizado {
@@ -71,6 +73,11 @@ export interface Proceso {
    * una API sin la migracion no los manda.
    */
   deliverable?: boolean
+  /**
+   * Con qué sistema de WiWO se originó la Tarea (`[{ system, external_id, url }]`). Opcional y sin
+   * tipar a fondo: una API anterior no lo manda, y quien lo lee pasa por `leerVinculos`.
+   */
+  vinculos?: unknown
   deliverable_url?: string | null
   recurring: boolean
   repeat_every?: number
@@ -147,6 +154,11 @@ export interface Proceso {
   justificacion?: JustificacionDesviacion
   /** Solo en el detalle o con `include=description`. */
   description?: string
+  /**
+   * La descripcion como HTML saneado por la API (texto enriquecido, WIW-0632), tambien para filas
+   * viejas. Ausente en una API anterior: entonces se usa `description` como texto.
+   */
+  description_html?: string | null
   /** Solo con `include=custom_fields`, tanto en el listado como en la ficha. */
   custom_fields?: ValorCampoPersonalizado[]
 }
@@ -347,9 +359,17 @@ export interface Espacio {
    * del Proceso.
    */
   patente?: string | null
+  /**
+   * De que oportunidad comercial nacio el Espacio, o `null` si es un Proyecto corriente. Un upsell
+   * abierto solo viaja en el listado acotado a un cliente (`filter[clientid]`); en el resto de los
+   * listados esta oculto hasta que se gana. Ausente en las respuestas del portal.
+   */
+  oportunidad?: 'upsell' | 'licitacion' | null
   /** Imagen propia del proyecto; si es `null`, la interfaz usa el logo del cliente. */
   image_url: string | null
   description: string | null
+  /** La descripcion como HTML saneado (texto enriquecido). Ausente en una API anterior. */
+  description_html?: string | null
   status: number
   client: { id: number, company: string, image_url: string | null } | null
   billing_type: number
@@ -1165,6 +1185,8 @@ export interface ComentarioProceso {
   id: number
   task_id: number
   content: string
+  /** El comentario como HTML saneado (texto enriquecido). Ausente en una API anterior. */
+  content_html?: string | null
   staff: { id: number, full_name: string } | null
   date_added: string | null
 }
@@ -1477,6 +1499,8 @@ export interface ProcesoPublico {
   sections: SeccionEnlacePublico[]
   /** Texto plano: la API ya quito el HTML del editor. */
   description?: string
+  /** La descripcion como HTML saneado (texto enriquecido). Ausente en una API anterior. */
+  description_html?: string | null
   /** `null` si la Tarea no cuelga de un Proyecto. */
   project?: { name: string, client: string | null, milestone: string | null } | null
   /** Solo nombres completos. */
@@ -1489,7 +1513,14 @@ export interface ProcesoPublico {
   checklist?: Array<{ description: string, finished: boolean }>
   /** `url` solo en los externos (Drive, Dropbox); los archivos locales no se descargan sin sesion. */
   attachments?: Array<{ name: string, url: string | null }>
-  comments?: Array<{ author: string | null, from_client: boolean, content: string, date_added: string | null }>
+  comments?: Array<{
+    author: string | null
+    from_client: boolean
+    content: string
+    /** El comentario como HTML saneado (texto enriquecido). Ausente en una API anterior. */
+    content_html?: string | null
+    date_added: string | null
+  }>
 }
 
 /** Una tarjeta del resumen de tareas por estado (`GET /projects/{id}/tasks/summary`). */
@@ -1645,6 +1676,8 @@ export interface NotaEspacio {
   id: number
   title: string
   content: string | null
+  /** La nota como HTML saneado (texto enriquecido). Ausente en una API anterior. */
+  content_html?: string | null
   date_added: string | null
   staff_id: number
 }
@@ -1884,6 +1917,8 @@ export interface TicketDetalle extends TicketEspacio {
    * con un backend anterior: sin el, el modal convierte con la misma regla (`textoDeMensaje`).
    */
   message_texto?: string
+  /** El mensaje como HTML saneado (texto enriquecido). Ausente en una API anterior. */
+  message_html?: string | null
   /** El Proyecto del ticket; `null` en los que se abrieron sin uno. */
   project_id: number | null
 }
@@ -1933,6 +1968,8 @@ export interface RespuestaTicket {
   message: string | null
   /** Texto limpio de la API (contrato v2, A). Ver `TicketDetalle.message_texto`. */
   message_texto?: string
+  /** El mensaje como HTML saneado (texto enriquecido). Ausente en una API anterior. */
+  message_html?: string | null
   date: string | null
   autor: {
     tipo: 'staff' | 'contacto' | 'correo'
@@ -2376,7 +2413,7 @@ export interface PresetFiltro {
  * agrega un tipo nuevo, el compilador marca los lugares que no lo contemplan en vez de dejar que la
  * pantalla dibuje un control equivocado en silencio.
  */
-export type TipoDeAjuste = 'bool' | 'entero' | 'enum' | 'rol' | 'texto'
+export type TipoDeAjuste = 'bool' | 'entero' | 'enum' | 'rol' | 'texto' | 'fecha'
 
 /**
  * Una opcion editable con su dominio, tal como la publica `Recursos\RecursoAjustes::presentar()`.
@@ -2437,8 +2474,9 @@ export type ResultadoDeAjustes =
 /**
  * Escribe ajustes por el BFF (`PATCH /settings`).
  *
- * No usa `escribirEnBff()` por una sola razon: ese helper reduce el error a un mensaje y pierde el
- * `details` del 422, que aca es la unica forma de saber que clave rechazo la whitelist.
+ * Pasa por `escribirEnBff()` (limite de tiempo, clave de idempotencia y escritura incierta) y conserva
+ * el `details` del 422, que aca es la unica forma de saber que clave rechazo la whitelist. Si la
+ * respuesta se pierde, el mensaje dice que no se sabe si se guardo y no que fallo.
  *
  * La lectura no esta en este archivo sino en `ajustes.ts`: necesita `pedir()`, que es `server-only`,
  * y a `recursos.ts` lo importan tambien componentes de cliente.
@@ -2448,33 +2486,19 @@ export type ResultadoDeAjustes =
  * @returns Los ajustes releidos por la API, o el error ya legible con su detalle por campo.
  */
 export async function guardarAjustes (cambios: CambiosDeAjustes): Promise<ResultadoDeAjustes> {
-  let respuesta: Response
+  const resultado = await escribirEnBff<Ajustes | undefined>('settings', 'PATCH', cambios)
 
-  try {
-    respuesta = await fetch('/api/bff/settings', {
-      method: 'PATCH',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(cambios)
-    })
-  } catch {
-    return { ok: false, mensaje: 'No se pudo contactar al servidor. Revisa tu conexión.', detalles: {} }
+  if (!resultado.ok) {
+    return { ok: false, mensaje: resultado.mensaje, detalles: (resultado.detalles ?? {}) as Record<string, string[]> }
   }
 
-  if (!respuesta.ok) {
-    const error = await leerError(respuesta)
-
-    return { ok: false, mensaje: error.message, detalles: error.details ?? {} }
-  }
-
-  try {
-    const sobre = await respuesta.json() as { data: Ajustes }
-
-    return { ok: true, ajustes: sobre.data }
-  } catch {
-    // La API responde el cuerpo completo tambien en el PATCH. Si no llego, la escritura igual ocurrio:
-    // decir que fallo mandaria a repetirla.
+  // La API responde el cuerpo completo tambien en el PATCH. Si no llego, la escritura igual ocurrio:
+  // decir que fallo mandaria a repetirla.
+  if (resultado.datos === undefined) {
     return { ok: false, mensaje: 'Los ajustes se guardaron, pero la respuesta no se pudo leer. Recarga la pantalla.', detalles: {} }
   }
+
+  return { ok: true, ajustes: resultado.datos }
 }
 
 // frente: plantillas de Espacio

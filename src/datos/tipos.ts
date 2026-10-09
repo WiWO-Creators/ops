@@ -344,6 +344,11 @@ export interface YoPortal extends ContactoPortal {
    * Opcional solo para tolerar una API anterior a este campo durante el deploy.
    */
   suplantado_por?: { id: number, full_name: string } | null
+  /**
+   * Si el portal debe registrar lo que hace el contacto (`wiwo_portal_rastreo`). Ausente en una API
+   * anterior a la migracion 1160, y entonces no se registra: el endpoint tampoco existe.
+   */
+  rastreo?: boolean
   locale: string
 }
 

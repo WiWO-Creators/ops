@@ -1,14 +1,14 @@
-import Link from 'next/link'
+import { BotonVolver } from '@/componentes/estructura/BotonVolver'
 import { ErrorEstado, SinPermiso, Vacio } from '@/componentes/estado/Estados'
 import { BloqueCopiable } from '@/componentes/presentadores/BloqueCopiable'
 import { CodigoCopiable } from '@/componentes/presentadores/CodigoCopiable'
 import { Fecha } from '@/componentes/presentadores/Fecha'
+import { FirmaDeMarca } from '@/componentes/estructura/TituloModulo'
 import { Insignia } from '@/componentes/presentadores/Insignia'
 import { ErrorApi } from '@/datos/errores'
-import { pedir } from '@/datos/servidor'
+import { cargarYo, pedir } from '@/datos/servidor'
 import { describirFalla, describirOrigen, describirPeticion, describirSujeto } from '@/dominio/incidentes'
 import type { IncidenteConTraza } from '@/datos/recursos'
-import type { Yo } from '@/datos/tipos'
 
 export const metadata = { title: 'Incidente · WiWO Ops' }
 
@@ -45,12 +45,7 @@ function NoEncontrado () {
 
 function VolverAlListado () {
   return (
-    <Link
-      href="/administracion/incidentes"
-      className="text-texto-tenue hover:text-texto w-fit text-sm transition-colors"
-    >
-      ← Volver a incidentes
-    </Link>
+    <BotonVolver href="/administracion/incidentes" etiqueta="Volver a incidentes" />
   )
 }
 
@@ -77,7 +72,7 @@ function VolverAlListado () {
  * superadministrador, y entrar por URL directa tampoco tiene que pintar nada.
  */
 export default async function IncidentePage (props: PageProps<'/administracion/incidentes/[incidente]'>) {
-  const { data: yo } = await pedir<Yo>('/me')
+  const { data: yo } = await cargarYo()
 
   if (!yo.is_superadmin) return <SinPermiso className="mt-10" />
 
@@ -104,17 +99,18 @@ export default async function IncidentePage (props: PageProps<'/administracion/i
     <section className="flex max-w-3xl flex-col gap-6">
       <VolverAlListado />
 
-      <div className="flex flex-col gap-3">
+      <header className="flex flex-col gap-3">
         <Insignia tono={origen.tono} tamano="chico" className="w-fit">{origen.etiqueta}</Insignia>
 
         <h1 className="text-texto text-seccion font-bold text-balance">{falla.titular}</h1>
+        <FirmaDeMarca />
 
         {/* El texto que la persona vio de verdad. Va grande y sin caja: es lo único de esta
             pantalla que se lee palabra por palabra. */}
         {falla.detalle !== null && (
           <p className="text-texto-tenue max-w-prose text-base leading-relaxed text-pretty">{falla.detalle}</p>
         )}
-      </div>
+      </header>
 
       {/* Quién, cuándo y dónde en una frase, no en tres campos: leídos juntos cuentan el episodio,
           y por separado obligan a armarlo en la cabeza. */}
@@ -146,8 +142,8 @@ export default async function IncidentePage (props: PageProps<'/administracion/i
 function Tecnico ({ incidente, estado }: { incidente: IncidenteConTraza, estado: string | null }) {
   return (
     <details className="border-linea rounded-tarjeta group border">
-      <summary className="text-texto-tenue hover:text-texto cursor-pointer list-none p-4 text-sm font-medium transition-colors">
-        <span className="inline-block transition-transform group-open:rotate-90">›</span>
+      <summary className="text-texto-tenue hover:text-texto cursor-pointer list-none p-4 text-sm font-medium transition-colors duration-rapida ease-neo">
+        <span className="ease-neo inline-block transition-transform duration-rapida group-open:rotate-90">›</span>
         {' '}
         Detalle técnico
       </summary>

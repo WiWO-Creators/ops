@@ -2,6 +2,7 @@
 
 import { useRouter } from 'next/navigation'
 import { useState, type ReactElement } from 'react'
+import { AvisoEnLinea } from '@/componentes/estado/Estados'
 import { Boton } from '@/componentes/formularios/Boton'
 import { Dialogo, ContenidoDialogo } from '@/componentes/superposiciones/Dialogo'
 import {
@@ -12,7 +13,6 @@ import {
   SeparadorMenu
 } from '@/componentes/superposiciones/MenuContextual'
 import { escribirEnBff } from '@/componentes/datos/mutaciones'
-import { mensajeDeRespuesta } from '@/datos/cliente'
 import { GLOSARIO } from '@/dominio/glosario'
 import { DialogoEliminarProyecto } from './DialogoEliminarProyecto'
 import { FormularioRecurso } from './FormularioRecurso'
@@ -21,6 +21,7 @@ import { DistintivoSolicitud, SolicitarEliminacion } from './SolicitudDeEliminac
 import type { CampoFormulario } from './formulario'
 import type { Espacio } from '@/datos/recursos'
 import type { Capacidad } from '@/datos/tipos'
+import { useAviso } from '@/componentes/estado/useAviso'
 
 /**
  * Menu "Más" de la cabecera del Proyecto: editar, copiar, marcar como, exportar y eliminar.
@@ -61,7 +62,7 @@ interface PropsMenuProyecto {
 function camposDeEdicion (): CampoFormulario[] {
   return [
     { clave: 'name', etiqueta: 'Nombre', tipo: 'texto', requerido: true, maximo: 600 },
-    { clave: 'description', etiqueta: 'Descripción', tipo: 'area' },
+    { clave: 'description', etiqueta: 'Descripción', tipo: 'rico' },
     { clave: 'start_date', etiqueta: 'Fecha de inicio', tipo: 'fecha' },
     { clave: 'deadline', etiqueta: 'Fecha límite', tipo: 'fecha' },
     { clave: 'estimated_hours', etiqueta: 'Horas estimadas', tipo: 'numero' }
@@ -95,6 +96,7 @@ export function MenuProyecto ({
   esAdmin = false
 }: PropsMenuProyecto): ReactElement {
   const router = useRouter()
+  const aviso = useAviso()
   const [editando, setEditando] = useState(false)
   const [copiando, setCopiando] = useState(false)
   const [borrando, setBorrando] = useState(false)
@@ -134,30 +136,32 @@ export function MenuProyecto ({
     setEnCurso(true)
     setFallo(null)
 
-    try {
-      const respuesta = await fetch(
-        `/api/bff/projects/${proyecto.id}/actions/${archivar ? 'archive' : 'unarchive'}`,
-        { method: 'POST', headers: { accept: 'application/json' } }
-      )
+    const resultado = await escribirEnBff(`projects/${proyecto.id}/actions/${archivar ? 'archive' : 'unarchive'}`, 'POST')
 
-      if (!respuesta.ok) {
-        setFallo(await mensajeDeRespuesta(respuesta))
-        return
-      }
+    setEnCurso(false)
 
-      setArchivando(false)
-
-      if (archivar) {
-        router.push('/proyectos')
-        return
-      }
-
-      router.refresh()
-    } catch {
-      setFallo(`No se pudo ${archivar ? 'archivar' : 'desarchivar'}: revisa la conexión.`)
-    } finally {
-      setEnCurso(false)
+    if (!resultado.ok && resultado.incierta !== true) {
+      setFallo(resultado.mensaje)
+      return
     }
+
+    setArchivando(false)
+
+    if (!resultado.ok) {
+      // No se sabe si quedo: se vuelve a leer la ficha, que dice como esta de verdad.
+      aviso.advertencia(resultado.mensaje)
+      router.refresh()
+      return
+    }
+
+    aviso.exito(archivar ? `«${proyecto.name}» quedó archivado.` : `«${proyecto.name}» volvió a estar activo.`)
+
+    if (archivar) {
+      router.push('/proyectos')
+      return
+    }
+
+    router.refresh()
   }
 
   /**
@@ -180,11 +184,20 @@ export function MenuProyecto ({
 
     setEnCurso(false)
 
-    if (!resultado.ok) {
+    if (!resultado.ok && resultado.incierta !== true) {
       setFallo(resultado.mensaje)
       return
     }
 
+    if (!resultado.ok) {
+      // No se sabe si quedo: la lista de Procesos la pinta el servidor, asi que se vuelve a pedir.
+      aviso.advertencia(resultado.mensaje)
+      setCambiandoVisibilidad(false)
+      router.refresh()
+      return
+    }
+
+    aviso.exito(abrir ? `En «${proyecto.name}» ahora se ven todas las ${GLOSARIO.proceso.plural.toLowerCase()}.` : `En «${proyecto.name}» cada quien ve solo sus ${GLOSARIO.proceso.plural.toLowerCase()}.`)
     setCambiandoVisibilidad(false)
     router.refresh()
   }
@@ -207,11 +220,20 @@ export function MenuProyecto ({
 
     setEnCurso(false)
 
-    if (!resultado.ok) {
+    if (!resultado.ok && resultado.incierta !== true) {
       setFallo(resultado.mensaje)
       return
     }
 
+    if (!resultado.ok) {
+      // No se sabe si salio: la ficha vuelve a leerse y dice si todavia eres parte del equipo.
+      aviso.advertencia(resultado.mensaje)
+      setSaliendo(false)
+      router.refresh()
+      return
+    }
+
+    aviso.exito(`Saliste del equipo de «${proyecto.name}».`)
     setSaliendo(false)
     router.push('/proyectos')
   }
@@ -333,7 +355,7 @@ export function MenuProyecto ({
           enlace directo tiene que enterarse de que este Proyecto esta esperando una decision. */}
       <DistintivoSolicitud solicitud={solicitud} />
 
-      {fallo !== null && <span role="alert" className="text-texto-peligro text-xs">{fallo}</span>}
+      {fallo !== null && <AvisoEnLinea variante="error" mensaje={fallo} elemento="span" />}
 
       <FormularioRecurso
         abierto={editando}
@@ -342,7 +364,7 @@ export function MenuProyecto ({
         campos={camposDeEdicion()}
         ruta={`projects/${proyecto.id}`}
         metodo="PATCH"
-        registro={proyecto as unknown as Record<string, unknown>}
+        registro={proyecto}
         onGuardado={() => { router.refresh() }}
       />
 
@@ -350,10 +372,11 @@ export function MenuProyecto ({
         abierto={copiando}
         onAbiertoCambia={setCopiando}
         titulo={`Copiar ${GLOSARIO.espacio.singular.toLowerCase()}`}
-        descripcion="Se crea un proyecto nuevo con lo que elijas copiar."
+        descripcion={`Se crea un ${GLOSARIO.espacio.singular.toLowerCase()} nuevo con lo que elijas copiar.`}
         campos={camposDeCopia()}
         ruta={`projects/${proyecto.id}/actions/copy`}
         metodo="POST"
+        etiquetaEnviar={`Copiar ${GLOSARIO.espacio.singular.toLowerCase()}`}
         registro={{
           name: `${proyecto.name} (copia)`,
           clientid: proyecto.client?.id ?? '',
@@ -421,7 +444,7 @@ export function MenuProyecto ({
           ancho="chico"
         >
           {fallo !== null && (
-            <p role="alert" className="text-texto-peligro mb-3 text-sm">{fallo}</p>
+            <AvisoEnLinea variante="error" mensaje={fallo} className="mb-3 text-sm" />
           )}
 
           <div className="flex justify-end gap-2">
@@ -440,7 +463,7 @@ export function MenuProyecto ({
       <Dialogo open={saliendo} onOpenChange={setSaliendo}>
         <ContenidoDialogo
           titulo={`Salir del ${GLOSARIO.espacio.singular.toLowerCase()}`}
-          descripcion={`Dejás de ser parte del equipo de "${proyecto.name}". Si no tenés permiso `
+          descripcion={`Dejas de ser parte del equipo de "${proyecto.name}". Si no tienes permiso `
             + `para ver todos los ${GLOSARIO.espacio.plural.toLowerCase()}, este va a dejar de `
             + 'aparecerte y vas a necesitar que alguien te vuelva a sumar.'}
           ancho="chico"
@@ -448,7 +471,7 @@ export function MenuProyecto ({
           {/* El error se repite aca dentro y no solo bajo el boton "Mas": el dialogo tapa la
               cabecera, y el 422 de las tareas abiertas es justo lo que hay que leer. */}
           {fallo !== null && (
-            <p role="alert" className="text-texto-peligro mb-3 text-sm">{fallo}</p>
+            <AvisoEnLinea variante="error" mensaje={fallo} className="mb-3 text-sm" />
           )}
 
           <div className="flex justify-end gap-2">

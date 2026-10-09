@@ -1,8 +1,11 @@
 'use client'
 
 import { Fragment, useState, type ReactElement, type ReactNode } from 'react'
+import { escribirEnBff } from '@/componentes/datos/mutaciones'
+import { AvisoEnLinea } from '@/componentes/estado/Estados'
 import { Boton } from '@/componentes/formularios/Boton'
 import { Campo } from '@/componentes/formularios/Campo'
+import { EditorRico } from '@/componentes/formularios/EditorRico'
 import { AreaTexto, Entrada } from '@/componentes/formularios/Entrada'
 import { SelectorEtiquetas } from '@/componentes/formularios/SelectorEtiquetas'
 import {
@@ -12,17 +15,21 @@ import {
   Selector
 } from '@/componentes/formularios/Selector'
 import { Dialogo, ContenidoDialogo } from '@/componentes/superposiciones/Dialogo'
-import { mensajeDeRespuesta } from '@/datos/cliente'
+import { textoPlano } from '@/dominio/texto-rico'
 import { cn } from '@/lib/clases'
 import { aFechaDelContrato, aFechaLocal, enmascararFechaLocal } from '@/lib/fechas'
 import { AsistenteDescripcion } from './AsistenteDescripcion'
+import { useClaveEstable } from './clave-estable'
 import {
+  avisoDeGuardado,
   cuerpoDelFormulario,
+  etiquetaDeEnvio,
   validarFormulario,
   valoresIniciales,
   type CampoFormulario,
   type ValoresFormulario
 } from './formulario'
+import { useAviso } from '@/componentes/estado/useAviso'
 
 /**
  * Formulario de alta y edicion, generico y en dialogo.
@@ -35,7 +42,7 @@ import {
  * reimplementan.
  */
 
-interface PropsFormulario {
+interface PropsFormulario<T extends object> {
   abierto: boolean
   onAbiertoCambia: (abierto: boolean) => void
   titulo: string
@@ -45,7 +52,7 @@ interface PropsFormulario {
   ruta: string
   metodo: 'POST' | 'PATCH'
   /** Registro a editar, o `null` para un alta. Se lee por las claves de los campos. */
-  registro?: Record<string, unknown> | null
+  registro?: T | null
   /** Se llama despues de guardar bien, para que la pestaña recargue su listado. */
   onGuardado: () => void
   /**
@@ -74,9 +81,16 @@ interface PropsFormulario {
    * cuerpo ya armado y devuelve el mensaje de error a mostrar, o `null` si todo se guardo.
    */
   enviar?: (cuerpo: Record<string, unknown>) => Promise<string | null>
+  /**
+   * Texto del aviso de exito al guardar. Por defecto nombra el registro con «» (`avisoDeGuardado`);
+   * `null` lo apaga, para quien confirma de otra manera.
+   */
+  avisoExito?: string | null
+  /** Texto del boton de envio. Por defecto `etiquetaDeEnvio`: «Crear X» en un alta, «Guardar cambios» en una edicion. */
+  etiquetaEnviar?: string
 }
 
-export function FormularioRecurso ({
+export function FormularioRecurso<T extends object> ({
   abierto,
   onAbiertoCambia,
   titulo,
@@ -89,12 +103,16 @@ export function FormularioRecurso ({
   columnas = 1,
   ancho = 'medio',
   pie,
-  enviar: enviarPropio
-}: PropsFormulario): ReactElement {
+  enviar: enviarPropio,
+  avisoExito,
+  etiquetaEnviar
+}: PropsFormulario<T>): ReactElement {
+  const aviso = useAviso()
   const [valores, setValores] = useState<ValoresFormulario>(() => valoresIniciales(campos, registro))
   const [errores, setErrores] = useState<Record<string, string>>({})
   const [fallo, setFallo] = useState<string | null>(null)
   const [guardando, setGuardando] = useState(false)
+  const clave = useClaveEstable()
 
   // Al abrir se vuelve a sembrar: el dialogo se reusa para altas y ediciones, y conservar lo que
   // quedo escrito de la vez anterior haria guardar datos de otro registro. Se hace en el render y no
@@ -138,18 +156,20 @@ export function FormularioRecurso ({
           return
         }
       } else {
-        const respuesta = await fetch(`/api/bff/${ruta}`, {
-          method: metodo,
-          headers: { 'content-type': 'application/json', accept: 'application/json' },
-          body: JSON.stringify(cuerpo)
-        })
+        const resultado = await escribirEnBff(ruta, metodo, cuerpo, { idempotencia: clave.claveDe([metodo, ruta, cuerpo]) })
 
-        if (!respuesta.ok) {
-          setFallo(await mensajeDeRespuesta(respuesta))
+        if (!resultado.ok) {
+          // Sin respuesta no se sabe si quedo: el formulario sigue intacto y el mensaje no afirma lo contrario.
+          if (resultado.incierta === true) tratarEnvioIncierto(resultado.mensaje)
+          else setFallo(resultado.mensaje)
+
           return
         }
+
+        clave.olvidar()
       }
 
+      if (avisoExito !== null) aviso.exito(avisoExito ?? avisoDeGuardado(metodo, cuerpo, registro))
       onAbiertoCambia(false)
       onGuardado()
     } catch {
@@ -157,6 +177,19 @@ export function FormularioRecurso ({
     } finally {
       setGuardando(false)
     }
+  }
+
+  /**
+   * Un envio del que no llego respuesta: avisa sin decir que no se guardo y, si era una edicion, vuelve a pedir lo real.
+   *
+   * Un alta no recarga ni cierra: el formulario queda para reintentar con la misma clave.
+   *
+   * @param mensaje la frase de la escritura incierta
+   */
+  function tratarEnvioIncierto (mensaje: string): void {
+    setFallo(mensaje)
+    aviso.advertencia(mensaje)
+    if (metodo !== 'POST') onGuardado()
   }
 
   return (
@@ -167,7 +200,7 @@ export function FormularioRecurso ({
             {campos.map((campo) => (
               <Fragment key={campo.clave}>
                 {campo.seccion !== undefined && (
-                  <h3 className="text-texto-tenue border-linea-suave mt-2 border-b pb-1 text-xs font-semibold tracking-wide uppercase sm:col-span-full">
+                  <h3 className="text-texto-tenue border-linea-suave mt-2 border-b pb-1 text-xs antetitulo sm:col-span-full">
                     {campo.seccion}
                   </h3>
                 )}
@@ -186,14 +219,14 @@ export function FormularioRecurso ({
           {pie?.(valores)}
 
           {fallo !== null && (
-            <p role="alert" className="text-texto-peligro text-sm">{fallo}</p>
+            <AvisoEnLinea variante="error" mensaje={fallo} className="text-sm" />
           )}
 
           <div className="flex justify-end gap-2">
             <Boton type="button" variante="sutil" onClick={() => { onAbiertoCambia(false) }}>
               Cancelar
             </Boton>
-            <Boton type="submit" variante="primario" cargando={guardando}>Guardar</Boton>
+            <Boton type="submit" variante="primario" cargando={guardando}>{etiquetaEnviar ?? etiquetaDeEnvio(metodo, titulo)}</Boton>
           </div>
         </form>
       </ContenidoDialogo>
@@ -255,6 +288,57 @@ interface PropsControl {
 }
 
 /**
+ * El campo `rico`: un `EditorRico` con el asistente de redaccion debajo, igual que el `area`.
+ *
+ * Es un componente aparte porque necesita estado propio —la `key` con la que se remonta el editor
+ * cuando el asistente escribe—, y `ControlDeCampo` decide por tipo con retornos tempranos, donde un
+ * hook no cabe.
+ *
+ * @param props los mismos de `ControlDeCampo`
+ */
+function ControlRico (
+  { campo, valor, error, alCambiar, titulo = '', proyectoId = null }: PropsControl
+): ReactElement {
+  const [version, setVersion] = useState(0)
+  const html = typeof valor === 'string' ? valor : ''
+
+  return (
+    <div className="flex flex-col gap-2">
+      <Campo
+        etiqueta={campo.etiqueta}
+        requerido={campo.requerido}
+        {...(campo.ayuda === undefined ? {} : { ayuda: campo.ayuda })}
+        {...(error === undefined ? {} : { error })}
+      >
+        {(props) => (
+          <EditorRico
+            {...props}
+            key={version}
+            etiqueta={campo.etiqueta}
+            valorInicial={html}
+            onCambio={alCambiar}
+          />
+        )}
+      </Campo>
+
+      {campo.sinAsistenteIa !== true && (
+        <div className="flex justify-end">
+          <AsistenteDescripcion
+            titulo={titulo}
+            descripcionActual={html}
+            proyectoId={proyectoId}
+            onRedactada={(redactado) => {
+              alCambiar(redactado)
+              setVersion((actual) => actual + 1)
+            }}
+          />
+        </div>
+      )}
+    </div>
+  )
+}
+
+/**
  * Dibuja el control que corresponde al tipo del campo.
  *
  * Se usan controles nativos (`<input type="color">`, `<input type="checkbox">`) en vez de widgets
@@ -309,7 +393,7 @@ export function ControlDeCampo (
           ))}
           {campo.opciones?.length === 0 && <p className="text-texto-sutil text-xs">No hay opciones disponibles.</p>}
         </div>
-        {error !== undefined && <p role="alert" className="text-texto-peligro text-xs">{error}</p>}
+        {error !== undefined && <AvisoEnLinea variante="error" mensaje={error} />}
       </fieldset>
     )
   }
@@ -379,6 +463,10 @@ export function ControlDeCampo (
     )
   }
 
+  if (campo.tipo === 'rico') {
+    return <ControlRico campo={campo} valor={valor} error={error} alCambiar={alCambiar} titulo={titulo} proyectoId={proyectoId} />
+  }
+
   if (campo.tipo === 'area') {
     // Un solo bloque y no un fragmento: en un formulario de dos columnas el asistente caia en la
     // celda siguiente de la rejilla, lejos de la caja que redacta.
@@ -409,7 +497,8 @@ export function ControlDeCampo (
               titulo={titulo}
               descripcionActual={texto}
               proyectoId={proyectoId}
-              onRedactada={(redactado) => { alCambiar(redactado) }}
+              // El asistente devuelve HTML; este campo es texto plano.
+              onRedactada={(redactado) => { alCambiar(textoPlano(redactado)) }}
             />
           </div>
         )}

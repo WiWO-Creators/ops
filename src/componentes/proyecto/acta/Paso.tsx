@@ -1,4 +1,5 @@
 import { ChevronDown } from 'lucide-react'
+import { Plegable } from '@/componentes/estructura/Plegable'
 import { cn } from '@/lib/clases'
 import type { ReactElement, ReactNode } from 'react'
 
@@ -58,7 +59,7 @@ export function Paso ({ numero, titulo, insignia, resumen, plegable, children, c
   )
 
   return (
-    <section className={cn('flex flex-col gap-3', className)}>
+    <section className={cn('flex flex-col', plegable === undefined && 'gap-3', className)}>
       {/* El `-m-1.5` del encabezado con el `p-1.5` del botón agrandan el área de clic hacia afuera,
           así el texto del paso plegable sigue alineado con el del paso que no lo es. */}
       <h3 className={cn('text-sm font-semibold', plegable !== undefined && '-m-1.5')}>
@@ -85,12 +86,9 @@ export function Paso ({ numero, titulo, insignia, resumen, plegable, children, c
             )}
       </h3>
 
-      {/* Plegado se oculta con el atributo `hidden` en vez de desmontarse: asi `aria-controls`
-          apunta siempre a un elemento que existe, que es lo que el patron de divulgacion pide, y el
-          contenido sale del recorrido del tabulador igual que si no estuviera. */}
-      <div id={plegable?.idPanel} hidden={plegable !== undefined && !plegable.abierto}>
-        {children}
-      </div>
+      {plegable === undefined
+        ? <div>{children}</div>
+        : <Plegable id={plegable.idPanel} abierto={plegable.abierto} claseContenido="pt-3">{children}</Plegable>}
     </section>
   )
 }

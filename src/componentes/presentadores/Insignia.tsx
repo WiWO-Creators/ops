@@ -8,7 +8,7 @@ import { cn } from '@/lib/clases'
  * blanco es ilegible. Esa pareja esta fijada en los tokens y verificada por `pruebas/marca.test.js`.
  */
 const insignia = cva(
-  'inline-flex items-center gap-1.5 whitespace-nowrap rounded-control font-medium leading-none transition-colors duration-150',
+  'inline-flex items-center gap-1.5 whitespace-nowrap rounded-control font-medium leading-none transition-colors duration-rapida ease-neo',
   {
     variants: {
       tono: {

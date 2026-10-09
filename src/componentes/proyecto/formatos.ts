@@ -6,23 +6,9 @@
  */
 
 import { LOCALE } from '../../lib/fechas.ts'
+import { SIN_DATO } from '../../lib/presentacion.ts'
 
-/**
- * Formatea segundos como `HH:MM`, sin dias.
- *
- * Replica `Format::secondsToTime` del panel: 30 horas se muestran `30:05`, no `1d 6:05`. Cambiarlo
- * haria que dos pantallas del mismo sistema informaran el mismo dato de forma distinta.
- *
- * @param segundos total de segundos; lo negativo o no finito se trata como cero
- * @returns el texto `HH:MM`, con dos digitos en cada parte
- */
-export function segundosAHoraMinuto (segundos: number): string {
-  const seguro = Number.isFinite(segundos) && segundos > 0 ? Math.floor(segundos) : 0
-  const horas = Math.floor(seguro / 3600)
-  const minutos = Math.floor((seguro - horas * 3600) / 60)
-
-  return `${String(horas).padStart(2, '0')}:${String(minutos).padStart(2, '0')}`
-}
+export { segundosAHoraMinuto } from '../../lib/duraciones.ts'
 
 /**
  * Formatea un importe con su simbolo de moneda.
@@ -35,7 +21,7 @@ export function segundosAHoraMinuto (segundos: number): string {
  * @returns el importe con dos decimales y su simbolo delante, o `—`
  */
 export function formatearImporte (valor: number | null | undefined, simbolo: string | null = null): string {
-  if (typeof valor !== 'number' || !Number.isFinite(valor)) return '—'
+  if (typeof valor !== 'number' || !Number.isFinite(valor)) return SIN_DATO
 
   const numero = new Intl.NumberFormat(LOCALE, {
     minimumFractionDigits: 2,
@@ -80,7 +66,7 @@ const ENTIDADES: Record<string, string> = {
  * @param texto texto ya sin etiquetas
  * @returns el texto con las entidades resueltas; las desconocidas quedan como estaban
  */
-function decodificarEntidades (texto: string): string {
+export function decodificarEntidades (texto: string): string {
   return texto.replace(/&(#x[0-9a-f]+|#\d+|[a-z]+);/gi, (entidad, cuerpo: string) => {
     if (cuerpo.startsWith('#')) {
       const codigo = cuerpo[1] === 'x' || cuerpo[1] === 'X'

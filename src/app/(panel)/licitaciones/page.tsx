@@ -6,9 +6,8 @@ import { VistaLicitaciones } from '@/componentes/licitacion/VistaLicitaciones'
 import { TituloModulo } from '@/componentes/estructura/TituloModulo'
 import { construirConsulta, leerConsulta, paramsDeUrl } from '@/datos/consulta'
 import { cargarLookups, opcionesDeFiltros } from '@/datos/lookups'
-import { pedir, pedirOpcional } from '@/datos/servidor'
+import { cargarYo, pedir, pedirOpcional } from '@/datos/servidor'
 import type { Licitacion, ProcesoConAviso } from '@/datos/recursos'
-import type { Yo } from '@/datos/tipos'
 import { TOPE_DE_LICITACIONES_EN_ALERTA } from '@/dominio/alertas-licitacion'
 import { LICITACIONES } from '@/definiciones/licitaciones'
 
@@ -43,7 +42,7 @@ export default async function LicitacionesPage (props: PageProps<'/licitaciones'
   const [lista, lookups, yo, abiertas, vencimientos] = await Promise.all([
     pedir<Licitacion[]>(`/licitaciones${consulta === '' ? '' : `?${consulta}`}`),
     cargarLookups(),
-    pedir<Yo>('/me'),
+    cargarYo(),
     pedirOpcional<Licitacion[]>(
       `/licitaciones?filter[estado]=abierta&per_page=${TOPE_DE_LICITACIONES_EN_ALERTA}`
     ),

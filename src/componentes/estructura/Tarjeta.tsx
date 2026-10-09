@@ -44,6 +44,8 @@ interface PropsTarjeta {
   tono?: TonoTarjeta
   /** Cuanto pesa la tarjeta en su pantalla. `grande` cuando la grilla es el contenido principal. */
   tamano?: TamanoTarjeta
+  /** El destino es un archivo que se descarga: va como `<a download>` y no por el router ni prefetch. */
+  descarga?: boolean
   /** Marca la tarjeta como todavia no disponible: deja de ser enlace y se anuncia como tal. */
   proximamente?: boolean
   /** Dato vivo que acompaña al título, p. ej. cuánta gente hay dentro de una sala ahora mismo. */
@@ -83,6 +85,7 @@ export function Tarjeta ({
   tono = 'acento',
   tamano = 'normal',
   proximamente = false,
+  descarga = false,
   distintivo,
   className
 }: PropsTarjeta) {
@@ -129,9 +132,17 @@ export function Tarjeta ({
   // El realce es chico a proposito: una grilla de tarjetas que saltan al pasar el mouse marea.
   const clasesEnlace = cn(
     clases,
-    'transition-[box-shadow,transform] duration-200 ease-neo',
+    'transition-[box-shadow,transform] duration-rapida ease-neo',
     'hover:-translate-y-0.5 hover:shadow-2 active:translate-y-0'
   )
+
+  if (descarga) {
+    return (
+      <a href={href} download className={clasesEnlace}>
+        {contenido}
+      </a>
+    )
+  }
 
   if (externo) {
     return (

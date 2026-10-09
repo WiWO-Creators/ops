@@ -357,3 +357,31 @@ test('muestraFinanzas es falso cuando el contrato no manda el tiempo registrado'
   assert.equal(muestraFinanzas({ ...base, logged_time: { total_seconds: 60 } }), false)
   assert.equal(muestraFinanzas({ ...base, logged_time: { total_seconds: 60, muestra_finanzas: true } }), true)
 })
+
+test('un campo rico viaja como HTML con format, y su vacio es lo no visible', () => {
+  const rico = [
+    { clave: 'title', etiqueta: 'Título', tipo: 'texto', requerido: true },
+    { clave: 'content', etiqueta: 'Contenido', tipo: 'rico', maximo: 10 }
+  ]
+
+  assert.deepEqual(
+    cuerpoDelFormulario(rico, { title: 'a', content: ' <p>Hola <strong>mundo</strong></p> ' }),
+    { title: 'a', content: '<p>Hola <strong>mundo</strong></p>', format: 'html' }
+  )
+  // Lo que el editor deja sin nada visible se manda como vacio, no como `<p></p>`.
+  assert.equal(cuerpoDelFormulario(rico, { title: 'a', content: '<p>&nbsp;</p>' }).content, null)
+  // Un texto plano que el editor no llego a convertir no viaja marcado como HTML sin serlo.
+  assert.equal(cuerpoDelFormulario(rico, { title: 'a', content: 'uno <dos>' }).content, '<p>uno &lt;dos&gt;</p>')
+  // El maximo cuenta lo visible, no el marcado.
+  assert.deepEqual(validarFormulario(rico, { title: 'a', content: '<p><strong>0123456789</strong></p>' }), {})
+  assert.deepEqual(validarFormulario(rico, { title: 'a', content: '<p>01234567890</p>' }), { content: 'Máximo 10 caracteres.' })
+})
+
+test('un campo rico se abre con la version en HTML de la API, o con el texto sin ella', () => {
+  const campos = [{ clave: 'content', etiqueta: 'Contenido', tipo: 'rico' }]
+
+  assert.deepEqual(valoresIniciales(campos, { content: 'plano', content_html: '<p>rico</p>' }), { content: '<p>rico</p>' })
+  assert.deepEqual(valoresIniciales(campos, { content: 'plano' }), { content: 'plano' })
+  assert.deepEqual(valoresIniciales(campos, { content: 'plano', content_html: '<p></p>' }), { content: 'plano' })
+  assert.deepEqual(valoresIniciales(campos, null), { content: '' })
+})

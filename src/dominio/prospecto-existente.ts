@@ -8,6 +8,8 @@
  * del navegador para ordenar las sugerencias y para saber si lo escrito es exactamente una que existe.
  */
 
+import { sinAcentos } from '../lib/texto.ts'
+
 /** Lo mínimo que hace falta de un prospecto para ofrecerlo como sugerencia. */
 export interface ProspectoSugerible {
   id: number
@@ -37,7 +39,7 @@ export const MAXIMO_DE_SUGERENCIAS = 5
 export function normalizarEmpresa (texto: string | null | undefined): string {
   if (typeof texto !== 'string') return ''
 
-  return texto.normalize('NFD').replace(/\p{M}/gu, '').toLowerCase().trim()
+  return sinAcentos(texto)
 }
 
 /**

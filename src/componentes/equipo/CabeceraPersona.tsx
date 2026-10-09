@@ -1,4 +1,5 @@
-import Link from 'next/link'
+import { BotonVolver } from '@/componentes/estructura/BotonVolver'
+import { FirmaDeMarca, TituloDeFicha } from '@/componentes/estructura/TituloModulo'
 import { Avatar } from '@/componentes/presentadores/Avatar'
 import { Fecha } from '@/componentes/presentadores/Fecha'
 import { Insignia } from '@/componentes/presentadores/Insignia'
@@ -22,19 +23,14 @@ import type { FichaPersona } from '@/datos/recursos'
 export function CabeceraPersona ({ persona }: { persona: FichaPersona }) {
   return (
     <header className="flex flex-col gap-3">
-      <Link
-        href="/equipo"
-        className="text-texto-sutil hover:text-texto w-fit text-xs font-medium transition-colors"
-      >
-        ← Equipo
-      </Link>
+      <BotonVolver href="/equipo" etiqueta="Equipo" />
 
       <div className="flex flex-wrap items-start gap-3">
-        <Avatar nombre={persona.full_name} imagen={persona.profile_image_url} tamano="grande" />
+        <Avatar nombre={persona.full_name} imagen={persona.profile_image_url} tamano="ficha" />
 
         <div className="flex min-w-0 flex-col gap-2">
           <div className="flex flex-wrap items-center gap-2">
-            <h1 className="text-texto text-seccion leading-tight font-semibold">{persona.full_name}</h1>
+            <TituloDeFicha>{persona.full_name}</TituloDeFicha>
             <Insignia tono={persona.active ? 'exito' : 'neutro'}>
               {persona.active ? 'Activa' : 'Dada de baja'}
             </Insignia>
@@ -46,6 +42,8 @@ export function CabeceraPersona ({ persona }: { persona: FichaPersona }) {
             {persona.is_director && <Insignia tono="acento">Director</Insignia>}
             {persona.is_not_staff && <Insignia tono="contorno">No es del equipo</Insignia>}
           </div>
+
+          <FirmaDeMarca />
 
           <dl className="text-texto-tenue flex flex-wrap items-center gap-x-4 gap-y-1 text-xs">
             <DatoLinea
@@ -79,7 +77,7 @@ export function CabeceraPersona ({ persona }: { persona: FichaPersona }) {
 function DatoLinea ({ etiqueta, valor }: { etiqueta: string, valor: React.ReactNode }) {
   return (
     <div className="flex items-center gap-1.5">
-      <dt className="text-texto-sutil text-xs tracking-[0.06em] uppercase">{etiqueta}</dt>
+      <dt className="text-texto-sutil text-xs antetitulo">{etiqueta}</dt>
       <dd className="text-texto">{valor}</dd>
     </div>
   )

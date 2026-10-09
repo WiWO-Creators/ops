@@ -12,6 +12,8 @@ import { Insignia } from '@/componentes/presentadores/Insignia'
 import { CargandoConOrbe, Orbe, SuperposicionOrbe } from '@/componentes/estado/Orbe'
 import { Campo } from '@/componentes/formularios/Campo'
 import { AreaTexto, Entrada } from '@/componentes/formularios/Entrada'
+import { EditorRico } from '@/componentes/formularios/EditorRico'
+import { Contenido } from '@/componentes/presentadores/Contenido'
 import {
   ContenidoSelector, DisparadorSelector, Opcion, Selector
 } from '@/componentes/formularios/Selector'
@@ -27,6 +29,11 @@ import {
 } from '@/componentes/datos/Tabla'
 import { nombrar } from '@/dominio/glosario'
 import { ESCENAS } from '@/componentes/estructura/bienvenida/escenas'
+import { SeccionEstadosDeFormulario } from './secciones/SeccionEstadosDeFormulario'
+import { SeccionPiezasDelSistema } from './secciones/SeccionPiezasDelSistema'
+import { SeccionPlazosYCopiado } from './secciones/SeccionPlazosYCopiado'
+import { SeccionSelectoresRelacionales } from './secciones/SeccionSelectoresRelacionales'
+import { SeccionSuperposicionesDeDatos } from './secciones/SeccionSuperposicionesDeDatos'
 
 /** Estados de Proceso tal como los devuelve `lookups`, ordenados por `order` y no por `id`. */
 const ESTADOS = [
@@ -62,6 +69,7 @@ const PERSONAS = [
 export default function TallerPage () {
   const [vista, setVista] = useState('tabla')
   const [escala, setEscala] = useState('semana')
+  const [textoRico, setTextoRico] = useState('')
 
   return (
     <>
@@ -299,6 +307,25 @@ export default function TallerPage () {
             {(props) => <AreaTexto placeholder="Crece con lo que escribas" {...props} />}
           </Campo>
         </Muestra>
+        <Muestra etiqueta="texto enriquecido" className="w-full max-w-md">
+          <Campo etiqueta="Mensaje" ayuda="Ctrl+Enter envía. Debajo, cómo lo lee quien lo recibe." className="w-full">
+            {(props) => (
+              <EditorRico
+                etiqueta="Mensaje"
+                placeholder="Escribe con formato"
+                maxCaracteres={500}
+                onCambio={setTextoRico}
+                {...props}
+              />
+            )}
+          </Campo>
+          <Contenido
+            html={textoRico}
+            texto=""
+            className="text-texto border-linea w-full rounded-chico border p-3 text-sm"
+            vacio={<p data-vista-previa className="text-texto-sutil text-xs">Nada que mostrar todavía.</p>}
+          />
+        </Muestra>
         <Muestra etiqueta="selector" className="w-full max-w-sm">
           <Campo etiqueta="Prioridad" className="w-full">
             {(props) => (
@@ -375,6 +402,12 @@ export default function TallerPage () {
           </MenuContextual>
         </Muestra>
       </SeccionTaller>
+
+      <SeccionEstadosDeFormulario />
+      <SeccionSuperposicionesDeDatos />
+      <SeccionSelectoresRelacionales />
+      <SeccionPlazosYCopiado />
+      <SeccionPiezasDelSistema />
 
       <SeccionTaller
         titulo="Tabla"

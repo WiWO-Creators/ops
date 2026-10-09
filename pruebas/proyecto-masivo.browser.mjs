@@ -81,7 +81,7 @@ try {
   assert.equal(solicitudes.length, 0)
   catalogo = 'vacio'
   await abrir()
-  await dialogo.getByText('No hay proyectos disponibles.', { exact: true }).waitFor()
+  await dialogo.getByText('Todavía no hay proyectos disponibles.', { exact: true }).waitFor()
   assert.ok(await boton.isDisabled())
   await dialogo.getByRole('button', { name: 'Cancelar', exact: true }).click()
   catalogo = 'error'

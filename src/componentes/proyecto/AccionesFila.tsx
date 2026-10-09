@@ -1,9 +1,9 @@
 'use client'
 
 import { useState, type ReactElement } from 'react'
+import { escribirEnBff } from '@/componentes/datos/mutaciones'
 import { MenuAccionesFila } from '@/componentes/datos/MenuAccionesFila'
 import { useAviso } from '@/componentes/estado/useAviso'
-import { mensajeDeRespuesta } from '@/datos/cliente'
 import { FormularioRecurso } from './FormularioRecurso'
 import type { CampoFormulario } from './formulario'
 
@@ -19,12 +19,12 @@ import type { CampoFormulario } from './formulario'
  * (las tareas de un hito, por ejemplo).
  */
 
-interface PropsAccionesFila {
+interface PropsAccionesFila<T extends object> {
   /** Titulo del dialogo de edicion. Ej: "Editar hito". */
   tituloEdicion: string
   campos: CampoFormulario[]
   /** El registro a editar, leido por las claves de los campos. */
-  registro: Record<string, unknown>
+  registro: T
   /** Ruta del BFF del registro, sin barra inicial. Ej: `projects/93/notes/5`. */
   ruta: string
   puedeEditar: boolean
@@ -35,9 +35,11 @@ interface PropsAccionesFila {
   advertencia: string
   /** Se llama despues de escribir, para que la tabla vuelva a pedir la pagina. */
   recargar: () => void
+  /** Como se llama el registro, para nombrarlo en el aviso de exito. Ej: el nombre del hito. */
+  nombre: string
 }
 
-export function AccionesFila ({
+export function AccionesFila<T extends object> ({
   tituloEdicion,
   campos,
   registro,
@@ -46,22 +48,32 @@ export function AccionesFila ({
   puedeBorrar,
   tituloBorrado,
   advertencia,
-  recargar
-}: PropsAccionesFila): ReactElement {
+  recargar,
+  nombre
+}: PropsAccionesFila<T>): ReactElement {
   const [editando, setEditando] = useState(false)
   const aviso = useAviso()
 
-  /** Borra el registro y refresca el listado. Lanza si falla: `ConfirmarBorrado` muestra el mensaje. */
+  /**
+   * Borra el registro y refresca el listado.
+   *
+   * Lanza si falla: `ConfirmarBorrado` muestra el mensaje. Si no llego respuesta no se afirma que no
+   * se borro: se avisa y se vuelve a pedir la lista, que dice como quedo.
+   */
   async function borrar (): Promise<void> {
-    const respuesta = await fetch(`/api/bff/${ruta}`, {
-      method: 'DELETE',
-      headers: { accept: 'application/json' }
-    })
+    const resultado = await escribirEnBff(ruta, 'DELETE')
 
-    if (!respuesta.ok) throw new Error(await mensajeDeRespuesta(respuesta))
+    if (!resultado.ok) {
+      if (resultado.incierta !== true) throw new Error(resultado.mensaje)
+
+      aviso.advertencia(resultado.mensaje)
+      recargar()
+
+      return
+    }
 
     recargar()
-    aviso.exito('Eliminado correctamente.')
+    aviso.exito(`«${nombre}» se eliminó.`)
   }
 
   return (
@@ -80,7 +92,7 @@ export function AccionesFila ({
           ruta={ruta}
           metodo="PATCH"
           registro={registro}
-          onGuardado={() => { recargar(); aviso.exito('Guardado correctamente.') }}
+          onGuardado={recargar}
         />
       )}
     </>

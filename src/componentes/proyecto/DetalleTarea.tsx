@@ -3,7 +3,7 @@
 import { Repeat2 } from 'lucide-react'
 import Link from 'next/link'
 import { useSearchParams } from 'next/navigation'
-import { useCallback, useEffect, useState, type ReactElement, type ReactNode } from 'react'
+import { useCallback, useEffect, useState, type ReactElement } from 'react'
 import { PARAMETRO_TAREA, urlConParametro } from '@/componentes/datos/tabla'
 import { ArbolDrive } from '@/componentes/archivos/ArbolDrive'
 import { useUbicacionTarea } from '@/componentes/auditoria/accion'
@@ -12,12 +12,14 @@ import { ConfirmacionEnLinea } from '@/componentes/datos/ConfirmacionEnLinea'
 import { EnlacePanelClasico } from '@/componentes/presentadores/EnlacePanelClasico'
 import { EnlacePersona } from '@/componentes/presentadores/EnlacePersona'
 import { GrupoEnlacesPersona } from '@/componentes/presentadores/GrupoEnlacesPersona'
+import { Contenido } from '@/componentes/presentadores/Contenido'
 import { Etiquetas } from '@/componentes/presentadores/Etiqueta'
 import { Fecha } from '@/componentes/presentadores/Fecha'
 import { InsigniaDePrioridad } from '@/componentes/presentadores/InsigniaDePrioridad'
 import { listaDe, nombreDe } from '@/datos/catalogos'
 import { agruparPorQuienAsigno, type GrupoDeAsignacion, type PersonaDeAutoria } from '@/dominio/autoria-tarea'
 import { camposLegibles } from '@/dominio/campos-personalizados'
+import { htmlVacio } from '@/dominio/texto-rico'
 import { GLOSARIO } from '@/dominio/glosario'
 import { aTextoPlano } from '@/componentes/proyecto/formatos'
 import { cn } from '@/lib/clases'
@@ -34,8 +36,11 @@ import { hoyLocal } from '@/lib/fechas'
 import { BloqueSla } from './BloqueSla'
 import { BloqueoDeProceso } from './BloqueoDeProceso'
 import { CabeceraFichaTarea } from './CabeceraFichaTarea'
+import { VinculoDeTarea } from './VinculoDeTarea'
 import { HiloDeComentarios } from './HiloDeComentarios'
-import { TarjetaDeComentario } from './TarjetaDeComentario'
+import {
+  Dato, MarcasDeControl, SeccionDeAdjuntos, SeccionDeComentarios, SeccionDeLectura, SIN_DATO
+} from './ficha-de-lectura'
 import { ESTADO_COMPLETO, comentarioParaMostrar, type ProcesoDeFicha } from './tareas'
 import { CompartirTarea } from './CompartirTarea'
 import { BotonDuplicarTarea } from './DuplicarTarea'
@@ -48,8 +53,9 @@ import { ListaChecklist } from './ListaChecklist'
 import { ListaIteraciones } from './ListaIteraciones'
 import { ResumenDeRecurrencia } from '@/componentes/recurrencia/ResumenDeRecurrencia'
 import { PanelAdjuntos } from './PanelArchivos'
-import { mensajeDeRespuesta, pedirRespuesta } from '@/datos/cliente'
+import { mensajeDeLectura, pedirRespuesta } from '@/datos/cliente'
 import { segundosAHoraMinuto } from './formatos'
+import { useAviso } from '@/componentes/estado/useAviso'
 
 /**
  * Detalle de una Tarea, para el modal que lo muestra (`ModalTarea`).
@@ -126,12 +132,15 @@ export function DetalleTarea (
   }: PropsDetalleTarea
 ): ReactElement {
   useUbicacionTarea(procesoId)
-  const [carga, setCarga] = useState<Carga>({ fase: 'cargando' })
+  // Una ficha ya vista se muestra al instante mientras se revalida: con red lenta, reabrir una tarea
+  // no debe volver a esperar el viaje completo.
+  const [carga, setCarga] = useState<Carga>(() => fichaEnMemoria(fuente, procesoId) ?? { fase: 'cargando' })
   const [intento, setIntento] = useState(0)
   const [editando, setEditando] = useState(false)
   const [confirmandoBorrado, setConfirmandoBorrado] = useState(false)
   const [borrando, setBorrando] = useState(false)
   const [errorBorrado, setErrorBorrado] = useState<string | null>(null)
+  const aviso = useAviso()
 
   /**
    * Borra la tarea.
@@ -164,6 +173,7 @@ export function DetalleTarea (
       return
     }
 
+    aviso.exito(carga.fase === 'listo' ? `«${carga.tarea.name}» se envió a la papelera.` : `${GLOSARIO.proceso.singular} enviada a la papelera.`)
     setConfirmandoBorrado(false)
     onBorrada?.()
   }
@@ -178,9 +188,11 @@ export function DetalleTarea (
   // Tras escribir, la ficha se vuelve a pedir y quien la monta se entera: sin el aviso, una tarea
   // recien completada sigue "En curso" en el listado que quedo debajo del modal.
   const alCambiar = useCallback(() => {
-    reintentar()
+    // Sin vaciar la ficha: ponerla en `cargando` desmontaba los seis subpaneles y los volvia a pedir
+    // uno por uno tras cada cambio, que con red lenta se leia como que el cambio no se habia guardado.
+    setIntento((n) => n + 1)
     onCambiada?.()
-  }, [reintentar, onCambiada])
+  }, [onCambiada])
 
   useEffect(() => {
     const control = new AbortController()
@@ -232,6 +244,7 @@ export function DetalleTarea (
             codigo={tarea.patente ?? `#${tarea.id}`}
             nivel={3}
           />
+          <VinculoDeTarea vinculos={tarea.vinculos} />
           <div className="flex flex-wrap items-center gap-1.5">
             {/* La insignia de estado es ademas un menu cuando se puede editar: es el gesto mas
                 repetido de la ficha, y hasta ahora obligaba a abrir el formulario entero y guardarlo
@@ -327,7 +340,7 @@ export function DetalleTarea (
             hasta el fondo para entender la ficha que se acaba de abrir. */}
         <section className="flex flex-col gap-2">
           <h4 className="text-texto-tenue text-sm font-semibold">Descripción</h4>
-          <Descripcion html={tarea.description} />
+          <Descripcion html={tarea.description_html} texto={tarea.description} />
         </section>
 
         {/* Montado solo mientras se edita: asi el formulario arranca siempre en los valores que se
@@ -339,7 +352,7 @@ export function DetalleTarea (
             // `GET /tasks/{id}` y trae todo. En el portal `puedeEditar` es `false` y esto no existe.
             tarea={tarea as Proceso}
             lookups={lookups}
-            descripcion={typeof tarea.description === 'string' ? aTextoPlano(tarea.description) : ''}
+            descripcion={descripcionParaEditar(tarea)}
             onCerrar={() => setEditando(false)}
             onGuardada={alCambiar}
           />
@@ -508,7 +521,7 @@ function TiempoRegistrado (
 
   return (
     <section className="border-linea bg-superficie-elevada rounded-tarjeta flex items-baseline justify-between gap-3 border p-3">
-      <h4 className="text-texto-sutil text-xs font-medium tracking-[0.08em] uppercase">
+      <h4 className="text-texto-sutil text-xs antetitulo">
         Tiempo registrado
       </h4>
       <span data-numerico className="text-texto text-sm font-semibold tabular-nums">
@@ -535,36 +548,22 @@ function ChecklistDeLectura (
   if (items === undefined) return null
 
   const hechos = items.filter((item) => item.finished).length
+  const titulo = (
+    <>
+      Lista de control {items.length > 0 && <span className="text-texto-sutil font-normal">{hechos}/{items.length}</span>}
+    </>
+  )
 
   return (
-    <section className="flex flex-col gap-2">
-      <h4 className="text-texto-tenue text-sm font-semibold">
-        Lista de control {items.length > 0 && <span className="text-texto-sutil font-normal">{hechos}/{items.length}</span>}
-      </h4>
-
+    <SeccionDeLectura titulo={titulo} nivel={4}>
       {items.length === 0
         ? <p className="text-texto-sutil text-sm">Esta {GLOSARIO.proceso.singular.toLowerCase()} no tiene lista de control.</p>
         : (
-          <ul className="flex flex-col gap-1">
-            {items.map((item) => (
-              <li key={item.id} className="flex items-baseline gap-2 text-sm">
-                {/* `aria-hidden` en la marca y el estado en texto al final: un lector de pantalla
-                    que anuncia "✓" no dice nada, y sin la casilla hace falta decirlo con palabras. */}
-                <span
-                  aria-hidden
-                  className={`w-3 shrink-0 text-center ${item.finished ? 'text-texto-exito' : 'text-texto-sutil'}`}
-                >
-                  {item.finished ? '✓' : '·'}
-                </span>
-                <span className={item.finished ? 'text-texto-tenue line-through' : 'text-texto'}>
-                  {aTextoPlano(item.description)}
-                </span>
-                <span className="sr-only">{item.finished ? '(hecho)' : '(pendiente)'}</span>
-              </li>
-            ))}
-          </ul>
+          <MarcasDeControl
+            items={items.map((item) => ({ clave: item.id, hecho: item.finished, texto: aTextoPlano(item.description) }))}
+          />
           )}
-    </section>
+    </SeccionDeLectura>
   )
 }
 
@@ -583,36 +582,14 @@ function AdjuntosDeLectura (
   if (adjuntos === undefined) return null
 
   return (
-    <section className="flex flex-col gap-2">
-      <h4 className="text-texto-tenue text-sm font-semibold">Archivos</h4>
-
-      {adjuntos.length === 0
-        ? <p className="text-texto-sutil text-sm">Sin archivos adjuntos.</p>
-        : (
-          <ul className="flex flex-col gap-2">
-            {adjuntos.map((adjunto) => {
-              const nombre = adjunto.subject ?? adjunto.file_name
-
-              return (
-                <li key={adjunto.id} className="rounded-chico border-linea border p-3 text-sm">
-                  {adjunto.url === null
-                    ? <span className="text-texto">{nombre}</span>
-                    : (
-                      <a
-                        href={adjunto.url}
-                        target="_blank"
-                        rel="noreferrer"
-                        className="text-acento break-all underline underline-offset-4"
-                      >
-                        {nombre}
-                      </a>
-                      )}
-                </li>
-              )
-            })}
-          </ul>
-          )}
-    </section>
+    <SeccionDeAdjuntos
+      nivel={4}
+      adjuntos={adjuntos.map((adjunto) => ({
+        clave: adjunto.id,
+        nombre: adjunto.subject ?? adjunto.file_name,
+        url: adjunto.url
+      }))}
+    />
   )
 }
 
@@ -632,35 +609,24 @@ function Comentarios (
   if (comentarios === undefined) return null
 
   return (
-    <section className="flex flex-col gap-2">
-      <h4 className="text-texto-tenue text-sm font-semibold">Comentarios</h4>
+    <SeccionDeComentarios
+      nivel={4}
+      comentarios={comentarios.map((comentario) => {
+        const paraMostrar = comentarioParaMostrar(comentario)
 
-      {comentarios.length === 0
-        ? <p className="text-texto-sutil text-sm">Todavía no hay comentarios.</p>
-        : (
-          <ul className="flex flex-col gap-2">
-            {comentarios.map((comentario) => {
-              const paraMostrar = comentarioParaMostrar(comentario)
-
-              return (
-                <TarjetaDeComentario
-                  key={comentario.id}
-                  // `comentarioParaMostrar` no manda el id del autor: se agrega aca desde el
-                  // comentario crudo, que si lo trae en `staff.id`.
-                  comentario={{
-                    ...paraMostrar,
-                    author: paraMostrar.author === null ? null : { ...paraMostrar.author, id: comentario.staff?.id }
-                  }}
-                />
-              )
-            })}
-          </ul>
-          )}
-    </section>
+        // `comentarioParaMostrar` no manda el id del autor: se agrega aca desde el comentario
+        // crudo, que si lo trae en `staff.id`.
+        return {
+          clave: comentario.id,
+          comentario: {
+            ...paraMostrar,
+            author: paraMostrar.author === null ? null : { ...paraMostrar.author, id: comentario.staff?.id }
+          }
+        }
+      })}
+    />
   )
 }
-
-const SIN_DATO = '—'
 
 /**
  * Marca la Tarea como completada, eligiendo con que fecha cierra.
@@ -678,6 +644,7 @@ const SIN_DATO = '—'
 function CompletarTarea (
   { tarea, onCompletada }: { tarea: ProcesoDeFicha, onCompletada: () => void }
 ): ReactElement {
+  const aviso = useAviso()
   const [fecha, setFecha] = useState(() => hoyLocal())
   const [yaCompletada, setYaCompletada] = useState(false)
   const [guardando, setGuardando] = useState(false)
@@ -704,6 +671,7 @@ function CompletarTarea (
     // linea mas en el registro de actividad.
     if (fecha === hoyLocal()) {
       setGuardando(false)
+      aviso.exito(`«${tarea.name}» quedó completada.`)
       onCompletada()
       return
     }
@@ -712,7 +680,7 @@ function CompletarTarea (
 
     if (instante === null) {
       setGuardando(false)
-      setFallo('Elegí una fecha válida.')
+      setFallo('Elige una fecha válida.')
       return
     }
 
@@ -725,6 +693,7 @@ function CompletarTarea (
       return
     }
 
+    aviso.exito(`«${tarea.name}» quedó completada.`)
     onCompletada()
   }
 
@@ -851,17 +820,6 @@ function CreadaPorRecurrencia ({ madre }: { madre: { id: number, name: string } 
   )
 }
 
-function Dato ({ etiqueta, children }: { etiqueta: string, children: ReactNode }): ReactElement {
-  return (
-    <div className="flex min-w-0 flex-col gap-1">
-      <dt className="text-texto-sutil text-xs font-medium tracking-[0.08em] uppercase">
-        {etiqueta}
-      </dt>
-      <dd className="text-texto min-w-0 text-sm">{children}</dd>
-    </div>
-  )
-}
-
 /**
  * Los contadores que la API ya resuelve.
  *
@@ -873,7 +831,7 @@ function Dato ({ etiqueta, children }: { etiqueta: string, children: ReactNode }
 function Contadores ({ counts }: { counts: ProcesoDeFicha['counts'] }): ReactElement | null {
   if (counts === undefined) return null
   // Los dos en cero no informan nada: las secciones de Archivos y Comentarios, unas lineas mas
-  // abajo, ya dicen "Sin archivos adjuntos" y "Todavia no hay comentarios". Dos ceros arriba de esas
+  // abajo, ya dicen "Todavia no hay archivos adjuntos" y "Todavia no hay comentarios". Dos ceros arriba de esas
   // dos frases son la misma ausencia contada dos veces en la misma pantalla.
   if (counts.comments === 0 && counts.attachments === 0) return null
 
@@ -890,7 +848,7 @@ function Contador ({ etiqueta, valor }: { etiqueta: string, valor: string }): Re
   return (
     <li className="flex flex-col items-center gap-0.5">
       <span data-numerico className="text-texto text-lg leading-none font-semibold tabular-nums">{valor}</span>
-      <span className="text-texto-sutil text-xs font-medium tracking-[0.08em] uppercase">
+      <span className="text-texto-sutil text-xs antetitulo">
         {etiqueta}
       </span>
     </li>
@@ -898,21 +856,38 @@ function Contador ({ etiqueta, valor }: { etiqueta: string, valor: string }): Re
 }
 
 /**
- * La descripcion de la tarea, como texto.
+ * La descripcion con la que se abre el editor: el HTML saneado de la API o, sin el, el texto plano.
  *
- * **Nunca con `dangerouslySetInnerHTML`.** El HTML lo escriben personas en el editor de Perfex y
- * llega tal cual: inyectarlo seria ejecutar en nuestra sesion lo que cualquiera haya guardado ahi
- * —un `<script>`, un `onerror=` en una imagen rota—, o sea un XSS con la cookie de sesion adentro.
- * Se muestra el texto plano, que React escapa solo, y los saltos de linea se conservan con CSS.
+ * El editor convierte el texto plano a parrafos al montarse. Con una API anterior (sin
+ * `description_html`) la edicion funciona igual, solo que parte del texto ya sin formato.
+ *
+ * @param tarea la ficha tal como la trajo la API
+ * @returns el valor inicial del editor, `''` si no tiene descripcion
  */
-function Descripcion ({ html }: { html: string | null | undefined }): ReactElement {
-  const texto = typeof html === 'string' ? aTextoPlano(html) : ''
+function descripcionParaEditar (tarea: { description?: string | null, description_html?: string | null }): string {
+  if (typeof tarea.description_html === 'string' && !htmlVacio(tarea.description_html)) return tarea.description_html
 
-  if (texto === '') {
-    return <p className="text-texto-sutil text-sm">Esta {GLOSARIO.proceso.singular.toLowerCase()} no tiene descripción.</p>
-  }
+  return typeof tarea.description === 'string' ? aTextoPlano(tarea.description) : ''
+}
 
-  return <p className="text-texto-tenue max-w-prose text-sm whitespace-pre-line">{texto}</p>
+/**
+ * La descripcion de la tarea.
+ *
+ * **Nunca con `dangerouslySetInnerHTML`.** El HTML lo escriben personas y llega de la red:
+ * inyectarlo seria ejecutar en nuestra sesion lo que cualquiera haya guardado ahi —un `<script>`, un
+ * `onerror=` en una imagen rota—. `Contenido` arma elementos de React desde una lista blanca de
+ * etiquetas. Sin `description_html` (una API anterior) se muestra el texto plano de `description`, que
+ * React escapa solo, con los saltos de linea conservados por CSS.
+ */
+function Descripcion ({ html, texto }: { html: string | null | undefined, texto: string | null | undefined }): ReactElement {
+  return (
+    <Contenido
+      html={html}
+      texto={typeof texto === 'string' ? aTextoPlano(texto) : ''}
+      className="text-texto-tenue max-w-prose text-sm"
+      vacio={<p className="text-texto-sutil text-sm">Esta {GLOSARIO.proceso.singular.toLowerCase()} no tiene descripción.</p>}
+    />
+  )
 }
 
 /** Nombre y color de un valor de catalogo, listos para una insignia. */
@@ -920,6 +895,44 @@ function valorDeCatalogo (lista: EstadoLookup[], id: number): { nombre: string, 
   return { nombre: nombreDe(lista, id), color: lista.find((item) => item.id === id)?.color ?? null }
 }
 
+
+/** Cuanto vale un catalogo guardado antes de volver a pedirlo: estados y prioridades casi no cambian. */
+const VIGENCIA_DE_LOOKUPS_MS = 5 * 60_000
+/** Cuantas fichas se recuerdan para reabrirlas al instante. */
+const MAXIMO_DE_FICHAS_EN_MEMORIA = 30
+
+const lookupsGuardados = new Map<string, { datos: Lookups, en: number }>()
+const fichasGuardadas = new Map<string, Extract<Carga, { fase: 'listo' }>>()
+
+/** Catalogos vigentes de esta fuente, o `null` si hay que pedirlos. */
+function lookupsEnMemoria (fuente: FuenteDeTarea): Lookups | null {
+  const guardado = lookupsGuardados.get(fuente.lookups)
+
+  return guardado !== undefined && Date.now() - guardado.en < VIGENCIA_DE_LOOKUPS_MS ? guardado.datos : null
+}
+
+/** Recuerda los catalogos recien traidos. */
+function guardarLookups (fuente: FuenteDeTarea, datos: Lookups): void {
+  lookupsGuardados.set(fuente.lookups, { datos, en: Date.now() })
+}
+
+/** La ficha de esta tarea si ya se vio en esta sesion; se revalida igual al abrir. */
+function fichaEnMemoria (fuente: FuenteDeTarea, procesoId: number): Carga | null {
+  return fichasGuardadas.get(conId(fuente.tarea, procesoId)) ?? null
+}
+
+/** Recuerda una ficha cargada, descartando la mas vieja al pasar el limite. */
+function guardarFicha (fuente: FuenteDeTarea, procesoId: number, ficha: Extract<Carga, { fase: 'listo' }>): void {
+  const clave = conId(fuente.tarea, procesoId)
+
+  fichasGuardadas.delete(clave)
+  fichasGuardadas.set(clave, ficha)
+
+  if (fichasGuardadas.size > MAXIMO_DE_FICHAS_EN_MEMORIA) {
+    const masVieja = fichasGuardadas.keys().next().value
+    if (masVieja !== undefined) fichasGuardadas.delete(masVieja)
+  }
+}
 
 /**
  * Trae la tarea y los catalogos.
@@ -933,20 +946,27 @@ function valorDeCatalogo (lista: EstadoLookup[], id: number): { nombre: string, 
  */
 async function cargar (fuente: FuenteDeTarea, procesoId: number, senal: AbortSignal): Promise<Carga> {
   try {
+    const guardados = lookupsEnMemoria(fuente)
     const [tarea, lookups] = await Promise.all([
       pedirRespuesta(conId(fuente.tarea, procesoId), senal),
-      pedirRespuesta(fuente.lookups, senal)
+      guardados === null ? pedirRespuesta(fuente.lookups, senal) : Promise.resolve(null)
     ])
 
     if (tarea.status === 404) return { fase: 'noEncontrada' }
 
-    if (!tarea.ok) return { fase: 'error', mensaje: await mensajeDeRespuesta(tarea) }
-    if (!lookups.ok) return { fase: 'error', mensaje: await mensajeDeRespuesta(lookups) }
+    if (!tarea.ok) return { fase: 'error', mensaje: await mensajeDeLectura(tarea) }
+    if (lookups !== null && !lookups.ok) return { fase: 'error', mensaje: await mensajeDeLectura(lookups) }
 
     const sobreTarea = await tarea.json() as Sobre<ProcesoDeFicha>
-    const sobreLookups = await lookups.json() as Sobre<Lookups>
+    const catalogos = lookups === null ? guardados : (await lookups.json() as Sobre<Lookups>).data
 
-    return { fase: 'listo', tarea: sobreTarea.data, lookups: sobreLookups.data }
+    if (catalogos === null) return { fase: 'error', mensaje: 'No se pudo cargar la tarea.' }
+
+    guardarLookups(fuente, catalogos)
+    const listo: Carga = { fase: 'listo', tarea: sobreTarea.data, lookups: catalogos }
+    guardarFicha(fuente, procesoId, listo)
+
+    return listo
   } catch (fallo) {
     if (senal.aborted) return { fase: 'cargando' }
 

@@ -1,6 +1,7 @@
 'use client'
 
 import { Suspense, useCallback, useEffect, useMemo, useState, type ReactElement } from 'react'
+import { EVENTO_RECURSO_CAMBIADO, observarLista } from '@/datos/refresco-lista'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { PARAMETRO_TAREA } from '@/componentes/datos/tabla'
 import { TablaRecurso } from '@/componentes/datos/TablaRecurso'
@@ -164,11 +165,25 @@ function TareasDelProyecto ({ proyectoId, fuente, capacidades, conIa, camposDeTa
   const etiquetas = useMemo(() => carga.fase === 'listo' ? carga.etiquetas : [], [carga])
   const veredictos = carga.fase === 'listo' ? carga.veredictos : SIN_VEREDICTOS
 
-  /** Vuelve a pedirlo todo. Va fuera del efecto: un `setState` sincronico dentro encadena renders. */
+  /**
+   * Vuelve a pedirlo todo, sin vaciar la pantalla.
+   *
+   * Antes ponia la pestaña en `cargando` y remontaba la tabla: con red lenta la lista desaparecia
+   * varios segundos tras cada cambio de estado, y eso se leia como tareas que se pierden. Ahora se
+   * conservan los datos hasta que llegan los nuevos, y la tabla se pone al dia sola con `refresco`.
+   */
   const recargar = useCallback(() => {
-    setCarga({ fase: 'cargando' })
     setIntento((n) => n + 1)
   }, [])
+
+  // Mantiene la pestaña al dia sin que nadie recargue: cada 30 s, al volver a ella y tras cualquier
+  // escritura. Sirve igual al panel y al portal, que monta este mismo componente.
+  useEffect(() => observarLista(
+    async () => true,
+    () => { setIntento((n) => n + 1) },
+    () => {},
+    { eventos: [EVENTO_RECURSO_CAMBIADO], inmediato: false }
+  ), [])
 
   const definicion = useMemo(
     () => definicionDeTareas({
@@ -315,7 +330,7 @@ function TareasDelProyecto ({ proyectoId, fuente, capacidades, conIa, camposDeTa
             )
           : (
           <TablaRecurso
-            key={intento}
+            refresco={intento}
             definicion={definicion}
             inicial={carga.inicial}
             claveFila={(proceso) => proceso.id}
@@ -325,7 +340,7 @@ function TareasDelProyecto ({ proyectoId, fuente, capacidades, conIa, camposDeTa
             claseFila={(proceso) => estaVencida(proceso) ? 'bg-superficie-peligro alerta-vencida' : undefined}
             // La fila entera abre el detalle, igual que en la vista global. El enlace del nombre
             // sigue siendo el camino del teclado; esto es la comodidad del mouse encima de el.
-            abrirEn={{ clave: PARAMETRO_TAREA, valor: (proceso) => proceso.id }}
+            abrirEn={{ clave: PARAMETRO_TAREA, valor: (proceso) => proceso.id, superficial: true }}
             capacidades={capacidades}
             opcionesDeFiltro={carga.opciones}
             // Ver el comentario del tablero: el `board` sale de la ruta, no escrito a mano.

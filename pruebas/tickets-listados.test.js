@@ -8,15 +8,16 @@
 
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
+import { EVENTO_TICKETS_CAMBIADOS } from '../src/dominio/ticket-estados.ts'
 import { EVENTO_TICKETS_CAMBIADOS as EVENTO_DEL_MODAL } from '../src/dominio/ticket-vista.ts'
 import {
-  EVENTO_TICKETS_CAMBIADOS,
   alternarEsperandoAlEquipo,
   esperaDelTicket,
   esperaTuRespuesta,
   etiquetaDePestana,
   filtraEsperandoAlEquipo,
   leerContadores,
+  nombreDeEspacio,
   noLeidoPorElCliente,
   noLeidoPorElEquipo,
   ultimaActividad
@@ -182,6 +183,10 @@ test('despues de un refresco no se vuelve a los iniciales viejos, pero si a unos
   assert.equal(debeAdoptarInicial({ ...BASE, refresco: 1 }, true), true)
 })
 
+test('tras una recarga explicita los iniciales del servidor no pisan lo que trajo el BFF', () => {
+  assert.equal(debeAdoptarInicial({ ...BASE, revision: 1 }, true), false)
+})
+
 // --- Definiciones ---------------------------------------------------------------
 
 test('departamento y asignado solo se ofrecen a quien administra', () => {
@@ -231,6 +236,14 @@ test('el solicitante cae del contacto al nombre, al correo y a la empresa', () =
   assert.equal(nombreDelSolicitante({}), 'Sin solicitante')
 })
 
-test('los listados escuchan el mismo evento que emite el modal', () => {
+test('el evento que emite el modal es el mismo que escuchan las listas', () => {
   assert.equal(EVENTO_TICKETS_CAMBIADOS, EVENTO_DEL_MODAL)
+})
+
+test('nombreDeEspacio: sin espacio, con nombre conocido y con id desconocido', () => {
+  assert.equal(nombreDeEspacio(null), 'Sin proyecto')
+  assert.equal(nombreDeEspacio(undefined, () => 'Portal'), 'Sin proyecto')
+  assert.equal(nombreDeEspacio(7, (id) => (id === 7 ? 'Portal' : null)), 'Portal')
+  assert.equal(nombreDeEspacio(8, (id) => (id === 7 ? 'Portal' : null)), '#8')
+  assert.equal(nombreDeEspacio(9), '#9')
 })

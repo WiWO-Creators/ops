@@ -16,6 +16,7 @@
  */
 
 import { LOCALE } from '../lib/fechas.ts'
+import { esHtml, esSoloEspacios, textoAHtml, textoPlano } from './texto-rico.ts'
 
 /**
  *
@@ -38,15 +39,6 @@ export const TOPE_DESCRIPCION = 65535
 
 /** Maximo de una respuesta del cuestionario. El mismo que acepta `DescripcionDeTarea`. */
 export const TOPE_RESPUESTA = 1000
-
-/**
- * Todo lo que cuenta como espacio en blanco, incluido lo que `trim()` ignora.
- *
- * `\s` de JavaScript ya cubre el espacio duro y el BOM; lo que falta son los de ancho cero
- * (`U+200B` a `U+200D`) y el juntador de palabras (`U+2060`), que se cuelan al copiar de un editor
- * y no se ven en ningun lado.
- */
-const SOLO_ESPACIOS = /^[\s​-‍⁠]*$/
 
 /** Una pregunta del asistente, tal como se le muestra a la persona. */
 export interface PreguntaAsistente {
@@ -98,15 +90,19 @@ export interface CuerpoRedaccion {
 }
 
 /**
- * Si ese texto no dice nada.
+ * Si esa descripcion no dice nada.
  *
- * @param texto el valor crudo del campo
- * @returns `true` cuando esta vacio o es solo espacio en blanco de cualquier clase
+ * Mide el texto visible y no el valor crudo: la descripcion ahora es HTML del editor, y `<p></p>` o
+ * `<p>&nbsp;</p>` no tienen un solo espacio en blanco y tampoco dicen nada. Incluye el espacio duro y
+ * los caracteres de ancho cero (`esSoloEspacios`), que son lo que `trim()` ignora.
+ *
+ * @param texto el valor del campo: HTML del editor, o texto plano
+ * @returns `true` cuando esta vacio o no tiene nada visible
  */
 export function descripcionVacia (texto: string | null | undefined): boolean {
   if (typeof texto !== 'string') return true
 
-  return SOLO_ESPACIOS.test(texto)
+  return esSoloEspacios(textoPlano(texto))
 }
 
 /**
@@ -116,7 +112,7 @@ export function descripcionVacia (texto: string | null | undefined): boolean {
  * exactamente los mismos dos casos. Decirlo antes evita el viaje y, sobre todo, deja el foco en el
  * campo en vez de mostrar un cartel arriba del formulario.
  *
- * @param texto el valor crudo del campo
+ * @param texto el valor del campo: HTML del editor, o texto plano
  * @param queEs como nombrar la cosa en el mensaje ("La tarea", "El proceso"): lo decide el glosario
  * @returns el mensaje a mostrar junto al campo, o `null`
  */
@@ -125,7 +121,7 @@ export function errorDeDescripcion (texto: string, queEs = 'La tarea'): string |
     return `${queEs} necesita una descripción. Escríbela o pide ayuda al asistente.`
   }
 
-  if (texto.trim().length > TOPE_DESCRIPCION) {
+  if (textoPlano(texto).length > TOPE_DESCRIPCION) {
     return `La descripción no puede pasar de ${TOPE_DESCRIPCION.toLocaleString(LOCALE)} caracteres.`
   }
 
@@ -154,24 +150,26 @@ export type ModoDeBorrador = 'reemplazar' | 'agregar'
  * Con el campo vacio los dos modos dan lo mismo y la pantalla no pregunta nada: preguntar cuando no
  * hay nada que perder es ruido.
  *
- * @param actual lo que hay escrito en el campo, tal cual
- * @param borrador el texto que devolvio el asistente, ya editable por la persona
+ * @param actual lo que hay escrito en el campo: HTML del editor, o texto plano
+ * @param borrador el texto plano que devolvio el asistente, ya editable por la persona
  * @param modo que hacer con lo que ya estaba
- * @returns el valor que va al campo, sin espacios sobrantes y con un renglon en blanco entre ambos
+ * @returns el HTML que va al campo: lo que habia (si se agrega) mas un parrafo por cada uno del borrador
  */
 export function combinarDescripcion (
   actual: string | null | undefined,
   borrador: string,
   modo: ModoDeBorrador
 ): string {
-  const nuevo = borrador.trim()
+  const nuevo = textoAHtml(borrador)
 
   if (modo === 'reemplazar' || descripcionVacia(actual)) return nuevo
-  if (nuevo === '') return (actual as string).trimEnd()
 
-  // `trimEnd` y no `trim`: la sangria o el renglon con que empieza lo que la persona escribio es
-  // suyo, y el asistente no tiene por que corregirselo al sumar un parrafo al final.
-  return `${(actual as string).trimEnd()}\n\n${nuevo}`
+  const actualHtml = esHtml(actual) ? (actual as string).trim() : textoAHtml(actual)
+  if (nuevo === '') return actualHtml
+
+  // El borrador del asistente es texto plano: pasa por `textoAHtml` y cada parrafo suyo queda como
+  // un `<p>` nuevo debajo de lo que la persona ya escribio, que se conserva tal cual.
+  return `${actualHtml}${nuevo}`
 }
 
 /**

@@ -43,8 +43,16 @@ test('el cuerpo usa los nombres del contrato de la API', () => {
   assert.deepEqual(cuerpoDeSolicitud(borrador({ espacio: '7' })), {
     subject: 'No puedo bajar el plano',
     message: 'Al abrirlo me dice que no tengo permiso.',
+    format: 'html',
     project_id: 7
   })
+})
+
+test('el mensaje viaja marcado como HTML', () => {
+  const cuerpo = cuerpoDeSolicitud(borrador({ mensaje: '<p>Hola <strong>equipo</strong></p>' }))
+
+  assert.equal(cuerpo.message, '<p>Hola <strong>equipo</strong></p>')
+  assert.equal(cuerpo.format, 'html')
 })
 
 test('sin prioridad elegida la clave no viaja', () => {
@@ -91,6 +99,10 @@ test('una linea de espacios no habilita el envio', () => {
   // Sin esto el boton se prendia y la API contestaba 422 sobre un campo que la persona creia lleno.
   assert.equal(solicitudCompleta(borrador({ asunto: '   ' })), false)
   assert.equal(solicitudCompleta(borrador({ mensaje: '\n  \t' })), false)
+  // Lo que deja el editor cuando no hay nada visible tampoco habilita el envio.
+  assert.equal(solicitudCompleta(borrador({ mensaje: '<p></p>' })), false)
+  assert.equal(solicitudCompleta(borrador({ mensaje: '<p>&nbsp;</p><p><br></p>' })), false)
+  assert.equal(solicitudCompleta(borrador({ mensaje: '<p>Hola</p>' })), true)
 })
 
 test('no hace falta elegir prioridad para poder enviar', () => {

@@ -25,3 +25,33 @@ export function pantallaDeRuta (ruta: string): string | null {
   if (!RUTA_DE_PANEL.test(normalizada)) return null
   return normalizada.replace(/^\/espacios(?=\/|$)/, '/proyectos')
 }
+
+/** Evento de ventana con el que una pantalla pide abrir el chat del Orbe. */
+export const EVENTO_ABRIR_ORBE = 'wiwo:abrir-orbe'
+
+/** Preguntas de partida cuando la persona tiene un Meeting Paper abierto. */
+export const SUGERENCIAS_DE_ACTA = [
+  '¿Qué se acordó en esta reunión?',
+  '¿Qué tareas quedaron y de quién son?',
+  'Hazme un resumen para el cliente'
+]
+
+/**
+ * El Meeting Paper que la persona tiene abierto, según la URL.
+ *
+ * Es una pista para el servidor, nunca un permiso: viaja como `acta_id` y el backend la valida con
+ * el mismo `ver()` que abre el acta. Solo cuenta dentro de la pestaña de actas de un Proyecto.
+ *
+ * @param ruta el pathname vigente
+ * @param busqueda los parámetros de la URL (`?tab=actas&acta=12`)
+ * @returns el id del acta, o `null` si no hay un acta abierta
+ */
+export function actaAbiertaDeUrl (ruta: string, busqueda: URLSearchParams): number | null {
+  if (!/^\/(proyectos|espacios)\/\d+$/.test(ruta.toLowerCase())) return null
+  if (busqueda.get('tab') !== 'actas') return null
+
+  const crudo = busqueda.get('acta')
+  const id = crudo === null ? NaN : Number(crudo)
+
+  return Number.isInteger(id) && id > 0 ? id : null
+}

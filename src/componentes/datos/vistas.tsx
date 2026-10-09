@@ -1,6 +1,6 @@
 'use client'
 
-import { useRouter, useSearchParams } from 'next/navigation'
+import { useSearchParams } from 'next/navigation'
 import { AccionesMasivasTareas } from '@/componentes/proyecto/AccionesMasivasTareas'
 import { ModalTarea } from '@/componentes/proyecto/ModalTarea'
 import { PARAMETRO_TAREA, urlConParametro } from '@/componentes/datos/tabla'
@@ -65,7 +65,6 @@ interface PropsVistaLista<T> {
 export function TablaProcesos (props: PropsVistaLista<Proceso>) {
   const estados = props.opcionesDeFiltro?.task_statuses ?? []
   const prioridades = props.opcionesDeFiltro?.task_priorities ?? []
-  const router = useRouter()
   const parametros = useSearchParams()
   const aviso = useAviso()
   const puedeEditar = props.capacidades?.includes('edit') ?? false
@@ -93,11 +92,11 @@ export function TablaProcesos (props: PropsVistaLista<Proceso>) {
       <TablaRecurso
         definicion={{ ...PROCESOS_NAVEGABLES, filtros: [...PROCESOS_NAVEGABLES.filtros, ...filtrosDeCamposPersonalizados(props.camposPersonalizados ?? [])] }}
         claveFila={(proceso) => proceso.id}
-        abrirEn={{ clave: PARAMETRO_TAREA, valor: (proceso) => proceso.id }}
+        abrirEn={{ clave: PARAMETRO_TAREA, valor: (proceso) => proceso.id, superficial: true }}
         onEditarFila={puedeEditar
           ? (proceso) => {
               const href = urlConParametro(new URLSearchParams(parametros.toString()), PARAMETRO_TAREA, String(proceso.id))
-              router.push(href, { scroll: false })
+              window.history.pushState(null, '', href)
             }
           : undefined}
         borradoDeFila={puedeBorrar

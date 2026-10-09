@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, type ReactElement } from 'react'
-import { mensajeDeRespuesta } from '@/datos/cliente'
+import { escribirEnBff } from '@/componentes/datos/mutaciones'
 import { ErrorEstado, Vacio } from '@/componentes/estado/Estados'
 import { Boton } from '@/componentes/formularios/Boton'
 import { Campo } from '@/componentes/formularios/Campo'
@@ -141,10 +141,10 @@ const COLUMNAS_SIN_HISTORIAL = new Set(['aprobacion_pendiente', 'calidad_promedi
  * @returns el encabezado del bloque de error
  */
 function tituloDeFallo (estadoHttp: number): string {
-  if (estadoHttp === 403) return 'No tenés permiso para recalcular'
+  if (estadoHttp === 403) return 'No tienes permiso para recalcular'
   if (estadoHttp === 404) return `Ese ${GLOSARIO.espacio.singular} no está disponible`
   if (estadoHttp === 409) return 'Esta instalación no guarda la foto diaria'
-  if (estadoHttp === 422) return 'Revisá lo que pediste'
+  if (estadoHttp === 422) return 'Revisa lo que pediste'
 
   return 'No se pudo recalcular'
 }
@@ -158,11 +158,13 @@ interface FalloDeRecalculo {
 /**
  * Dispara el recálculo y devuelve el detalle, o el fallo con el código y el mensaje de la API.
  *
- * No usa `escribirEnBff` porque acá hace falta el **código** de la respuesta y no solo su mensaje:
- * 403, 404, 409 y 422 son cuatro conversaciones distintas —permisos, {@link GLOSARIO.espacio} que no
- * se ve, instalación sin la tabla, y rango mal pedido— y bajo un único encabezado genérico las
- * cuatro se leen como «algo falló». El mensaje que se muestra sigue siendo el de la API, que es el
- * mismo que produce `escribirEnBff`.
+ * Usa `escribirEnBff` y conserva el **código** de la respuesta: 403, 404, 409 y 422 son cuatro
+ * conversaciones distintas —permisos, {@link GLOSARIO.espacio} que no se ve, instalación sin la
+ * tabla, y rango mal pedido— y bajo un único encabezado genérico las cuatro se leen como «algo
+ * falló». El mensaje que se muestra es el de la API.
+ *
+ * Si la respuesta se pierde (red lenta o caída) no se afirma que no corrió: el recálculo pudo
+ * aplicarse, y repetirlo es seguro porque pisa la misma foto con los mismos datos.
  *
  * Nunca lanza: el error es un valor, y la pantalla que lo provocó tiene que poder mostrarlo sin
  * desmontarse.
@@ -173,46 +175,41 @@ interface FalloDeRecalculo {
 async function recalcular (
   cuerpo: { project_id: number, desde: string, hasta: string }
 ): Promise<{ ok: true, datos: ResultadoDeRecalculo } | { ok: false, fallo: FalloDeRecalculo }> {
-  let respuesta: Response
+  const resultado = await escribirEnBff<ResultadoDeRecalculo | undefined>(RUTA_RECALCULO, 'POST', cuerpo)
 
-  try {
-    respuesta = await fetch(`/api/bff/${RUTA_RECALCULO}`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(cuerpo)
-    })
-  } catch {
+  if (!resultado.ok) {
+    if (resultado.incierta === true) {
+      return {
+        ok: false,
+        fallo: {
+          titulo: 'No sabemos si el recálculo corrió',
+          mensaje: 'La respuesta tardó demasiado o se perdió la conexión. Vuelve a pedir el mismo rango para ver en qué quedó: repetirlo es seguro.'
+        }
+      }
+    }
+
     return {
       ok: false,
       fallo: {
-        titulo: 'No se pudo recalcular',
-        mensaje: 'No se pudo contactar al servidor. Revisa tu conexión.'
+        titulo: resultado.estado === undefined ? 'No se pudo recalcular' : tituloDeFallo(resultado.estado),
+        mensaje: resultado.mensaje
       }
     }
   }
 
-  if (!respuesta.ok) {
-    return {
-      ok: false,
-      fallo: { titulo: tituloDeFallo(respuesta.status), mensaje: await mensajeDeRespuesta(respuesta) }
-    }
-  }
-
-  try {
-    const sobre = await respuesta.json() as { data: ResultadoDeRecalculo }
-
-    return { ok: true, datos: sobre.data }
-  } catch {
+  if (resultado.datos === undefined) {
     // La escritura entró —la API respondió 2xx— pero el detalle no se pudo leer. Decirlo es lo
     // único honesto: callar dejaría creyendo que no se tocó nada.
     return {
       ok: false,
       fallo: {
         titulo: 'El recálculo corrió, pero no se pudo leer el detalle',
-        mensaje: 'El servidor respondió algo que no se pudo interpretar. Volvé a pedir el mismo rango para ver en qué quedó.'
+        mensaje: 'El servidor respondió algo que no se pudo interpretar. Vuelve a pedir el mismo rango para ver en qué quedó.'
       }
     }
   }
+
+  return { ok: true, datos: resultado.datos }
 }
 
 /**
@@ -235,7 +232,7 @@ function motivoParaNoRecalcular (
   hasta: string,
   hoy: string
 ): string | null {
-  if (espacio === '') return `Elegí el ${GLOSARIO.espacio.singular.toLowerCase()} a recalcular.`
+  if (espacio === '') return `Elige el ${GLOSARIO.espacio.singular.toLowerCase()} a recalcular.`
   if (desde === '' || hasta === '') return 'Hacen falta las dos fechas del rango.'
   if (desde > hasta) return 'La fecha de inicio no puede ser posterior a la de fin.'
   if (hasta > hoy) return 'No se puede recalcular una foto que todavía no se tomó.'
@@ -305,7 +302,7 @@ export function RecalculoDeFotoDiaria ({ espacios, errorCatalogo }: PropsRecalcu
     setFallo(null)
 
     if (motivo !== null) {
-      setFallo({ titulo: 'Revisá lo que pediste', mensaje: motivo })
+      setFallo({ titulo: 'Revisa lo que pediste', mensaje: motivo })
       return
     }
 
@@ -365,7 +362,7 @@ export function RecalculoDeFotoDiaria ({ espacios, errorCatalogo }: PropsRecalcu
               valor={espacio}
               onElegir={setEspacio}
               opciones={espacios}
-              marcador={`Elegí un ${GLOSARIO.espacio.singular.toLowerCase()}`}
+              marcador={`Elige un ${GLOSARIO.espacio.singular.toLowerCase()}`}
               nombre={GLOSARIO.espacio.singular.toLowerCase()}
             />
           )}
@@ -520,7 +517,7 @@ function Resultado (
         ? (
           <Vacio
             titulo="No había ninguna foto en ese rango"
-            descripcion={`Un día sin foto es un día que nadie fotografió, y no se inventa. Revisá las fechas o elegí otro ${GLOSARIO.espacio.singular.toLowerCase()}.`}
+            descripcion={`Un día sin foto es un día que nadie fotografió, y no se inventa. Revisa las fechas o elige otro ${GLOSARIO.espacio.singular.toLowerCase()}.`}
           />
           )
         : conCambios === 0

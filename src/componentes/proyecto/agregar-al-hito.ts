@@ -28,6 +28,7 @@ export const MAXIMO_SIN_HITO = 100
 export interface TareaCandidata {
   id: number
   name: string
+  patente?: string | null
 }
 
 /**
@@ -61,7 +62,7 @@ export function filtrarCandidatas<T extends TareaCandidata> (tareas: T[], texto:
 
   if (buscado === '') return tareas
 
-  return tareas.filter((tarea) => normalizar(tarea.name).includes(buscado))
+  return tareas.filter((tarea) => normalizar(`${tarea.patente ?? ''} ${tarea.name}`).includes(buscado))
 }
 
 /** Minusculas y sin diacriticos, para comparar lo que se escribe con lo que se ve. */

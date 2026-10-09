@@ -1,4 +1,5 @@
 import { mensajeDeRespuesta } from './cliente.ts'
+import { conLimite, TIEMPO_LECTURA_MS } from './red.ts'
 import type { CuerpoRedaccion } from '../dominio/descripcion-tarea.ts'
 
 /**
@@ -64,7 +65,7 @@ interface SobreRedaccion {
  */
 export async function consultarDisponibilidad (senal: AbortSignal): Promise<boolean> {
   try {
-    const respuesta = await fetch(`/api/bff/${RUTA_DESCRIPCION}`, { signal: senal })
+    const respuesta = await fetch(`/api/bff/${RUTA_DESCRIPCION}`, { signal: conLimite(senal, TIEMPO_LECTURA_MS) })
 
     if (!respuesta.ok) return false
 

@@ -4,9 +4,8 @@ import { PantallaPlantillasHito } from '@/componentes/proyecto/PantallaPlantilla
 import { TituloModulo } from '@/componentes/estructura/TituloModulo'
 import { RUTA_DE_ASIGNABLES } from '@/datos/asignables'
 import { cargarLookups } from '@/datos/lookups'
-import { pedir, pedirOpcional } from '@/datos/servidor'
+import { cargarYo, pedir, pedirOpcional } from '@/datos/servidor'
 import type { PersonaAsignable, PlantillaHito } from '@/datos/recursos'
-import type { Yo } from '@/datos/tipos'
 import { TITULO_PLANTILLAS_HITO } from '@/definiciones/plantillas-hito'
 import { GLOSARIO } from '@/dominio/glosario'
 import { tiposDeProcesoUnicos } from '@/lib/plantillas'
@@ -27,7 +26,7 @@ export const metadata = { title: `${TITULO_PLANTILLAS_HITO} · WiWO Ops` }
 export default async function PlantillasHitoPage () {
   const [lista, yo, lookups, equipo] = await Promise.all([
     pedir<PlantillaHito[]>('/hito-plantillas'),
-    pedir<Yo>('/me'),
+    cargarYo(),
     cargarLookups(),
     // Misma fuente que el selector de asignados de la tarea: `/staff` exige `staff.view` —lo tienen
     // 19 de 184 personas— y cortaba en 100, asi que el filtro "Creada por" no seria el mismo para

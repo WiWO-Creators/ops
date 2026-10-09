@@ -97,8 +97,11 @@ export function TableroDeIndicadores ({
                 </th>
                 <td className="text-texto-tenue px-2 py-2 text-right tabular-nums">{fila.base}</td>
                 <td className="text-texto px-2 py-2 text-right font-semibold tabular-nums">{fila.corte}</td>
+                {/* La clave por corte vuelve a montar la celda: el delta nuevo entra con movimiento en
+                    vez de cambiar de cifra en el lugar. */}
                 <td
-                  className={cn('px-2 py-2 text-right font-semibold tabular-nums', TONOS[fila.tono].clase)}
+                  key={`${comparacion.base.fecha}-${comparacion.corte.fecha}`}
+                  className={cn('animate-aparecer px-2 py-2 text-right font-semibold tabular-nums', TONOS[fila.tono].clase)}
                   aria-label={`${fila.delta}, ${TONOS[fila.tono].lectura}`}
                 >
                   {fila.delta}

@@ -160,7 +160,7 @@ function Volumen ({ meses, maximo }: { meses: MesDeTendencia[], maximo: number }
 
       <div className="border-grafico-rejilla flex gap-2 border-t pt-1">
         {meses.map((mes) => (
-          <span key={mes.mes} className="text-texto-sutil min-w-0 flex-1 text-center text-[0.625rem]">
+          <span key={mes.mes} className="text-texto-sutil min-w-0 flex-1 text-center text-micro">
             {mes.rotulo}
             {mes.parcial && <span className="block">parcial</span>}
           </span>
@@ -302,7 +302,7 @@ function Indicador ({
 
       <div className="flex gap-1">
         {serie.puntos.map((punto) => (
-          <span key={punto.mes} className="text-texto-sutil min-w-0 flex-1 truncate text-center text-[0.625rem]">
+          <span key={punto.mes} className="text-texto-sutil min-w-0 flex-1 truncate text-center text-micro">
             {punto.rotulo}
           </span>
         ))}

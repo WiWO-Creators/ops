@@ -2,6 +2,45 @@ import { defineConfig, globalIgnores } from 'eslint/config'
 import nextVitals from 'eslint-config-next/core-web-vitals'
 import nextTs from 'eslint-config-next/typescript'
 
+/**
+ * Escalas de `docs/sistema-de-diseno.md` que no admiten valores sueltos: capas de `z-index` con
+ * nombre (`globals.css`) y tamaños de texto de la escala. Los `vmin` de la carteleria no caen aca:
+ * escalan con la pantalla a proposito.
+ */
+const ESCALAS_SIN_ARBITRARIOS = [
+  {
+    selector: 'Literal[value=/(^|[\\s:"\'`])-?z-\\[/]',
+    message: '`z-[…]` no: usa una capa con nombre de `globals.css` (`z-superposicion`, `z-aviso`…) o la escala numérica para apilados locales.'
+  },
+  {
+    selector: 'TemplateElement[value.raw=/(^|[\\s:"\'`])-?z-\\[/]',
+    message: '`z-[…]` no: usa una capa con nombre de `globals.css` (`z-superposicion`, `z-aviso`…) o la escala numérica para apilados locales.'
+  },
+  {
+    selector: 'Literal[value=/text-\\[[\\d.]+(px|rem)\\]/]',
+    message: '`text-[Npx|Nrem]` no: usa la escala (`text-menor`, `text-sm`, `text-micro`…) o agrega un token en `globals.css`.'
+  },
+  {
+    selector: 'TemplateElement[value.raw=/text-\\[[\\d.]+(px|rem)\\]/]',
+    message: '`text-[Npx|Nrem]` no: usa la escala (`text-menor`, `text-sm`, `text-micro`…) o agrega un token en `globals.css`.'
+  }
+]
+
+/**
+ * Las duraciones de transicion salen de la escala de movimiento (`tokens.css`, utilidades de
+ * `globals.css`). `/pantalla` queda fuera: es carteleria y lleva su propia coreografia.
+ */
+const DURACIONES_DEL_SISTEMA = [
+  {
+    selector: 'Literal[value=/(^|[\\s:"\'`])duration-\\d/]',
+    message: '`duration-N` no: usa `duration-rapida`, `duration-media` o `duration-lenta` (docs/sistema-de-diseno.md § Movimiento).'
+  },
+  {
+    selector: 'TemplateElement[value.raw=/(^|[\\s:"\'`])duration-\\d/]',
+    message: '`duration-N` no: usa `duration-rapida`, `duration-media` o `duration-lenta` (docs/sistema-de-diseno.md § Movimiento).'
+  }
+]
+
 const eslintConfig = defineConfig([
   ...nextVitals,
   ...nextTs,
@@ -18,6 +57,52 @@ const eslintConfig = defineConfig([
       '@typescript-eslint/no-unused-vars': [
         'error',
         { ignoreRestSiblings: true, argsIgnorePattern: '^_', varsIgnorePattern: '^_' }
+      ]
+    }
+  },
+
+  {
+    // `no-restricted-syntax` no se acumula entre bloques: el que sigue la redeclara entera para sus
+    // archivos, asi que repite estas escalas.
+    files: ['src/**/*.{ts,tsx}'],
+    rules: {
+      'no-restricted-syntax': ['error', ...ESCALAS_SIN_ARBITRARIOS]
+    }
+  },
+
+  {
+    files: ['src/**/*.{ts,tsx}'],
+    ignores: ['src/app/pantalla/**'],
+    rules: {
+      'no-restricted-syntax': ['error', ...ESCALAS_SIN_ARBITRARIOS, ...DURACIONES_DEL_SISTEMA]
+    }
+  },
+
+  {
+    // Guardrail de `docs/sistema-de-diseno.md`: el pulso que no para es de lo que se desmonta
+    // (`componentes/estado/`) o de las excepciones decididas ahi: la pildora de estado del Proyecto y
+    // el punto de la llamada en curso. `/pantalla` es carteleria y anima a proposito.
+    files: ['src/**/*.{ts,tsx}'],
+    ignores: [
+      'src/componentes/estado/**',
+      'src/componentes/proyecto/CabeceraProyecto.tsx',
+      'src/componentes/proyecto/MenuEstadoProyecto.tsx',
+      'src/componentes/teletrabajo/MiniLlamada.tsx',
+      'src/app/pantalla/**'
+    ],
+    rules: {
+      'no-restricted-syntax': [
+        'error',
+        {
+          selector: 'Literal[value=/animate-(pulse|ping)/]',
+          message: '`animate-pulse`/`animate-ping` solo en `src/componentes/estado/` o en las excepciones de docs/sistema-de-diseno.md § Guardrails.'
+        },
+        {
+          selector: 'TemplateElement[value.raw=/animate-(pulse|ping)/]',
+          message: '`animate-pulse`/`animate-ping` solo en `src/componentes/estado/` o en las excepciones de docs/sistema-de-diseno.md § Guardrails.'
+        },
+        ...ESCALAS_SIN_ARBITRARIOS,
+        ...DURACIONES_DEL_SISTEMA
       ]
     }
   },

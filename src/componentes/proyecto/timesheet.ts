@@ -25,6 +25,8 @@ export interface RegistroDeDuracion {
  * el conteo en vivo de un registro que esta corriendo, porque ese valor envejece en pantalla.
  */
 
+import { segundosAHoraMinuto } from '../../lib/duraciones.ts'
+
 const MS_POR_SEGUNDO = 1000
 const SEGUNDOS_POR_HORA = 3600
 const SEGUNDOS_POR_MINUTO = 60
@@ -82,23 +84,6 @@ export function segundosEnVivo (registro: RegistroDeDuracion, ahora: Date = new 
 }
 
 /**
- * Formatea segundos como la columna "Hora (h)": `HH:MM`, **sin dias**.
- *
- * Treinta horas se muestran `30:00`, no `06:00` de un dia y seis horas: es la regla del panel viejo
- * (`Format::secondsToTime`), y cambiarla mueve numeros que la gente ya reconoce.
- *
- * @param segundos duracion
- * @returns el texto, con dos digitos como minimo en cada parte
- */
-export function formatearHm (segundos: number): string {
-  const total = Number.isFinite(segundos) && segundos > 0 ? Math.floor(segundos) : 0
-  const horas = Math.floor(total / SEGUNDOS_POR_HORA)
-  const minutos = Math.floor((total % SEGUNDOS_POR_HORA) / SEGUNDOS_POR_MINUTO)
-
-  return `${String(horas).padStart(2, '0')}:${String(minutos).padStart(2, '0')}`
-}
-
-/**
  * Formatea segundos como la columna "Hora (decimal)": horas con dos decimales.
  *
  * @param segundos duracion
@@ -131,7 +116,7 @@ export function duracionMostrada (registro: RegistroDeDuracion, ahora: Date = ne
 
   const segundos = segundosEnVivo(registro, ahora)
 
-  return { hm: formatearHm(segundos), decimal: formatearDecimal(segundos) }
+  return { hm: segundosAHoraMinuto(segundos), decimal: formatearDecimal(segundos) }
 }
 
 /** `true` si alguna fila esta corriendo, o sea si vale la pena mantener un intervalo vivo. */

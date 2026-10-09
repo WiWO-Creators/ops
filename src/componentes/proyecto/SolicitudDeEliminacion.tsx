@@ -1,12 +1,14 @@
 'use client'
 
 import { useState, type ReactElement } from 'react'
+import { AvisoEnLinea } from '@/componentes/estado/Estados'
 import { Boton } from '@/componentes/formularios/Boton'
 import { AreaTexto } from '@/componentes/formularios/Entrada'
 import { Dialogo, ContenidoDialogo } from '@/componentes/superposiciones/Dialogo'
 import { escribirEnBff } from '@/componentes/datos/mutaciones'
 import { GLOSARIO } from '@/dominio/glosario'
 import type { SolicitudDeEliminacion } from '@/datos/recursos'
+import { useAviso } from '@/componentes/estado/useAviso'
 
 /**
  * Pedir que se elimine un Proyecto, y retirar el pedido propio.
@@ -49,6 +51,7 @@ export function SolicitarEliminacion ({
   abierto,
   onAbiertoCambia
 }: PropsSolicitarEliminacion): ReactElement {
+  const aviso = useAviso()
   const [motivo, setMotivo] = useState('')
   const [enviando, setEnviando] = useState(false)
   const [fallo, setFallo] = useState<string | null>(null)
@@ -81,6 +84,7 @@ export function SolicitarEliminacion ({
       return
     }
 
+    aviso.exito(`Se pidió eliminar «${proyectoNombre}».`)
     setMotivo('')
     onAbiertoCambia(false)
     onCambio()
@@ -100,6 +104,7 @@ export function SolicitarEliminacion ({
       return
     }
 
+    aviso.exito(`Se retiró el pedido de eliminar «${proyectoNombre}».`)
     onAbiertoCambia(false)
     onCambio()
   }
@@ -144,7 +149,7 @@ export function SolicitarEliminacion ({
               </label>
               )}
 
-          {fallo !== null && <p role="alert" className="text-texto-peligro text-sm">{fallo}</p>}
+          {fallo !== null && <AvisoEnLinea variante="error" mensaje={fallo} className="text-sm" />}
 
           <div className="flex justify-end gap-2">
             <Boton variante="sutil" onClick={() => { onAbiertoCambia(false) }}>Cerrar</Boton>

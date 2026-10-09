@@ -1,4 +1,5 @@
 import type { CampoPersonalizado, Etiqueta, GraficoHoras } from '@/datos/recursos'
+import { SIN_DATO } from '../../lib/presentacion.ts'
 
 /**
  * Logica pura de la pestaña Descripcion: escala del grafico de horas y lectura del resumen.
@@ -154,7 +155,7 @@ export function simboloDelResumen (resumen: ResumenDeProyecto): string | null {
  *          guion largo cuando no hay plazo que contar
  */
 export function textoDeDias (days: ResumenDeProyecto['days']): string {
-  if (days === null) return '—'
+  if (days === null) return SIN_DATO
   if (days.left <= 0) return 'Vencido'
 
   return `${days.left} / ${days.total}`
@@ -186,6 +187,8 @@ export function textoDelPlazo (days: ResumenDeProyecto['days']): string {
 export interface ProyectoDeFicha {
   id: number
   description: string | null
+  /** La descripcion como HTML saneado (texto enriquecido). Ausente en una API anterior. */
+  description_html?: string | null
   start_date: string | null
   deadline: string | null
   date_finished: string | null

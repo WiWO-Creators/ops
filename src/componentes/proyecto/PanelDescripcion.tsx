@@ -3,13 +3,14 @@
 import Link from 'next/link'
 import type { ReactElement } from 'react'
 import { Cargando, ErrorEstado } from '@/componentes/estado/Estados'
+import { Contenido } from '@/componentes/presentadores/Contenido'
 import { Etiquetas } from '@/componentes/presentadores/Etiqueta'
 import { Fecha } from '@/componentes/presentadores/Fecha'
 import { Insignia } from '@/componentes/presentadores/Insignia'
 import { EnlacePersonalizado } from '@/componentes/presentadores/EnlacePersonalizado'
 import { GLOSARIO } from '@/dominio/glosario'
 import { cn } from '@/lib/clases'
-import { BarraProgreso } from './CabeceraProyecto'
+import { BarraProgreso } from '@/componentes/presentadores/BarraProgreso'
 import { Metrica, formatearNumero } from './ResumenProyecto'
 import { GraficoHoras } from './GraficoHoras'
 import { useRecurso } from './carga'
@@ -237,9 +238,12 @@ function FichaProyecto ({
 
       <div className="flex flex-col gap-1">
         <h3 className="text-texto-sutil text-xs">Descripción</h3>
-        <p className="text-texto text-sm whitespace-pre-line">
-          {descripcion === '' ? 'Sin descripción' : descripcion}
-        </p>
+        <Contenido
+          html={proyecto.description_html}
+          texto={descripcion}
+          className="text-texto text-sm"
+          vacio={<p className="text-texto text-sm">Sin descripción</p>}
+        />
       </div>
     </section>
   )
@@ -403,7 +407,7 @@ interface PropsCifra {
 function Cifra ({ etiqueta, tiempo, importe, simbolo }: PropsCifra): ReactElement {
   return (
     <div className="flex flex-col gap-0.5">
-      <span className="text-texto-sutil text-xs font-medium tracking-[0.08em] uppercase">
+      <span className="text-texto-sutil text-xs antetitulo">
         {etiqueta}
       </span>
       {tiempo !== null && (

@@ -104,7 +104,7 @@ try {
   // --- Sin elegir nada, el botón avisa qué falta en vez de disparar la llamada.
   await clicPorTexto(pagina, 'Ver qué se va a copiar')
   await pagina.waitForFunction(
-    () => document.querySelector('[role="alert"]')?.textContent?.includes('Elegí de qué proyecto') === true,
+    () => document.querySelector('[role="alert"]')?.textContent?.includes('Elige de qué proyecto') === true,
     { timeout: 10000 }
   )
 
