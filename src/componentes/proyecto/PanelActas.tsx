@@ -396,6 +396,8 @@ function ActaAbierta ({
       // La misma regla que aplica la API: el autor o quien administra. Comprobarlo acá solo evita
       // ofrecer un botón que va a devolver 403; la decisión real la toma el backend.
       puedeBorrar={puedeBorrar !== null && (acta.staff_id === puedeBorrar.yo.id || puedeBorrar.yo.is_admin)}
+      // Solo un superadmin fija la privacidad; la API lo vuelve a exigir con un 403.
+      puedeMarcarPrivada={puedeEditar && puedeBorrar?.yo.is_superadmin === true}
       conIa={conIa}
       puedeCrearTareas={puedeCrearTareas}
       destacarTareas={destacarTareas}

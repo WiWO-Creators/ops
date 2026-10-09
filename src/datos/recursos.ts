@@ -1724,6 +1724,11 @@ export interface Acta {
   /** Codigo de la marca del holding: `mgc`, `wiwo`, `palta` o vacio. */
   brand: string
   /**
+   * Privado: solo lo ven los superadmins. Solo viaja en el lado del equipo; el portal nunca lo
+   * recibe, porque para el cliente un acta privada no existe.
+   */
+  private?: boolean
+  /**
    * URL de la firma que corresponde a `brand`, resuelta por la API contra un dominio externo.
    *
    * El visor ya no la usa: la marca entera —logotipo, colores y pie— la pinta

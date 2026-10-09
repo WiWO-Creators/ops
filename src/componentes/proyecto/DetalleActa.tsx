@@ -2,7 +2,7 @@
 
 import dynamic from 'next/dynamic'
 import { useRef, useState, type ReactElement } from 'react'
-import { Download, FileAudio, FileText, Languages } from 'lucide-react'
+import { Download, FileAudio, FileText, Languages, Lock, LockOpen } from 'lucide-react'
 import { Boton } from '@/componentes/formularios/Boton'
 import { Campo } from '@/componentes/formularios/Campo'
 import { Entrada } from '@/componentes/formularios/Entrada'
@@ -135,6 +135,8 @@ interface PropsDetalle {
   puedeEditar?: boolean
   /** Eliminar. Solo el autor o quien administra, y la API lo vuelve a exigir igual. */
   puedeBorrar?: boolean
+  /** Marcar o quitar «privado». Solo superadmins; con el acta privada, el resto del equipo ni la ve. */
+  puedeMarcarPrivada?: boolean
   /** Si la capa de IA responde. Decide lo que ofrece el editor y si se puede volver a proponer tareas. */
   conIa?: boolean
   /**
@@ -155,6 +157,7 @@ export function DetalleActa ({
   fuente,
   puedeEditar = false,
   puedeBorrar = false,
+  puedeMarcarPrivada = false,
   conIa = false,
   puedeCrearTareas = false,
   destacarTareas = false,
@@ -173,6 +176,7 @@ export function DetalleActa ({
   const [error, setError] = useState<string | null>(null)
   const [exportando, setExportando] = useState<'pdf' | 'docx' | null>(null)
   const [cambiandoMarca, setCambiandoMarca] = useState(false)
+  const [cambiandoPrivacidad, setCambiandoPrivacidad] = useState(false)
   /**
    * Todo lo del idioma en un estado, junto al id del acta al que pertenece.
    *
@@ -457,6 +461,33 @@ export function DetalleActa ({
   }
 
   /**
+   * Marca el acta como privada (solo superadmins) o la devuelve a todo el equipo.
+   *
+   * Se pide confirmación al hacerla privada porque, desde ese momento, el resto del equipo deja de
+   * verla y el autor, si no es superadmin, pierde el acceso a su propia acta.
+   */
+  async function cambiarPrivacidad (): Promise<void> {
+    const privada = acta.private !== true
+
+    if (privada && !confirm('Solo los superadmins podrán ver este Meeting Paper; el resto del equipo, incluido su autor, dejará de verlo. ¿Continuar?')) return
+
+    setCambiandoPrivacidad(true)
+    setError(null)
+
+    const resultado = await escribirEnBff<Acta>(ruta, 'PATCH', { private: privada })
+
+    setCambiandoPrivacidad(false)
+
+    if (!resultado.ok) {
+      setError(resultado.mensaje)
+
+      return
+    }
+
+    onCambiada(resultado.datos)
+  }
+
+  /**
    * Baja el acta como PDF o como Word.
    *
    * Los dos generadores se cargan al pulsar y no con la pantalla: entre `pdfmake` y `docx` son
@@ -536,6 +567,9 @@ export function DetalleActa ({
             <h2 className="text-texto text-lg font-semibold" lang={infoIdioma.etiquetaHtml}>
               {tituloActivo}
             </h2>
+            {acta.private === true && (
+              <Insignia tono="neutro" tamano="chico">Privado</Insignia>
+            )}
             {acta.source === 'ia' && (
               <Insignia tono="acento" tamano="chico">Escrito con IA</Insignia>
             )}
@@ -576,6 +610,15 @@ export function DetalleActa ({
                   ))}
                 </ContenidoMenu>
               </MenuContextual>
+            )}
+
+            {puedeMarcarPrivada && !editando && (
+              <Boton variante="sutil" tamano="chico" cargando={cambiandoPrivacidad} onClick={() => { void cambiarPrivacidad() }}>
+                {acta.private === true
+                  ? <LockOpen size={14} strokeWidth={2} aria-hidden="true" className="shrink-0" />
+                  : <Lock size={14} strokeWidth={2} aria-hidden="true" className="shrink-0" />}
+                {acta.private === true ? 'Quitar privado' : 'Hacer privado'}
+              </Boton>
             )}
 
             {/* El idioma NO cuelga de `puedeEditar`: leer el acta en el idioma del cliente es

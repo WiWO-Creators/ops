@@ -48,6 +48,9 @@ export function TarjetaActa ({ acta, className }: { acta: Acta, className?: stri
           </EnlaceActa>
         </h3>
 
+        {acta.private === true && (
+          <Insignia tono="neutro" tamano="chico">Privado</Insignia>
+        )}
         {acta.source === 'ia' && (
           <Insignia tono="acento" tamano="chico">Escrito con IA</Insignia>
         )}
