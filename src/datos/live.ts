@@ -226,3 +226,37 @@ export function intervaloDeLive (): number {
 
   return Math.min(Math.max(Math.round(crudo), LIVE_MINIMO), LIVE_MAXIMO)
 }
+
+/** Estado de una tarjeta en vivo. `pausada` existe en el contrato pero la jornada nunca la usa. */
+export type EstadoDeTarjeta = 'en_curso' | 'pausada' | 'atrasada' | 'completada'
+
+/** Un extremo de la tarjeta: etiqueta y hora local (`HH:mm`, America/Santiago). */
+export interface PuntoDeTarjeta {
+  label: string
+  hora: string
+}
+
+/**
+ * La tarjeta en vivo (pantalla bloqueada) que la app nativa dibuja, tal como la entrega
+ * `GET /me/jornada/tarjeta`. Nunca lleva cliente, nota, proyecto ni identificador de persona.
+ *
+ * `inicio`, `finEstimado` y `actualizadoEn` son epoch en SEGUNDOS (UTC): el orden por `actualizadoEn`
+ * es lo que descarta un mensaje viejo que llega tarde.
+ */
+export interface LiveCardState {
+  /** UUID opaco de la tarjeta. */
+  cardId: string
+  tipo: 'jornada'
+  titulo: string
+  origen: PuntoDeTarjeta
+  destino: PuntoDeTarjeta
+  inicio: number
+  finEstimado: number
+  hitos?: PuntoDeTarjeta[]
+  estado: EstadoDeTarjeta
+  /** Texto corto (máx. 6 caracteres) para el chip de la pantalla bloqueada; puede ir vacío. */
+  chip: string
+  /** `true` cuando el dispositivo pidió ocultar el contenido en la pantalla bloqueada. */
+  discreto: boolean
+  actualizadoEn: number
+}

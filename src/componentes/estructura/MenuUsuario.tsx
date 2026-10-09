@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation'
 import { LogOut, Moon, Sparkles, Sun, UserRound } from 'lucide-react'
 import { useState, useSyncExternalStore } from 'react'
 import { Avatar } from '@/componentes/presentadores/Avatar'
+import { enviarAlApp, mensajeLogout } from '@/lib/puente-app'
 import { aplicarTema, esOscuro } from '@/lib/tema'
 import { hayNovedadesSinVer } from '@/dominio/novedades'
 import { EVENTO_NOVEDADES_VISTAS, leerNovedadesVistas } from '@/lib/novedades-vistas'
@@ -65,6 +66,8 @@ export function MenuUsuario ({ nombre, imagen, ultimaNovedad }: PropsMenuUsuario
 
   async function salir (): Promise<void> {
     establecerSaliendo(true)
+    // Antes del DELETE: la app termina la tarjeta y desvincula el teléfono mientras aún hay sesión.
+    enviarAlApp(mensajeLogout())
 
     try {
       await fetch('/api/sesion', { method: 'DELETE', signal: conLimite(undefined, TIEMPO_ESCRITURA_MS) })

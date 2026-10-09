@@ -1,3 +1,4 @@
+import { headers } from 'next/headers'
 import { Suspense } from 'react'
 import Link from 'next/link'
 import { cargarYo, pedirOpcional } from '@/datos/servidor'
@@ -35,6 +36,8 @@ import { LlamadaEnCurso } from '@/componentes/teletrabajo/LlamadaEnCurso'
 import { VigilanteDeVersion } from '@/componentes/estructura/VigilanteDeVersion'
 import { vistasPermitidas } from '@/dominio/vistas-de-auditoria'
 import { NOVEDADES, fechaMasReciente, novedadesDelRecorrido } from '@/dominio/novedades'
+import { esAppNativa } from '@/lib/app-nativa'
+import { PuenteApp } from '@/componentes/app/PuenteApp'
 
 /** Sin fijados. Constante para que la barra reciba siempre la misma referencia. */
 const SIN_FIJADOS: Fijado[] = []
@@ -72,6 +75,9 @@ export default async function PanelLayout ({ children }: { children: React.React
   // La cookie de la sesion real es la unica señal de que esto es una suplantacion. `/me` no puede
   // decirlo: la API emite la sesion prestada igual que un login normal, a proposito.
   const suplantando = await leerSuplantador() !== null
+  // Dentro de la app nativa (`ops-mobile`) no hay que proponer instalar nada y sí hay puente con la
+  // app. Se decide en el servidor, por el `User-Agent`, para que el HTML ya salga correcto.
+  const enApp = esAppNativa((await headers()).get('user-agent'))
 
   return (
     // `h-dvh` y no `min-h-dvh`: el armazon mide exactamente la ventana para que el scroll ocurra
@@ -113,7 +119,11 @@ export default async function PanelLayout ({ children }: { children: React.React
       <AppInstalable version={versionDelServidor()} />
 
       {/* Una vez al dia, a quien usa Ops desde el navegador, le propone instalarlo como aplicacion. */}
-      <RecordatorioInstalar />
+      {!enApp && <RecordatorioInstalar />}
+
+      {/* No pinta nada: solo dentro de la app nativa, vincula el teléfono y le pasa la tarjeta en
+          vivo de la jornada. En un navegador normal no existe. */}
+      {enApp && <PuenteApp />}
 
       {/* Por el mismo motivo que el latido: el chat dejo de ser de un Espacio y su asunto es todo el
           panel. Montado aca —fuera del contenedor que scrollea— el orbe flota sobre cualquier

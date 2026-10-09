@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect } from 'react'
+import { enAppNativa } from '@/lib/app-nativa'
 import { COLOR_BARRA, decidirActualizacion, urlDeRegistro } from '@/lib/pwa'
 import { MODOS, esClaveDeModo } from '@/dominio/modos-especiales'
 import { EVENTO_MODO, EVENTO_TEMA, esOscuro } from '@/lib/tema'
@@ -25,6 +26,10 @@ interface PropsAppInstalable {
  * sirve las navegaciones siempre desde la red, así que recargar ya trae la página nueva, y esa página
  * registra el trabajador de su versión y lo activa en silencio (`decidirActualizacion`).
  *
+ * Dentro de la app nativa (`ops-mobile`) no se registra: el WebView no es un navegador que se instale,
+ * y un trabajador con caché propia compite con la app. Si un trabajador quedó registrado de antes,
+ * se desregistra. Nada de lo demás depende de que exista (`controller` o `ready`).
+ *
  * Solo en producción. En `next dev` los chunks cambian en cada guardado y un trabajador sirviéndolos
  * desde caché sería una fuente de "no veo mi cambio" imposible de diagnosticar.
  */
@@ -44,6 +49,11 @@ export function AppInstalable ({ version }: PropsAppInstalable): null {
 function useServiceWorker (version: string): void {
   useEffect(() => {
     if (process.env.NODE_ENV !== 'production' || !('serviceWorker' in navigator)) return
+
+    if (enAppNativa()) {
+      void desregistrarServiceWorkers()
+      return
+    }
 
     let vigente = true
     const contenedor = navigator.serviceWorker
@@ -77,6 +87,20 @@ function useServiceWorker (version: string): void {
       vigente = false
     }
   }, [version])
+}
+
+/**
+ * Desregistra los service workers que hubiera, para la app nativa. Nunca lanza: si el WebView no
+ * deja, el trabajador queda y no pasa nada peor que antes.
+ */
+async function desregistrarServiceWorkers (): Promise<void> {
+  try {
+    const registros = await navigator.serviceWorker.getRegistrations()
+
+    await Promise.all(registros.map(async (registro) => await registro.unregister()))
+  } catch {
+    // Sin permiso para listar o desregistrar no hay nada que hacer.
+  }
 }
 
 /**

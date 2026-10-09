@@ -1,7 +1,7 @@
 'use client'
 
-import { Bell, BellOff, BellRing, Check, CircleAlert, Send, Share, ShieldAlert, SquarePlus } from 'lucide-react'
-import { useCallback, useEffect, useState, type ReactNode } from 'react'
+import { Bell, BellOff, BellRing, Check, CircleAlert, Send, Settings, Share, ShieldAlert, SquarePlus } from 'lucide-react'
+import { useCallback, useEffect, useState, useSyncExternalStore, type ReactNode } from 'react'
 import { escribirEnBff } from '@/componentes/datos/mutaciones'
 import { Boton } from '@/componentes/formularios/Boton'
 import { Hueso } from '@/componentes/estado/Estados'
@@ -19,7 +19,9 @@ import {
   type MensajeDePrueba,
   type ResumenPrueba
 } from '@/dominio/push'
+import { enAppNativa } from '@/lib/app-nativa'
 import { cn } from '@/lib/clases'
+import { enviarAlApp, mensajeAjustes } from '@/lib/puente-app'
 import estilos from './push.module.css'
 
 /**
@@ -85,15 +87,57 @@ const PRESENTACION: Record<EstadoDelDispositivo, { titulo: string, detalle: stri
   }
 }
 
+/** Sin suscripción: el valor de la app no cambia mientras la página vive. */
+const sinSuscripcion = (): (() => void) => () => {}
+
 /**
  * Bloque "Notificaciones en este dispositivo" de Mi perfil.
+ *
+ * En un navegador es el bloque de Web Push (`NotificacionesWeb`). Dentro de la app nativa no se
+ * suscribe nada —ni VAPID ni service worker—: las notificaciones del teléfono las gestiona la app, y
+ * el bloque manda a sus Ajustes. En el servidor y al hidratar se pinta la versión web, y la de la app
+ * entra en cuanto se sabe dónde se está: así el HTML del servidor nunca depende del dispositivo.
+ */
+export function NotificacionesDelDispositivo () {
+  const enApp = useSyncExternalStore(sinSuscripcion, enAppNativa, () => false)
+
+  return enApp ? <NotificacionesDeLaApp /> : <NotificacionesWeb />
+}
+
+/** El bloque de la app: no hay interruptor acá, hay un atajo a la pantalla nativa. */
+function NotificacionesDeLaApp () {
+  return (
+    <Seccion titulo="Notificaciones en este dispositivo">
+      <div className="flex items-start gap-3">
+        <span className="bg-control text-texto-tenue flex size-10 shrink-0 items-center justify-center rounded-full">
+          <Bell className="size-5" aria-hidden="true" />
+        </span>
+        <div className="flex min-w-0 flex-1 flex-col gap-0.5">
+          <p className="text-texto text-sm font-medium">Se gestionan en Ajustes de la app</p>
+          <p className="text-texto-tenue max-w-prose text-xs leading-relaxed">
+            Los permisos y la tarjeta de la jornada en la pantalla bloqueada se configuran en la app de Ops de este teléfono.
+          </p>
+        </div>
+      </div>
+      <div className="pl-13">
+        <Boton variante="secundario" tamano="chico" onClick={() => { enviarAlApp(mensajeAjustes()) }}>
+          <Settings className="size-3.5" aria-hidden="true" />
+          Abrir Ajustes de la app
+        </Boton>
+      </div>
+    </Seccion>
+  )
+}
+
+/**
+ * Bloque de Web Push de Mi perfil, para quien usa Ops desde un navegador.
  *
  * Suscribe o desuscribe ESTE navegador a Web Push y deja mandarse una prueba. Cada dispositivo se
  * activa por separado: el permiso es del navegador, no de la cuenta. Que el push efectivamente
  * salga lo decide la instalacion (`wiwo_api_push`, apagado de fabrica), y el bloque lo dice cuando
  * esta en pausa en vez de dejar creer que el telefono no anda.
  */
-export function NotificacionesDelDispositivo () {
+function NotificacionesWeb () {
   const [servidor, establecerServidor] = useState<EstadoPushServidor | null>(null)
   const [navegador, establecerNavegador] = useState<Navegador | null>(null)
   const [accion, establecerAccion] = useState<Accion | null>(null)
