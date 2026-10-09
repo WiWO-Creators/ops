@@ -13,7 +13,7 @@ import { CargandoConOrbe } from '@/componentes/estado/Orbe'
 import { useAviso } from '@/componentes/estado/useAviso'
 import { CLASES_CASILLA } from '@/componentes/formularios/Entrada'
 import { Segmentado, type OpcionSegmentada } from '@/componentes/formularios/Segmentado'
-import { MenuAccionesFila, type AccionDeBorrado } from '@/componentes/datos/MenuAccionesFila'
+import { MenuAccionesFila, type AccionDeBorrado, type AccionDeFila } from '@/componentes/datos/MenuAccionesFila'
 import { cn } from '@/lib/clases'
 import { CeldaEncabezado, CeldaTabla, CuerpoTabla, EncabezadoTabla, FilaTabla, Tabla } from './Tabla'
 import { ControlesTabla, PaginacionTabla } from './ControlesTabla'
@@ -194,6 +194,23 @@ interface PropsTablaRecurso<T> {
    * @returns el contrato de `ConfirmarBorrado`, o `undefined` si esta fila no se puede borrar
    */
   borradoDeFila?: (fila: T, recargar: () => void) => AccionDeBorrado | undefined
+  /**
+   * Acciones propias de la fila, en el mismo menu "⋯" que las declarativas, `onEditarFila` y
+   * `borradoDeFila` (entre "Editar" y "Eliminar").
+   *
+   * Es para lo que necesita un dialogo o una navegacion —fusionar, deshacer— y por eso no cabe en
+   * `definicion.acciones`, que solo sabe de llamadas sin cuerpo. Devuelve `[]` para una fila a la que
+   * no le corresponde ninguna: si no queda nada que ofrecer, la fila no lleva menu.
+   *
+   * @param fila la fila
+   * @param recargar vuelve a pedir la pagina vigente
+   */
+  accionesDeFila?: (fila: T, recargar: () => void) => AccionDeFila[]
+  /**
+   * Oculta la barra de buscador, filtros, presets y columnas. Para una tabla embebida en un dialogo o
+   * en un bloque de resumen, donde esos controles son ruido; el orden por encabezado sigue activo.
+   */
+  sinControles?: boolean
 }
 
 /**
@@ -249,7 +266,9 @@ export function TablaRecurso<T> ({
   datos,
   prefijoUrl,
   onEditarFila,
-  borradoDeFila
+  borradoDeFila,
+  accionesDeFila,
+  sinControles = false
 }: PropsTablaRecurso<T>) {
   const router = useRouter()
 
@@ -512,7 +531,7 @@ export function TablaRecurso<T> ({
                 </CeldaEncabezado>
               )
             })}
-            {(acciones.length > 0 || filaExtra !== undefined) && (
+            {(acciones.length > 0 || filaExtra !== undefined || accionesDeFila !== undefined) && (
               <CeldaEncabezado className="w-10">
                 <span className="sr-only">Acciones</span>
               </CeldaEncabezado>
@@ -528,6 +547,8 @@ export function TablaRecurso<T> ({
           {resultado.filas.map((fila, indice) => {
             const href = urlDeFila(fila)
             const clicable = href !== null || alCliquearFila !== undefined
+            const propias = accionesDeFila?.(fila, recargar) ?? []
+            const conMenu = acciones.length > 0 || propias.length > 0 || onEditarFila !== undefined || borradoDeFila !== undefined
 
             return (
             <FilaTabla
@@ -557,7 +578,7 @@ export function TablaRecurso<T> ({
                   <Celda columna={columna} fila={fila} catalogos={opcionesDeFiltro} />
                 </CeldaTabla>
               ))}
-              {(acciones.length > 0 || filaExtra !== undefined || onEditarFila !== undefined || borradoDeFila !== undefined) && (
+              {(conMenu || filaExtra !== undefined || accionesDeFila !== undefined) && (
                 <CeldaTabla>
                   {/* `stopPropagation`: la fila entera es un enlace cuando `urlDeFila`
                       devuelve algo, y un clic en "Editar" no tiene que navegar ademas. */}
@@ -566,9 +587,10 @@ export function TablaRecurso<T> ({
                     onClick={(evento) => { evento.stopPropagation() }}
                   >
                     {filaExtra?.(fila, recargar)}
-                    {(acciones.length > 0 || onEditarFila !== undefined || borradoDeFila !== undefined) && (
+                    {conMenu && (
                       <MenuAcciones
                         acciones={acciones}
+                        propias={propias}
                         id={claveFila(fila)}
                         onError={setError}
                         onListo={recargar}
@@ -589,35 +611,37 @@ export function TablaRecurso<T> ({
 
   return (
     <div className={cn('flex flex-col gap-3', className)}>
-      <div className="flex flex-wrap items-start justify-between gap-2">
-        <ControlesTabla
-          board={board}
-          definicion={definicion}
-          estado={estado}
-          visibles={visibles}
-          opcionesDeFiltro={opcionesDeFiltro}
-          onCambiar={cambiar}
-          onVisibles={setVisibles}
-          // En tarjetas el selector de columnas no cambia nada: la tarjeta elige sus campos. Un
-          // control que no hace nada se lee como un control roto.
-          sinColumnas={enTarjetas}
-        />
-        <div className="flex items-center gap-2">
-          {/* Con `tarjetasEnMovil` el alternador no existe en pantallas angostas: ahi las tarjetas
-              son la unica presentacion, y un control que no cambia nada se lee como roto. */}
-          {tarjeta !== undefined && (
-            <div className={cn(tarjetasEnMovil && 'hidden md:block')}>
-              <Segmentado
-                etiqueta="Presentación del listado"
-                opciones={VISTAS}
-                activo={enTarjetas ? 'tarjetas' : 'tabla'}
-                onElegir={cambiarVista}
-              />
-            </div>
-          )}
-          {accion}
+      {!sinControles && (
+        <div className="flex flex-wrap items-start justify-between gap-2">
+          <ControlesTabla
+            board={board}
+            definicion={definicion}
+            estado={estado}
+            visibles={visibles}
+            opcionesDeFiltro={opcionesDeFiltro}
+            onCambiar={cambiar}
+            onVisibles={setVisibles}
+            // En tarjetas el selector de columnas no cambia nada: la tarjeta elige sus campos. Un
+            // control que no hace nada se lee como un control roto.
+            sinColumnas={enTarjetas}
+          />
+          <div className="flex items-center gap-2">
+            {/* Con `tarjetasEnMovil` el alternador no existe en pantallas angostas: ahi las tarjetas
+                son la unica presentacion, y un control que no cambia nada se lee como roto. */}
+            {tarjeta !== undefined && (
+              <div className={cn(tarjetasEnMovil && 'hidden md:block')}>
+                <Segmentado
+                  etiqueta="Presentación del listado"
+                  opciones={VISTAS}
+                  activo={enTarjetas ? 'tarjetas' : 'tabla'}
+                  onElegir={cambiarVista}
+                />
+              </div>
+            )}
+            {accion}
+          </div>
         </div>
-      </div>
+      )}
 
       {seleccionMasiva?.(seleccionadas, () => seleccionar([]), () => setRevision((n) => n + 1))}
 
@@ -690,10 +714,12 @@ interface PropsMenuAcciones {
   onEditar?: () => void
   /** `borradoDeFila` de la tabla, ya resuelto para esta fila. Ver `MenuAccionesFila.borrado`. */
   borrado?: AccionDeBorrado
+  /** `accionesDeFila` de la tabla, ya resueltas para esta fila: van despues de las declarativas. */
+  propias: AccionDeFila[]
 }
 
 /** Menu de acciones de una fila. Al terminar refresca la vista: el backend es quien sabe como quedo. */
-function MenuAcciones ({ acciones, id, onError, onListo, onEditar, borrado }: PropsMenuAcciones) {
+function MenuAcciones ({ acciones, propias, id, onError, onListo, onEditar, borrado }: PropsMenuAcciones) {
   const [enCurso, setEnCurso] = useState(false)
   const aviso = useAviso()
 
@@ -728,12 +754,15 @@ function MenuAcciones ({ acciones, id, onError, onListo, onEditar, borrado }: Pr
       ariaLabel="Acciones"
       onEditar={onEditar}
       borrado={borrado}
-      acciones={acciones.map((accion) => ({
-        clave: accion.clave,
-        etiqueta: accion.etiqueta,
-        peligroso: accion.metodo === 'DELETE',
-        onSeleccionar: () => { void ejecutar(accion.ruta, accion.metodo) }
-      }))}
+      acciones={[
+        ...acciones.map((accion) => ({
+          clave: accion.clave,
+          etiqueta: accion.etiqueta,
+          peligroso: accion.metodo === 'DELETE',
+          onSeleccionar: () => { void ejecutar(accion.ruta, accion.metodo) }
+        })),
+        ...propias
+      ]}
     />
   )
 }
