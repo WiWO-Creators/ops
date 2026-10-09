@@ -1,0 +1,317 @@
+{
+  "generado": "2026-10-08T17:53:25.151Z",
+  "perfil": "3g-lento",
+  "retardoEscrituraMs": 23000,
+  "modulos": {
+    "proyectos": {
+      "abrir": {
+        "primerContenidoMs": 4278,
+        "lecturasBff": 3,
+        "escrituras": 1,
+        "postsTotales": 1,
+        "duplicadas": [],
+        "rsc": 1,
+        "rscRutas": [
+          "/proyectos/2"
+        ],
+        "clics": [
+          {
+            "nombre": "abrir Portal de autogestión",
+            "respuestaMs": 187
+          }
+        ],
+        "clicsSinRespuesta100ms": 1
+      },
+      "estado": {
+        "omitido": "la lista de proyectos no cambia el estado desde la tabla"
+      },
+      "crear": {
+        "omitido": "el alta de proyecto es un asistente largo; se cubre en tareas"
+      },
+      "tablero": {
+        "omitido": "la lista de proyectos no tiene tablero de movimientos"
+      },
+      "filtrar": {
+        "filtroFinal": "?filter%5Bstatus%5D=2&sort=deadline&q=Integraci%C3%B3n&include=custom_fields%2Cmembers&vista=tarjetas",
+        "filas": 1,
+        "valoresDelBuscador": [
+          "Integración"
+        ],
+        "buscadorCoincide": true,
+        "escrituras": 0,
+        "postsTotales": 0,
+        "duplicadas": [],
+        "rsc": 2,
+        "rscRutas": [
+          "/proyectos?filter%5Bstatus%5D=2&sort=deadline&q=Portal&include=custom_fields%2Cmembers&vista=tarjetas",
+          "/proyectos?filter%5Bstatus%5D=2&sort=deadline&q=Integraci%C3%B3n&include=custom_fields%2Cmembers&vista=tarjetas"
+        ],
+        "clics": [
+          {
+            "nombre": "buscar Portal",
+            "respuestaMs": 85
+          },
+          {
+            "nombre": "buscar Integración",
+            "respuestaMs": null
+          }
+        ],
+        "clicsSinRespuesta100ms": 1
+      }
+    },
+    "tickets": {
+      "abrir": {
+        "primerContenidoMs": 1958,
+        "lecturasBff": 4,
+        "escrituras": 0,
+        "postsTotales": 0,
+        "duplicadas": [],
+        "rsc": 0,
+        "rscRutas": [],
+        "clics": [
+          {
+            "nombre": "abrir El formulario de contacto no envía",
+            "respuestaMs": 89
+          }
+        ],
+        "clicsSinRespuesta100ms": 0
+      },
+      "estado": {
+        "omitido": "el estado del ticket se cambia dentro de su ficha, no desde la tabla"
+      },
+      "crear": {
+        "omitido": "el alta de tickets es del portal"
+      },
+      "tablero": {
+        "omitido": "la bandeja de tickets no tiene movimiento por columnas"
+      },
+      "filtrar": {
+        "filtroFinal": "?filter%5Bstatus%5D=1%2C2%2C3%2C4&sort=-date&q=logo",
+        "filas": 1,
+        "valoresDelBuscador": [
+          "logo",
+          "formulario",
+          "logo"
+        ],
+        "buscadorCoincide": true,
+        "escrituras": 0,
+        "postsTotales": 0,
+        "duplicadas": [],
+        "rsc": 2,
+        "rscRutas": [
+          "/tickets?filter%5Bstatus%5D=1%2C2%2C3%2C4&sort=-date&q=formulario",
+          "/tickets?filter%5Bstatus%5D=1%2C2%2C3%2C4&sort=-date&q=logo"
+        ],
+        "clics": [
+          {
+            "nombre": "buscar formulario",
+            "respuestaMs": null
+          },
+          {
+            "nombre": "buscar logo",
+            "respuestaMs": null
+          }
+        ],
+        "clicsSinRespuesta100ms": 2
+      }
+    },
+    "portal": {
+      "abrir": {
+        "primerContenidoMs": 5641,
+        "lecturasBff": 1,
+        "escrituras": 1,
+        "postsTotales": 1,
+        "duplicadas": [],
+        "rsc": 1,
+        "rscRutas": [
+          "/portal/proyectos/8"
+        ],
+        "clics": [
+          {
+            "nombre": "abrir Panel de indicadores",
+            "respuestaMs": 89
+          }
+        ],
+        "clicsSinRespuesta100ms": 0
+      },
+      "estado": {
+        "omitido": "el portal no cambia estados"
+      },
+      "crear": {
+        "omitido": "el alta de solicitud del portal queda para la oleada del portal"
+      },
+      "tablero": {
+        "omitido": "el portal no mueve tarjetas"
+      },
+      "filtrar": {
+        "filtroFinal": "?sort=name&q=Redise%C3%B1o",
+        "filas": 1,
+        "valoresDelBuscador": [
+          "Rediseño",
+          "Panel",
+          "Rediseño"
+        ],
+        "buscadorCoincide": true,
+        "escrituras": 1,
+        "postsTotales": 1,
+        "duplicadas": [],
+        "rsc": 2,
+        "rscRutas": [
+          "/portal/proyectos?sort=name&q=Panel",
+          "/portal/proyectos?sort=name&q=Redise%C3%B1o"
+        ],
+        "clics": [
+          {
+            "nombre": "buscar Panel",
+            "respuestaMs": null
+          },
+          {
+            "nombre": "buscar Rediseño",
+            "respuestaMs": null
+          }
+        ],
+        "clicsSinRespuesta100ms": 2
+      }
+    },
+    "tareas": {
+      "abrir": {
+        "primerContenidoMs": 2446,
+        "lecturasBff": 12,
+        "escrituras": 0,
+        "postsTotales": 0,
+        "duplicadas": [],
+        "rsc": 1,
+        "rscRutas": [
+          "/tareas?tarea=9028"
+        ],
+        "clics": [
+          {
+            "nombre": "abrir Banco red lenta 1791480958382",
+            "respuestaMs": 28
+          }
+        ],
+        "clicsSinRespuesta100ms": 0
+      },
+      "crear": {
+        "postTasks": 2,
+        "claves": [
+          "17a4cd8b-61fc-4fcb-8451-9d27dad9ab25",
+          "bce4cb2f-849c-4a3e-b36a-af6a569c766e"
+        ],
+        "clavesIguales": false,
+        "llegaronAlServidor": 2,
+        "escrituras": 3,
+        "postsTotales": 2,
+        "duplicadas": [
+          {
+            "metodo": "POST",
+            "ruta": "/api/bff/tasks",
+            "intentos": 2,
+            "claves": [
+              "17a4cd8b-61fc-4fcb-8451-9d27dad9ab25",
+              "bce4cb2f-849c-4a3e-b36a-af6a569c766e"
+            ],
+            "claveRepetida": false,
+            "llegaronAlServidor": 2
+          }
+        ],
+        "rsc": 0,
+        "rscRutas": [],
+        "clics": [
+          {
+            "nombre": "Crear (respuesta perdida)",
+            "respuestaMs": 67
+          },
+          {
+            "nombre": "Crear (reintento)",
+            "respuestaMs": 69
+          }
+        ],
+        "clicsSinRespuesta100ms": 0
+      },
+      "tablero": {
+        "retardoMs": 23000,
+        "bloqueadosAntes": 1,
+        "bloqueadosDuranteEspera": 84,
+        "avisoMs": 19618,
+        "desbloqueoMs": 23173,
+        "avisos": [
+          "La respuesta tardó demasiado o se perdió la conexión, y no sabemos si el cambio se guardó. Revisa antes de repetirlo."
+        ],
+        "escrituras": 1,
+        "postsTotales": 1,
+        "duplicadas": [],
+        "rsc": 0,
+        "rscRutas": [],
+        "clics": [
+          {
+            "nombre": "abrir Mover a…",
+            "respuestaMs": 97
+          },
+          {
+            "nombre": "mover a En proceso",
+            "respuestaMs": 73
+          }
+        ],
+        "clicsSinRespuesta100ms": 0
+      },
+      "filtrar": {
+        "filtroFinal": "?sort=completed%2C-date_added&q=Maquetar",
+        "filas": 13,
+        "valoresDelBuscador": [
+          "Maquetar",
+          "Migrar",
+          "Maquetar"
+        ],
+        "buscadorCoincide": true,
+        "escrituras": 0,
+        "postsTotales": 0,
+        "duplicadas": [],
+        "rsc": 2,
+        "rscRutas": [
+          "/tareas?sort=completed%2C-date_added&q=Migrar",
+          "/tareas?sort=completed%2C-date_added&q=Maquetar"
+        ],
+        "clics": [
+          {
+            "nombre": "buscar Migrar",
+            "respuestaMs": null
+          },
+          {
+            "nombre": "buscar Maquetar",
+            "respuestaMs": null
+          }
+        ],
+        "clicsSinRespuesta100ms": 2
+      },
+      "estado": {
+        "retardoMs": 23000,
+        "bloqueadosAntes": 1,
+        "bloqueadosDuranteEspera": 2,
+        "avisoMs": 19647,
+        "desbloqueoMs": 21839,
+        "avisos": [
+          "La respuesta tardó demasiado o se perdió la conexión, y no sabemos si el cambio se guardó. Revisa antes de repetirlo."
+        ],
+        "escrituras": 1,
+        "postsTotales": 1,
+        "duplicadas": [],
+        "rsc": 1,
+        "rscRutas": [
+          "/tareas"
+        ],
+        "clics": [
+          {
+            "nombre": "abrir menu de acciones",
+            "respuestaMs": 85
+          },
+          {
+            "nombre": "Marcar completado",
+            "respuestaMs": 22
+          }
+        ],
+        "clicsSinRespuesta100ms": 0
+      }
+    }
+  }
+}

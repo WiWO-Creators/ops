@@ -1,10 +1,14 @@
 'use client'
 
 import { useCallback, useEffect, useState, type ReactElement } from 'react'
+import { escribirEnBff } from '@/componentes/datos/mutaciones'
+import { useAviso } from '@/componentes/estado/useAviso'
 import { Boton } from '@/componentes/formularios/Boton'
-import { Cargando, ErrorEstado, Vacio } from '@/componentes/estado/Estados'
+import { AvisoEnLinea, Cargando, ErrorEstado, Vacio } from '@/componentes/estado/Estados'
+import { EntradaEscalonada } from '@/componentes/estructura/EntradaEscalonada'
 import { Insignia } from '@/componentes/presentadores/Insignia'
 import { avisarCambioDeMedidor } from '@/componentes/live/medidor'
+import { GLOSARIO } from '@/dominio/glosario'
 import { compararTiempo, type ComparacionTiempo } from '@/dominio/tiempo-estimado'
 import { formatearFecha } from '@/lib/fechas'
 import { cn } from '@/lib/clases'
@@ -59,6 +63,7 @@ export function Cronometros ({ procesoId, className }: PropsCronometros): ReactE
   const [datos, setDatos] = useState<Datos | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [aviso, setAviso] = useState<string | null>(null)
+  const avisar = useAviso()
   const [enCurso, setEnCurso] = useState(false)
   const [intento, setIntento] = useState(0)
   const [ahora, setAhora] = useState(() => new Date())
@@ -108,15 +113,11 @@ export function Cronometros ({ procesoId, className }: PropsCronometros): ReactE
     setEnCurso(true)
     setAviso(null)
 
-    const respuesta = await fetch(`/api/bff/tasks/${procesoId}/timer`, {
-      method: metodo,
-      headers: { 'content-type': 'application/json' },
-      body: metodo === 'POST' ? '{}' : undefined
-    })
+    const resultado = await escribirEnBff(`tasks/${procesoId}/timer`, metodo, metodo === 'POST' ? {} : undefined)
 
     setEnCurso(false)
 
-    if (respuesta.ok) {
+    if (resultado.ok) {
       // El control de jornada de la cabecera mira el mismo cronometro: sin este aviso se queda con el
       // estado viejo hasta su proximo intervalo.
       avisarCambioDeMedidor()
@@ -124,7 +125,15 @@ export function Cronometros ({ procesoId, className }: PropsCronometros): ReactE
       return
     }
 
-    setAviso(mensajeDeFalloDeCronometro(respuesta.status, metodo === 'POST'))
+    if (resultado.incierta === true) {
+      // No se sabe si quedo: se vuelve a leer en vez de afirmar que no se guardo.
+      avisar.advertencia(resultado.mensaje)
+      avisarCambioDeMedidor()
+      recargar()
+      return
+    }
+
+    setAviso(resultado.estado === undefined ? resultado.mensaje : mensajeDeFalloDeCronometro(resultado.estado, metodo === 'POST'))
   }
 
   const mio = cronometroAbierto(datos.timers, datos.yoId)
@@ -166,9 +175,7 @@ export function Cronometros ({ procesoId, className }: PropsCronometros): ReactE
       )}
 
       {aviso !== null && (
-        <p role="alert" className="border-linea bg-superficie-peligro text-texto-peligro rounded-chico border px-3 py-2 text-sm">
-          {aviso}
-        </p>
+        <AvisoEnLinea variante="error" mensaje={aviso} className="border-linea bg-superficie-peligro rounded-chico border px-3 py-2 text-sm" />
       )}
 
       {datos.tarea.project !== null && (
@@ -181,18 +188,20 @@ export function Cronometros ({ procesoId, className }: PropsCronometros): ReactE
       )}
 
       {datos.timers.length === 0
-        ? <Vacio titulo="Todavía no hay marcajes" descripcion="El tiempo que registres en esta tarea aparece acá." />
+        ? <Vacio titulo="Todavía no hay marcajes" descripcion={`El tiempo que registres en esta ${GLOSARIO.proceso.singular.toLowerCase()} aparece acá.`} />
         : (
-          <ul className="flex flex-col">
-            {datos.timers.map((timer) => (
-              <Marcaje
-                key={timer.id}
-                timer={timer}
-                ahora={ahora}
-                persona={nombreDePersona(datos.tarea, timer.staff_id)}
-              />
-            ))}
-          </ul>
+          <EntradaEscalonada densa className="contents">
+            <ul className="flex flex-col">
+              {datos.timers.map((timer) => (
+                <Marcaje
+                  key={timer.id}
+                  timer={timer}
+                  ahora={ahora}
+                  persona={nombreDePersona(datos.tarea, timer.staff_id)}
+                />
+              ))}
+            </ul>
+          </EntradaEscalonada>
           )}
     </section>
   )
@@ -269,7 +278,7 @@ function Marcaje ({
   const corriendo = timer.end_time === null
 
   return (
-    <li className="border-linea-suave flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1 border-b py-2 last:border-b-0">
+    <li data-entrada="item" className="border-linea-suave flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1 border-b py-2 last:border-b-0">
       <div className="flex min-w-0 flex-col">
         <span className="text-texto truncate text-sm font-medium">
           {corriendo && <span aria-hidden="true" className="bg-relleno-exito mr-2 inline-block size-2 rounded-full" />}
@@ -297,10 +306,10 @@ function Marcaje ({
  * falla es peor que apagarlo diciendo el motivo.
  */
 function motivoParaNoArrancar (datos: Datos): string | null {
-  if (datos.tarea.billed) return 'La tarea ya está facturada: no admite tiempo nuevo.'
+  if (datos.tarea.billed) return `La ${GLOSARIO.proceso.singular.toLowerCase()} ya está facturada: no admite tiempo nuevo.`
 
   if (!datos.tarea.assignees.some((persona) => persona.id === datos.yoId)) {
-    return 'Solo quien está asignado a la tarea puede registrar tiempo.'
+    return `Solo quien está asignado a la ${GLOSARIO.proceso.singular.toLowerCase()} puede registrar tiempo.`
   }
 
   return null

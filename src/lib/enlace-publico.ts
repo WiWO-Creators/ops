@@ -163,18 +163,4 @@ export function mismasSecciones (a: readonly SeccionEnlacePublico[], b: readonly
   return unicasA.size === unicasB.size && [...unicasA].every((clave) => unicasB.has(clave))
 }
 
-/**
- * El total registrado como "3 h 25 min", para la ficha publica.
- *
- * @param segundos el total que manda la API; negativo o no finito se trata como cero
- * @returns el texto a mostrar
- */
-export function tiempoLegible (segundos: number): string {
-  const total = Number.isFinite(segundos) && segundos > 0 ? Math.floor(segundos / 60) : 0
-  const horas = Math.floor(total / 60)
-  const minutos = total % 60
-
-  if (horas === 0) return `${minutos} min`
-
-  return minutos === 0 ? `${horas} h` : `${horas} h ${minutos} min`
-}
+export { tiempoLegible } from './duraciones.ts'

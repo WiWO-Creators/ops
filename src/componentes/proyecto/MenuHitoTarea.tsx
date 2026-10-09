@@ -12,7 +12,7 @@ import {
   MenuContextual,
   SinResultadosMenu
 } from '@/componentes/superposiciones/MenuContextual'
-import { mensajeDeRespuesta, pedirRespuesta } from '@/datos/cliente'
+import { mensajeDeLectura, pedirRespuesta } from '@/datos/cliente'
 import { GLOSARIO } from '@/dominio/glosario'
 import { cn } from '@/lib/clases'
 import { movimientoAlHito, SIN_HITO } from './agregar-al-hito'
@@ -100,7 +100,7 @@ export function MenuHitoTarea ({
     const respuesta = await pedirRespuesta(rutaHitosDeEspacio(espacioId), control.signal)
 
     if (!respuesta.ok) {
-      setHitos({ fase: 'error', mensaje: await mensajeDeRespuesta(respuesta) })
+      setHitos({ fase: 'error', mensaje: await mensajeDeLectura(respuesta) })
 
       return
     }
@@ -169,7 +169,7 @@ export function MenuHitoTarea ({
             }
             className={cn(
               'rounded-control cursor-pointer text-left',
-              'transition-opacity duration-150',
+              'transition-opacity duration-rapida ease-neo',
               enCurso ? 'cursor-progress opacity-60' : 'hover:opacity-80'
             )}
           >

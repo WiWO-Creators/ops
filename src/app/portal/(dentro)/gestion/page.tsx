@@ -63,7 +63,7 @@ export default async function GestionPagina (props: PageProps<'/portal/gestion'>
           titulo="Ese mes no se puede mirar"
           descripcion={
             'El tablero llega hasta 24 meses hacia atrás y no muestra meses que todavía no '
-            + 'pasaron. Elegí uno de la lista.'
+            + 'pasaron. Elige uno de la lista.'
           }
           accion={<SelectorDeMes mes={actual} meses={meses} espacioId={espacioId} />}
         />

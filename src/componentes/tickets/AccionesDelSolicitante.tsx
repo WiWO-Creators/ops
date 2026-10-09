@@ -1,6 +1,7 @@
 'use client'
 
 import { useRef, useState, type ReactElement } from 'react'
+import { AvisoEnLinea } from '@/componentes/estado/Estados'
 import { Boton } from '@/componentes/formularios/Boton'
 import { ConfirmacionEnLinea } from '@/componentes/datos/ConfirmacionEnLinea'
 import { escribirEnBff } from '@/componentes/datos/mutaciones'
@@ -102,7 +103,7 @@ export function AccionesDelSolicitante ({
         </div>
       )}
 
-      {fallo !== null && <p role="alert" className="text-texto-peligro text-sm">{fallo}</p>}
+      {fallo !== null && <AvisoEnLinea variante="error" mensaje={fallo} className="text-sm" />}
     </div>
   )
 }

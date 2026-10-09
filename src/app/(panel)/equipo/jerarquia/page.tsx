@@ -6,7 +6,7 @@ import { TituloModulo } from '@/componentes/estructura/TituloModulo'
 import { ErrorApi } from '@/datos/errores'
 import { cargarCatalogosDeTareas } from '@/datos/lookups'
 import { cargarOrganigrama } from '@/datos/organigrama-servidor'
-import { pedir } from '@/datos/servidor'
+import { cargarYo, pedir } from '@/datos/servidor'
 import type { CatalogoDeAccesos } from '@/datos/accesos'
 import type { Yo } from '@/datos/tipos'
 
@@ -44,7 +44,7 @@ async function cargarCatalogo (): Promise<CatalogoDeAccesos | ErrorApi> {
  */
 export default async function OrganizacionPage () {
   const [{ data: yo }, cargado, catalogos] = await Promise.all([
-    pedir<Yo>('/me'), cargarOrganigrama(), cargarCatalogosDeTareas()
+    cargarYo(), cargarOrganigrama(), cargarCatalogosDeTareas()
   ])
 
   const catalogo = yo.is_superadmin ? await cargarCatalogo() : null

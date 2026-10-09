@@ -18,7 +18,7 @@ import type { DefinicionRecurso, Filtro, OpcionFiltro } from '../definiciones/ti
  *          opciones, no una pantalla rota.
  */
 export function listaDe (lookups: Lookups, clave: string): EstadoLookup[] {
-  const lista = (lookups as unknown as Record<string, unknown>)[clave]
+  const lista: unknown = Reflect.get(lookups, clave)
 
   return Array.isArray(lista) ? lista as EstadoLookup[] : []
 }

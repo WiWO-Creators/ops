@@ -56,7 +56,7 @@ export function PastillasEstado ({ estadisticas, error = null, seleccion, onCamb
                 // Radio de control y no de tarjeta: es un boton, y en este sistema los controles son
                 // pildoras. Con el radio de tarjeta se confundia con las tarjetas de abajo.
                 'rounded-control ease-neo flex items-center gap-2 border px-3 py-1.5 text-left',
-                'transition-[background-color,border-color,color] duration-150',
+                'transition-[background-color,border-color,color] duration-rapida',
                 activa
                   ? 'border-control-borde bg-seleccionado text-texto'
                   : 'border-linea bg-superficie-elevada text-texto-tenue hover:bg-hover hover:text-texto'

@@ -187,34 +187,65 @@ test('errorDeDetalle: los invisibles no cuentan como palabra ni como largo', () 
   assert.match(mensaje, /llevas 18/)
 })
 
-test('combinarDescripcion: con el campo vacio los dos modos dejan el borrador solo', () => {
+test('combinarDescripcion: con el campo vacio los dos modos dejan el borrador solo, como HTML', () => {
   const borrador = '  Armar la grilla de septiembre.  '
+  const esperado = '<p>Armar la grilla de septiembre.</p>'
 
-  assert.equal(combinarDescripcion('', borrador, 'agregar'), 'Armar la grilla de septiembre.')
-  assert.equal(combinarDescripcion('', borrador, 'reemplazar'), 'Armar la grilla de septiembre.')
+  assert.equal(combinarDescripcion('', borrador, 'agregar'), esperado)
+  assert.equal(combinarDescripcion('', borrador, 'reemplazar'), esperado)
   // El vacio que `trim()` no ve tampoco cuenta como texto escrito: no hay nada que conservar.
-  assert.equal(combinarDescripcion('\u00a0\u200b', borrador, 'agregar'), 'Armar la grilla de septiembre.')
-  assert.equal(combinarDescripcion(null, borrador, 'agregar'), 'Armar la grilla de septiembre.')
-  assert.equal(combinarDescripcion(undefined, borrador, 'agregar'), 'Armar la grilla de septiembre.')
+  assert.equal(combinarDescripcion('\u00a0\u200b', borrador, 'agregar'), esperado)
+  assert.equal(combinarDescripcion('<p></p>', borrador, 'agregar'), esperado)
+  assert.equal(combinarDescripcion(null, borrador, 'agregar'), esperado)
+  assert.equal(combinarDescripcion(undefined, borrador, 'agregar'), esperado)
 })
 
 test('combinarDescripcion: agregar conserva entero lo que la persona escribio', () => {
-  const escrito = 'Lo que venia escrito a mano.\n'
+  const escrito = '<p>Lo que venia <strong>escrito</strong> a mano.</p>'
   const resultado = combinarDescripcion(escrito, 'Lo que redacto el asistente.', 'agregar')
 
-  assert.equal(resultado, 'Lo que venia escrito a mano.\n\nLo que redacto el asistente.')
+  assert.equal(resultado, `${escrito}<p>Lo que redacto el asistente.</p>`)
   // Lo de la persona sigue ahi, byte a byte: esa es la unica garantia que importa de esta funcion.
-  assert.ok(resultado.startsWith('Lo que venia escrito a mano.'))
+  assert.ok(resultado.startsWith(escrito))
+})
+
+test('combinarDescripcion: un texto plano que ya estaba se convierte, no se pierde', () => {
+  assert.equal(
+    combinarDescripcion('Lo que venia escrito.\nSegunda linea.', 'Lo del asistente.', 'agregar'),
+    '<p>Lo que venia escrito.<br>Segunda linea.</p><p>Lo del asistente.</p>'
+  )
+})
+
+test('combinarDescripcion: el borrador del asistente se escapa, no se interpreta como marcado', () => {
+  assert.equal(combinarDescripcion('', '<b>x</b> & y', 'reemplazar'), '<p>&lt;b&gt;x&lt;/b&gt; &amp; y</p>')
 })
 
 test('combinarDescripcion: reemplazar pisa, y es lo unico que pisa', () => {
   assert.equal(
-    combinarDescripcion('Lo que venia escrito.', 'Lo del asistente.', 'reemplazar'),
-    'Lo del asistente.'
+    combinarDescripcion('<p>Lo que venia escrito.</p>', 'Lo del asistente.', 'reemplazar'),
+    '<p>Lo del asistente.</p>'
   )
 })
 
 test('combinarDescripcion: un borrador vaciado a mano no borra lo escrito', () => {
   // La persona puede vaciar el area del borrador antes de decidir. Agregar nada tiene que ser nada.
-  assert.equal(combinarDescripcion('Lo que venia escrito.  ', '   ', 'agregar'), 'Lo que venia escrito.')
+  assert.equal(combinarDescripcion('<p>Lo que venia escrito.</p>  ', '   ', 'agregar'), '<p>Lo que venia escrito.</p>')
+  assert.equal(combinarDescripcion('Lo que venia escrito.  ', '   ', 'agregar'), '<p>Lo que venia escrito.</p>')
+})
+
+test('descripcionVacia: el HTML del editor sin nada visible cuenta como vacio', () => {
+  assert.equal(descripcionVacia('<p></p>'), true)
+  assert.equal(descripcionVacia('<p>&nbsp;</p><p><br></p>'), true)
+  assert.equal(descripcionVacia('<p>\u200b</p>'), true)
+  assert.equal(descripcionVacia('<p>Hola</p>'), false)
+  assert.equal(descripcionVacia('<ul><li>uno</li></ul>'), false)
+})
+
+test('errorDeDescripcion: el largo se mide sobre el texto visible, no sobre el marcado', () => {
+  const visible = 'a'.repeat(TOPE_DESCRIPCION)
+
+  // El marcado suma caracteres que la persona no escribio: con `<p>` y `<strong>` ya pasaria del tope.
+  assert.equal(errorDeDescripcion(`<p><strong>${visible}</strong></p>`), null)
+  assert.match(errorDeDescripcion(`<p>${visible}b</p>`), /no puede pasar de/)
+  assert.match(errorDeDescripcion('<p></p>'), /necesita una descripción/)
 })

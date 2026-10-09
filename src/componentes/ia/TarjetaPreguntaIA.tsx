@@ -93,7 +93,7 @@ export function TarjetaPreguntaIA ({
             <button
               type="button"
               onClick={() => { onResponder(opcion.etiqueta) }}
-              className="border-control-borde bg-control hover:bg-hover rounded-control flex w-full flex-col gap-0.5 border px-3 py-2 text-left transition-[background-color,border-color] duration-150 ease-neo"
+              className="border-control-borde bg-control hover:bg-hover rounded-control flex w-full flex-col gap-0.5 border px-3 py-2 text-left transition-[background-color,border-color] duration-rapida ease-neo"
             >
               <span className="text-texto text-sm font-semibold">{opcion.etiqueta}</span>
               {opcion.descripcion !== '' && (

@@ -7,7 +7,10 @@ import {
   DisparadorMenu,
   MenuContextual
 } from '@/componentes/superposiciones/MenuContextual'
+import { escribirEnBff } from '@/componentes/datos/mutaciones'
 import type { ConteoDeAvisos } from '@/datos/avisos'
+import { conLimite, TIEMPO_LECTURA_MS } from '@/datos/red'
+import { sondeoSinApilar } from '@/datos/sondeo'
 import { cn } from '@/lib/clases'
 import { ListaAvisos } from './ListaAvisos'
 
@@ -51,7 +54,7 @@ export function Campana ({ inicial, segundos }: PropsCampana) {
   const sinLeer = conteo?.unread ?? 0
 
   const contar = useCallback(async (senal: AbortSignal): Promise<void> => {
-    const respuesta = await fetch('/api/bff/notifications/count', { signal: senal })
+    const respuesta = await fetch('/api/bff/notifications/count', { signal: conLimite(senal, TIEMPO_LECTURA_MS) })
 
     if (!respuesta.ok) return
 
@@ -63,14 +66,19 @@ export function Campana ({ inicial, segundos }: PropsCampana) {
   useEffect(() => {
     const control = new AbortController()
 
-    function tic (): void {
-      // Con la pestaña oculta no se cuenta: el globo se pone al dia en cuanto vuelve al frente.
-      if (document.hidden) return
+    // Un fallo del contador no se muestra: la campana no es el trabajo de nadie, y un error rojo
+    // permanente en la cabecera por una fila que no llego es peor que un numero viejo.
+    const consultar = sondeoSinApilar(async () => {
+      try {
+        await contar(control.signal)
+      } catch {
+        // Se vuelve a intentar con el siguiente tic.
+      }
+    })
 
-      // Un fallo del contador no se muestra: la campana no es el trabajo de nadie, y un error rojo
-      // permanente en la cabecera por una fila que no llego es peor que un numero viejo.
-      contar(control.signal).catch(() => {})
-    }
+    // Con la pestaña oculta no se cuenta: el globo se pone al dia en cuanto vuelve al frente. El tic
+    // no se apila sobre una consulta en camino.
+    const tic = (): void => { if (!document.hidden) consultar(true) }
 
     const intervalo = globalThis.setInterval(tic, segundos * 1000)
     document.addEventListener('visibilitychange', tic)
@@ -88,12 +96,9 @@ export function Campana ({ inicial, segundos }: PropsCampana) {
 
     setConteo((previo) => previo === null ? previo : { ...previo, unread: 0 })
 
-    void fetch('/api/bff/notifications/read', {
-      method: 'POST',
-      headers: { 'content-type': 'application/json' },
-      body: '{}'
-    }).catch(() => {
-      // El proximo intervalo devuelve el contador a su valor real: no hay nada que avisar.
+    void escribirEnBff('notifications/read', 'POST', {}).then((resultado) => {
+      // Si no se confirmo, el globo en cero puede ser falso: se vuelve a contar ya y no en el proximo tic.
+      if (!resultado.ok) void contar(new AbortController().signal).catch(() => {})
     })
   }
 

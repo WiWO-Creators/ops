@@ -1,4 +1,5 @@
 import { horasDeTexto } from './tiempo-estimado.ts'
+import { htmlVacio } from './texto-rico.ts'
 import { enFormatoTitulo } from '../lib/titulo.ts'
 import { esRelacionDeEspacio, relTypeDeRelacion } from './espacios-destino.ts'
 import { cuerpoDeFinConservado, errorDeDiasExcluidos, errorDeFin, mismosDias, modoDeFin, normalizarDias, type ModoFin } from './recurrencia.ts'
@@ -48,6 +49,7 @@ export interface CamposEdicion {
    * que todavia no existe. La API acepta las dos formas y crea la que falta.
    */
   etiquetas: Array<number | string>
+  /** La descripcion como HTML del editor de texto enriquecido; `''` si no hay nada visible. */
   descripcion: string
   /** Horas estimadas, decimales. `''` es "sin estimacion"; `'0'` es una estimacion de cero. */
   horasEstimadas: string
@@ -81,6 +83,8 @@ export interface ParcheTarea {
   followers?: number[]
   tags?: Array<number | string>
   description?: string | null
+  /** Avisa a la API que `description` es HTML. Viaja siempre que viaja `description`. */
+  format?: 'html'
   estimated_hours?: number | null
   deliverable?: boolean
   deliverable_url?: string | null
@@ -93,7 +97,8 @@ export interface ParcheTarea {
  * con cadena vacia por ausencia. No se reformatean: hacerlo obligaria a volver a parsear al guardar.
  *
  * @param tarea la Tarea tal como la trae `GET /tasks/{id}`
- * @param descripcion el texto plano ya extraido del HTML de Perfex, que la Tarea trae como marcado
+ * @param descripcion la descripcion para abrir el editor: `description_html` de la API o, sin ella, el
+ *   texto plano. El editor la normaliza al montar; quien llama reemplaza la base con ese valor
  */
 export function camposDeTarea (tarea: Proceso, descripcion: string): CamposEdicion {
   return {
@@ -201,7 +206,8 @@ export function cuerpoDeParche (inicial: CamposEdicion, actual: CamposEdicion): 
   if (!mismosIds(actual.seguidores, inicial.seguidores)) parche.followers = actual.seguidores
   if (!mismosIds(actual.etiquetas, inicial.etiquetas)) parche.tags = actual.etiquetas
   if (actual.descripcion.trim() !== inicial.descripcion.trim()) {
-    parche.description = actual.descripcion.trim() === '' ? null : actual.descripcion.trim()
+    parche.description = htmlVacio(actual.descripcion) ? null : actual.descripcion.trim()
+    parche.format = 'html'
   }
   if (actual.horasEstimadas.trim() !== inicial.horasEstimadas.trim()) {
     parche.estimated_hours = horasDeTexto(actual.horasEstimadas)

@@ -579,12 +579,17 @@ export function debePedirPagina (estado: EstadoDeRefresco): boolean {
  * `router.refresh()` los rehizo en el servidor) o todavia nadie refresco: si ya hubo un refresco, los
  * iniciales viejos son anteriores a lo que la tabla trajo y pisarlos haria parpadear filas viejas.
  *
+ * Despues de una recarga explicita (`revision > 0`) la tabla pidio sus datos por el BFF y esa
+ * respuesta es la vigente: el `router.refresh()` que viaja a la par puede llegar despues y traer una
+ * foto anterior a un cambio posterior, que con red lenta revertia lo que la persona acababa de hacer.
+ *
  * @param estado la consulta y los contadores de refresco; `consultaInicial` es la de los datos que llegan
  * @param sonNuevos si el objeto inicial cambio desde la ultima vez que se adopto
  * @returns `true` si hay que mostrar los iniciales
  */
 export function debeAdoptarInicial (estado: EstadoDeRefresco, sonNuevos: boolean): boolean {
   if (estado.consulta !== estado.consultaInicial) return false
+  if (estado.revision > 0) return false
 
   return sonNuevos || (estado.revision === 0 && estado.refresco === estado.refrescoDeMontaje)
 }

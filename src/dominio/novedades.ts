@@ -60,6 +60,104 @@ export const NOVEDADES: Novedad[] = [
     commits: []
   },
   {
+    fecha: '2026-10-08',
+    tipo: 'nuevo',
+    titulo: 'Texto con formato en tickets, tareas, comentarios y notas',
+    detalle: 'Ahora puedes escribir con negrita, cursiva, subrayado, títulos, listas, citas y enlaces al abrir o responder un ticket, al describir una Tarea, al comentar y en las notas y la descripción de un Espacio. Se ve igual para quien lo lee, en el panel y en el portal.',
+    commits: []
+  },
+  {
+    fecha: '2026-10-08',
+    tipo: 'mejora',
+    titulo: 'Ops aguanta mejor las conexiones lentas',
+    detalle: 'Las tareas se abren al instante, los filtros responden sin esperar, y una barra arriba y un aviso abajo muestran cuando algo está cargando o guardándose. Si la conexión se corta a mitad de un cambio, Ops te dice que no pudo confirmarlo en lugar de dejarlo a medias, y las listas, el tablero y el portal se ponen al día solos.',
+    commits: ['ops-v2@bf0e6d7', 'board@330f6ce']
+  },
+  {
+    fecha: '2026-10-08',
+    tipo: 'nuevo',
+    titulo: 'Exporta el tablero del proyecto como informe PDF',
+    detalle: 'En el Resumen del portal, el botón «Exportar informe» descarga un PDF con el avance, las cifras, los pendientes por hito, los estados y las novedades del mes que estás mirando. Al elegir un mes cerrado, el tablero cambia al instante y las cifras dicen «al cierre» y «en el mes».',
+    commits: ['ops-v2@a0dbf67', 'board@50409f4']
+  },
+  {
+    fecha: '2026-10-05',
+    tipo: 'nuevo',
+    titulo: 'Adjunta archivos al abrir o responder un ticket',
+    detalle: 'En la caja de respuesta del ticket y en «Nuevo ticket» del portal, el botón «Adjuntar archivos» deja subir hasta 4 archivos (imágenes, PDF, Word, ZIP o RAR, de hasta 10 MB cada uno). Los ves en el hilo junto al mensaje y se descargan con un clic.',
+    commits: []
+  },
+  {
+    fecha: '2026-10-05',
+    tipo: 'mejora',
+    titulo: 'La bandeja de Tickets muestra solo los abiertos',
+    detalle: 'Al entrar a Tickets ya no ves los cerrados: el filtro Estado dice «Abiertos». Para verlos todos, abre Estado y marca «Todos»; «Limpiar filtros» vuelve a los abiertos.',
+    commits: []
+  },
+  {
+    fecha: '2026-10-05',
+    tipo: 'nuevo',
+    titulo: 'Cambia un ticket de Proyecto desde su ficha',
+    detalle: 'Junto al nombre del Proyecto hay una flecha para mover el ticket a otro Proyecto de su mismo cliente, o dejarlo sin Proyecto. Si el cambio no es posible, te explica por qué.',
+    commits: []
+  },
+  {
+    fecha: '2026-10-05',
+    tipo: 'mejora',
+    titulo: 'La conversación del ticket abre en el último mensaje',
+    detalle: 'Al abrir un ticket largo ya estás en el mensaje más reciente. Si llega uno nuevo mientras lees más arriba, aparece «Nuevos mensajes» para ir a él sin que se te mueva la pantalla.',
+    commits: []
+  },
+  {
+    fecha: '2026-10-05',
+    tipo: 'mejora',
+    titulo: 'Portal: tus tickets muestran su Proyecto',
+    detalle: 'En la lista de tickets del portal hay una columna nueva con el Proyecto de cada ticket.',
+    commits: []
+  },
+  {
+    fecha: '2026-10-05',
+    tipo: 'mejora',
+    titulo: 'Tickets más claros y sin perder lo que escribes',
+    detalle: 'Al crear un ticket desde el portal, lo que escribes se guarda como borrador hasta que lo envías, y cuando te acercas al largo máximo del mensaje aparece un contador. En la lista del portal la última columna ahora dice «Última actividad», el estado y la prioridad editables muestran una flecha y en el móvil se ve a quién espera cada ticket.',
+    commits: []
+  },
+  {
+    fecha: '2026-10-05',
+    tipo: 'arreglo',
+    titulo: 'Portal: los tickets cargan aunque falle la lista de Proyectos',
+    detalle: 'Si no se pueden cargar tus Proyectos, la página de tickets sigue funcionando y el botón «Nuevo ticket» se reemplaza por un aviso con la opción de reintentar. Un adjunto que no carga ya no impide abrir el ticket.',
+    commits: []
+  },
+  {
+    fecha: '2026-10-05',
+    tipo: 'mejora',
+    titulo: 'Focals en tarjetas, con el logo del cliente y por páginas',
+    detalle: 'Cada cuenta es una tarjeta con su logo, su puntaje y quien responde por ella, de a doce por página. Al hacer clic en una se abre el detalle en un panel lateral.',
+    commits: []
+  },
+  {
+    fecha: '2026-10-05',
+    tipo: 'mejora',
+    titulo: 'Focals más limpio y con salida para las cuentas sin focal',
+    detalle: 'Si una cuenta tiene un solo Proyecto, su desglose ya no se repite. «Sin cambio» reemplaza al «– 0», las señales que no aplican dicen «No aplica» y una nota explica qué señales cuentan en el puntaje. En las cuentas sin focal aparece «Asignar focal», que lleva a la pestaña Focales del Cliente.',
+    commits: []
+  },
+  {
+    fecha: '2026-10-02',
+    tipo: 'nuevo',
+    titulo: 'Seguimiento de lo que hacen los clientes en el portal',
+    detalle: 'En la ficha del Cliente, la pestaña «Actividad del portal» muestra cuándo entran sus contactos, qué páginas, pestañas y proyectos abren más y menos, qué botones pulsan y cuánto tiempo pasan. Desde cada contacto puedes abrir su recorrido sesión por sesión. Lo que hace el equipo con «Ver como cliente» no cuenta.',
+    commits: ['ops-v2@b777515', 'board@f2817fe']
+  },
+  {
+    fecha: '2026-10-02',
+    tipo: 'mejora',
+    titulo: 'Patente en todos los buscadores',
+    detalle: 'Los selectores de Tareas y Proyectos (jornada, alta de Tarea, sumar a un hito y filtros de recurrentes) ahora encuentran por patente y la muestran junto al nombre.',
+    commits: []
+  },
+  {
     fecha: '2026-09-30',
     tipo: 'nuevo',
     titulo: 'Adjuntar archivos al crear una Tarea',

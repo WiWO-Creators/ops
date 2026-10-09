@@ -8,7 +8,7 @@ import { RUTA_DE_ASIGNABLES } from '@/datos/asignables'
 import { construirConsulta, leerConsulta, paramsDeUrl } from '@/datos/consulta'
 import { ErrorApi } from '@/datos/errores'
 import { cargarLookups, opcionesDeFiltros } from '@/datos/lookups'
-import { pedir, pedirOpcional } from '@/datos/servidor'
+import { cargarYo, pedir, pedirOpcional } from '@/datos/servidor'
 import type {
   CampoPersonalizadoMeta,
   SolicitudDeEliminacion,
@@ -19,7 +19,6 @@ import type {
   PlantillaEspacio
 } from '@/datos/recursos'
 import type { OpcionFiltro } from '@/definiciones/tipos'
-import type { Yo } from '@/datos/tipos'
 import { ESPACIOS, espaciosConCampos, filtrosDeEntradaDeEspacios } from '@/definiciones/espacios'
 import { cn } from '@/lib/clases'
 
@@ -100,7 +99,7 @@ export default async function EspaciosPage (props: PageProps<'/proyectos'>) {
   const [lista, lookups, yo, estadisticas, clientes, equipo, plantillas] = await Promise.all([
     pedir<Espacio[]>(`/projects${consulta === '' ? '' : `?${consulta}`}`),
     cargarLookups(),
-    pedir<Yo>('/me'),
+    cargarYo(),
     pedirOpcional<EstadisticaEstado[]>('/projects/stats'),
     // `/clients/minimos` y no `/clients`: trae la cartera entera con lo unico que el selector usa
     // —id y razon social— y corre antes de la compuerta de `customers.view`, que le respondia 403 a

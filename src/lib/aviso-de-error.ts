@@ -11,6 +11,8 @@
  * importen componentes de cliente y de servidor sin partirlo en dos.
  */
 
+import { conLimite, TIEMPO_ESCRITURA_MS } from '../datos/red.ts'
+
 /** Nombre del evento. Con prefijo propio para no chocar con ningun evento del navegador. */
 export const EVENTO_ERROR = 'ops:error'
 
@@ -74,7 +76,8 @@ export async function reportarIncidente (reporte: ReporteDelNavegador): Promise<
         // La ruta la pone el navegador y no el servidor: la peticion de reporte tiene su propia URL
         // —`/api/incidentes`— y guardar esa no diria en que pantalla estaba la persona.
         uri: window.location.pathname + window.location.search
-      })
+      }),
+      signal: conLimite(undefined, TIEMPO_ESCRITURA_MS)
     })
 
     if (!respuesta.ok) return null
@@ -91,7 +94,7 @@ export async function reportarIncidente (reporte: ReporteDelNavegador): Promise<
  * Marca el contenedor de la pila de avisos en el DOM.
  *
  * Existe para que las superposiciones puedan reconocerlo: la pila se dibuja en un portal aparte y por
- * encima de los dialogos (`z-[55]`), asi que para Radix un clic en un aviso es un clic FUERA del
+ * encima de los dialogos (`z-aviso`), asi que para Radix un clic en un aviso es un clic FUERA del
  * dialogo y cierra el formulario que la persona estaba llenando. Cerrar el aviso del error que acaba
  * de ocurrir no puede costar el trabajo que todavia no se guardo.
  *

@@ -1,3 +1,5 @@
+import { ExportarInforme } from './ExportarInforme'
+import { SelectorDeMesDelTablero } from './SelectorDeMesDelTablero'
 import type { CatalogoDeEstados } from '@/dominio/estados-tarea'
 import { rotularMes } from '@/dominio/gestion'
 import { cn } from '@/lib/clases'
@@ -73,60 +75,48 @@ import type { ProximaEntrega, TableroDelProyecto as Tablero } from '@/datos/port
  * @param estados `task_statuses` del portal: nombre y color de cada estado, los de Perfex
  * @param mes el mes cerrado que se mira (`YYYY-MM`), o `null` si es el tablero vivo
  * @param mesesCerrados los meses cerrados que se ofrecen, del más nuevo al más viejo
+ * @param proyecto el nombre del proyecto, para el informe exportable
  */
 export function TableroDelProyecto (
-  { tablero, estados, mes, mesesCerrados }:
-  { tablero: Tablero, estados: CatalogoDeEstados, mes: string | null, mesesCerrados: string[] }
+  { tablero, estados, mes, mesesCerrados, proyecto }:
+  { tablero: Tablero, estados: CatalogoDeEstados, mes: string | null, mesesCerrados: string[], proyecto: string }
 ) {
   const columnas = repartirEnColumnas(bloquesDelTablero(tablero, estados))
   const soloUna = columnas.estrecha.length === 0
 
   return (
     <div className="flex flex-col gap-3">
-      <SelectorDeMesDelTablero mes={mes} meses={mesesCerrados} foto={tablero.foto} />
+      <BarraDelTablero
+        mes={mes}
+        meses={mesesCerrados}
+        foto={tablero.foto}
+        informe={<ExportarInforme tablero={tablero} estados={estados} mes={mes} proyecto={proyecto} />}
+      />
       <Rejilla columnas={columnas} soloUna={soloUna} tablero={tablero} estados={estados} />
     </div>
   )
 }
 
 /**
- * El selector de mes del tablero, más el aviso de que se mira una foto.
+ * La fila del selector de mes, con el aviso de que se mira una foto y el botón del informe.
  *
- * `<form method="get">` sin JavaScript, igual que `SelectorDeMes`: cambiar el mes cambia `?mes=` y
- * el servidor vuelve a pedir. Sin meses cerrados que ofrecer no se dibuja.
+ * Sin meses cerrados que ofrecer no hay selector, pero el informe se puede exportar igual.
  *
  * @param mes el mes cerrado elegido, o `null` para el tablero vivo
  * @param meses los meses cerrados ofrecidos
  * @param foto lo que la API dijo del momento del tablero
+ * @param informe el botón de exportar, ya armado con los datos de la pantalla
  */
-function SelectorDeMesDelTablero (
-  { mes, meses, foto }: { mes: string | null, meses: string[], foto: Tablero['foto'] }
+function BarraDelTablero (
+  { mes, meses, foto, informe }:
+  { mes: string | null, meses: string[], foto: Tablero['foto'], informe: React.ReactNode }
 ) {
-  if (meses.length === 0) return null
-
   return (
     <div className="flex flex-wrap items-end justify-between gap-3">
-      <form method="get" className="flex flex-wrap items-end gap-3">
-        <label className="flex flex-col gap-1">
-          <span className="text-texto-tenue text-xs font-medium">Mes</span>
-          <select
-            name="mes"
-            defaultValue={mes ?? ''}
-            className="border-linea rounded-medio bg-superficie text-texto h-9 border px-2 text-sm"
-          >
-            <option value="">Mes en curso</option>
-            {meses.map((opcion) => (
-              <option key={opcion} value={opcion}>{rotularMes(opcion)}</option>
-            ))}
-          </select>
-        </label>
-        <button
-          type="submit"
-          className="border-linea rounded-medio bg-superficie-elevada text-texto hover:bg-hover h-9 cursor-pointer border px-4 text-sm font-medium"
-        >
-          Ver mes
-        </button>
-      </form>
+      <div className="flex flex-wrap items-end gap-3">
+        {meses.length > 0 && <SelectorDeMesDelTablero mes={mes} meses={meses} pestania="overview" />}
+        {informe}
+      </div>
 
       {foto?.cerrado === true && (
         <p className="text-texto-tenue max-w-prose text-xs">
@@ -237,8 +227,13 @@ function BloqueDeCifras ({ tablero }: { tablero: Tablero }) {
         filasDeCifras(tarjetas) === 2 ? 'grid-cols-2' : 'grid-cols-3'
       )}
     >
-      {hayProximaEntrega && <ProximaEntregaDelProyecto entrega={tablero.proxima_entrega as ProximaEntrega} />}
-      <CifrasDeContexto cifras={cifrasDelTablero(tablero.tareas)} />
+      {hayProximaEntrega && (
+        <ProximaEntregaDelProyecto
+          entrega={tablero.proxima_entrega as ProximaEntrega}
+          alCierre={tablero.foto?.cerrado === true}
+        />
+      )}
+      <CifrasDeContexto cifras={cifrasDelTablero(tablero.tareas, tablero.foto)} />
     </div>
   )
 }

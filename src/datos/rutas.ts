@@ -136,6 +136,9 @@ const PREFIJOS_PERMITIDOS = [
   'presence',
   'sessions',
   'audit',
+  // Exportacion de la base (`/administracion`): devuelve un archivo `.sql.gz`, no JSON, y solo la
+  // sirve la API a un superadministrador (403 al resto). Sin esta entrada el BFF contesta 404.
+  'database-export',
   // LIVE: la jornada propia (`/me/jornada` ya entra por `me`), el tablero del equipo y la detencion
   // de un medidor de Espacio historico (`DELETE /projects/{id}/timer`, que entra por `projects`; su
   // `POST` responde 422 desde que no hay registros sin Tarea). Solo falta `live`, que la API
@@ -197,21 +200,33 @@ export function rutaCompartida (segmentos: string[]): boolean {
   return primero !== undefined && (PREFIJOS_COMPARTIDOS as readonly string[]).includes(primero)
 }
 
+/** Caracteres que un segmento no puede traer: separadores, consulta, ancla y escapes (`%2F`, `%2e%2e`). */
+const CARACTERES_PROHIBIDOS = /[/\\?#%]/
+
+/**
+ * `true` si el segmento podria cambiar la ruta que la API termina resolviendo.
+ *
+ * Vacio, `.` y `..` salen de la lista blanca al normalizar la URL; los separadores, `?`, `#` y `%`
+ * permiten colar otra ruta o un `..` codificado que la API decodifica despues de pasar la lista.
+ */
+function segmentoPeligroso (segmento: string): boolean {
+  return segmento === '' || segmento === '.' || segmento === '..' || CARACTERES_PROHIBIDOS.test(segmento)
+}
+
 /**
  * Decide si el BFF puede reenviar una ruta.
  *
  * @param segmentos Los segmentos de la ruta pedida, ya separados. Ej: `['tasks', '512', 'comments']`.
  * @param sujeto De quien es la sesion que pide. Cada uno tiene su lista.
  * @returns `true` si el primer segmento esta en la lista blanca de ese sujeto y ningun segmento
- *          intenta escalar.
+ *          intenta escalar (ver `segmentoPeligroso`).
  */
 export function rutaPermitida (segmentos: string[], sujeto: Sujeto = 'staff'): boolean {
   const primero = segmentos[0]
 
   if (primero === undefined) return false
 
-  // `..` o vacios en el medio saldrian de la lista blanca al normalizar la URL.
-  if (segmentos.some((s) => s === '' || s === '.' || s === '..')) return false
+  if (segmentos.some(segmentoPeligroso)) return false
 
   const permitidos: readonly string[] = sujeto === 'contacto' ? PREFIJOS_PORTAL : PREFIJOS_PERMITIDOS
 

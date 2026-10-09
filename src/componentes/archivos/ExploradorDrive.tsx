@@ -683,7 +683,7 @@ export function ExploradorDrive ({ raiz, folder }: { raiz: RaizDrive, folder: Ca
             onSubir={() => { entradaArchivos.current?.click() }}
             onNuevaCarpeta={() => { setCreandoCarpeta(true) }}
           >
-            <div className={cn('relative transition-opacity duration-150', entrada?.fase === 'listo' && entrada.refrescando && 'opacity-60')}>
+            <div className={cn('relative transition-opacity duration-rapida ease-neo', entrada?.fase === 'listo' && entrada.refrescando && 'opacity-60')}>
               {entrada?.fase === 'listo' && entrada.refrescando && (
                 <CargandoConOrbe mensaje="Actualizando…" className="absolute top-2 right-3 z-10" />
               )}

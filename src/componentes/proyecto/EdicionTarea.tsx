@@ -2,10 +2,12 @@
 
 import { useEffect, useMemo, useRef, useState, type FormEvent, type ReactElement } from 'react'
 import { useAccionPresencia } from '@/componentes/auditoria/accion'
+import { AvisoEnLinea } from '@/componentes/estado/Estados'
 import { Boton } from '@/componentes/formularios/Boton'
 import { Campo } from '@/componentes/formularios/Campo'
 import { CamposPersonalizados } from '@/componentes/formularios/CamposPersonalizados'
-import { AreaTexto, Entrada } from '@/componentes/formularios/Entrada'
+import { EditorRico } from '@/componentes/formularios/EditorRico'
+import { Entrada } from '@/componentes/formularios/Entrada'
 import { SelectorPersonas } from '@/componentes/formularios/SelectorPersonas'
 import { DiasExcluidos } from '@/componentes/recurrencia/DiasExcluidos'
 import { FinDeRecurrencia } from '@/componentes/recurrencia/FinDeRecurrencia'
@@ -65,6 +67,7 @@ import type {
   Proceso,
   ValorCampoPersonalizado
 } from '@/datos/recursos'
+import { useAviso } from '@/componentes/estado/useAviso'
 
 /** Lista vacia unica: un `[]` nuevo por render volveria a disparar el efecto de las definiciones. */
 const SIN_CAMPOS: ValorCampoPersonalizado[] = []
@@ -81,7 +84,7 @@ const NOMBRES_DE_RELACION: Record<RelacionTarea, { singular: string, plural: str
 interface PropsEdicionTarea {
   tarea: Proceso
   lookups: Lookups
-  /** La descripcion ya en texto plano: la API la guarda como HTML y el detalle la muestra plana. */
+  /** La descripcion para abrir el editor: `description_html` de la API o, sin ella, el texto plano. */
   descripcion: string
   /** Cierra el dialogo. El detalle lo desmonta, y con eso se descartan los cambios sin guardar. */
   onCerrar: () => void
@@ -99,6 +102,7 @@ export function EdicionTarea (
   { tarea, lookups, descripcion, onCerrar, onGuardada }: PropsEdicionTarea
 ): ReactElement {
   useAccionPresencia('editando_tarea')
+  const aviso = useAviso()
 
   const [inicial, setInicial] = useState(() => camposDeTarea(tarea, descripcion))
   const [campos, setCampos] = useState<CamposEdicion>(inicial)
@@ -131,13 +135,38 @@ export function EdicionTarea (
    * distancia: la obligacion sin la ayuda al lado se cumple escribiendo un guion.
    */
   const [errorDescripcion, setErrorDescripcion] = useState<string | null>(null)
-  /** Caja del campo Descripcion, solo para poder enfocarlo. `AreaTexto` no reenvia `ref`. */
+  /** Caja del campo Descripcion, solo para poder enfocarlo: el editor no reenvia `ref`. */
   const cajaDescripcion = useRef<HTMLDivElement | null>(null)
+  /**
+   * Cambia cuando algo distinto de la persona escribe la descripcion (el asistente de IA): el editor
+   * no es controlado y solo se entera remontandose con otra `key`.
+   */
+  const [versionDescripcion, setVersionDescripcion] = useState(0)
+  /** Si ya se tomo la base de comparacion de la descripcion. Ver `fijarBaseDeDescripcion`. */
+  const baseDeDescripcion = useRef(false)
   const [definiciones, setDefiniciones] = useState<DefinicionCampoPersonalizado[]>([])
   /** Los valores tal como se abrio el formulario, para poder mandar solo lo que cambio. */
   const [personalizadosIniciales, setPersonalizadosIniciales] = useState<ValoresDeCampos>({})
   const [personalizados, setPersonalizados] = useState<ValoresDeCampos>({})
   const [erroresCampos, setErroresCampos] = useState<ErroresDeCampos>({})
+
+  /**
+   * Toma como base de comparacion el HTML que el editor produce al abrir la descripcion.
+   *
+   * El editor reescribe lo que recibe —`<p>a<br>b</p>` en vez del texto plano, comillas, espacios—, asi
+   * que comparar lo que se escribio contra lo que trajo la API marcaria como cambiada una descripcion
+   * que nadie toco, y cada "Guardar" mandaria un `PATCH` de mas. Solo la primera vez: los remontajes
+   * posteriores traen un valor que si cambio (el borrador del asistente) y no son la base.
+   *
+   * @param normalizado el HTML tal como lo serializa el editor al montarse
+   */
+  function fijarBaseDeDescripcion (normalizado: string): void {
+    if (baseDeDescripcion.current) return
+
+    baseDeDescripcion.current = true
+    setInicial((previo) => ({ ...previo, descripcion: normalizado }))
+    setCampos((previos) => ({ ...previos, descripcion: normalizado }))
+  }
 
   const espacioId = esRelacionDeEspacio(campos.relacion) && campos.relacionId !== '' ? Number(campos.relacionId) : null
   /**
@@ -162,7 +191,7 @@ export function EdicionTarea (
       .then((personas) => { if (vivo) setAsignables(personas) })
       .catch(() => {
         if (vivo) {
-          setAvisoCatalogo('No se pudo traer el equipo: sólo quedan las personas que ya están en la tarea.')
+          setAvisoCatalogo(`No se pudo traer el equipo: sólo quedan las personas que ya están en la ${GLOSARIO.proceso.singular.toLowerCase()}.`)
         }
       })
 
@@ -202,7 +231,7 @@ export function EdicionTarea (
         setInicial(reclasificar)
         setCampos(reclasificar)
       } catch {
-        if (!control.signal.aborted) setAvisoCatalogo('No se pudieron cargar los proyectos. Cierra y vuelve a abrir para reintentar.')
+        if (!control.signal.aborted) setAvisoCatalogo(`No se pudieron cargar los ${GLOSARIO.espacio.plural.toLowerCase()}. Cierra y vuelve a abrir para reintentar.`)
       }
     }
     void cargarProyectos()
@@ -232,7 +261,7 @@ export function EdicionTarea (
       setHitos(listaHitos.data)
       setTipos(configuracion.data.task_types)
     }).catch(() => {
-      if (!control.signal.aborted) setAvisoCatalogo('No se pudieron cargar los hitos y tipos del proyecto. Vuelve a elegirlo para reintentar.')
+      if (!control.signal.aborted) setAvisoCatalogo(`No se pudieron cargar los ${GLOSARIO.hito.plural.toLowerCase()} y tipos del ${GLOSARIO.espacio.singular.toLowerCase()}. Vuelve a elegirlo para reintentar.`)
     })
     return () => { control.abort() }
   }, [espacioId])
@@ -293,7 +322,7 @@ export function EdicionTarea (
       .catch(() => {
         // Sin definiciones el resto del formulario funciona igual; se dice y no se rompe la edicion.
         if (!control.signal.aborted) {
-          setAvisoCatalogo('No se pudieron traer los campos personalizados de la tarea.')
+          setAvisoCatalogo(`No se pudieron traer los campos personalizados de la ${GLOSARIO.proceso.singular.toLowerCase()}.`)
         }
       })
 
@@ -335,7 +364,7 @@ export function EdicionTarea (
     if (descripcionMal !== null) {
       setErrorDescripcion(descripcionMal)
       setError(null)
-      cajaDescripcion.current?.querySelector('textarea')?.focus()
+      cajaDescripcion.current?.querySelector<HTMLElement>('[role="textbox"]')?.focus()
       return
     }
 
@@ -345,7 +374,7 @@ export function EdicionTarea (
     const cambioCierre = Number(estado) === ESTADO_COMPLETO && cierre !== cierreGuardado
     const instante = cambioCierre ? instanteDeCierre(cierre) : null
     if (cambioCierre && cierre !== '' && (instante === null || cierre > hoyLocal() || (campos.inicio !== '' && cierre < campos.inicio))) {
-      setError('La fecha de cierre debe estar entre el inicio de la tarea y hoy.')
+      setError(`La fecha de cierre debe estar entre el inicio de la ${GLOSARIO.proceso.singular.toLowerCase()} y hoy.`)
       return
     }
 
@@ -427,6 +456,7 @@ export function EdicionTarea (
     }
 
     setEnCurso(false)
+    aviso.exito(`Cambios de «${campos.nombre.trim()}» guardados.`)
     onCerrar()
     onGuardada()
   }
@@ -505,7 +535,7 @@ export function EdicionTarea (
                 <ContenidoSelector>{listaDe(lookups, 'task_statuses').map((opcion) => <Opcion key={opcion.id} value={String(opcion.id)}>{opcion.name}</Opcion>)}</ContenidoSelector>
               </Selector>}
             </Campo>
-            <Campo etiqueta="Tipo" ayuda={espacioId === null ? 'Elige un proyecto para seleccionar el tipo.' : undefined}>
+            <Campo etiqueta="Tipo" ayuda={espacioId === null ? `Elige un ${GLOSARIO.espacio.singular.toLowerCase()} para seleccionar el tipo.` : undefined}>
               {({ id }) => <Selector disabled={espacioId === null} value={campos.tipo || 'ninguno'} onValueChange={(valor) => setCampos({ ...campos, tipo: valor === 'ninguno' ? '' : valor })}>
                 <DisparadorSelector id={id} />
                 <ContenidoSelector>
@@ -709,15 +739,19 @@ export function EdicionTarea (
               etiqueta="Descripción"
               requerido
               error={errorDescripcion ?? undefined}
-              ayuda="Qué hay que hacer y con qué se da por terminada. Quien abra la Tarea no estuvo en la conversación donde se pidió."
+              ayuda={`Qué hay que hacer y con qué se da por terminada. Quien abra la ${GLOSARIO.proceso.singular.toLowerCase()} no estuvo en la conversación donde se pidió.`}
             >
               {(props) => (
-                <AreaTexto
+                <EditorRico
                   {...props}
-                  rows={5}
-                  value={campos.descripcion}
-                  onChange={(evento) => {
-                    setCampos({ ...campos, descripcion: evento.target.value })
+                  key={versionDescripcion}
+                  etiqueta="Descripción"
+                  filasMinimas={5}
+                  valorInicial={campos.descripcion}
+                  deshabilitado={enCurso}
+                  onListo={fijarBaseDeDescripcion}
+                  onCambio={(html) => {
+                    setCampos((previos) => ({ ...previos, descripcion: html }))
                     setErrorDescripcion(null)
                   }}
                 />
@@ -733,8 +767,9 @@ export function EdicionTarea (
                 descripcionActual={campos.descripcion}
                 proyectoId={espacioId}
                 deshabilitado={enCurso}
-                onRedactada={(texto) => {
-                  setCampos({ ...campos, descripcion: texto })
+                onRedactada={(html) => {
+                  setCampos({ ...campos, descripcion: html })
+                  setVersionDescripcion((version) => version + 1)
                   setErrorDescripcion(null)
                 }}
               />
@@ -758,14 +793,14 @@ export function EdicionTarea (
           )}
 
           {error !== null && (
-            <p role="alert" className="text-texto-peligro text-sm">{error}</p>
+            <AvisoEnLinea variante="error" mensaje={error} className="text-sm" />
           )}
 
           <div className="flex justify-end gap-2">
             <CerrarDialogo asChild>
               <Boton variante="secundario" type="button" disabled={enCurso}>Cancelar</Boton>
             </CerrarDialogo>
-            <Boton variante="primario" type="submit" cargando={enCurso}>Guardar</Boton>
+            <Boton variante="primario" type="submit" cargando={enCurso}>Guardar cambios</Boton>
           </div>
           </fieldset>
         </form>

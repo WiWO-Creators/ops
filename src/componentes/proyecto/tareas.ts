@@ -265,6 +265,10 @@ export interface ProcesoDeFicha {
    * manda solo con `include=description` o en la ficha, y el del portal siempre.
    */
   description?: string | null
+  /** La descripcion como HTML saneado por la API (texto enriquecido). Ausente en una API anterior. */
+  description_html?: string | null
+  /** Sistemas de WiWO con los que se vinculó la Tarea. Opcional; se lee con `leerVinculos`. No llega al portal. */
+  vinculos?: unknown
   project?: Referencia | null
   milestone?: Referencia | null
   /**
@@ -320,6 +324,8 @@ export interface ProcesoDeFicha {
 export interface ComentarioDeFicha {
   id: number
   content: string
+  /** El comentario como HTML saneado (texto enriquecido). Ausente en una API anterior. */
+  content_html?: string | null
   date_added: string | null
   staff: { id: number, full_name: string } | null
   contact: { id: number, full_name: string } | null
@@ -350,6 +356,7 @@ export function comentarioParaMostrar (comentario: ComentarioDeFicha): Comentari
 
   return {
     content: texto,
+    html: comentario.content_html ?? null,
     con_adjunto: conAdjunto,
     created: comentario.date_added,
     author: autor === null

@@ -66,7 +66,7 @@ export function BandejaSubidasDrive ({ subidas, onCancelar, onReintentar, onLimp
           onClick={() => { setPlegada((antes) => !antes) }}
           className="text-texto-tenue hover:bg-hover hover:text-texto rounded-control grid size-8 place-items-center"
         >
-          <ChevronDown className={cn('size-4 transition-transform duration-150', plegada && 'rotate-180')} aria-hidden="true" />
+          <ChevronDown className={cn('size-4 transition-transform duration-rapida ease-neo', plegada && 'rotate-180')} aria-hidden="true" />
         </button>
         {!enCurso && (
           <button

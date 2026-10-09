@@ -56,3 +56,9 @@ test('el buscador sin coincidencias devuelve una lista vacia, no todas', () => {
 test('sumar una tarea suelta la deja primera y no reordena la columna', () => {
   assert.deepEqual(movimientoAlHito(12), { columna: 12, posicion: 1, columna_completa: [] })
 })
+
+test('filtrarCandidatas encuentra por patente además del nombre', () => {
+  const tareas = [{ id: 1, name: 'Banner', patente: 'CNSA-001-07' }, { id: 2, name: 'Video', patente: null }]
+  assert.deepEqual(filtrarCandidatas(tareas, 'cnsa-001').map((t) => t.id), [1])
+  assert.deepEqual(filtrarCandidatas(tareas, 'vid').map((t) => t.id), [2])
+})

@@ -13,6 +13,7 @@
     "lint": "eslint",
     "typecheck": "next typegen && tsc --noEmit",
     "test": "node --test mock/*.test.js pruebas/*.test.js",
+    "test:red-lenta": "node pruebas/red-lenta.browser.mjs",
     "mock": "node mock/servidor.js"
   },
   "dependencies": {

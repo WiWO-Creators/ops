@@ -3,6 +3,7 @@ import { resolverEstado, type CatalogoDeEstados } from '../../dominio/estados-ta
 import type {
   AvanceDelProyecto,
   ConteoPorEstado,
+  FotoDelTablero,
   HitoDelTablero,
   TableroDelProyecto,
   TareasDelTablero
@@ -536,11 +537,26 @@ export interface Cifra {
  * `vencidas` es la única que puede llevar alarma. Las otras dos son hechos: «cerradas esta semana»
  * en 0 no es malo en sí —un {espacio} puede estar entre entregas— y pintarlo de rojo mentiría.
  */
-export function cifrasDelTablero (tareas: TareasDelTablero): Cifra[] {
+export function cifrasDelTablero (tareas: TareasDelTablero, foto?: FotoDelTablero): Cifra[] {
+  const alCierre = foto?.cerrado === true
+  const delMes = tareas.cerradas_mes
+
   return [
-    { clave: 'vencidas', etiqueta: 'Vencidas', valor: tareas.vencidas, alarma: tareas.vencidas > 0 },
-    { clave: 'cerradas_7', etiqueta: 'Cerradas esta semana', valor: tareas.cerradas_7, alarma: false },
-    { clave: 'sin_fecha', etiqueta: 'Abiertas sin fecha', valor: tareas.sin_fecha, alarma: false }
+    {
+      clave: 'vencidas',
+      etiqueta: alCierre ? 'Vencidas al cierre' : 'Vencidas',
+      valor: tareas.vencidas,
+      alarma: tareas.vencidas > 0
+    },
+    delMes === undefined
+      ? { clave: 'cerradas_7', etiqueta: 'Cerradas esta semana', valor: tareas.cerradas_7, alarma: false }
+      : { clave: 'cerradas_mes', etiqueta: 'Cerradas en el mes', valor: delMes, alarma: false },
+    {
+      clave: 'sin_fecha',
+      etiqueta: alCierre ? 'Abiertas sin fecha al cierre' : 'Abiertas sin fecha',
+      valor: tareas.sin_fecha,
+      alarma: false
+    }
   ]
 }
 
@@ -662,7 +678,7 @@ export function tarjetasDeCifras (tablero: TableroDelProyecto): number {
 
   const hayProxima = tablero.proxima_entrega !== undefined && tablero.proxima_entrega !== null
 
-  return cifrasDelTablero(tablero.tareas).length + (hayProxima ? 1 : 0)
+  return cifrasDelTablero(tablero.tareas, tablero.foto).length + (hayProxima ? 1 : 0)
 }
 
 /**

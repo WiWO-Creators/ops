@@ -1,6 +1,6 @@
 import { Bloque } from '@/app/portal/(dentro)/detalle'
 import { GLOSARIO } from '@/dominio/glosario'
-import { BarraProgreso } from '@/componentes/proyecto/CabeceraProyecto'
+import { BarraProgreso } from '@/componentes/presentadores/BarraProgreso'
 import { formatearNumero } from '@/componentes/proyecto/ResumenProyecto'
 import { Cifra, Nota, SinDatoAun } from './piezas'
 import { SIN_DATO, formatearPorcentaje, tonoDePorcentaje } from '@/dominio/gestion'

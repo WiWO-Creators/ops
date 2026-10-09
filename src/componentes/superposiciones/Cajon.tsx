@@ -36,13 +36,13 @@ export function ContenidoCajon ({
     <Radix.Portal>
       <Radix.Overlay
         className={cn(
-          'bg-superficie-inversa/40 fixed inset-0 z-50',
+          'bg-superficie-inversa/40 fixed inset-0 z-superposicion',
           'data-[state=open]:animate-aparecer data-[state=closed]:animate-desaparecer'
         )}
       />
       <Radix.Content
         className={cn(
-          'border-linea bg-superficie-flotante shadow-flotante fixed z-50 flex flex-col',
+          'border-linea bg-superficie-flotante shadow-flotante fixed z-superposicion flex flex-col',
           // Movil: hoja inferior, con las esquinas superiores redondeadas.
           'rounded-t-tarjeta inset-x-0 bottom-0 max-h-[85dvh] border-t',
           // Desde tablet: panel lateral de alto completo.

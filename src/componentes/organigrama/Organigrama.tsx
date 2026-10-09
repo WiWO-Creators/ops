@@ -18,12 +18,12 @@ import { AgregarAlArea } from './AgregarAlArea'
 import { ArbolDelArea } from './ArbolDelArea'
 import { ListaDePersonas } from './ListaDePersonas'
 import { MapaDeAreas } from './MapaDeAreas'
-import { PanelDePersona } from './PanelDePersona'
+import { PanelDePersona } from '@/componentes/organizacion/PanelDePersona'
 import { TareasDelArea } from './TareasDelArea'
 import { Boton } from '@/componentes/formularios/Boton'
 import { Segmentado } from '@/componentes/formularios/Segmentado'
 import { Insignia } from '@/componentes/presentadores/Insignia'
-import { Vacio } from '@/componentes/estado/Estados'
+import { AvisoEnLinea, Vacio } from '@/componentes/estado/Estados'
 import { escribirEnBff } from '@/componentes/datos/mutaciones'
 import { pedirSobre } from '@/datos/cliente'
 import { GLOSARIO } from '@/dominio/glosario'
@@ -247,6 +247,24 @@ export function Organigrama (
   }, [datos, alCambiar])
 
   /**
+   * Lo que sigue a un guardado del panel de persona: el panel ya escribió y avisó; acá se vuelve a
+   * pedir el organigrama, por lo mismo que en `cambiar`, y se cierra el panel.
+   */
+  const trasGuardarPanel = useCallback(async (): Promise<void> => {
+    setElegida(null)
+
+    try {
+      const sobre = await pedirSobre<DatosDeOrganigrama>('organigrama', AbortSignal.timeout(15000))
+
+      if (vigente.current) setDatos(sobre.data)
+    } catch {
+      // La escritura ya entró: el árbol queda como estaba hasta la próxima lectura.
+    }
+
+    if (vigente.current) alCambiar?.()
+  }, [alCambiar])
+
+  /**
    * Mueve varias personas a un área de una sola vez.
    *
    * Las peticiones van **en serie y no en paralelo**: la API escribe una persona por petición, y
@@ -385,7 +403,7 @@ export function Organigrama (
 
       {/* El error vive acá arriba y no dentro del árbol: una reasignación se puede lanzar desde la
           lista del mapa, donde no hay árbol en pantalla que lo muestre. */}
-      {error !== null && <p role="alert" className="text-texto-peligro text-sm">{error}</p>}
+      {error !== null && <AvisoEnLinea variante="error" mensaje={error} className="text-sm" />}
 
       {contenido}
 
@@ -425,17 +443,19 @@ export function Organigrama (
 
       {persona !== undefined && panelDePersona === undefined && (
         <PanelDePersona
-          // Cambiar de persona reinicia el formulario por el remonte, sin un efecto que copie tres
+          // Cambiar de persona reinicia el formulario por el remonte, sin un efecto que copie los
           // campos del estado guardado al estado del panel.
           key={persona.staffid}
-          persona={persona}
-          personas={datos.personas}
-          areas={areas}
-          editable={puedeEditar}
-          guardando={guardando}
-          error={error}
-          onCerrar={() => { setElegida(null); setError(null) }}
-          onGuardar={(cambio) => { void cambiar(persona.staffid, cambio) }}
+          fuente={{
+            tipo: 'organigrama',
+            persona,
+            personas: datos.personas,
+            areas,
+            editable: puedeEditar,
+            actorId: datos.yo.staffid
+          }}
+          onCerrar={() => { setElegida(null) }}
+          onGuardado={() => { void trasGuardarPanel() }}
         />
       )}
     </div>
@@ -483,7 +503,7 @@ function Cabecera (
             Todas las áreas
           </Boton>
 
-          <h2 className="font-titular text-texto flex min-w-0 items-center gap-2 text-[20px] font-semibold">
+          <h2 className="font-titular text-texto flex min-w-0 items-center gap-2 text-subtitulo font-semibold">
             <span aria-hidden="true" className="size-2.5 shrink-0 rounded-full" style={{ backgroundColor: area.color }} />
             <span className="truncate">{area.titulo}</span>
           </h2>

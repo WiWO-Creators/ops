@@ -23,6 +23,71 @@ export const POR_PAGINA_MAXIMO = 100
 export const POR_PAGINA_POR_DEFECTO = 25
 
 /**
+ * Valor de URL que dice "sin filtrar" en un filtro que tiene default (`filtrosPorDefecto`).
+ *
+ * Hace falta porque, para esos filtros, la ausencia del parametro ya significa otra cosa: "vale el
+ * default". Sin una forma explicita de pedir todo, la bandeja de tickets no podria mostrar los
+ * Cerrados nunca mas. Solo vive en la URL: no viaja a la API ni llega al estado, donde es una lista
+ * vacia.
+ */
+export const FILTRO_TODOS_EN_URL = 'todos'
+
+/**
+ * Los valores de un default declarado como texto (`'1,2,3,4'`).
+ *
+ * @param definicion El recurso.
+ * @param clave El filtro.
+ * @returns La lista, o `null` si el filtro no tiene default.
+ */
+export function valoresPorDefecto<T> (definicion: DefinicionRecurso<T>, clave: string): string[] | null {
+  const crudo = definicion.filtrosPorDefecto?.[clave]
+
+  if (crudo === undefined) return null
+
+  return crudo.split(',').map((v) => v.trim()).filter((v) => v !== '')
+}
+
+/**
+ * Si dos listas de valores de filtro son el mismo conjunto, sin importar el orden.
+ *
+ * @param a Una lista.
+ * @param b La otra.
+ * @returns `true` si tienen los mismos elementos.
+ */
+export function mismosValores (a: string[], b: string[]): boolean {
+  const unicosA = new Set(a)
+  const unicosB = new Set(b)
+
+  return unicosA.size === unicosB.size && [...unicosA].every((v) => unicosB.has(v))
+}
+
+/**
+ * Si la vista se aparta de su reposo: hay busqueda, un filtro con valores que no es el default, o un
+ * filtro con default que se cambio o se dejo en "todos".
+ *
+ * Es lo que decide si "Limpiar filtros" tiene algo que limpiar. Sin defaults declarados equivale a
+ * "hay algun filtro con valor".
+ *
+ * @param estado El estado de la vista.
+ * @param definicion El recurso.
+ * @returns `true` si limpiar cambiaria lo que se ve.
+ */
+export function seApartaDelReposo<T> (estado: EstadoConsulta, definicion: DefinicionRecurso<T>): boolean {
+  if (estado.busqueda.trim() !== '') return true
+
+  const claves = new Set([...Object.keys(estado.filtros), ...Object.keys(definicion.filtrosPorDefecto ?? {})])
+
+  for (const clave of claves) {
+    const actual = (estado.filtros[clave] ?? []).filter((v) => v !== '')
+    const reposo = valoresPorDefecto(definicion, clave) ?? []
+
+    if (!mismosValores(actual, reposo)) return true
+  }
+
+  return false
+}
+
+/**
  * Convierte los `searchParams` de una pagina en `URLSearchParams`.
  *
  * Next entrega un objeto donde un mismo parametro puede venir como cadena o como lista. Esta funcion
@@ -118,6 +183,30 @@ export function construirConsulta<T> (estado: EstadoConsulta, definicion: Defini
 }
 
 /**
+ * Arma la query string de la URL de la vista.
+ *
+ * Es `construirConsulta` mas una cosa: un filtro con default que esta en "todos" (lista vacia) se
+ * escribe como `filter[clave]=todos`. Sin eso la URL quedaria sin el parametro y la vista volveria al
+ * default en el siguiente render, deshaciendo lo que la persona acaba de pedir. A la API nunca va
+ * esto: ella recibe `construirConsulta`.
+ *
+ * @param estado Lo que la persona eligio en la vista.
+ * @param definicion El recurso.
+ * @returns La query string sin `?` inicial.
+ */
+export function construirConsultaDeUrl<T> (estado: EstadoConsulta, definicion: DefinicionRecurso<T>): string {
+  const params = new URLSearchParams(construirConsulta(estado, definicion))
+
+  for (const clave of Object.keys(definicion.filtrosPorDefecto ?? {})) {
+    const elegidos = estado.filtros[clave]
+
+    if (elegidos !== undefined && elegidos.every((v) => v === '')) params.set(`filter[${clave}]`, FILTRO_TODOS_EN_URL)
+  }
+
+  return params.toString()
+}
+
+/**
  * Lee el estado de una vista desde los parametros de la URL.
  *
  * Lo desconocido se descarta en silencio: una URL vieja o escrita a mano tiene que producir una vista
@@ -152,6 +241,14 @@ export function leerConsulta<T> (
       continue
     }
 
+    const defecto = valoresPorDefecto(definicion, filtro.clave)
+
+    if (defecto !== null) {
+      estado.filtros[filtro.clave] = leerFiltroConDefecto(params.get(`filter[${filtro.clave}]`), defecto)
+
+      continue
+    }
+
     // El `assignee` suelto es la forma vieja de "las tareas de esta persona", y sigue llegando desde
     // enlaces guardados y desde los paneles que arman la URL a mano. Se lee como si viniera envuelto,
     // pero solo si son identificadores: el backend lo compara contra una columna numerica y un
@@ -182,6 +279,23 @@ export function leerConsulta<T> (
   estado.includes = [...new Set([...(definicion.incluirSiempre ?? []), ...includes])]
 
   return estado
+}
+
+/**
+ * Valores de un filtro que tiene default, segun lo que traiga la URL.
+ *
+ * Sin el parametro vale el default; con `todos` o vacio la persona pidio no filtrar; con valores
+ * mandan los de la URL.
+ *
+ * @param crudo El parametro tal como esta en la URL, o `null` si no esta.
+ * @param defecto Los valores por defecto del filtro.
+ * @returns Los valores del estado; lista vacia es "sin filtrar".
+ */
+function leerFiltroConDefecto (crudo: string | null, defecto: string[]): string[] {
+  if (crudo === null) return defecto
+  if (crudo.trim() === FILTRO_TODOS_EN_URL) return []
+
+  return crudo.split(',').map((v) => v.trim()).filter((v) => v !== '')
 }
 
 /**

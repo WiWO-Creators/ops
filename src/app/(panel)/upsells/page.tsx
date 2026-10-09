@@ -5,11 +5,10 @@ import { VistaUpsells } from '@/componentes/upsell/VistaUpsells'
 import { construirConsulta, leerConsulta, paramsDeUrl } from '@/datos/consulta'
 import { listaDe } from '@/datos/catalogos'
 import { cargarLookups, opcionesDeFiltros } from '@/datos/lookups'
-import { pedir } from '@/datos/servidor'
+import { cargarYo, pedir } from '@/datos/servidor'
 import type { ClienteMinimo, EstadoLookup, Upsell } from '@/datos/recursos'
 import type { OpcionCampo } from '@/componentes/proyecto/formulario'
 import { TituloModulo } from '@/componentes/estructura/TituloModulo'
-import type { Yo } from '@/datos/tipos'
 import { UPSELLS } from '@/definiciones/upsells'
 
 export const metadata = { title: 'Upselling · WiWO Ops' }
@@ -33,7 +32,7 @@ export default async function UpsellsPage (props: PageProps<'/upsells'>) {
   const [lista, lookups, yo, clientes] = await Promise.all([
     pedir<Upsell[]>(`/upsells${consulta === '' ? '' : `?${consulta}`}`),
     cargarLookups(),
-    pedir<Yo>('/me'),
+    cargarYo(),
     // El selector de clientes del alta. `minimos` es la ruta que existe justamente para esto: no
     // exige `customers view`, devuelve cuatro campos y nada mas. Solo los ACTIVOS: armarle una
     // oportunidad a un cliente dado de baja es un error de tipeo, no un caso de uso.

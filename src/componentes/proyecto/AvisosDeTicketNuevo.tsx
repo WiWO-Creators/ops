@@ -5,7 +5,7 @@ import { Boton } from '@/componentes/formularios/Boton'
 import { Interruptor } from '@/componentes/formularios/Interruptor'
 import { SelectorPersonas } from '@/componentes/formularios/SelectorPersonas'
 import { escribirEnBff } from '@/componentes/datos/mutaciones'
-import { Cargando, ErrorEstado } from '@/componentes/estado/Estados'
+import { AvisoEnLinea, Cargando, ErrorEstado } from '@/componentes/estado/Estados'
 import { cargarAsignables } from '@/datos/asignables'
 import type { AvisosDeTicket } from '@/datos/recursos'
 import type { StaffReferencia } from '@/datos/tipos'
@@ -131,7 +131,7 @@ function FormularioDeAvisos ({ ruta, guardado: inicial }: { ruta: string, guarda
             Personas que reciben el aviso
           </label>
           {equipo === null && falloEquipo === null && <Cargando alto="min-h-10" mensaje="Cargando el equipo…" />}
-          {falloEquipo !== null && <p role="alert" className="text-texto-peligro text-sm">{falloEquipo}</p>}
+          {falloEquipo !== null && <AvisoEnLinea variante="error" mensaje={falloEquipo} className="text-sm" />}
           {equipo !== null && (
             <SelectorPersonas
               id="avisos-personas"
@@ -147,7 +147,7 @@ function FormularioDeAvisos ({ ruta, guardado: inicial }: { ruta: string, guarda
       )}
 
       {cambio && problema !== null && <p className="text-texto-aviso text-sm">{problema}</p>}
-      {fallo !== null && <p role="alert" className="text-texto-peligro text-sm">{fallo}</p>}
+      {fallo !== null && <AvisoEnLinea variante="error" mensaje={fallo} className="text-sm" />}
       {listo && !cambio && <p role="status" className="text-texto-exito text-sm">Avisos guardados.</p>}
 
       <div className="flex justify-end">

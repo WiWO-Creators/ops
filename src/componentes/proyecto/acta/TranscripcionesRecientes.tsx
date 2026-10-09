@@ -4,7 +4,8 @@ import { useState, type ReactElement } from 'react'
 import { Trash2 } from 'lucide-react'
 import { Boton } from '@/componentes/formularios/Boton'
 import { Insignia } from '@/componentes/presentadores/Insignia'
-import { Cargando, ErrorEstado } from '@/componentes/estado/Estados'
+import { AvisoEnLinea, Cargando, ErrorEstado } from '@/componentes/estado/Estados'
+import { useAviso } from '@/componentes/estado/useAviso'
 import { escribirEnBff } from '@/componentes/datos/mutaciones'
 import { IDIOMAS_TRANSCRIPCION, formatoDeVencimiento, type ResumenTranscripcion } from '@/dominio/transcripcion'
 import { useRecurso } from '../carga'
@@ -60,7 +61,7 @@ function ListaTranscripciones ({
 }): ReactElement {
   return (
     <div className="flex flex-col gap-2">
-      <h3 className="text-texto-tenue text-xs font-semibold tracking-wide uppercase">Transcripciones recientes</h3>
+      <h3 className="text-texto-tenue text-xs antetitulo">Transcripciones recientes</h3>
       <ul className="flex flex-col gap-1.5">
         {transcripciones.map((transcripcion) => (
           <FilaTranscripcion
@@ -88,6 +89,7 @@ function FilaTranscripcion ({
   onBorrada: () => void
 }): ReactElement {
   const [borrando, setBorrando] = useState(false)
+  const aviso = useAviso()
   const [error, setError] = useState<string | null>(null)
 
   async function borrar (): Promise<void> {
@@ -105,6 +107,7 @@ function FilaTranscripcion ({
       return
     }
 
+    aviso.exito('Transcripción eliminada.')
     onBorrada()
   }
 
@@ -127,7 +130,7 @@ function FilaTranscripcion ({
             soloIcono
             cargando={borrando}
             onClick={() => { void borrar() }}
-            aria-label="Borrar esta transcripción"
+            aria-label="Eliminar esta transcripción"
           >
             <Trash2 size={14} strokeWidth={2} aria-hidden="true" />
           </Boton>
@@ -135,7 +138,7 @@ function FilaTranscripcion ({
       </div>
 
       <p className="text-texto-sutil text-xs">Se borra el {formatoDeVencimiento(transcripcion.expira_en)}.</p>
-      {error !== null && <p role="alert" className="text-texto-peligro text-xs">{error}</p>}
+      {error !== null && <AvisoEnLinea variante="error" mensaje={error} />}
     </li>
   )
 }

@@ -2,6 +2,7 @@
 
 import { useState, type ReactElement } from 'react'
 import { useRouter } from 'next/navigation'
+import { Pencil } from 'lucide-react'
 import { BajaYBorrado } from '@/componentes/datos/BajaYBorrado'
 import { Boton } from '@/componentes/formularios/Boton'
 import { Campo } from '@/componentes/formularios/Campo'
@@ -50,7 +51,7 @@ interface PropsAccionesPersona {
   capacidades: Capacidad[]
   /** Desde el listado: vuelve a pedir la pagina. Si no viene, se refresca el Server Component. */
   recargar?: () => void
-  /** `true` en la ficha: el borrado definitivo vuelve al listado. */
+  /** `true` en la ficha: baja y borrado van al menu ⋯ y el borrado definitivo vuelve al listado. */
   enFicha?: boolean
 }
 
@@ -90,7 +91,10 @@ export function AccionesPersona ({
   return (
     <>
       {puedeEditar && (
-        <Boton variante="sutil" tamano="chico" onClick={() => { setEditando(true) }}>Editar</Boton>
+        <Boton variante={enFicha ? 'secundario' : 'sutil'} tamano="chico" onClick={() => { setEditando(true) }}>
+          {enFicha && <Pencil aria-hidden className="size-4" />}
+          Editar
+        </Boton>
       )}
 
       <BajaYBorrado
@@ -100,6 +104,7 @@ export function AccionesPersona ({
         puedeEditar={puedeEditar}
         puedeBorrar={puedeBorrar}
         tamano="chico"
+        enMenu={enFicha}
         advertencia={
           `Se borra la ficha de ${persona.full_name} y su trabajo —tareas, horas, proyectos, tickets— ` +
           'pasa a quien elijas. No se puede deshacer.'

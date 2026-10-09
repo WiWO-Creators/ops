@@ -20,7 +20,10 @@ import {
   nombreDe,
   nombresDeFocales,
   ordenarPorSemaforo,
-  rutaDeEstado
+  pedirEstado,
+  rutaDeEstado,
+  rutaDeFocalesDelCliente,
+  tramosEnCero
 } from '../src/datos/focals.ts'
 import { GLOSARIO, nombrar } from '../src/dominio/glosario.ts'
 
@@ -139,8 +142,32 @@ test('un Proyecto sin nombre se muestra por su id, nunca en blanco', () => {
   assert.equal(nombreDe(espacio(42, 1, 4, 'rojo', 'Rediseño')), 'Rediseño')
 })
 
-test('la ruta del estado escapa el id', () => {
+test('la ruta del estado se arma con el id del Proyecto', () => {
   assert.equal(rutaDeEstado(12), 'ia/proyectos/12/estado')
+})
+
+test('la ruta del estado rechaza un id que no sea un entero mayor que 0', () => {
+  // Un NaN, un cero, un negativo o un decimal armarían una ruta que el BFF rechaza sin explicar por qué.
+  for (const invalido of [Number.NaN, 0, -3, 1.5, Infinity]) {
+    assert.throws(() => rutaDeEstado(invalido), RangeError)
+  }
+})
+
+test('la ruta para asignar focal abre la pestaña Focales de la ficha del cliente', () => {
+  assert.equal(rutaDeFocalesDelCliente(7), '/clientes/7?tab=focales')
+})
+
+test('la ruta para asignar focal rechaza un id que no sea un entero mayor que 0', () => {
+  for (const invalido of [Number.NaN, 0, -1, 2.5]) {
+    assert.throws(() => rutaDeFocalesDelCliente(invalido), RangeError)
+  }
+})
+
+test('los tramos en cero declaran los cuatro tramos y cada llamada devuelve un objeto propio', () => {
+  const uno = tramosEnCero()
+  uno.rojo += 1
+
+  assert.deepEqual(tramosEnCero(), { verde: 0, amarillo: 0, rojo: 0, sin_datos: 0 })
 })
 
 test('404 es Thinking Orb apagado y 409 es que todavía no corrió el cálculo', () => {
@@ -159,12 +186,169 @@ test('lo que no está previsto se cuenta con las palabras del servidor', () => {
   assert.equal(mensajeDeFalloDeEstado(500, 'Se cayó todo'), 'Se cayó todo')
 })
 
-test('ninguno de los tres mensajes previstos sugiere que el semáforo se rompió', () => {
-  // El párrafo es lo único que falta cuando Thinking Orb no contesta: el puntaje se sigue viendo. Si el
+test('los tres mensajes previstos dicen que falta el párrafo, no que el semáforo se rompió', () => {
+  // El párrafo es lo único que falta cuando la IA no contesta: el puntaje se sigue viendo. Si el
   // mensaje dijera "no se pudo cargar el semáforo", mandaría a alguien a revisar un cálculo sano.
-  for (const codigo of [404, 409, 429]) {
-    assert.doesNotMatch(mensajeDeFalloDeEstado(codigo, 'x'), /no se pudo cargar el sem/i)
+  assert.match(mensajeDeFalloDeEstado(404, 'x'), /semáforo se ve igual/)
+  assert.match(mensajeDeFalloDeEstado(409, 'x'), /foto de hoy/)
+  assert.match(mensajeDeFalloDeEstado(429, 'x'), /no depende de ella/)
+})
+
+test('un Proyecto sin puntaje ni nombre no rompe el orden ni se vuelve el peor', () => {
+  const sinNada = { ...espacio(5, 1, null, 'sin_datos'), espacio: null }
+  const ordenados = ordenarPorSemaforo([sinNada, espacio(6, 1, 30, 'rojo', 'Beta')])
+
+  assert.deepEqual(ordenados.map((e) => e.project_id), [6, 5])
+})
+
+test('un cliente repetido en la lista recibe sus Proyectos en cada aparición', () => {
+  const cuentas = agruparPorCliente([cliente(1, 40, 'rojo'), cliente(1, 40, 'rojo')], [espacio(9, 1, 40, 'rojo')])
+
+  assert.equal(cuentas.length, 2)
+  assert.deepEqual(cuentas.map((c) => c.espacios.map((e) => e.project_id)), [[9], [9]])
+})
+
+test('sin clientes ni Proyectos la cartera queda vacía', () => {
+  assert.deepEqual(agruparPorCliente([], []), [])
+  assert.deepEqual(agruparPorCliente([], [espacio(1, 1, 10, 'rojo')]), [])
+})
+
+/**
+ * Un `fetch` falso que responde lo que se le diga y recuerda con qué lo llamaron.
+ *
+ * @param responder función que devuelve la `Response`, o lanza para simular la red caída
+ */
+function traerFalso (responder) {
+  const llamadas = []
+  const traer = async (url, opciones) => {
+    llamadas.push({ url, opciones })
+
+    return await responder(opciones)
   }
+
+  return { traer, llamadas }
+}
+
+const ESTADO = { texto: 'Va bien.', generado_en: '2026-10-02 08:00:00', vigente: true, reutilizado: false }
+
+test('pedirEstado devuelve el estado cuando el servidor lo manda completo', async () => {
+  const { traer, llamadas } = traerFalso(() => Response.json({ data: ESTADO }))
+
+  const resultado = await pedirEstado(12, { traer })
+
+  assert.deepEqual(resultado, {
+    ok: true,
+    estado: { texto: 'Va bien.', generado_en: '2026-10-02 08:00:00', vigente: true }
+  })
+  assert.equal(llamadas[0].url, '/api/bff/ia/proyectos/12/estado')
+  assert.equal(llamadas[0].opciones.method, 'POST')
+  assert.ok(llamadas[0].opciones.signal instanceof AbortSignal)
+})
+
+test('pedirEstado explica 404, 409 y 429 como desenlaces esperados, sin leer el cuerpo', async () => {
+  for (const codigo of [404, 409, 429]) {
+    const respuesta = new Response('<html>no debería leerse</html>', { status: codigo })
+    const { traer } = traerFalso(() => respuesta)
+
+    const resultado = await pedirEstado(12, { traer })
+
+    assert.equal(respuesta.bodyUsed, false)
+    assert.equal(resultado.ok, false)
+    assert.equal(resultado.esperado, true)
+    assert.equal(resultado.error, mensajeDeFalloDeEstado(codigo, ''))
+  }
+})
+
+test('pedirEstado distingue la sesión cerrada y un permiso negado de los esperados', async () => {
+  const sesion = await pedirEstado(12, {
+    traer: traerFalso(() => Response.json({ error: { code: 'unauthenticated', message: 'x' } }, { status: 401 })).traer
+  })
+  const permiso = await pedirEstado(12, {
+    traer: traerFalso(() => Response.json({ error: { code: 'forbidden', message: 'Sin acceso a este Proyecto.' } }, { status: 403 })).traer
+  })
+
+  assert.equal(sesion.ok, false)
+  assert.equal(sesion.esperado, false)
+  assert.match(sesion.error, /sesión/)
+  assert.equal(permiso.ok, false)
+  assert.equal(permiso.esperado, false)
+  assert.equal(permiso.error, 'Sin acceso a este Proyecto.')
+})
+
+test('pedirEstado devuelve el mensaje del servidor en una falla real', async () => {
+  const { traer } = traerFalso(() => Response.json(
+    { error: { code: 'server_error', message: 'Error interno.', details: { incidente: 'ab12cd34' } } },
+    { status: 500 }
+  ))
+
+  const resultado = await pedirEstado(12, { traer })
+
+  assert.equal(resultado.ok, false)
+  assert.equal(resultado.esperado, false)
+  assert.match(resultado.error, /Error interno/)
+})
+
+test('pedirEstado rechaza un cuerpo ilegible o con la forma equivocada', async () => {
+  const cuerpos = [
+    () => new Response('no es json', { status: 200 }),
+    () => Response.json({}),
+    () => Response.json({ data: null }),
+    () => Response.json({ data: { ...ESTADO, texto: '   ' } }),
+    () => Response.json({ data: { ...ESTADO, texto: 12 } }),
+    () => Response.json({ data: { ...ESTADO, vigente: 'si' } }),
+    () => Response.json({ data: { texto: 'Hola', vigente: true } })
+  ]
+
+  for (const cuerpo of cuerpos) {
+    const resultado = await pedirEstado(12, { traer: traerFalso(cuerpo).traer })
+
+    assert.equal(resultado.ok, false)
+    assert.equal(resultado.esperado, false)
+    assert.match(resultado.error, /no se pudo leer/)
+  }
+})
+
+test('pedirEstado cuenta la red caída sin lanzar', async () => {
+  const { traer } = traerFalso(() => { throw new TypeError('fetch failed') })
+
+  const resultado = await pedirEstado(12, { traer })
+
+  assert.equal(resultado.ok, false)
+  assert.equal(resultado.esperado, false)
+  assert.match(resultado.error, /contactar al servidor/)
+})
+
+test('pedirEstado se rinde cuando se acaba el tiempo y lo dice con otras palabras', async () => {
+  const { traer } = traerFalso(({ signal }) => new Promise((resolver, rechazar) => {
+    signal.addEventListener('abort', () => { rechazar(signal.reason) })
+  }))
+
+  const resultado = await pedirEstado(12, { traer, tiempoMaximoMs: 5 })
+
+  assert.equal(resultado.ok, false)
+  assert.equal(resultado.esperado, false)
+  assert.match(resultado.error, /tardó demasiado/)
+})
+
+test('pedirEstado respeta la señal de quien dejó de esperar', async () => {
+  const controlador = new AbortController()
+  const { traer } = traerFalso(({ signal }) => new Promise((resolver, rechazar) => {
+    signal.addEventListener('abort', () => { rechazar(signal.reason) })
+  }))
+
+  const pendiente = pedirEstado(12, { traer, senal: controlador.signal })
+  controlador.abort()
+  const resultado = await pendiente
+
+  assert.equal(resultado.ok, false)
+  assert.equal(resultado.esperado, true)
+})
+
+test('pedirEstado con un id inválido lanza antes de pedir nada', async () => {
+  const { traer, llamadas } = traerFalso(() => Response.json({ data: ESTADO }))
+
+  await assert.rejects(() => pedirEstado(Number.NaN, { traer }), RangeError)
+  assert.equal(llamadas.length, 0)
 })
 
 test('los focales de una cuenta se dibujan en el orden de alta que puso el servidor', () => {

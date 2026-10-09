@@ -109,7 +109,7 @@ export function RecorridoDeNovedades ({ novedades, onCerrar }: PropsRecorrido) {
       role="dialog"
       aria-modal="true"
       aria-labelledby={idTitulo}
-      className="bienvenida-capa bg-superficie fixed inset-0 z-[70] overflow-y-auto overscroll-contain"
+      className="bienvenida-capa bg-superficie fixed inset-0 z-bienvenida overflow-y-auto overscroll-contain"
     >
       <div ref={contenidoRef} className="relative">
         <div aria-hidden="true" className="pointer-events-none sticky top-0 grid h-dvh place-items-center overflow-hidden">
@@ -132,7 +132,7 @@ export function RecorridoDeNovedades ({ novedades, onCerrar }: PropsRecorrido) {
 
         <div className="relative -mt-[100dvh]">
           <section className="flex h-dvh flex-col items-center justify-center gap-3 px-6 text-center">
-            <p className="text-acento text-xs font-semibold tracking-wide uppercase">Ops se actualizó</p>
+            <p className="text-acento text-xs antetitulo">Ops se actualizó</p>
             <h2 id={idTitulo} className="text-texto max-w-xl text-3xl font-semibold text-balance sm:text-5xl">
               Esto es lo que cambió
             </h2>

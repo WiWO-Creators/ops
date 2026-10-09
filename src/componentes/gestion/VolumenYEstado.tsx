@@ -58,14 +58,14 @@ function EstadoAlCierre ({ cubos }: { cubos: ReturnType<typeof leerCubos> }) {
       <dl className="mt-2 grid gap-x-6 gap-y-3 sm:grid-cols-3 lg:grid-cols-5">
         {cubos.cubos.map((cubo) => (
           <div key={cubo.clave}>
-            <dt className="text-texto-sutil text-xs tracking-wide uppercase">{cubo.rotulo}</dt>
+            <dt className="text-texto-sutil text-xs antetitulo">{cubo.rotulo}</dt>
             <dd data-numerico className="text-texto text-xl font-semibold tabular-nums">{cubo.total}</dd>
           </div>
         ))}
 
         {cubos.sin_clasificar > 0 && (
           <div>
-            <dt className="text-texto-aviso text-xs tracking-wide uppercase">Sin clasificar</dt>
+            <dt className="text-texto-aviso text-xs antetitulo">Sin clasificar</dt>
             <dd data-numerico className="text-texto-aviso text-xl font-semibold tabular-nums">
               {cubos.sin_clasificar}
             </dd>

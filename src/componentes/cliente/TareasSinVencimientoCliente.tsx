@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react'
 import { escribirEnBff } from '@/componentes/datos/mutaciones'
+import { AvisoEnLinea } from '@/componentes/estado/Estados'
 import { Boton } from '@/componentes/formularios/Boton'
 import { CLASES_CASILLA } from '@/componentes/formularios/Entrada'
 import { pedirSobre } from '@/datos/cliente'
@@ -99,7 +100,7 @@ export function TareasSinVencimientoCliente ({ clienteId, capacidades }: Props) 
   if (error !== null && guardado === null) {
     return (
       <Seccion>
-        <p role="alert" className="text-texto-peligro text-sm">{error}</p>
+        <AvisoEnLinea variante="error" mensaje={error} className="text-sm" />
       </Seccion>
     )
   }
@@ -140,7 +141,7 @@ export function TareasSinVencimientoCliente ({ clienteId, capacidades }: Props) 
           </p>
         </fieldset>
 
-        {error !== null && <p role="alert" className="text-texto-peligro text-sm">{error}</p>}
+        {error !== null && <AvisoEnLinea variante="error" mensaje={error} className="text-sm" />}
         {avisoDeGuardado && (
           <p role="status" className="text-texto-tenue text-xs">{frase(guardado.sin_vencimiento)}</p>
         )}
