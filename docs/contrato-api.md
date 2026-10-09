@@ -7304,6 +7304,87 @@ Una fila trae `id`, `subject`, `description`, `client_id`, `client {id, company,
 `contract_value | null`, `signed`, `visible_to_client`, `trash`, `addedfrom {id, full_name} | null`
 y `dateadded`.
 
+## Fusionar entidades (`merge-preview`, `actions/merge` y `/merges`)
+
+Juntar dos **Proyectos**, dos **Clientes** o dos **Prospectos** en uno: se fusiona un **origen** en un
+**destino** del mismo tipo y manda el destino. Código en `modules/api/Escritura/Fusion.php` y
+`modules/api/Fusion/*`; el catálogo de qué se hace con cada tabla es `Fusion/Relaciones.php`. El
+segmento de Prospectos es `prospectos` (el que ya existe), no `prospects`; el slug de `entidad` en las
+respuestas sí es `prospects`.
+
+Reglas:
+
+- **Quién**: administradores y coordinadores multiárea. Quien no ve el elemento recibe `404`; quien lo ve y no
+  tiene el rol, `403`. El `404` va siempre antes que el `403`.
+- **Interruptor** `wiwo_fusion_habilitada` (`tbloptions`), que nace **apagado**. Apagado, `merge-preview`
+  funciona y dice `habilitada: false`; `merge`, `revert` y `retry-files` responden `403`.
+- **Sin avisos**: no manda correo, webhook ni notificación; solo deja rastro en `tblactivity_log`.
+- **Origen**: Proyectos y Clientes van a la **papelera**. Un Prospecto no tiene papelera: se **elimina** con su
+  fila entera respaldada en la bitácora y `revert` la reinserta con su id.
+- **Deshacer** dentro de los **30 días**. Cada fila se verifica antes; la que ya no existe o se editó después se
+  omite y se informa en `omitidas`. Con cadenas A → B → C no se revierte A → B mientras B → C siga viva (`409`).
+- **Bloqueos** (en la vista previa y al aplicar): origen = destino, origen o destino en la papelera, origen ya
+  fusionado, Proyectos de clientes distintos, Prospectos que apuntan a clientes distintos.
+- Un Cliente arrastra a sus Proyectos (re-apuntados, siguen vivos). Todo ocurre en una transacción; disco y Drive
+  se mueven después, idempotentes: si fallan queda `pendiente_archivos`.
+- Los `POST` aceptan `Idempotency-Key`.
+
+| Método y ruta | Qué hace |
+|---|---|
+| `GET /{projects\|clients\|prospectos}/{id}/merge-preview?into={destino}` | Qué pasaría, sin escribir. `into` obligatorio (`422` si falta o no existe) |
+| `POST /{projects\|clients\|prospectos}/{id}/actions/merge` | Fusiona. Cuerpo `{into, elecciones, confirmacion}`. `200 {fusion_id, estado}` |
+| `GET /merges` | Historial, lo más reciente primero. Filtro `filter[entidad]` (`projects`, `clients`, `prospects`). `403` sin rol |
+| `GET /merges/{id}` | Una fusión; suma `resumen` (conteos por tabla, elecciones, plan de Drive, resultado de archivos) |
+| `POST /merges/{id}/actions/revert` | Deshace. `200 {fusion_id, estado, omitidas}` |
+| `POST /merges/{id}/actions/retry-files` | Reintenta los archivos pendientes. `409` si no está `pendiente_archivos` |
+
+`merge-preview` devuelve:
+
+```json
+{ "data": {
+  "habilitada": true, "palabra": "FUSIONAR", "entidad": "projects",
+  "origen":  { "id": 91,  "nombre": "..." },
+  "destino": { "id": 292, "nombre": "..." },
+  "bloqueos": [],
+  "conteos": [ { "tabla": "tasks", "etiqueta": "Tareas", "filas": 94, "accion": "mover" } ],
+  "conflictos": [ { "campo": "name", "etiqueta": "Nombre", "valor_origen": "...", "valor_destino": "..." } ],
+  "duplicados": [ { "etiqueta": "Miembros", "cantidad": 8 } ],
+  "archivos": { "cantidad": 0 },
+  "drive": { "carpetas": 1, "accion": "mover_contenido" }
+} }
+```
+
+- `conteos[].accion`: `mover`, `deduplicar`, `descartar`, `recalcular`, `conservar_destino`, `cancelar`. Solo
+  aparecen las tablas con filas.
+- `conflictos`: campos escalares donde el origen trae un valor distinto del destino, con valores como texto. Son
+  los únicos que admiten elección.
+- `duplicados`: filas que el destino ya tiene (clave natural) y que se descartan con respaldo.
+- `drive.accion`: `ninguna`, `reapuntar` (el destino hereda la carpeta) o `mover_contenido`.
+
+`elecciones` es `{campo: "origen" | "destino"}`; por omisión manda el destino. `confirmacion` debe ser
+exactamente `FUSIONAR` (`422` si falta o difiere). Campos que admiten elección:
+
+- Proyecto: `name`, `description`, `status`, `billing_type`, `start_date`, `deadline`, `project_cost`,
+  `project_rate_per_hour`, `estimated_hours`, `visible_para_cliente`.
+- Cliente: `company`, `vat`, `phonenumber`, `website`, `address`, `city`, `state`, `zip`, `country`,
+  `default_language`, `default_currency` y los `billing_*` / `shipping_*`.
+- Prospecto: `empresa`, `datos_cliente`.
+
+Un campo desconocido o un valor distinto de `origen` / `destino` es `422`. La patente del Proyecto, el código del
+Cliente y los ajustes del Proyecto son siempre los del destino.
+
+Una fila de `GET /merges` trae `id`, `entidad`, `origen {id, nombre}`, `destino {id, nombre}`,
+`staff {id, full_name} | null`, `fecha`, `estado`, `revertida_en | null`, `puede_revertir` (dentro del plazo, no
+revertida y sin otra fusión encima) y `revertible_hasta`.
+
+`omitidas` es `[{tabla, pk, columna, motivo}]`; `motivo` viene en español.
+
+| `estado` | Significa |
+|---|---|
+| `aplicada` | La base y los archivos están fusionados |
+| `pendiente_archivos` | La base está fusionada; faltan archivos de disco o de Drive. Se reintenta |
+| `revertida` | Se deshizo; el origen vuelve a existir |
+
 ## Tiempo real
 
 `GET /config/realtime` → `{ "data": { "enabled": true, "key": "…", "cluster": "…" } }`

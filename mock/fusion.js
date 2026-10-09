@@ -3,7 +3,7 @@
  * reintento de archivos.
  *
  * Sigue las formas de `modules/api/Escritura/Fusion.php` del board (`GET /{entidad}/{id}/merge-preview?into=`,
- * `POST /{entidad}/{id}/actions/merge`, `GET /merges`, `POST /merges/{id}/actions/revert` y
+ * `POST /{entidad}/{id}/actions/merge`, `GET /merges`, `GET /merges/{id}`, `POST /merges/{id}/actions/revert` y
  * `.../retry-files`). No toca los arreglos de `datos.js`: la fusion solo deja constancia en su propio
  * historial, que es lo que el dialogo y la pantalla de Fusiones necesitan para ejercitarse.
  *
@@ -184,10 +184,10 @@ export async function fusionRuta (metodo, recurso, resto, parametros, actual, cu
 
   HISTORIAL.unshift(fusion)
 
-  return { estado: 201, cuerpo: { data: { fusion_id: fusion.id, estado: fusion.estado } } }
+  return { estado: 200, cuerpo: { data: { fusion_id: fusion.id, estado: fusion.estado } } }
 }
 
-/** `GET /merges`, `POST /merges/{id}/actions/revert` y `POST /merges/{id}/actions/retry-files`. */
+/** `GET /merges`, `GET /merges/{id}`, `POST /merges/{id}/actions/revert` y `POST /merges/{id}/actions/retry-files`. */
 function historialRuta (metodo, resto, parametros, actual) {
   exigirRol(actual)
 
@@ -199,6 +199,12 @@ function historialRuta (metodo, resto, parametros, actual) {
   }
 
   const fusion = HISTORIAL.find((f) => f.id === Number(resto[0]))
+
+  if (metodo === 'GET' && resto.length === 1) {
+    if (!fusion) throw new ErrorApi(404, 'not_found', 'No existe esa fusión.')
+
+    return { estado: 200, cuerpo: { data: { ...fusion, resumen: {} } } }
+  }
 
   if (metodo !== 'POST' || resto[1] !== 'actions' || resto.length !== 3) throw new ErrorApi(404, 'not_found', 'Subrecurso desconocido.')
   if (!fusion) throw new ErrorApi(404, 'not_found', 'No existe esa fusión.')
