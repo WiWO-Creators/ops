@@ -12,6 +12,7 @@ import {
   mensajeCardStart,
   mensajeCardUpdate,
   mensajeReady,
+  mismaTarjeta,
   type EstadoDeLaApp
 } from '@/lib/puente-app'
 
@@ -202,7 +203,7 @@ function aplicarTarjeta (memoria: MemoriaDelPuente, nueva: LiveCardState | null)
   } else if (actual.cardId !== nueva.cardId) {
     enviarAlApp(mensajeCardEnd(actual.cardId))
     enviarAlApp(mensajeCardStart(nueva))
-  } else if (JSON.stringify(actual) !== JSON.stringify(nueva)) {
+  } else if (!mismaTarjeta(actual, nueva)) {
     enviarAlApp(mensajeCardUpdate(nueva))
   }
 

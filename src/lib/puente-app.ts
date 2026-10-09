@@ -82,6 +82,19 @@ export function mensajeCardUpdate (card: LiveCardState): MensajeAlApp {
   return { v: VERSION_PUENTE, tipo: 'card.update', card }
 }
 
+/**
+ * Dice si dos estados de la tarjeta se ven igual. No cuenta `actualizadoEn` (cambia en cada lectura
+ * aunque nada cambie) ni `discreto` (lo decide la app con su preferencia local).
+ */
+export function mismaTarjeta (a: LiveCardState, b: LiveCardState): boolean {
+  const visible = (c: LiveCardState) => JSON.stringify([
+    c.cardId, c.titulo, c.origen.label, c.origen.hora, c.destino.label, c.destino.hora,
+    c.inicio, c.finEstimado, c.hitos ?? [], c.estado, c.chip
+  ])
+
+  return visible(a) === visible(b)
+}
+
 /** Termina la tarjeta en vivo. @throws RangeError si `cardId` está vacío. */
 export function mensajeCardEnd (cardId: string): MensajeAlApp {
   return { v: VERSION_PUENTE, tipo: 'card.end', cardId: exigirTexto(cardId, 'cardId') }

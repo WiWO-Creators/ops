@@ -19,7 +19,8 @@ import {
   mensajeCardStart,
   mensajeCardUpdate,
   mensajeLogout,
-  mensajeReady
+  mensajeReady,
+  mismaTarjeta
 } from '../src/lib/puente-app.ts'
 
 const UA_APP = 'Mozilla/5.0 (Linux; Android 16) AppleWebKit/537.36 Chrome/140 Mobile Safari/537.36 WiwoOpsApp/1.0'
@@ -41,6 +42,13 @@ const TARJETA = {
 
 afterEach(() => {
   delete globalThis.window
+})
+
+test('mismaTarjeta ignora la hora de lectura y el modo discreto, no el contenido', () => {
+  assert.equal(mismaTarjeta(TARJETA, { ...TARJETA, actualizadoEn: TARJETA.actualizadoEn + 60, discreto: false }), true)
+  assert.equal(mismaTarjeta(TARJETA, { ...TARJETA, finEstimado: TARJETA.finEstimado + 1800 }), false)
+  assert.equal(mismaTarjeta(TARJETA, { ...TARJETA, destino: { label: 'Cierre', hora: '18:30' } }), false)
+  assert.equal(mismaTarjeta(TARJETA, { ...TARJETA, estado: 'atrasada', chip: 'Cierre' }), false)
 })
 
 test('esAppNativa reconoce el sufijo y rechaza navegadores y vacíos', () => {
