@@ -3,6 +3,7 @@ import { pedir, pedirOpcional } from '@/datos/servidor'
 import { leerSuplantador } from '@/datos/sesion'
 import type { Yo } from '@/datos/tipos'
 import { GLOSARIO } from '@/dominio/glosario'
+import { puedeFusionar } from '@/dominio/fusion'
 import { puedeVerFocals, puedeVerMiArea, puedeVerSeccion } from '@/dominio/permisos'
 import { puedeVerSupervision } from '@/dominio/supervision'
 import { intervaloDeLatido } from '@/datos/auditoria'
@@ -26,6 +27,7 @@ import { ControlJornada } from '@/componentes/live/ControlJornada'
 import { Logo } from '@/componentes/estructura/Logo'
 import { MenuUsuario } from '@/componentes/estructura/MenuUsuario'
 import { ProveedorEnlaces } from '@/componentes/presentadores/ProveedorEnlaces'
+import { ProveedorFusion } from '@/componentes/fusion/ProveedorFusion'
 import { ScrollSuave } from '@/componentes/estructura/ScrollSuave'
 import { LlamadaEnCurso } from '@/componentes/teletrabajo/LlamadaEnCurso'
 import { VigilanteDeVersion } from '@/componentes/estructura/VigilanteDeVersion'
@@ -81,6 +83,7 @@ export default async function PanelLayout ({ children }: { children: React.React
     // `EnlaceCliente` o `EnlaceProyecto` de cualquier pantalla enlace sin que su llamador tenga que
     // pasarle `capacidades` a mano.
     <ProveedorEnlaces permisos={yo.permissions}>
+    <ProveedorFusion puede={puedeFusionar(yo)}>
     <div className="flex h-dvh flex-col overflow-hidden">
       {suplantando && <BarraSuplantacion nombre={yo.full_name} />}
 
@@ -191,6 +194,7 @@ export default async function PanelLayout ({ children }: { children: React.React
         </div>
       </div>
     </div>
+    </ProveedorFusion>
     </ProveedorEnlaces>
   )
 }
@@ -358,6 +362,12 @@ function seccionesDe (yo: Yo): Seccion[] {
   // deshacer lo que borro sin pedirselo a un superadministrador.
   if (yo.is_admin || yo.is_superadmin) {
     secciones.push({ href: '/papelera', etiqueta: 'Papelera', icono: 'papelera', grupo: 'administracion' })
+  }
+
+  // Fusiones tiene su propia llave: la fusion tambien la hace la coordinacion multiarea, que no ve la
+  // Papelera, y el "Deshacer" tiene que estar al alcance de quien fusiono.
+  if (puedeFusionar(yo)) {
+    secciones.push({ href: '/fusiones', etiqueta: 'Fusiones', icono: 'fusiones', grupo: 'administracion' })
   }
 
   return secciones

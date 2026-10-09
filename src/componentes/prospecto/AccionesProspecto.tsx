@@ -6,6 +6,8 @@ import { useRouter } from 'next/navigation'
 import { ConfirmarBorrado } from '@/componentes/datos/ConfirmarBorrado'
 import { escribirEnBff } from '@/componentes/datos/mutaciones'
 import { useAviso } from '@/componentes/estado/useAviso'
+import { DialogoFusion } from '@/componentes/fusion/DialogoFusion'
+import { usePuedeFusionar } from '@/componentes/fusion/ProveedorFusion'
 import { Boton } from '@/componentes/formularios/Boton'
 import { FormularioRecurso } from '@/componentes/proyecto/FormularioRecurso'
 import type { OpcionCampo } from '@/componentes/proyecto/formulario'
@@ -35,6 +37,8 @@ export function AccionesProspecto ({ prospecto, paises, capacidades }: PropsAcci
   const router = useRouter()
   const [editando, setEditando] = useState(false)
   const [borrando, setBorrando] = useState(false)
+  const [fusionando, setFusionando] = useState(false)
+  const puedeFusionar = usePuedeFusionar()
 
   return (
     <div className="flex flex-wrap items-center gap-2">
@@ -50,6 +54,12 @@ export function AccionesProspecto ({ prospecto, paises, capacidades }: PropsAcci
       {capacidades.includes('edit') && (
         <Boton variante="secundario" tamano="chico" onClick={() => { setEditando(true) }}>
           Editar
+        </Boton>
+      )}
+
+      {puedeFusionar && (
+        <Boton variante="secundario" tamano="chico" onClick={() => { setFusionando(true) }}>
+          Fusionar con…
         </Boton>
       )}
 
@@ -76,6 +86,16 @@ export function AccionesProspecto ({ prospecto, paises, capacidades }: PropsAcci
           onGuardado={() => { router.refresh() }}
           columnas={2}
           ancho="grande"
+        />
+      )}
+
+      {fusionando && (
+        <DialogoFusion
+          entidad="prospects"
+          origen={{ id: prospecto.id, nombre: prospecto.empresa }}
+          abierto
+          onCerrar={() => { setFusionando(false) }}
+          onFusionado={(destino) => { router.push(`/prospectos/${destino.id}`) }}
         />
       )}
 

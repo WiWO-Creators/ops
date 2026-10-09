@@ -3,6 +3,8 @@
 import { useState, type ReactElement } from 'react'
 import { useRouter } from 'next/navigation'
 import { BajaYBorrado } from '@/componentes/datos/BajaYBorrado'
+import { DialogoFusion } from '@/componentes/fusion/DialogoFusion'
+import { usePuedeFusionar } from '@/componentes/fusion/ProveedorFusion'
 import { Boton } from '@/componentes/formularios/Boton'
 import { ImagenEntidad } from '@/componentes/presentadores/ImagenEntidad'
 import { FormularioRecurso } from '@/componentes/proyecto/FormularioRecurso'
@@ -39,6 +41,8 @@ export function AccionesCliente ({
 }: PropsAccionesCliente): ReactElement {
   const router = useRouter()
   const [editando, setEditando] = useState(false)
+  const [fusionando, setFusionando] = useState(false)
+  const puedeFusionar = usePuedeFusionar()
 
   const puedeEditar = capacidades.includes('edit')
   const recargar = (): void => { router.refresh() }
@@ -56,6 +60,10 @@ export function AccionesCliente ({
         <Boton variante="secundario" tamano="chico" onClick={() => { setEditando(true) }}>Editar</Boton>
       )}
 
+      {puedeFusionar && (
+        <Boton variante="secundario" tamano="chico" onClick={() => { setFusionando(true) }}>Fusionar con…</Boton>
+      )}
+
       <BajaYBorrado
         usaPapelera
         ruta={`clients/${cliente.id}`}
@@ -71,6 +79,16 @@ export function AccionesCliente ({
         recargar={recargar}
         alBorrar={() => { router.push('/clientes') }}
       />
+
+      {fusionando && (
+        <DialogoFusion
+          entidad="clients"
+          origen={{ id: cliente.id, nombre: cliente.company }}
+          abierto
+          onCerrar={() => { setFusionando(false) }}
+          onFusionado={(destino) => { router.push(`/clientes/${destino.id}`) }}
+        />
+      )}
 
       {puedeEditar && (
         <FormularioRecurso

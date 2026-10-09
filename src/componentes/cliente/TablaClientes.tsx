@@ -3,6 +3,7 @@
 import Link from 'next/link'
 import { useMemo } from 'react'
 import { TablaRecurso } from '@/componentes/datos/TablaRecurso'
+import { useFusionDeFila } from '@/componentes/fusion/useFusionDeFila'
 import { CLIENTES } from '@/definiciones/clientes'
 import type { OpcionFiltro, ResultadoLista } from '@/definiciones/tipos'
 import type { Cliente } from '@/datos/recursos'
@@ -54,13 +55,19 @@ export function TablaClientes ({
     ))
   }), [])
 
+  const fusion = useFusionDeFila<Cliente>('clients', (cliente) => ({ id: cliente.id, nombre: cliente.company }))
+
   return (
-    <TablaRecurso
-      definicion={definicion}
-      inicial={inicial}
-      claveFila={(cliente) => cliente.id}
-      capacidades={capacidades}
-      opcionesDeFiltro={opcionesDeFiltro}
-    />
+    <>
+      <TablaRecurso
+        definicion={definicion}
+        inicial={inicial}
+        claveFila={(cliente) => cliente.id}
+        capacidades={capacidades}
+        opcionesDeFiltro={opcionesDeFiltro}
+        accionesDeFila={fusion.acciones}
+      />
+      {fusion.dialogo}
+    </>
   )
 }

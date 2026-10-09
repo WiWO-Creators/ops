@@ -4,6 +4,7 @@ import Link from 'next/link'
 import { useMemo, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { TablaRecurso } from '@/componentes/datos/TablaRecurso'
+import { useFusionDeFila } from '@/componentes/fusion/useFusionDeFila'
 import { Boton } from '@/componentes/formularios/Boton'
 import { Insignia, type TonoInsignia } from '@/componentes/presentadores/Insignia'
 import { FlujoLicitacion } from './FlujoLicitacion'
@@ -96,6 +97,8 @@ export function VistaProspectos ({ inicial, capacidades = [], paises, areas, sta
     })
   }), [])
 
+  const fusion = useFusionDeFila<Prospecto>('prospects', (prospecto) => ({ id: prospecto.id, nombre: prospecto.empresa }))
+
   return (
     <div className="flex flex-col gap-3">
       <TablaRecurso
@@ -103,6 +106,7 @@ export function VistaProspectos ({ inicial, capacidades = [], paises, areas, sta
         inicial={inicial}
         claveFila={(prospecto) => prospecto.id}
         capacidades={capacidades}
+        accionesDeFila={fusion.acciones}
         accion={capacidades.includes('create')
           ? (
             <Boton tamano="chico" variante="primario" onClick={() => { setCreando(true) }}>
@@ -111,6 +115,8 @@ export function VistaProspectos ({ inicial, capacidades = [], paises, areas, sta
             )
           : undefined}
       />
+
+      {fusion.dialogo}
 
       {creando && capacidades.includes('create') && (
         <FlujoLicitacion

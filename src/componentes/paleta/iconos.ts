@@ -1,5 +1,5 @@
 import {
-  Building2, CalendarDays, ClipboardCheck, ClipboardList, Clock, FileSignature, Columns3, DoorOpen, FolderKanban, Gavel, House, Inbox, LifeBuoy,
+  Building2, CalendarDays, ClipboardCheck, ClipboardList, Clock, FileSignature, Columns3, DoorOpen, FolderKanban, Gavel, GitMerge, House, Inbox, LifeBuoy,
   ListChecks, Network, Radio, Repeat, ScrollText, SlidersHorizontal, Sparkles, Star, Target, Trash2, TrendingUp, User, UserRound,
   Users, UsersRound, Video, type LucideIcon
 } from 'lucide-react'
@@ -55,7 +55,8 @@ export const ICONOS_DE_SECCION: Record<IconoSeccion, LucideIcon> = {
   administracion: SlidersHorizontal,
   // `ScrollText` y no un escudo: esto no protege nada, es el registro de lo que se hizo.
   auditoria: ScrollText,
-  papelera: Trash2
+  papelera: Trash2,
+  fusiones: GitMerge
 }
 
 /** Los de la paleta: las secciones mas un icono por tipo de resultado y por atajo. */

@@ -22,6 +22,7 @@ import {
 } from './recurrentes.js'
 import { contarCopias, limpiarCopias, listarCopias, marcarEditada, sembrarCopias, usoDe } from './copias-recurrentes.js'
 import { avisosRuta } from './avisos.js'
+import { fusionRuta } from './fusion.js'
 import { altaDelPortal, esAccionDelPortal, ticketDelPortal, ticketsDelEquipo } from './tickets.js'
 import { esPrincipal, filaDelPortal, listadosDeTickets, ticketsDelResumen } from './tickets-listados.js'
 import { filtrosGuardados } from './filtros-guardados.js'
@@ -7281,6 +7282,11 @@ async function resolverRuta (metodo, segmentos, parametros, token, cuerpo, petic
     return await avisosRuta(metodo, resto, parametros, actual, cuerpo)
   }
 
+  // Fusionar entidades (`mock/fusion.js`): vista previa, fusion, historial y "Deshacer". Devuelve
+  // `null` para cualquier ruta que no sea suya, y el despacho sigue de largo.
+  const fusion = await fusionRuta(metodo, recurso, resto, parametros, actual, cuerpo)
+  if (fusion !== null) return fusion
+
   // Contesta 404 a quien no entra, igual que la API: el 403 confesaria que la ruta existe.
   if (recurso === 'mantenimiento') {
     if (actual.is_superadmin !== true) {
@@ -7623,6 +7629,14 @@ async function resolverRuta (metodo, segmentos, parametros, token, cuerpo, petic
     }
 
     return { estado: 200, cuerpo: conDatos(presentarContactoCompleto(contacto)) }
+  }
+
+  // `GET /clients/minimos`: la cartera entera con id, razon social y estado, sin exigir
+  // `customers.view`. Es el catalogo de los selectores de cliente.
+  if (recurso === 'clients' && resto[0] === 'minimos' && resto.length === 1 && metodo === 'GET') {
+    const filas = [...CLIENTES].sort((a, b) => a.company.localeCompare(b.company, 'es'))
+
+    return { estado: 200, cuerpo: conDatos(filas.map((c) => ({ id: c.id, company: c.company, image_url: null, active: c.active }))) }
   }
 
   if (recurso === 'clients' && metodo === 'GET') {

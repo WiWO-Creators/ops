@@ -12,6 +12,8 @@ import {
   SeparadorMenu
 } from '@/componentes/superposiciones/MenuContextual'
 import { escribirEnBff } from '@/componentes/datos/mutaciones'
+import { DialogoFusion } from '@/componentes/fusion/DialogoFusion'
+import { usePuedeFusionar } from '@/componentes/fusion/ProveedorFusion'
 import { mensajeDeRespuesta } from '@/datos/cliente'
 import { GLOSARIO } from '@/dominio/glosario'
 import { DialogoEliminarProyecto } from './DialogoEliminarProyecto'
@@ -103,6 +105,7 @@ export function MenuProyecto ({
   const [saliendo, setSaliendo] = useState(false)
   const [cambiandoVisibilidad, setCambiandoVisibilidad] = useState(false)
   const [solicitando, setSolicitando] = useState(false)
+  const [fusionando, setFusionando] = useState(false)
   const [enCurso, setEnCurso] = useState(false)
   const [fallo, setFallo] = useState<string | null>(null)
 
@@ -110,6 +113,7 @@ export function MenuProyecto ({
   const puedeEditar = capacidades.includes('edit')
   const puedeBorrar = capacidades.includes('delete')
   const puedeImportar = capacidadesTareas.includes('create')
+  const puedeFusionar = usePuedeFusionar()
   const archivado = proyecto.archived
   const solicitud = proyecto.deletion_request ?? null
 
@@ -297,6 +301,16 @@ export function MenuProyecto ({
             </>
           )}
 
+          {/* Lo que no se puede fusionar —otro cliente, por ejemplo— lo dice la vista previa, no el menu. */}
+          {puedeFusionar && (
+            <>
+              <SeparadorMenu />
+              <ItemMenu onSelect={() => { setFusionando(true) }}>
+                Fusionar con…
+              </ItemMenu>
+            </>
+          )}
+
           {puedePedirEliminacion && (
             <>
               <SeparadorMenu />
@@ -457,6 +471,16 @@ export function MenuProyecto ({
           </div>
         </ContenidoDialogo>
       </Dialogo>
+
+      {fusionando && (
+        <DialogoFusion
+          entidad="projects"
+          origen={{ id: proyecto.id, nombre: proyecto.name }}
+          abierto
+          onCerrar={() => { setFusionando(false) }}
+          onFusionado={(destino) => { router.push(`/proyectos/${destino.id}`) }}
+        />
+      )}
 
       <DialogoEliminarProyecto
         espacio={borrando ? proyecto : null}

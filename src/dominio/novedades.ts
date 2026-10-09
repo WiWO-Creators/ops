@@ -53,6 +53,13 @@ export const ROTULO_TIPO: Record<TipoNovedad, string> = {
  */
 export const NOVEDADES: Novedad[] = [
   {
+    fecha: '2026-10-09',
+    tipo: 'nuevo',
+    titulo: 'Fusionar Proyectos, Clientes y Prospectos',
+    detalle: 'Si hay dos registros que son lo mismo, en el menú ⋯ de la lista o de la ficha elige «Fusionar con…»: ves qué se mueve y qué datos chocan, y escribes FUSIONAR para confirmar. El registro de origen sale de las listas (Proyectos y Clientes pasan a la Papelera) y puedes deshacer la fusión durante 30 días desde Fusiones. Pueden hacerlo administradores y coordinadores multiárea.',
+    commits: []
+  },
+  {
     fecha: '2026-09-30',
     tipo: 'nuevo',
     titulo: 'Adjuntar archivos al crear una Tarea',

@@ -3,6 +3,7 @@
 import { useMemo } from 'react'
 import { AccionesMasivasProyectos } from './AccionesMasivasProyectos'
 import { TablaRecurso } from '@/componentes/datos/TablaRecurso'
+import { useFusionDeFila } from '@/componentes/fusion/useFusionDeFila'
 import { enriquecerColumnas, type AccionesDeFila } from './ColumnasProyecto'
 import { espaciosConCampos } from '@/definiciones/espacios'
 import type { OpcionFiltro, ResultadoLista } from '@/definiciones/tipos'
@@ -33,18 +34,24 @@ export function TablaProyectos ({ inicial, capacidades, opcionesDeFiltro, campos
     return { ...base, columnas: enriquecerColumnas(base.columnas, { capacidades, ...acciones }) }
   }, [campos, capacidades, acciones])
 
+  const fusion = useFusionDeFila<Espacio>('projects', (espacio) => ({ id: espacio.id, nombre: espacio.name }))
+
   return (
-    <TablaRecurso
-      definicion={definicion}
-      claveFila={(espacio) => espacio.id}
-      inicial={inicial}
-      capacidades={capacidades}
-      opcionesDeFiltro={opcionesDeFiltro}
-      board="projects"
-      seleccionMasiva={capacidades.includes('edit') ? (filas, limpiar, recargar) => (
-        <AccionesMasivasProyectos filas={filas} estados={opcionesDeFiltro?.project_statuses ?? []}
-          limpiar={limpiar} recargar={recargar} />
-      ) : undefined}
-    />
+    <>
+      <TablaRecurso
+        definicion={definicion}
+        claveFila={(espacio) => espacio.id}
+        inicial={inicial}
+        capacidades={capacidades}
+        opcionesDeFiltro={opcionesDeFiltro}
+        board="projects"
+        accionesDeFila={fusion.acciones}
+        seleccionMasiva={capacidades.includes('edit') ? (filas, limpiar, recargar) => (
+          <AccionesMasivasProyectos filas={filas} estados={opcionesDeFiltro?.project_statuses ?? []}
+            limpiar={limpiar} recargar={recargar} />
+        ) : undefined}
+      />
+      {fusion.dialogo}
+    </>
   )
 }
