@@ -1,9 +1,12 @@
 import { NextResponse, type NextRequest } from 'next/server'
 import { llamarApiTipado } from '@/datos/api'
+import { claveSesion } from '@/datos/config'
 import { ErrorApi } from '@/datos/errores'
 import { cabecerasDeOrigen } from '@/datos/origen'
 import { borrarSesion, borrarSuplantador, guardarSesion, leerSesion } from '@/datos/sesion'
 import { sesionDesdeTokens } from '@/datos/sobre-sesion'
+import { abrirTraspaso, claveTraspaso } from '@/datos/traspaso'
+import { esAppNativa } from '@/lib/app-nativa'
 import {
   esDesafio,
   type DesafioSegundoFactor,
@@ -43,6 +46,10 @@ interface CuerpoEntrar {
    * escribe en un log, igual que la contraseña.
    */
   google?: unknown
+  /** El código sellado con que la app nativa trae su login de Google desde Chrome (`datos/traspaso.ts`). */
+  traspaso?: unknown
+  /** El verifier PKCE que acompaña a `traspaso`. */
+  verifier?: unknown
 }
 
 /**
@@ -74,16 +81,18 @@ export async function POST (peticion: NextRequest): Promise<NextResponse> {
     // que no tiene segundo factor y por eso se decide antes que el codigo. Google va tercero: es del
     // equipo, asi que nunca compite con el portal, y trae su propia credencial en vez de correo mas
     // contraseña, asi que tiene que decidirse antes que la rama de clave —que exige los dos campos y
-    // rechazaria la peticion por vacia.
+    // rechazaria la peticion por vacia. El traspaso de la app es Google por otra puerta y va justo antes.
     const respuesta = typeof cuerpo.enlace === 'string'
       ? await canjearEnlace(cuerpo, origen)
       : cuerpo.portal === true
         ? await entrarAlPortal(cuerpo, origen)
-        : typeof cuerpo.google === 'string'
-          ? await entrarConGoogle(cuerpo.google, origen)
-          : codigo === ''
-            ? await entrarConClave(cuerpo, origen)
-            : await entrarConCodigo(peticion, codigo, origen)
+        : typeof cuerpo.traspaso === 'string'
+          ? await entrarConTraspaso(peticion, cuerpo, origen)
+          : typeof cuerpo.google === 'string'
+            ? await entrarConGoogle(cuerpo.google, origen)
+            : codigo === ''
+              ? await entrarConClave(cuerpo, origen)
+              : await entrarConCodigo(peticion, codigo, origen)
 
     return respuesta
   } catch (error) {
@@ -256,6 +265,30 @@ async function entrarConGoogle (credential: string, origen: Cabeceras): Promise<
   })
 
   return await abrirSesionDeStaff(data)
+}
+
+/**
+ * Entra con el login de Google que la app nativa hizo en Chrome.
+ *
+ * Abre el código con el verifier y sigue exactamente como el botón de Google: misma llamada a
+ * `/auth/google`, mismo segundo factor. Solo la app tiene motivo para pedirlo.
+ */
+async function entrarConTraspaso (peticion: NextRequest, cuerpo: CuerpoEntrar, origen: Cabeceras): Promise<NextResponse> {
+  if (!esAppNativa(peticion.headers.get('user-agent'))) {
+    return NextResponse.json({ mensaje: 'Solo la app de Ops entra por esta vía.' }, { status: 403 })
+  }
+
+  const verifier = typeof cuerpo.verifier === 'string' ? cuerpo.verifier : ''
+  const credencial = abrirTraspaso(String(cuerpo.traspaso), verifier, claveTraspaso(claveSesion()))
+
+  if (credencial === null) {
+    return NextResponse.json(
+      { mensaje: 'El acceso con Google venció o no es válido. Vuelve a intentarlo.' },
+      { status: 400 }
+    )
+  }
+
+  return await entrarConGoogle(credencial, origen)
 }
 
 /**

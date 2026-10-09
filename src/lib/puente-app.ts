@@ -25,6 +25,7 @@ export type MensajeAlApp =
   | { v: 1, tipo: 'card.end', cardId: string }
   | { v: 1, tipo: 'logout' }
   | { v: 1, tipo: 'app.ajustes' }
+  | { v: 1, tipo: 'app.google' }
   | { v: 1, tipo: 'ready' }
 
 /** Lo que la app le cuenta a la PWA. */
@@ -36,6 +37,16 @@ export interface EstadoDeLaApp {
 }
 
 export type MensajeDeLaApp = EstadoDeLaApp
+
+/**
+ * El login de Google que la app trajo de Chrome: el código sellado (`datos/traspaso.ts`) y el
+ * verifier PKCE con que se abre. Viaja por su propio lector para no mezclarse con el estado.
+ */
+export interface TraspasoDeLaApp {
+  tipo: 'traspaso'
+  codigo: string
+  verifier: string
+}
 
 /** El único canal que expone `react-native-webview` dentro de la página. */
 interface PuenteNativo {
@@ -110,6 +121,11 @@ export function mensajeAjustes (): MensajeAlApp {
   return { v: VERSION_PUENTE, tipo: 'app.ajustes' }
 }
 
+/** Pide a la app que haga el login de Google en Chrome, donde Google sí deja entrar. */
+export function mensajeGoogle (): MensajeAlApp {
+  return { v: VERSION_PUENTE, tipo: 'app.google' }
+}
+
 /** Avisa que la PWA cargó y escucha: la app responde con su estado. */
 export function mensajeReady (): MensajeAlApp {
   return { v: VERSION_PUENTE, tipo: 'ready' }
@@ -162,6 +178,51 @@ export function leerMensajeDeLaApp (detalle: unknown): MensajeDeLaApp | null {
   if (reto !== null && reto !== undefined && typeof reto !== 'string') return null
 
   return { tipo: 'estado', vinculado, reto: reto ?? null }
+}
+
+/**
+ * Valida el traspaso del login de Google que manda la app.
+ *
+ * @param detalle el `detail` del `CustomEvent`, o su JSON como texto
+ * @returns el traspaso, o `null` si no es uno bien formado
+ */
+export function leerTraspaso (detalle: unknown): TraspasoDeLaApp | null {
+  let valor = detalle
+
+  if (typeof valor === 'string') {
+    try {
+      valor = JSON.parse(valor) as unknown
+    } catch {
+      return null
+    }
+  }
+
+  if (typeof valor !== 'object' || valor === null) return null
+
+  const { tipo, codigo, verifier } = valor as Record<string, unknown>
+
+  if (tipo !== 'traspaso' || typeof codigo !== 'string' || typeof verifier !== 'string') return null
+  if (codigo === '' || verifier === '') return null
+
+  return { tipo: 'traspaso', codigo, verifier }
+}
+
+/**
+ * Escucha el traspaso del login de Google.
+ *
+ * @param alRecibir se llama con cada traspaso válido
+ * @returns la función que deja de escuchar
+ */
+export function escucharTraspaso (alRecibir: (traspaso: TraspasoDeLaApp) => void): () => void {
+  const manejar = (evento: Event): void => {
+    const traspaso = leerTraspaso((evento as CustomEvent<unknown>).detail)
+
+    if (traspaso !== null) alRecibir(traspaso)
+  }
+
+  window.addEventListener(EVENTO_APP, manejar)
+
+  return () => { window.removeEventListener(EVENTO_APP, manejar) }
 }
 
 /**
