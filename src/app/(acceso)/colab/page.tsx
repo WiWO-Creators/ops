@@ -1,9 +1,12 @@
 import type { Metadata } from 'next'
+import { headers } from 'next/headers'
 import { redirect } from 'next/navigation'
 import { llamarApiTipado } from '@/datos/api'
 import { leerSesionSiSePuede } from '@/datos/sesion'
 import type { AccesoGoogle } from '@/datos/tipos'
+import { PATRON_PKCE } from '@/datos/traspaso'
 import { avisoDeSesion, PARAMETRO_SESION, vieneDeSesionRechazada } from '@/dominio/entrada'
+import { esAppNativa } from '@/lib/app-nativa'
 import { FormularioEntrar } from './FormularioEntrar'
 
 export const metadata: Metadata = { title: 'Entrar · WiWO Ops' }
@@ -32,11 +35,36 @@ const SIN_GOOGLE: AccesoGoogle = { enabled: false, client_id: null }
 export default async function EntrarPage (
   { searchParams }: { searchParams: Promise<Record<string, string | string[] | undefined>> }
 ) {
-  const motivo = (await searchParams)[PARAMETRO_SESION]
+  const parametros = await searchParams
+  const motivo = parametros[PARAMETRO_SESION]
+  const retoApp = retoDeLaApp(parametros[PARAMETRO_RETO_APP])
 
-  if (!vieneDeSesionRechazada(motivo) && await leerSesionSiSePuede('staff') !== null) redirect('/inicio')
+  // En el traspaso la sesión que importa es la de la app, no la de este Chrome: tener una abierta aquí
+  // no es motivo para mandar a `/inicio` a quien vino a entrar en el teléfono.
+  if (retoApp === null && !vieneDeSesionRechazada(motivo) && await leerSesionSiSePuede('staff') !== null) {
+    redirect('/inicio')
+  }
 
-  return <FormularioEntrar google={await accesoGoogle()} aviso={avisoDeSesion(motivo)} />
+  return (
+    <FormularioEntrar
+      google={await accesoGoogle()}
+      aviso={avisoDeSesion(motivo)}
+      enApp={esAppNativa((await headers()).get('user-agent'))}
+      retoApp={retoApp}
+    />
+  )
+}
+
+/** Parámetro con que la app nativa abre esta pantalla en Chrome para traer su login de Google. */
+const PARAMETRO_RETO_APP = 'app'
+
+/**
+ * El reto PKCE de la app, si vino uno bien formado.
+ *
+ * @returns el reto, o `null` si no hay o no tiene la forma PKCE (la pantalla queda la de siempre)
+ */
+function retoDeLaApp (valor: string | string[] | undefined): string | null {
+  return typeof valor === 'string' && PATRON_PKCE.test(valor) ? valor : null
 }
 
 /**

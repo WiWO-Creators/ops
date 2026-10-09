@@ -13,7 +13,9 @@ import {
   avisarCambioDeJornada,
   enviarAlApp,
   leerMensajeDeLaApp,
+  leerTraspaso,
   mensajeAjustes,
+  mensajeGoogle,
   mensajeAuth,
   mensajeCardEnd,
   mensajeCardStart,
@@ -87,6 +89,7 @@ test('los constructores arman mensajes con v:1', () => {
   assert.deepEqual(mensajeCardEnd(TARJETA.cardId), { v: 1, tipo: 'card.end', cardId: TARJETA.cardId })
   assert.deepEqual(mensajeLogout(), { v: 1, tipo: 'logout' })
   assert.deepEqual(mensajeAjustes(), { v: 1, tipo: 'app.ajustes' })
+  assert.deepEqual(mensajeGoogle(), { v: 1, tipo: 'app.google' })
   assert.deepEqual(mensajeReady(), { v: 1, tipo: 'ready' })
 })
 
@@ -110,6 +113,16 @@ test('enviarAlApp: sin puente no hace nada; con puente manda el JSON', () => {
 
   globalThis.window = { ReactNativeWebView: { postMessage: () => { throw new Error('caído') } } }
   assert.equal(enviarAlApp(mensajeLogout()), false)
+})
+
+test('leerTraspaso acepta solo un traspaso completo y no se cruza con el estado', () => {
+  assert.deepEqual(leerTraspaso({ tipo: 'traspaso', codigo: 'abc', verifier: 'xyz' }), { tipo: 'traspaso', codigo: 'abc', verifier: 'xyz' })
+  assert.deepEqual(leerTraspaso('{"tipo":"traspaso","codigo":"abc","verifier":"xyz"}'), { tipo: 'traspaso', codigo: 'abc', verifier: 'xyz' })
+  assert.equal(leerTraspaso({ tipo: 'traspaso', codigo: '', verifier: 'xyz' }), null)
+  assert.equal(leerTraspaso({ tipo: 'traspaso', codigo: 'abc' }), null)
+  assert.equal(leerTraspaso({ tipo: 'estado', vinculado: true, reto: null }), null)
+  assert.equal(leerMensajeDeLaApp({ tipo: 'traspaso', codigo: 'abc', verifier: 'xyz' }), null)
+  assert.equal(leerTraspaso('no es json'), null)
 })
 
 test('leerMensajeDeLaApp valida el estado y descarta lo demás', () => {

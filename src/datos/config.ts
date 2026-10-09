@@ -63,6 +63,12 @@ export function secretoProxy (): string | null {
 export const MARGEN_REFRESCO_SEGUNDOS = 60
 
 /**
+ * Segundos que vive el código con el que la app nativa trae su login de Google desde Chrome
+ * (`datos/traspaso.ts`). Cubre volver de Chrome a la app, no más: el ID token de adentro dura una hora.
+ */
+export const VIDA_TRASPASO_SEGUNDOS = 120
+
+/**
  * Cuanto se espera, como maximo, a `GET /public/modo` desde el layout raiz.
  *
  * Esa lectura corre en cada pagina nueva y no puede retrasarla: pasado este tiempo la pagina sale

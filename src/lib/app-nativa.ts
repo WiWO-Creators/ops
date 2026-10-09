@@ -11,6 +11,9 @@
 /** Lo que el sufijo del `User-Agent` anuncia, seguido de la versión. */
 export const SUFIJO_AGENTE_APP = 'WiwoOpsApp/'
 
+/** Esquema de enlaces de la app (`scheme` de `ops-mobile/app.config.ts`). */
+export const ESQUEMA_APP = 'wiwoops'
+
 /** Lo que la app inyecta en `window.WiwoOpsApp` antes de que cargue la página. */
 export interface InfoDeApp {
   /** Versión del protocolo del puente. */

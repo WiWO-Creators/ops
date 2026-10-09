@@ -6,12 +6,14 @@ import { useEffect, useRef, useState } from 'react'
 import { AvisoEnLinea } from '@/componentes/estado/Estados'
 import { Orbe, type EstadoOrbe } from '@/componentes/estado/Orbe'
 import { Logo } from '@/componentes/estructura/Logo'
-import { Boton } from '@/componentes/formularios/Boton'
+import { boton, Boton } from '@/componentes/formularios/Boton'
 import { Campo } from '@/componentes/formularios/Campo'
 import { Entrada } from '@/componentes/formularios/Entrada'
 import { PanelVidrio } from '@/componentes/superposiciones/PanelVidrio'
 import type { AccesoGoogle } from '@/datos/tipos'
 import { conLimite, TIEMPO_ESCRITURA_MS } from '@/datos/red'
+import { ESQUEMA_APP } from '@/lib/app-nativa'
+import { enviarAlApp, escucharTraspaso, mensajeGoogle, type TraspasoDeLaApp } from '@/lib/puente-app'
 
 type Paso = 'clave' | 'codigo'
 
@@ -41,8 +43,17 @@ interface RespuestaEntrar {
  * @param aviso por que se esta viendo esta pantalla, cuando no se llego por voluntad propia. Hoy el
  *              unico caso es la sesion que la API rechazo; sin el, quien venia trabajando aparece de
  *              golpe en el formulario de acceso sin ninguna explicacion.
+ * @param enApp la pantalla corre dentro de la app nativa. Google no deja entrar desde un WebView, asi
+ *              que su boton le pide a la app que haga el login en Chrome (`datos/traspaso.ts`).
+ * @param retoApp el reto PKCE con que la app abrio esta pantalla en Chrome. Con el, Google no abre
+ *                sesion aca: sella la credencial y devuelve a la persona a la app.
  */
-export function FormularioEntrar ({ google, aviso = null }: { google: AccesoGoogle, aviso?: string | null }) {
+export function FormularioEntrar ({ google, aviso = null, enApp = false, retoApp = null }: {
+  google: AccesoGoogle
+  aviso?: string | null
+  enApp?: boolean
+  retoApp?: string | null
+}) {
   const router = useRouter()
   const [paso, establecerPaso] = useState<Paso>('clave')
   const [metodo, establecerMetodo] = useState<'email' | 'app'>('email')
@@ -157,6 +168,99 @@ export function FormularioEntrar ({ google, aviso = null }: { google: AccesoGoog
     void abrirSesion({ google: credential }, 'google')
   }
 
+  /** Enlace `wiwoops://` con el codigo para volver a la app, una vez sellado. */
+  const [vueltaApp, establecerVueltaApp] = useState<string | null>(null)
+
+  /**
+   * En Chrome, abierto por la app: sella el ID token para ella y la devuelve, sin abrir sesion aca.
+   *
+   * @param credential el ID token de Google
+   * @param reto el reto PKCE de la app
+   */
+  async function traspasarALaApp (credential: string, reto: string): Promise<void> {
+    if (enviando) return
+
+    establecerError(null)
+    establecerEnviando(true)
+    establecerEstadoOrbe('thinking')
+
+    try {
+      const respuesta = await fetch('/api/sesion/traspaso', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ google: credential, reto }),
+        signal: conLimite(undefined, TIEMPO_ESCRITURA_MS)
+      })
+      const datos = await respuesta.json() as { codigo?: string }
+
+      if (!respuesta.ok || typeof datos.codigo !== 'string') throw new Error('traspaso')
+
+      const vuelta = `${ESQUEMA_APP}://sesion?codigo=${encodeURIComponent(datos.codigo)}`
+
+      establecerEstadoOrbe('success')
+      establecerVueltaApp(vuelta)
+      // Chrome puede frenar el salto a otra app sin un toque reciente; el enlace visible lo cubre.
+      // eslint-disable-next-line @next/next/no-location-assign-relative-destination -- es el esquema de la app, no una página
+      window.location.assign(vuelta)
+    } catch {
+      establecerError('No pudimos preparar el acceso para la app. Vuelve a intentarlo.')
+      señalarError()
+    } finally {
+      establecerEnviando(false)
+    }
+  }
+
+  /*
+   * Dentro de la app, el login de Google vuelve de Chrome como un traspaso que la app inyecta. Se
+   * canjea por la misma via que el boton de siempre: `abrirSesion`, con su segundo factor.
+   */
+  const alTraspaso = useRef<(traspaso: TraspasoDeLaApp) => void>(() => undefined)
+
+  useEffect(() => {
+    alTraspaso.current = ({ codigo, verifier }) => {
+      void abrirSesion({ traspaso: codigo, verifier }, 'google')
+    }
+  })
+
+  useEffect(() => enApp ? escucharTraspaso((traspaso) => { alTraspaso.current(traspaso) }) : undefined, [enApp])
+
+  /** El boton de Google segun donde corre la pantalla. */
+  function botonGoogle (clientId: string): React.ReactNode {
+    if (enApp) {
+      return (
+        <Boton
+          type="button"
+          variante="secundario"
+          tamano="grande"
+          cargando={enviando}
+          className="w-full"
+          onClick={() => { enviarAlApp(mensajeGoogle()) }}
+        >
+          Iniciar sesión con Google
+        </Boton>
+      )
+    }
+
+    if (retoApp === null) {
+      return <EntrarConGoogle clientId={clientId} alRecibirCredencial={entrarConGoogle} />
+    }
+
+    if (vueltaApp !== null) {
+      return (
+        <a href={vueltaApp} className={boton({ variante: 'primario', tamano: 'grande', className: 'w-full' })}>
+          Volver a la app
+        </a>
+      )
+    }
+
+    return (
+      <EntrarConGoogle
+        clientId={clientId}
+        alRecibirCredencial={(credential) => { void traspasarALaApp(credential, retoApp) }}
+      />
+    )
+  }
+
   /*
    * La aplicacion de Google con la que se dibuja el boton, o `null` si no hay que dibujarlo. Se
    * resuelve como valor y no como bandera para que el `client_id` llegue ya estrechado a `string`.
@@ -262,9 +366,18 @@ export function FormularioEntrar ({ google, aviso = null }: { google: AccesoGoog
         <PanelVidrio className="animate-entrar-abajo w-full max-w-sm p-6 sm:p-8">
           <header className="mb-6">
             <h1 className="font-titular text-texto text-2xl font-bold tracking-tight">
-              {paso === 'clave' ? 'Entrar' : 'Verificar'}
+              {retoApp !== null ? 'Entrar en la app' : paso === 'clave' ? 'Entrar' : 'Verificar'}
             </h1>
-            {paso !== 'clave' && (
+            {retoApp !== null && (
+              <p className="mt-2 text-sm text-texto-tenue">
+                {!google.enabled
+                  ? 'El acceso con Google no está disponible. Vuelve a la app y entra con tu correo.'
+                  : vueltaApp === null
+                    ? 'Elige tu cuenta de Google y volverás a la app de Ops.'
+                    : 'Listo. Si la app no se abrió sola, tócala abajo.'}
+              </p>
+            )}
+            {retoApp === null && paso !== 'clave' && (
               <p className="mt-2 text-sm text-texto-tenue">
                 {metodo === 'email'
                   ? 'Te enviamos un código por correo.'
@@ -306,9 +419,7 @@ export function FormularioEntrar ({ google, aviso = null }: { google: AccesoGoog
             />
           )}
 
-          {clientIdGoogle !== null && (
-            <EntrarConGoogle clientId={clientIdGoogle} alRecibirCredencial={entrarConGoogle} />
-          )}
+          {clientIdGoogle !== null && botonGoogle(clientIdGoogle)}
 
           {/*
             Con Google activo, la contraseña se pliega en vez de desaparecer.
@@ -323,7 +434,8 @@ export function FormularioEntrar ({ google, aviso = null }: { google: AccesoGoog
             En el paso del codigo `clientIdGoogle` es null, asi que el 2FA se ve siempre abierto:
             ahi la credencial ya se dio y plegar el unico campo que queda no tendria sentido.
           */}
-          {clientIdGoogle !== null
+          {/* En el traspaso no hay contraseña: entrar con ella abriria la sesion en Chrome, no en la app. */}
+          {retoApp === null && (clientIdGoogle !== null
             ? (
               <details className="group mt-6 border-t border-borde/60 pt-4">
                 <summary className="cursor-pointer list-none text-center text-sm text-texto-tenue transition-colors hover:text-texto [&::-webkit-details-marker]:hidden">
@@ -335,7 +447,7 @@ export function FormularioEntrar ({ google, aviso = null }: { google: AccesoGoog
                 </div>
               </details>
               )
-            : formularioDeClave}
+            : formularioDeClave)}
 
         </PanelVidrio>
       </div>
