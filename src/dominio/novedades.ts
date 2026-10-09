@@ -53,6 +53,13 @@ export const ROTULO_TIPO: Record<TipoNovedad, string> = {
  */
 export const NOVEDADES: Novedad[] = [
   {
+    fecha: '2026-10-09',
+    tipo: 'nuevo',
+    titulo: 'Dos estados nuevos para las Tareas: Auditoría y Facturado',
+    detalle: 'Auditoría va antes de Completado y la Tarea sigue abierta. Facturado se comporta como Completado en todo (fecha de cierre, completadas, reportes y horas) y se distingue con su propio estado. El cliente ve las facturadas como Completadas.',
+    commits: []
+  },
+  {
     fecha: '2026-10-08',
     tipo: 'nuevo',
     titulo: 'Texto con formato en tickets, tareas, comentarios y notas',

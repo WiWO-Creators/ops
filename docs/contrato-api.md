@@ -947,6 +947,7 @@ Requiere `create` sobre `tasks`; sin él, `403`.
 | Endpoint | Efecto |
 |---|---|
 | `POST /tasks/{id}/actions/mark-complete` | `status: 5`, sella `datefinished` y **cierra los cronómetros abiertos** |
+| `POST /tasks/{id}/actions/mark-billed` | **Facturado (`status: 9`)**: completa la tarea si hace falta y le pone una marca (`tblapi_tarea_facturada`). En la base sigue en `status = 5`; la API expone `9` calculado. Se trata como Completado en todo (`completed: 1`, reportes, horas). La marca se pierde si la tarea se reabre o se vuelve a completar. El portal del cliente la ve como `5`. `mark-complete` sobre una facturada solo quita la marca |
 | `POST /tasks/{id}/actions/reopen` | Limpia `datefinished`. Sin `status` en el cuerpo, usa la heurística del panel |
 | `POST /tasks/{id}/mover` | `{ "columna": 4, "posicion": 2, "columna_completa": [12, 7, 33] }` — arrastre del tablero. `columna_completa` son los ids de la columna destino tal como los tiene el cliente: sin ellos no hay reordenamiento, y las tarjetas que el cliente no cargó por paginación se empujan al fondo |
 | `POST /tasks/{id}/timer` | Arranca el cronómetro. Cuerpo opcional: `{ "note": "…" }` |

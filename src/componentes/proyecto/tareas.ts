@@ -27,18 +27,33 @@ import { textoDeComentario } from './discusiones.ts'
 /** El estado "Completo" de Perfex. Es una constante del codigo del panel, no una fila de tabla. */
 export const ESTADO_COMPLETO = 5
 
+/** "Facturado": un Completo con marca; la API lo expone como estado 9. Se trata como cerrado. */
+export const ESTADO_FACTURADO = 9
+
+/**
+ * Si un estado es de tarea cerrada: Completo o Facturado.
+ * @param estado id de estado de la API
+ * @returns `true` para 5 y 9
+ */
+export function estaCerrada (estado: number): boolean {
+  return estado === ESTADO_COMPLETO || estado === ESTADO_FACTURADO
+}
+
+/** Valor de `filter[status]` que pide las tareas cerradas. */
+export const FILTRO_CERRADAS = `${ESTADO_COMPLETO},${ESTADO_FACTURADO}`
+
 /**
  * Alterna completados y elimina condiciones de estado incompatibles.
  * @param params Consulta vigente; no se modifica.
  * @returns Consulta nueva, conservando búsqueda y filtros ajenos al estado, sin paginación.
  */
 export function alternarCompletados (params: URLSearchParams): URLSearchParams {
-  const activo = params.get('filter[status]') === String(ESTADO_COMPLETO)
+  const activo = params.get('filter[status]') === FILTRO_CERRADAS
   const siguientes = new URLSearchParams(params)
   for (const clave of [...siguientes.keys()]) {
     if (/^filter\[(?:status|completed)(?:__[^\]]+)?\]$/.test(clave)) siguientes.delete(clave)
   }
-  if (!activo) siguientes.set('filter[status]', String(ESTADO_COMPLETO))
+  if (!activo) siguientes.set('filter[status]', FILTRO_CERRADAS)
   siguientes.delete('page')
   return siguientes
 }
@@ -54,7 +69,7 @@ export function alternarCompletados (params: URLSearchParams): URLSearchParams {
  * @returns `true` si hay que marcar la fila
  */
 export function estaVencida (proceso: { due_date: string | null, status: number }, hoy: Date = new Date()): boolean {
-  if (proceso.status === ESTADO_COMPLETO) return false
+  if (estaCerrada(proceso.status)) return false
 
   return estadoVencimiento(proceso.due_date, hoy) === 'vencido'
 }
