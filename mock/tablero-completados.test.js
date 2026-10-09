@@ -27,13 +27,8 @@ async function tablero (filtros = {}) {
   return { estado: respuesta.status, cuerpo: await respuesta.json() }
 }
 
-test('status=5 y completed=1 muestran solo Completado con sus tarjetas', async () => {
-  for (const filtros of [
-    { 'filter[status]': '5' },
-    { 'filter[status__eq]': '5' },
-    { 'filter[completed]': '1' },
-    { 'filter[completed__eq]': '1' }
-  ]) {
+test('status=5 muestra solo Completado con sus tarjetas', async () => {
+  for (const filtros of [{ 'filter[status]': '5' }, { 'filter[status__eq]': '5' }]) {
     const { estado, cuerpo } = await tablero(filtros)
     assert.equal(estado, 200)
     assert.deepEqual(cuerpo.data.map((grupo) => grupo.columna.id), [5])
@@ -43,12 +38,22 @@ test('status=5 y completed=1 muestran solo Completado con sus tarjetas', async (
   }
 })
 
-test('sin filtro y completed=0 conservan los cuatro estados abiertos', async () => {
+test('completed=1 muestra las columnas cerradas: Completado y Facturado', async () => {
+  for (const filtros of [{ 'filter[completed]': '1' }, { 'filter[completed__eq]': '1' }]) {
+    const { estado, cuerpo } = await tablero(filtros)
+    assert.equal(estado, 200)
+    assert.deepEqual(cuerpo.data.map((grupo) => grupo.columna.id), [5, 9])
+    assert.ok(cuerpo.data[0].tarjetas.length > 0)
+    assert.ok(cuerpo.data[0].tarjetas.every((tarjeta) => tarjeta.status === 5))
+  }
+})
+
+test('sin filtro y completed=0 conservan los seis estados abiertos', async () => {
   for (const filtros of [{}, { 'filter[completed]': '0' }]) {
     const { estado, cuerpo } = await tablero(filtros)
     assert.equal(estado, 200)
-    assert.deepEqual(cuerpo.data.map((grupo) => grupo.columna.id), [1, 4, 2, 6])
-    assert.ok(cuerpo.data.every((grupo) => grupo.tarjetas.every((tarjeta) => tarjeta.status !== 5)))
+    assert.deepEqual(cuerpo.data.map((grupo) => grupo.columna.id), [1, 4, 2, 6, 7, 8])
+    assert.ok(cuerpo.data.every((grupo) => grupo.tarjetas.every((tarjeta) => ![5, 9].includes(tarjeta.status))))
   }
 })
 

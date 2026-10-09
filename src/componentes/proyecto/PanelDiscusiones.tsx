@@ -21,7 +21,7 @@ import { useRecurso } from './carga'
 import { autorBreve, extractoDeComentario, type ConversacionDeProyecto } from './discusiones'
 import { HiloDeComentarios } from './HiloDeComentarios'
 import { ModalTarea } from './ModalTarea'
-import { ESTADO_COMPLETO } from './tareas'
+import { estaCerrada } from './tareas'
 
 /**
  * Pestaña Discusiones de un Proyecto: las conversaciones de sus Tareas, en una bandeja.
@@ -281,7 +281,7 @@ function FilaDeConversacion ({ conversacion, activa, onAbrir }: PropsFilaDeConve
   const ultimo = conversacion.last_comment
   const quien = ultimo === null ? null : autorBreve(ultimo)
   const extracto = ultimo === null ? '' : extractoDeComentario(ultimo.content)
-  const completa = conversacion.task.status === ESTADO_COMPLETO
+  const completa = estaCerrada(conversacion.task.status)
 
   return (
     <button

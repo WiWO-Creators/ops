@@ -27,6 +27,18 @@ const DIA = 86400000
  */
 export const ESTADO_COMPLETA = 5
 
+/** "Facturada" (estado 9): cerrada igual que la completa. Repetida por la misma razon que `ESTADO_COMPLETA`. */
+export const ESTADO_FACTURADA = 9
+
+/**
+ * Si el estado es de una tarea cerrada (completa o facturada).
+ * @param estado id de estado de la API
+ * @returns `true` para 5 y 9
+ */
+export function estaCompleta (estado: number): boolean {
+  return estado === ESTADO_COMPLETA || estado === ESTADO_FACTURADA
+}
+
 /** Linea de tiempo del diagrama, en dias UTC desde la epoca. */
 export interface RangoGantt {
   /** Primer dia representado. */
@@ -121,7 +133,7 @@ export function ocultarCompletadasDeGantt (grupos: GrupoGantt[]): GrupoGantt[] {
   const visibles: GrupoGantt[] = []
 
   for (const grupo of grupos) {
-    const tareas = grupo.tareas.filter((tarea) => tarea.status !== ESTADO_COMPLETA)
+    const tareas = grupo.tareas.filter((tarea) => !estaCompleta(tarea.status))
 
     if (tareas.length > 0) visibles.push({ ...grupo, tareas })
   }
@@ -143,7 +155,7 @@ export function contarCompletadasDeGantt (grupos: GrupoGantt[]): number {
 
   for (const grupo of grupos) {
     for (const tarea of grupo.tareas) {
-      if (tarea.status === ESTADO_COMPLETA) ids.add(tarea.id)
+      if (estaCompleta(tarea.status)) ids.add(tarea.id)
     }
   }
 
@@ -419,7 +431,7 @@ export function filasDeGantt (
  * @returns `true` solo si hay fecha, ya paso y la tarea no esta completa
  */
 function estaVencida (entrega: string | null, estado: number, hoy: number | null): boolean {
-  if (hoy === null || estado === ESTADO_COMPLETA) return false
+  if (hoy === null || estaCompleta(estado)) return false
 
   const dia = diaDeFecha(entrega)
 

@@ -176,7 +176,7 @@ test('completados reemplaza estados incompatibles sin perder búsqueda ni respon
   const params = new URLSearchParams('filter[status__ne]=5&filter[completed]=0&filter[assignee]=42&q=entrega&page=4')
   const original = params.toString()
   const resultado = alternarCompletados(params)
-  assert.equal(resultado.get('filter[status]'), '5')
+  assert.equal(resultado.get('filter[status]'), '5,9')
   assert.equal(resultado.has('filter[status__ne]'), false)
   assert.equal(resultado.has('filter[completed]'), false)
   assert.equal(resultado.get('filter[assignee]'), '42')
@@ -188,6 +188,6 @@ test('completados reemplaza estados incompatibles sin perder búsqueda ni respon
 
 test('completados parte de consulta vacía y reemplaza un estado inválido', () => {
   for (const query of ['', 'filter[status]=invalido']) {
-    assert.equal(alternarCompletados(new URLSearchParams(query)).toString(), 'filter%5Bstatus%5D=5')
+    assert.equal(alternarCompletados(new URLSearchParams(query)).toString(), 'filter%5Bstatus%5D=5%2C9')
   }
 })

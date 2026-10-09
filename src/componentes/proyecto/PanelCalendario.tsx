@@ -13,7 +13,7 @@ import { nombrar } from '@/dominio/glosario'
 import { hoyLocal } from '@/lib/fechas'
 import { ModalTarea } from './ModalTarea'
 import { AgendaEntregas, ColumnasDeDias, RejillaMes } from './RejillaEntregas'
-import { ESTADO_COMPLETO } from './tareas'
+import { FILTRO_CERRADAS } from './tareas'
 import {
   diaDeVencimiento,
   estaCompleta,
@@ -146,7 +146,7 @@ function CalendarioDelEspacio ({ proyectoId, fuente, capacidades }: PropsPanelCa
 
     void Promise.all([
       pedirSobre<Proceso[]>(listado, control.signal),
-      pedirSobre<Proceso[]>(conConsulta(listado, `filter[status]=${ESTADO_COMPLETO}`), control.signal),
+      pedirSobre<Proceso[]>(conConsulta(listado, `filter[status]=${FILTRO_CERRADAS}`), control.signal),
       pedirSobre<Lookups>(fuente.lookups, control.signal)
     ]).then(([abiertos, completos, lookups]) => {
       if (control.signal.aborted) return
