@@ -1,4 +1,4 @@
-import { ESTADO_COMPLETO } from './tareas.ts'
+import { ESTADO_COMPLETO, ESTADO_FACTURADO } from './tareas.ts'
 
 /**
  * La regla que traduce un estado destino a la escritura que la API acepta.
@@ -8,8 +8,8 @@ import { ESTADO_COMPLETO } from './tareas.ts'
  * por eso vive detras de dos acciones (`modules/api/Escritura/EstadoProceso.php`). Elegir mal la
  * accion no devuelve error: guarda el estado y se saltea la cascada, que es peor que fallar.
  *
- * Las dos cubren el catalogo entero, sea cual sea su tamaño —los estados se crean y se retiran
- * desde el panel de Perfex—: `mark-complete` para "Completo" y `reopen` con el `status` destino para
+ * Las tres cubren el catalogo entero, sea cual sea su tamaño —los estados se crean y se retiran
+ * desde el panel de Perfex—: `mark-complete` para "Completo", `mark-billed` para "Facturado" y `reopen` con el `status` destino para
  * cualquier otro, venga la tarea de estar completa o no —`reabrir()` limpia `datefinished` aunque ya
  * estuviera vacio—.
  *
@@ -22,7 +22,7 @@ import { ESTADO_COMPLETO } from './tareas.ts'
 export interface AccionDeEstado {
   /** Ruta del BFF, sin barra inicial. */
   ruta: string
-  /** Cuerpo JSON, o nada: `mark-complete` no lleva. */
+  /** Cuerpo JSON, o nada: `mark-complete` y `mark-billed` no llevan. */
   cuerpo: { status: number } | undefined
 }
 
@@ -40,7 +40,8 @@ export function accionDeEstado (tareaId: number, estado: number): AccionDeEstado
 
   const id = encodeURIComponent(String(tareaId))
 
-  return estado === ESTADO_COMPLETO
-    ? { ruta: `tasks/${id}/actions/mark-complete`, cuerpo: undefined }
-    : { ruta: `tasks/${id}/actions/reopen`, cuerpo: { status: estado } }
+  if (estado === ESTADO_COMPLETO) return { ruta: `tasks/${id}/actions/mark-complete`, cuerpo: undefined }
+  if (estado === ESTADO_FACTURADO) return { ruta: `tasks/${id}/actions/mark-billed`, cuerpo: undefined }
+
+  return { ruta: `tasks/${id}/actions/reopen`, cuerpo: { status: estado } }
 }

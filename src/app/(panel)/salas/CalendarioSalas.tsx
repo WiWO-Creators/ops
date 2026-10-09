@@ -84,7 +84,7 @@ export function CalendarioSalas ({ dia, salas, reservas }: PropsCalendarioSalas)
 
               <div className="grid grid-cols-7 gap-px p-2">
                 {DIAS_SEMANA.map((nombre) => (
-                  <span key={nombre} className="text-texto-sutil py-1 text-center text-[0.6875rem] font-medium" aria-hidden="true">
+                  <span key={nombre} className="text-texto-sutil py-1 text-center text-menor font-medium" aria-hidden="true">
                     {nombre}
                   </span>
                 ))}
@@ -109,7 +109,7 @@ export function CalendarioSalas ({ dia, salas, reservas }: PropsCalendarioSalas)
                       title={etiqueta}
                       onClick={() => router.push(`/salas?dia=${fecha}`)}
                       className={cn(
-                        'rounded-chico relative h-10 text-left transition-[background-color,color,transform] duration-150 active:scale-[0.98]',
+                        'rounded-chico relative h-10 text-left transition-[background-color,color,transform] duration-rapida ease-neo active:scale-[0.98]',
                         'focus-visible:shadow-[0_0_0_3px_var(--foco-halo)]',
                         cantidad === 0 && 'bg-superficie-hundida text-texto-tenue hover:bg-hover',
                         cantidad === 1 && 'bg-acento/10 text-acento hover:bg-acento/20',
@@ -118,9 +118,9 @@ export function CalendarioSalas ({ dia, salas, reservas }: PropsCalendarioSalas)
                         esHoy && 'ring-acento ring-1 ring-inset'
                       )}
                     >
-                      <span className="absolute left-1.5 top-1 text-[0.6875rem] font-semibold">{Number(fecha.slice(-2))}</span>
+                      <span className="absolute left-1.5 top-1 text-menor font-semibold">{Number(fecha.slice(-2))}</span>
                       {cantidad > 0 && (
-                        <span className="absolute bottom-1 right-1.5 text-[0.625rem] font-semibold">
+                        <span className="absolute bottom-1 right-1.5 text-micro font-semibold">
                           {cantidad > 3 ? '3+' : cantidad}
                         </span>
                       )}

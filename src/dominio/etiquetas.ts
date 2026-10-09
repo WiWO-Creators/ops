@@ -1,4 +1,4 @@
-import { normalizar } from './salas.ts'
+import { normalizar } from './busqueda.ts'
 
 /**
  * Lógica pura del selector de etiquetas: qué ofrecer mientras se escribe.

@@ -2,22 +2,27 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import { useRouter } from 'next/navigation'
-import { alternarOrden, construirConsulta, direccionDe, leerConsulta } from '@/datos/consulta'
+import { alternarOrden, construirConsulta, construirConsultaDeUrl, direccionDe, leerConsulta } from '@/datos/consulta'
 import type { Columna, DefinicionRecurso, EstadoConsulta, OpcionFiltro, ResultadoLista } from '@/definiciones/tipos'
 import { Insignia } from '@/componentes/presentadores/Insignia'
 import type { Capacidad, Sobre } from '@/datos/tipos'
 import type { TableroDePreset } from '@/datos/recursos'
 import { leerError } from '@/datos/errores'
+import { escribirEnBff } from './mutaciones'
+import { conLimite, esTiempoAgotado, TIEMPO_LECTURA_MS } from '@/datos/red'
+import { EVENTO_RECURSO_CAMBIADO } from '@/datos/refresco-lista'
 import { ErrorEstado, Vacio } from '@/componentes/estado/Estados'
 import { CargandoConOrbe } from '@/componentes/estado/Orbe'
 import { useAviso } from '@/componentes/estado/useAviso'
+import { EntradaEscalonada } from '@/componentes/estructura/EntradaEscalonada'
 import { CLASES_CASILLA } from '@/componentes/formularios/Entrada'
 import { Segmentado, type OpcionSegmentada } from '@/componentes/formularios/Segmentado'
-import { MenuAccionesFila, type AccionDeBorrado } from '@/componentes/datos/MenuAccionesFila'
+import { MenuAccionesFila, type AccionDeBorrado, type AccionDeFila } from '@/componentes/datos/MenuAccionesFila'
 import { cn } from '@/lib/clases'
 import { CeldaEncabezado, CeldaTabla, CuerpoTabla, EncabezadoTabla, FilaTabla, Tabla } from './Tabla'
 import { ControlesTabla, PaginacionTabla } from './ControlesTabla'
 import { useFiltrosEnUrl } from './useFiltrosEnUrl'
+import { ProveedorUrlDeDetalle, type ConstructorDeUrlDeDetalle } from './url-de-detalle'
 import {
   clavesVisiblesPorDefecto,
   columnasVisibles,
@@ -194,6 +199,23 @@ interface PropsTablaRecurso<T> {
    * @returns el contrato de `ConfirmarBorrado`, o `undefined` si esta fila no se puede borrar
    */
   borradoDeFila?: (fila: T, recargar: () => void) => AccionDeBorrado | undefined
+  /**
+   * Acciones propias de la fila, en el mismo menu "⋯" que las declarativas, `onEditarFila` y
+   * `borradoDeFila` (entre "Editar" y "Eliminar").
+   *
+   * Es para lo que necesita un dialogo o una navegacion —fusionar, deshacer— y por eso no cabe en
+   * `definicion.acciones`, que solo sabe de llamadas sin cuerpo. Devuelve `[]` para una fila a la que
+   * no le corresponde ninguna: si no queda nada que ofrecer, la fila no lleva menu.
+   *
+   * @param fila la fila
+   * @param recargar vuelve a pedir la pagina vigente
+   */
+  accionesDeFila?: (fila: T, recargar: () => void) => AccionDeFila[]
+  /**
+   * Oculta la barra de buscador, filtros, presets y columnas. Para una tabla embebida en un dialogo o
+   * en un bloque de resumen, donde esos controles son ruido; el orden por encabezado sigue activo.
+   */
+  sinControles?: boolean
 }
 
 /**
@@ -208,25 +230,8 @@ const VISTAS: readonly OpcionSegmentada[] = [
   { valor: 'tarjetas', etiqueta: 'Tarjetas', icono: 'tarjetas' }
 ]
 
-/** Cuantos elementos escalonan antes de que el retraso deje de crecer. */
-const TOPE_ESCALONADO = 12
-
-/** Distancia entre la entrada de un elemento y la del siguiente, en milisegundos. */
-const PASO_ESCALONADO_MS = 20
-
-/**
- * Retraso de entrada de un elemento de lista, para que la lista aparezca de a poco y no de golpe.
- *
- * El retraso se topa a proposito: crece con el indice, asi que sin tope una pagina de cien filas
- * tardaria dos segundos en terminar de aparecer y la ultima llegaria mucho despues de que la persona
- * ya empezo a leer la primera. Pasado el tope todas entran juntas, que a esa altura ya no se nota.
- *
- * @param indice posicion del elemento dentro de la pagina vigente
- * @returns el valor listo para `animation-delay`
- */
-export function retrasoDeAparicion (indice: number): string {
-  return `${Math.min(indice, TOPE_ESCALONADO) * PASO_ESCALONADO_MS}ms`
-}
+/** Espera para agrupar las escrituras seguidas en una sola consulta de la tabla. */
+const ESPERA_DE_INVALIDACION_MS = 250
 
 export function TablaRecurso<T> ({
   definicion,
@@ -249,19 +254,32 @@ export function TablaRecurso<T> ({
   datos,
   prefijoUrl,
   onEditarFila,
-  borradoDeFila
+  borradoDeFila,
+  accionesDeFila,
+  sinControles = false
 }: PropsTablaRecurso<T>) {
   const router = useRouter()
 
   const leerEstado = useCallback((p: URLSearchParams) => leerConsulta(p, definicion), [definicion])
   const construirQuery = useCallback((e: EstadoConsulta) => construirConsulta(e, definicion), [definicion])
+  // Lo que se escribe en la URL difiere de lo que va a la API solo en el "todos" de los filtros con
+  // default: la API no lo recibe, la URL lo necesita para no volver al default.
+  const construirParaUrl = useCallback((e: EstadoConsulta) => construirConsultaDeUrl(e, definicion), [definicion])
 
   const { estado, params, cambiar: cambiarEnUrl, escribirParametro, leerParametro } = useFiltrosEnUrl<EstadoConsulta>({
     leer: leerEstado,
-    construir: construirQuery,
-    prefijo: prefijoUrl
+    construir: construirParaUrl,
+    prefijo: prefijoUrl,
+    // Una tabla que se pide sola desde el navegador no necesita esperar al servidor para filtrar.
+    superficial: datos === undefined
   })
   const consulta = useMemo(() => construirQuery(estado), [estado, construirQuery])
+
+  // Lo comparten `urlDeFila` y los enlaces de las celdas (`EnlaceATicket`): una sola lectura de la URL.
+  const urlDeDetalle = useCallback<ConstructorDeUrlDeDetalle>(
+    (clave, valor) => urlConParametroGlobal(new URLSearchParams(params.toString()), clave, String(valor)),
+    [params]
+  )
 
   // La consulta con la que llegaron los datos del servidor. Mientras la URL no se mueva de ahi no
   // hay nada que volver a pedir: pedirlo igual es una peticion de mas en cada montaje.
@@ -272,6 +290,8 @@ export function TablaRecurso<T> ({
   const [seleccion, setSeleccion] = useState<{ consulta: string, ids: Array<string | number> }>({ consulta: '', ids: [] })
   const [revision, setRevision] = useState(0)
   const [resultadoRemoto, setResultado] = useState<ResultadoLista<T>>(inicial)
+  // La consulta de las filas que se ven, que no es la de la URL mientras la pagina nueva viaja.
+  const [consultaRemota, setConsultaRemota] = useState(consultaDelInicial ?? consulta)
   const [error, setError] = useState<CuerpoError | null>(null)
   const [cargando, setCargando] = useState(false)
   const [visibles, setVisibles] = useState(() => clavesVisiblesPorDefecto(definicion.columnas))
@@ -300,6 +320,7 @@ export function TablaRecurso<T> ({
 
       if (respuesta.ok) {
         setResultado(respuesta.resultado)
+        setConsultaRemota(consulta)
         setError(null)
       } else {
         setError(respuesta.error)
@@ -327,6 +348,30 @@ export function TablaRecurso<T> ({
   const resultado = resultadoDeMemoria ?? resultadoRemoto
 
   /**
+   * Vuelve a pedir la pagina cuando cualquier escritura confirmada cambia algo.
+   *
+   * Una escritura hecha fuera de la tabla (un alta, el modal de detalle) solo refrescaba lo resuelto
+   * en el servidor; con esto la tabla que se pide desde el navegador tambien se pone al dia. Varias
+   * escrituras seguidas se agrupan en una sola consulta.
+   */
+  useEffect(() => {
+    if (datos !== undefined) return
+
+    let espera: ReturnType<typeof setTimeout> | undefined
+    const alCambiar = (): void => {
+      clearTimeout(espera)
+      espera = setTimeout(() => { setRevision((n) => n + 1) }, ESPERA_DE_INVALIDACION_MS)
+    }
+
+    window.addEventListener(EVENTO_RECURSO_CAMBIADO, alCambiar)
+
+    return () => {
+      clearTimeout(espera)
+      window.removeEventListener(EVENTO_RECURSO_CAMBIADO, alCambiar)
+    }
+  }, [datos])
+
+  /**
    * Adopta los datos frescos que baja `router.refresh()`.
    *
    * Una escritura hecha fuera de la tabla —un alta, por ejemplo— refresca la pagina del servidor y
@@ -351,6 +396,7 @@ export function TablaRecurso<T> ({
 
     inicialAdoptado.current = inicial
     setResultado(inicial)
+    setConsultaRemota(consulta)
   }, [inicial, consulta, consultaDelInicial, revision, refresco])
 
   // La presentacion vive en la URL (`?vista=`) y en ningun otro lado, igual que el filtro y el
@@ -381,7 +427,7 @@ export function TablaRecurso<T> ({
   function urlDeFila (fila: T): string | null {
     if (abrirEn === undefined) return null
 
-    return urlConParametroGlobal(new URLSearchParams(params.toString()), abrirEn.clave, String(abrirEn.valor(fila)))
+    return urlDeDetalle(abrirEn.clave, abrirEn.valor(fila))
   }
 
   /**
@@ -450,15 +496,8 @@ export function TablaRecurso<T> ({
   function tarjetas (dibujar: NonNullable<typeof tarjeta>): ReactNode {
     return (
       <ul className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-3">
-        {/* Mismo escalonado que las filas, y por el mismo motivo: la animacion corre al
-            nacer el nodo, asi que el `key` por fila hace que un refresco reutilice los
-            `<li>` ya pintados en vez de volver a hacerlos entrar. */}
-        {resultado.filas.map((fila, indice) => (
-          <li
-            key={claveFila(fila)}
-            className="animate-entrar-abajo flex"
-            style={{ animationDelay: retrasoDeAparicion(indice) }}
-          >
+        {resultado.filas.map((fila) => (
+          <li key={claveFila(fila)} data-entrada="item" className="flex">
             {dibujar(fila, opcionesDeFiltro)}
           </li>
         ))}
@@ -469,7 +508,7 @@ export function TablaRecurso<T> ({
   /** El listado en tabla. */
   function tabla (): ReactNode {
     return (
-      <Tabla>
+      <Tabla entrada={false}>
         <EncabezadoTabla>
           <tr>
             {seleccionMasiva !== undefined && (
@@ -512,7 +551,7 @@ export function TablaRecurso<T> ({
                 </CeldaEncabezado>
               )
             })}
-            {(acciones.length > 0 || filaExtra !== undefined) && (
+            {(acciones.length > 0 || filaExtra !== undefined || accionesDeFila !== undefined) && (
               <CeldaEncabezado className="w-10">
                 <span className="sr-only">Acciones</span>
               </CeldaEncabezado>
@@ -521,20 +560,18 @@ export function TablaRecurso<T> ({
         </EncabezadoTabla>
 
         <CuerpoTabla>
-          {/* La entrada escalonada es solo del montaje, y lo garantiza el `key`: una animacion
-              de CSS corre cuando nace el nodo, y un refresco que devuelve las mismas filas
-              reutiliza los mismos `<tr>`. Volver a animarlas encima del chip de "Actualizando…"
-              seria justo el parpadeo que ese chip vino a evitar. */}
-          {resultado.filas.map((fila, indice) => {
+          {resultado.filas.map((fila) => {
             const href = urlDeFila(fila)
             const clicable = href !== null || alCliquearFila !== undefined
+            const propias = accionesDeFila?.(fila, recargar) ?? []
+            const conMenu = acciones.length > 0 || propias.length > 0 || onEditarFila !== undefined || borradoDeFila !== undefined
 
             return (
             <FilaTabla
               key={claveFila(fila)}
-              className={cn('animate-entrar-abajo', claseFila?.(fila), idsSeleccionados.includes(claveFila(fila)) && 'bg-seleccionado')}
+              data-entrada="item"
+              className={cn(claseFila?.(fila), idsSeleccionados.includes(claveFila(fila)) && 'bg-seleccionado')}
               aria-selected={seleccionMasiva === undefined ? undefined : idsSeleccionados.includes(claveFila(fila))}
-              style={{ animationDelay: retrasoDeAparicion(indice) }}
               interactiva={clicable}
               onClick={clicable ? (evento) => { abrirFila(evento, fila, href) } : undefined}
             >
@@ -557,7 +594,7 @@ export function TablaRecurso<T> ({
                   <Celda columna={columna} fila={fila} catalogos={opcionesDeFiltro} />
                 </CeldaTabla>
               ))}
-              {(acciones.length > 0 || filaExtra !== undefined || onEditarFila !== undefined || borradoDeFila !== undefined) && (
+              {(conMenu || filaExtra !== undefined || accionesDeFila !== undefined) && (
                 <CeldaTabla>
                   {/* `stopPropagation`: la fila entera es un enlace cuando `urlDeFila`
                       devuelve algo, y un clic en "Editar" no tiene que navegar ademas. */}
@@ -566,9 +603,10 @@ export function TablaRecurso<T> ({
                     onClick={(evento) => { evento.stopPropagation() }}
                   >
                     {filaExtra?.(fila, recargar)}
-                    {(acciones.length > 0 || onEditarFila !== undefined || borradoDeFila !== undefined) && (
+                    {conMenu && (
                       <MenuAcciones
                         acciones={acciones}
+                        propias={propias}
                         id={claveFila(fila)}
                         onError={setError}
                         onListo={recargar}
@@ -588,36 +626,39 @@ export function TablaRecurso<T> ({
   }
 
   return (
+    <ProveedorUrlDeDetalle value={urlDeDetalle}>
     <div className={cn('flex flex-col gap-3', className)}>
-      <div className="flex flex-wrap items-start justify-between gap-2">
-        <ControlesTabla
-          board={board}
-          definicion={definicion}
-          estado={estado}
-          visibles={visibles}
-          opcionesDeFiltro={opcionesDeFiltro}
-          onCambiar={cambiar}
-          onVisibles={setVisibles}
-          // En tarjetas el selector de columnas no cambia nada: la tarjeta elige sus campos. Un
-          // control que no hace nada se lee como un control roto.
-          sinColumnas={enTarjetas}
-        />
-        <div className="flex items-center gap-2">
-          {/* Con `tarjetasEnMovil` el alternador no existe en pantallas angostas: ahi las tarjetas
-              son la unica presentacion, y un control que no cambia nada se lee como roto. */}
-          {tarjeta !== undefined && (
-            <div className={cn(tarjetasEnMovil && 'hidden md:block')}>
-              <Segmentado
-                etiqueta="Presentación del listado"
-                opciones={VISTAS}
-                activo={enTarjetas ? 'tarjetas' : 'tabla'}
-                onElegir={cambiarVista}
-              />
-            </div>
-          )}
-          {accion}
+      {!sinControles && (
+        <div className="flex flex-wrap items-start justify-between gap-2">
+          <ControlesTabla
+            board={board}
+            definicion={definicion}
+            estado={estado}
+            visibles={visibles}
+            opcionesDeFiltro={opcionesDeFiltro}
+            onCambiar={cambiar}
+            onVisibles={setVisibles}
+            // En tarjetas el selector de columnas no cambia nada: la tarjeta elige sus campos. Un
+            // control que no hace nada se lee como un control roto.
+            sinColumnas={enTarjetas}
+          />
+          <div className="flex items-center gap-2">
+            {/* Con `tarjetasEnMovil` el alternador no existe en pantallas angostas: ahi las tarjetas
+                son la unica presentacion, y un control que no cambia nada se lee como roto. */}
+            {tarjeta !== undefined && (
+              <div className={cn(tarjetasEnMovil && 'hidden md:block')}>
+                <Segmentado
+                  etiqueta="Presentación del listado"
+                  opciones={VISTAS}
+                  activo={enTarjetas ? 'tarjetas' : 'tabla'}
+                  onElegir={cambiarVista}
+                />
+              </div>
+            )}
+            {accion}
+          </div>
         </div>
-      </div>
+      )}
 
       {seleccionMasiva?.(seleccionadas, () => seleccionar([]), () => setRevision((n) => n + 1))}
 
@@ -645,7 +686,14 @@ export function TablaRecurso<T> ({
                   pantalla, asi que se atenuan en vez de taparse, y el aviso va en un chip encima de la
                   esquina. Antes esto era solo la atenuacion, que sin indicador se lee como un fallo. */}
               {cargando && <CargandoConOrbe mensaje="Actualizando…" className="absolute right-2 top-2 z-10" />}
-              <div className={cn(cargando && 'opacity-60 transition-opacity')}>
+              {/* Las filas entran al cambiar de pagina, filtro, orden o presentacion. Un refresco que
+                  devuelve la misma consulta no las vuelve a animar: seria, encima del chip de
+                  "Actualizando…", justo el parpadeo que ese chip vino a evitar. */}
+              <EntradaEscalonada
+                densa
+                clave={`${datos === undefined ? consultaRemota : consulta}|${enTarjetas ? 'tarjetas' : 'tabla'}`}
+                className={cn(cargando && 'opacity-60 transition-opacity')}
+              >
               {enTarjetas && tarjeta !== undefined
                 ? tarjetas(tarjeta)
                 : tarjetasEnMovil && tarjeta !== undefined
@@ -656,12 +704,13 @@ export function TablaRecurso<T> ({
                     </>
                     )
                   : tabla()}
-              </div>
+              </EntradaEscalonada>
             </div>
             )}
 
       <PaginacionTabla paginacion={resultado.paginacion} onCambiar={cambiar} />
     </div>
+    </ProveedorUrlDeDetalle>
   )
 }
 
@@ -690,10 +739,12 @@ interface PropsMenuAcciones {
   onEditar?: () => void
   /** `borradoDeFila` de la tabla, ya resuelto para esta fila. Ver `MenuAccionesFila.borrado`. */
   borrado?: AccionDeBorrado
+  /** `accionesDeFila` de la tabla, ya resueltas para esta fila: van despues de las declarativas. */
+  propias: AccionDeFila[]
 }
 
 /** Menu de acciones de una fila. Al terminar refresca la vista: el backend es quien sabe como quedo. */
-function MenuAcciones ({ acciones, id, onError, onListo, onEditar, borrado }: PropsMenuAcciones) {
+function MenuAcciones ({ acciones, propias, id, onError, onListo, onEditar, borrado }: PropsMenuAcciones) {
   const [enCurso, setEnCurso] = useState(false)
   const aviso = useAviso()
 
@@ -707,16 +758,20 @@ function MenuAcciones ({ acciones, id, onError, onListo, onEditar, borrado }: Pr
     setEnCurso(true)
 
     try {
-      const respuesta = await fetch(`/api/bff/${rutaDeAccion(ruta, id)}`, { method: metodo })
+      const resultado = await escribirEnBff(rutaDeAccion(ruta, id), metodo)
 
-      if (respuesta.ok) {
+      if (resultado.ok) {
         onListo()
         return
       }
 
-      onError(await leerError(respuesta))
-    } catch {
-      aviso.error('No se pudo completar la acción: revisá tu conexión e intentá de nuevo.')
+      if (resultado.incierta === true) {
+        aviso.advertencia(resultado.mensaje)
+        onListo()
+        return
+      }
+
+      onError({ code: (resultado.codigo ?? 'server_error') as CuerpoError['code'], message: resultado.mensaje })
     } finally {
       setEnCurso(false)
     }
@@ -728,12 +783,15 @@ function MenuAcciones ({ acciones, id, onError, onListo, onEditar, borrado }: Pr
       ariaLabel="Acciones"
       onEditar={onEditar}
       borrado={borrado}
-      acciones={acciones.map((accion) => ({
-        clave: accion.clave,
-        etiqueta: accion.etiqueta,
-        peligroso: accion.metodo === 'DELETE',
-        onSeleccionar: () => { void ejecutar(accion.ruta, accion.metodo) }
-      }))}
+      acciones={[
+        ...acciones.map((accion) => ({
+          clave: accion.clave,
+          etiqueta: accion.etiqueta,
+          peligroso: accion.metodo === 'DELETE',
+          onSeleccionar: () => { void ejecutar(accion.ruta, accion.metodo) }
+        })),
+        ...propias
+      ]}
     />
   )
 }
@@ -753,7 +811,7 @@ type Respuesta<T> = { ok: true, resultado: ResultadoLista<T> } | { ok: false, er
  */
 async function pedirLista<T> (ruta: string, consulta: string, senal: AbortSignal): Promise<Respuesta<T>> {
   try {
-    const respuesta = await fetch(`/api/bff/${ruta}${consulta === '' ? '' : `?${consulta}`}`, { signal: senal })
+    const respuesta = await fetch(`/api/bff/${ruta}${consulta === '' ? '' : `?${consulta}`}`, { signal: conLimite(senal, TIEMPO_LECTURA_MS) })
 
     if (!respuesta.ok) return { ok: false, error: await leerError(respuesta) }
 
@@ -763,6 +821,10 @@ async function pedirLista<T> (ruta: string, consulta: string, senal: AbortSignal
   } catch (fallo) {
     if (fallo instanceof DOMException && fallo.name === 'AbortError') {
       return { ok: false, error: { code: 'bad_request', message: 'Petición cancelada' } }
+    }
+
+    if (esTiempoAgotado(fallo)) {
+      return { ok: false, error: { code: 'server_error', message: 'El servidor tardó demasiado en responder. Intenta de nuevo.' } }
     }
 
     return {

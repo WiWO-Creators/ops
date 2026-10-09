@@ -4,6 +4,7 @@ import { useRouter, useSearchParams } from 'next/navigation'
 import { useState, type ReactElement } from 'react'
 import { escribirEnBff } from '@/componentes/datos/mutaciones'
 import { PARAMETRO_TAREA } from '@/componentes/datos/tabla'
+import { AvisoEnLinea } from '@/componentes/estado/Estados'
 import { Boton } from '@/componentes/formularios/Boton'
 import { Campo } from '@/componentes/formularios/Campo'
 import { CLASES_CASILLA, Entrada } from '@/componentes/formularios/Entrada'
@@ -217,7 +218,7 @@ export function DuplicarTarea ({
                 </p>
               </fieldset>
 
-              {error !== null && <p role="alert" className="text-texto-peligro text-xs">{error}</p>}
+              {error !== null && <AvisoEnLinea variante="error" mensaje={error} />}
 
               <div className="flex justify-end gap-2">
                 <Boton variante="sutil" disabled={enviando} onClick={cerrar}>

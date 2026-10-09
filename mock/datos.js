@@ -28,7 +28,10 @@ export const ESTADOS_PROCESO = [
   { id: 4, name: 'En proceso', color: '#eab308', order: 2, filter_default: true },
   { id: 2, name: 'Esperando respuesta', color: '#84cc16', order: 4, filter_default: true },
   { id: 6, name: 'Cambios', color: '#a855f7', order: 5, filter_default: true },
-  { id: 5, name: 'Completado', color: '#22c55e', order: 100, filter_default: false }
+  { id: 7, name: 'En producción', color: '#0d9488', order: 6, filter_default: true },
+  { id: 8, name: 'Auditoría', color: '#0ea5e9', order: 7, filter_default: true },
+  { id: 5, name: 'Completado', color: '#22c55e', order: 100, filter_default: false },
+  { id: 9, name: 'Facturado', color: '#15803d', order: 101, filter_default: false }
 ]
 
 export const PRIORIDADES = [

@@ -7,6 +7,7 @@ import { Boton } from '@/componentes/formularios/Boton'
 import { Hueso } from '@/componentes/estado/Estados'
 import { Seccion } from '@/componentes/presentadores/Ficha'
 import { mensajeDeRespuesta } from '@/datos/cliente'
+import { conLimite, TIEMPO_LECTURA_MS } from '@/datos/red'
 import {
   bytesDeClave,
   cuerpoDeSuscripcion,
@@ -202,7 +203,9 @@ function NotificacionesWeb () {
     // Si el servidor no la guardo, se deshace tambien en el navegador: un dispositivo que se cree
     // activo y no esta registrado no recibiria nada nunca.
     if (!resultado.ok) {
-      await suscripcion.unsubscribe()
+      // Sin respuesta el servidor pudo haberla guardado: se conserva la del navegador para que
+      // «Activar» de nuevo la reutilice en vez de dejar un registro huérfano.
+      if (resultado.incierta !== true) await suscripcion.unsubscribe()
       throw new Error(resultado.mensaje)
     }
 
@@ -218,7 +221,11 @@ function NotificacionesWeb () {
 
     const resultado = await escribirEnBff<EstadoPushServidor>(RUTA_SUSCRIPCIONES, 'DELETE', { endpoint: suscripcion.endpoint })
 
-    if (!resultado.ok) throw new Error(resultado.mensaje)
+    if (!resultado.ok) {
+      // Sin respuesta no se sabe si se borro: se vuelve a leer el estado real del servidor.
+      if (resultado.incierta === true) establecerServidor((await leerEstadoServidor()).datos)
+      throw new Error(resultado.mensaje)
+    }
 
     await suscripcion.unsubscribe()
     establecerServidor(resultado.datos)
@@ -441,7 +448,7 @@ async function leerEstadoServidor (): Promise<{ datos: EstadoPushServidor, error
   const vacio: EstadoPushServidor = { configured: false, enabled: false, public_key: null, subscriptions: 0 }
 
   try {
-    const respuesta = await fetch(`/api/bff/${RUTA_ESTADO}`, { cache: 'no-store' })
+    const respuesta = await fetch(`/api/bff/${RUTA_ESTADO}`, { cache: 'no-store', signal: conLimite(undefined, TIEMPO_LECTURA_MS) })
 
     if (!respuesta.ok) return { datos: vacio, error: await mensajeDeRespuesta(respuesta) }
 

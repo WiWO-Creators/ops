@@ -1,10 +1,12 @@
 'use client'
 
 import { useEffect, useRef, useState, type ReactElement } from 'react'
+import { AvisoEnLinea } from '@/componentes/estado/Estados'
 import { Boton } from '@/componentes/formularios/Boton'
 import { escribirEnBff } from '@/componentes/datos/mutaciones'
 import { leerAccion, type AccionIA } from '@/dominio/ia'
 import { esResoluble, estadoDeAccion, segundosParaExpirar } from '@/dominio/ia-chat'
+import { textoDeRestante } from '@/dominio/propuestas'
 
 /**
  * La tarjeta de una escritura que Thinking Orb dejo preparada.
@@ -198,26 +200,21 @@ export function TarjetaPropuestaIA (
           </p>
           )}
 
-      {error !== '' && <p role="alert" className="text-texto-peligro text-xs">{error}</p>}
+      {error !== '' && <AvisoEnLinea variante="error" mensaje={error} />}
     </div>
   )
 }
 
 /**
- * Los minutos que quedan, en palabras.
+ * Lo que queda, en palabras: minutos, horas o días.
  *
- * Se redondea hacia arriba y el ultimo tramo se dice "menos de un minuto": un contador de segundos
+ * Las propuestas del chat duran 30 minutos y las de otros sistemas, horas o días; el plazo se dice en
+ * la unidad que corresponde para que «4320 minutos» no llegue a la pantalla. Un contador de segundos
  * apura a quien tiene que leer antes de decidir, que es lo contrario de lo que esta tarjeta busca.
  *
  * @param accion la propuesta
  * @param ahora milisegundos
  */
 function minutosRestantes (accion: AccionIA, ahora: number): string {
-  const segundos = segundosParaExpirar(accion, ahora)
-
-  if (segundos < 60) return 'menos de un minuto'
-
-  const minutos = Math.ceil(segundos / 60)
-
-  return minutos === 1 ? '1 minuto' : `${minutos} minutos`
+  return textoDeRestante(segundosParaExpirar(accion, ahora))
 }

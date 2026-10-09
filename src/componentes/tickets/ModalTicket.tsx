@@ -2,14 +2,22 @@
 
 import { X } from 'lucide-react'
 import { useSearchParams } from 'next/navigation'
-import { useCallback, useState, type ReactElement } from 'react'
+import { Suspense, lazy, useCallback, useState, type ReactElement } from 'react'
 import { Boton } from '@/componentes/formularios/Boton'
+import { Cargando } from '@/componentes/estado/Estados'
 import { CerrarDialogo, ContenidoDialogo, Dialogo } from '@/componentes/superposiciones/Dialogo'
 import { idDeParametro, urlConParametro } from '@/componentes/datos/tabla'
-import type { Referencia } from '@/datos/recursos'
 import type { Capacidad } from '@/datos/tipos'
-import { PARAMETRO_TICKET, nombreDelTicket, tituloDelModal, type FuenteDeTicket } from '@/dominio/ticket-vista'
-import { DetalleTicket } from './DetalleTicket'
+import { PARAMETRO_TICKET } from '@/dominio/ticket-estados'
+import { nombreDelTicket, tituloDelModal, type FuenteDeTicket, type ProyectoElegible } from '@/dominio/ticket-vista'
+import { cargarDetalleTicket } from './precarga-detalle-ticket'
+
+/**
+ * El detalle se baja al abrir un ticket, no con la bandeja: ver `precarga-detalle-ticket`. `lazy` y
+ * `Suspense` y no `next/dynamic` para que el aviso de carga nombre el ticket del sujeto (`fuente`),
+ * como el que dibuja el propio detalle, sin que el texto cambie al llegar el modulo.
+ */
+const DetalleTicket = lazy(async () => ({ default: (await cargarDetalleTicket()).DetalleTicket }))
 
 /** Como se llego al ticket abierto, que decide como se sale. */
 interface Apertura {
@@ -45,6 +53,9 @@ interface Apertura {
  * atras: con `replace` quedaban dos entradas iguales de la lista y «atras» parecia no hacer nada. Si
  * la pagina cargo ya con el ticket, cerrar reemplaza la URL.
  *
+ * El detalle se descarga al abrir (`lazy`); `EnlaceATicket` lo precarga al acercarse a un asunto. Con
+ * el enlace de un correo, que abre sin pasar por la bandeja, la descarga empieza al ver `?ticket=`.
+ *
  * El detalle lleva `key` por ticket: pasar de uno a otro (o a su principal, en una fusion) monta un
  * detalle nuevo, sin carga, borrador ni errores del anterior.
  *
@@ -60,8 +71,8 @@ export function ModalTicket ({
 }: {
   fuente: FuenteDeTicket
   capacidades: Capacidad[]
-  /** Nombres de Proyectos a mano, para nombrar el del ticket sin otra peticion. */
-  proyectos?: Referencia[]
+  /** Proyectos a mano: nombran el del ticket sin otra peticion y son los que se ofrecen para moverlo. */
+  proyectos?: ProyectoElegible[]
 }): ReactElement {
   const params = useSearchParams()
   const abierto = idDeParametro(params.get(PARAMETRO_TICKET))
@@ -119,15 +130,17 @@ export function ModalTicket ({
         </div>
 
         {abierto !== null && (
-          <DetalleTicket
-            key={abierto}
-            ticketId={abierto}
-            fuente={fuente}
-            capacidades={capacidades}
-            proyectos={proyectos}
-            onAsunto={alAsunto}
-            onFusionado={alFusionado}
-          />
+          <Suspense fallback={<Cargando alto="min-h-60" mensaje={`Cargando ${nombreDelTicket(fuente).el}…`} />}>
+            <DetalleTicket
+              key={abierto}
+              ticketId={abierto}
+              fuente={fuente}
+              capacidades={capacidades}
+              proyectos={proyectos}
+              onAsunto={alAsunto}
+              onFusionado={alFusionado}
+            />
+          </Suspense>
         )}
       </ContenidoDialogo>
     </Dialogo>

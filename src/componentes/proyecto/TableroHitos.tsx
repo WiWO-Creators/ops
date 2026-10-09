@@ -19,6 +19,7 @@ import { AgregarAlHito } from './AgregarAlHito'
 import { BotonDuplicarTarea } from './DuplicarTarea'
 import { MenuEstadoTarea } from './MenuEstadoTarea'
 import { COLUMNA_SIN_CATEGORIZAR, cuerpoMoverHito, ordenarColumnasHitos } from './hitos'
+import { estaCerrada } from './tareas'
 import { segundosAHoraMinuto } from './formatos'
 import type { ColumnaTablero, CuerpoMover, GrupoTablero } from '@/componentes/datos/tablero'
 import type { DefinicionRecurso, OpcionFiltro } from '@/definiciones/tipos'
@@ -124,6 +125,7 @@ export function TableroHitos ({
 }: PropsTableroHitos): ReactElement {
   const [catalogos, setCatalogos] = useState<{ lookups: Lookups, campos: DefinicionCampoPersonalizado[], hitos: Hito[] } | null>(null)
   const [error, setError] = useState<string | null>(null)
+  const [intento, setIntento] = useState(0)
 
   /**
    * El `recargar` del motor, guardado al pasar.
@@ -160,7 +162,7 @@ export function TableroHitos ({
       if (!control.signal.aborted) setError(fallo instanceof Error ? fallo.message : 'No se pudieron cargar los filtros.')
     })
     return () => { control.abort() }
-  }, [fuente, proyectoId])
+  }, [fuente, proyectoId, intento])
 
   const estados = catalogos === null ? [] : listaDe(catalogos.lookups, 'task_statuses')
   const esDelPortal = fuente.sujeto === 'portal'
@@ -239,7 +241,9 @@ export function TableroHitos ({
     [puedeCrear]
   )
 
-  if (error) return <ErrorEstado detalle={error} />
+  if (error) {
+    return <ErrorEstado detalle={error} onReintentar={() => { setError(null); setIntento((n) => n + 1) }} />
+  }
   if (catalogos === null) return <Cargando mensaje="Cargando filtros…" />
 
   return (
@@ -335,7 +339,7 @@ function TarjetaDeHito ({
         href={`?${siguientes.toString()}`}
         scroll={false}
         className={
-          tarea.status === 5
+          estaCerrada(tarea.status)
             ? 'text-texto-tenue hover:text-acento text-sm underline-offset-4 line-through hover:underline'
             : 'text-texto hover:text-acento text-sm font-medium underline-offset-4 hover:underline'
         }

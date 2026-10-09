@@ -5,6 +5,7 @@ import Link from 'next/link'
 import { ArrowRight } from 'lucide-react'
 import { escucharMedidor } from '@/componentes/live/medidor'
 import type { EstadoDeJornada, MedidorEnVivo } from '@/datos/live'
+import { conLimite, TIEMPO_LECTURA_MS } from '@/datos/red'
 import { GLOSARIO } from '@/dominio/glosario'
 import { avisarCambioDeJornada } from '@/lib/puente-app'
 
@@ -134,7 +135,7 @@ export function AvisoJornada ({ inicial }: { inicial: EstadoDeJornada | null }) 
    */
   const refrescar = useCallback(async (senal: AbortSignal): Promise<void> => {
     try {
-      const respuesta = await fetch('/api/bff/me/jornada', { signal: senal })
+      const respuesta = await fetch('/api/bff/me/jornada', { signal: conLimite(senal, TIEMPO_LECTURA_MS) })
 
       if (!respuesta.ok) return
 
@@ -185,7 +186,7 @@ export function AvisoJornada ({ inicial }: { inicial: EstadoDeJornada | null }) 
 
       <Link
         href={enlaceDe(falta, destino)}
-        className="border-texto-aviso/40 text-texto-aviso rounded-control ease-neo flex items-center gap-1.5 border px-4 py-2.5 text-base font-bold transition-colors duration-150 hover:bg-hover"
+        className="border-texto-aviso/40 text-texto-aviso rounded-control ease-neo flex items-center gap-1.5 border px-4 py-2.5 text-base font-bold transition-colors duration-rapida hover:bg-hover"
       >
         {ACCIONES[falta]}
         <ArrowRight size={18} strokeWidth={2.5} aria-hidden="true" />

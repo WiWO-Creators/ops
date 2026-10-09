@@ -141,7 +141,7 @@ try {
     status: 5, milestone: 1, hourly_rate: 150.5, recurring: true, repeat_every: 2, recurring_type: 'week', cycles: 4,
     completed_at: '2026-09-08T12:30:00.000Z', rel_type: 'project', rel_id: 1,
     assignees: [STAFF[0].id], followers: [STAFF[0].id], priority: 3, start_date: '2026-09-01',
-    due_date: '2026-09-10', tags: ['etiqueta-prueba'], description: 'Descripción completa', estimated_hours: 2.25, task_type: 991
+    due_date: '2026-09-10', tags: ['etiqueta-prueba'], description: '<p>Descripción completa</p>', format: 'html', estimated_hours: 2.25, task_type: 991
   })
   await pagina.goto(new URL('/proyectos/1?tab=hitos', destino).href, { waitUntil: 'domcontentloaded', timeout: 90000 })
   await pagina.waitForLoadState('networkidle')

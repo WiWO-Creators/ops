@@ -1,5 +1,6 @@
 import type { Metadata } from 'next'
 import { cache } from 'react'
+import { Contenido } from '@/componentes/presentadores/Contenido'
 import { Pestanas, type Panel } from '@/componentes/proyecto/Pestanas'
 import { ErrorApi } from '@/datos/errores'
 import type { EspacioPortal, TableroDelProyecto as Tablero, TareaPortal } from '@/datos/portal'
@@ -123,8 +124,12 @@ export default async function ProyectoPagina (props: PageProps<'/portal/proyecto
 
       {/* La descripcion vive en la pestaña Resumen, como en el panel. Suelta acá solo cuando esa
           pestaña no esta compartida: es el unico caso en que si no, no se leeria en ningun lado. */}
-      {descripcionSuelta && descripcion !== '' && (
-        <p className="text-texto-tenue max-w-prose text-sm whitespace-pre-line">{descripcion}</p>
+      {descripcionSuelta && (
+        <Contenido
+          html={proyecto.description_html}
+          texto={descripcion}
+          className="text-texto-tenue max-w-prose text-sm"
+        />
       )}
 
       {paneles.length > 0
@@ -226,6 +231,7 @@ function contenidoDePestania (
               estados={pagina.estadosDeTarea}
               mes={pagina.mes}
               mesesCerrados={pagina.mesesCerrados}
+              proyecto={proyecto.name}
             />
           )}
         </div>

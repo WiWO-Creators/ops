@@ -95,7 +95,7 @@ export function RecordatorioDeDestino ({
       className={cn(
         // Mismo sitio y mismo aspecto que el aviso de versión nueva (`estructura/VigilanteDeVersion`):
         // en móvil sube por encima del botón del chat, que vive en la esquina inferior derecha.
-        'border-linea bg-superficie-flotante fixed bottom-24 left-1/2 z-50 -translate-x-1/2 sm:bottom-4',
+        'border-linea bg-superficie-flotante fixed bottom-24 left-1/2 z-superposicion -translate-x-1/2 sm:bottom-4',
         'flex w-[min(30rem,calc(100vw-2rem))] flex-col gap-3 rounded-2xl border px-4 py-3 shadow-lg',
         'animate-entrar-abajo'
       )}

@@ -3,6 +3,7 @@
 import { useRouter } from 'next/navigation'
 import Script from 'next/script'
 import { useEffect, useRef, useState } from 'react'
+import { AvisoEnLinea } from '@/componentes/estado/Estados'
 import { Orbe, type EstadoOrbe } from '@/componentes/estado/Orbe'
 import { Logo } from '@/componentes/estructura/Logo'
 import { Boton } from '@/componentes/formularios/Boton'
@@ -10,6 +11,7 @@ import { Campo } from '@/componentes/formularios/Campo'
 import { Entrada } from '@/componentes/formularios/Entrada'
 import { PanelVidrio } from '@/componentes/superposiciones/PanelVidrio'
 import type { AccesoGoogle } from '@/datos/tipos'
+import { conLimite, TIEMPO_ESCRITURA_MS } from '@/datos/red'
 
 type Paso = 'clave' | 'codigo'
 
@@ -97,7 +99,8 @@ export function FormularioEntrar ({ google, aviso = null }: { google: AccesoGoog
       const respuesta = await fetch('/api/sesion', {
         method: 'POST',
         headers: { 'content-type': 'application/json' },
-        body: JSON.stringify(cuerpo)
+        body: JSON.stringify(cuerpo),
+        signal: conLimite(undefined, TIEMPO_ESCRITURA_MS)
       })
 
       const datos = await respuesta.json() as RespuestaEntrar
@@ -256,9 +259,9 @@ export function FormularioEntrar ({ google, aviso = null }: { google: AccesoGoog
         <PanelDeMarca estado={estadoOrbe} activo={enviando} />
         <CabeceraMovil estado={estadoOrbe} />
 
-        <PanelVidrio className="w-full max-w-sm p-6 sm:p-8">
+        <PanelVidrio className="animate-entrar-abajo w-full max-w-sm p-6 sm:p-8">
           <header className="mb-6">
-            <h1 className="font-titular text-3xl font-extrabold tracking-tight text-texto">
+            <h1 className="font-titular text-texto text-2xl font-bold tracking-tight">
               {paso === 'clave' ? 'Entrar' : 'Verificar'}
             </h1>
             {paso !== 'clave' && (
@@ -296,12 +299,11 @@ export function FormularioEntrar ({ google, aviso = null }: { google: AccesoGoog
           )}
 
           {error !== null && (
-            <p
-              role="alert"
-              className="mb-5 rounded-chico border border-relleno-peligro/40 bg-superficie-peligro px-3 py-2 text-sm text-texto-peligro"
-            >
-              {error}
-            </p>
+            <AvisoEnLinea
+              variante="error"
+              mensaje={error}
+              className="mb-5 rounded-chico border border-relleno-peligro/40 bg-superficie-peligro px-3 py-2 text-sm"
+            />
           )}
 
           {clientIdGoogle !== null && (

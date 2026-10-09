@@ -1,6 +1,6 @@
 import { redirect } from 'next/navigation'
 import { idDeParametro } from '@/componentes/datos/tabla'
-import { PARAMETRO_TICKET } from '@/dominio/ticket-vista'
+import { PARAMETRO_TICKET } from '@/dominio/ticket-estados'
 
 /**
  * Enlace profundo a un ticket del portal: `/portal/soporte/{id}`.

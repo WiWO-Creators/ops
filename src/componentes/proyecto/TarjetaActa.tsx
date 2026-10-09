@@ -34,7 +34,7 @@ export function TarjetaActa ({ acta, className }: { acta: Acta, className?: stri
       style={{ borderTopColor: tema.color }}
       className={cn(
         'border-linea bg-superficie-elevada rounded-tarjeta shadow-1 relative flex h-full flex-col gap-2 border border-t-2 p-4',
-        'ease-neo transition-[transform,box-shadow] duration-150',
+        'ease-neo transition-[transform,box-shadow] duration-rapida',
         'hover:shadow-2 hover:scale-[1.01] focus-within:shadow-2 active:scale-[0.99]',
         className
       )}
@@ -48,6 +48,9 @@ export function TarjetaActa ({ acta, className }: { acta: Acta, className?: stri
           </EnlaceActa>
         </h3>
 
+        {acta.private === true && (
+          <Insignia tono="neutro" tamano="chico">Privado</Insignia>
+        )}
         {acta.source === 'ia' && (
           <Insignia tono="acento" tamano="chico">Escrito con IA</Insignia>
         )}

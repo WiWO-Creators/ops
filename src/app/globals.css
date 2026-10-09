@@ -6,12 +6,13 @@
 @import '../estilos/neo.css';
 @import '../estilos/thinking-orb.css';
 @import '../estilos/vidrio.css';
-@import '../estilos/livekit.css';
-@import '../estilos/acta.css';
+@import '../estilos/texto-rico.css';
 @import '../estilos/monito.css';
+@import '../estilos/escriba.css';
 @import '../estilos/entrada-pagina.css';
 @import '../estilos/alerta-vencida.css';
 @import '../estilos/movil.css';
+@import '../estilos/modos/halloween.css';
 
 /*
  * Variante `oscuro:`: se activa cuando el documento se esta viendo en oscuro DE VERDAD.
@@ -138,6 +139,7 @@
   --animate-entrar-hoja: entrar-hoja var(--wiwo-motion-medium) var(--wiwo-ease-emphasized) both;
   --animate-salir-hoja: salir-hoja var(--wiwo-motion-fast) var(--wiwo-ease-emphasized) both;
   --animate-entrar-abajo: entrar-abajo var(--wiwo-motion-fast) var(--wiwo-ease-emphasized) both;
+  --animate-salir-abajo: salir-abajo 120ms var(--wiwo-ease-emphasized) both;
   /* Las usa `RecordatorioInstalar`. El aviso de version nueva (`VigilanteDeVersion`) anima su barra e
    * icono con anime.js y un resorte, no con estas clases. */
   --animate-aviso-entrar: aviso-entrar var(--wiwo-motion-medium) var(--wiwo-ease-expressive) both;
@@ -146,9 +148,16 @@
   /* Los peldaños de fabrica de Tailwind se atan a la misma escala. Sin esto conviven dos sistemas:
    * `text-sm` y `text-xs` traen 14 y 12px mientras el cuerpo sale de `--step-0`, y una sola pantalla
    * termina con cinco tamaños —11, 12, 13, 14 y 17.3px— donde ninguno es un peldaño del otro. Los
-   * `text-[0.6875rem]` sueltos que habia repartidos por los rotulos son este `--text-xs`. */
+   * 11px de los rotulos son este peldaño: `text-xs` trae el interlineado de fabrica de Tailwind y
+   * `text-menor` hereda el del contenedor. */
   --text-xs: var(--step--1); /* 11px */
   --text-sm: 0.8125rem; /* 13px - contenido de tabla, meta secundaria */
+
+  /* Tres tamaños fijos fuera de los peldaños, que existian a mano en corchetes. Sin compañero
+   * `--line-height` a proposito: heredan el interlineado, igual que el `text-[…]` que reemplazan. */
+  --text-micro: 0.625rem; /* 10px - contadores sobre un icono, ejes de grafico */
+  --text-subtitulo: 1.25rem; /* 20px - titulo de un panel dentro de la pantalla, sin crecer con ella */
+  --text-cifra: 1.375rem; /* 22px - la cifra que resume una fila (score) */
 
   /* Escala tipografica, portada de Neo. Antes se usaba sin definir. */
   --text-menor: var(--step--1);
@@ -181,6 +190,24 @@
 }
 
 /*
+ * Capas globales de `z-index`, de abajo arriba. `z-[…]` esta prohibido por lint (`eslint.config.mjs`):
+ * una capa nueva se agrega aca con nombre, o no existe.
+ *
+ * Los apilados LOCALES —un encabezado `sticky`, un rotulo sobre su grafico— siguen con la escala
+ * numerica de Tailwind (`z-1`, `z-10`, `z-20`): compiten dentro de su contenedor, no con la pantalla.
+ *
+ * `@theme` a secas y no `inline`: son numeros fijos, y asi `monito.css` y `movil.css` pueden leer la
+ * variable con `var()`.
+ */
+@theme {
+  --z-index-flotante: 40; /* avisos que ceden ante una superposicion: RecordatorioInstalar */
+  --z-index-superposicion: 50; /* dialogos, cajones, menus, popovers, paleta, llamada, orbe a pantalla completa */
+  --z-index-aviso: 55; /* AvisosDeError: un error al guardar desde un dialogo tiene que verse */
+  --z-index-telon: 60; /* telon de la bienvenida, AvisoDeCierre, tarjeta que se arrastra en movil */
+  --z-index-bienvenida: 70; /* la capa de React de la bienvenida y el recorrido de novedades */
+}
+
+/*
  * Las tres duraciones de `tokens.css`, como utilidades.
  *
  * Van como `@utility` y no como tokens `--duration-*` del tema porque `duration-*` no lee ningun
@@ -198,6 +225,50 @@
 
 @utility duration-lenta {
   transition-duration: var(--wiwo-motion-slow);
+}
+
+/*
+ * Antetitulo en versalita: el rotulo chico sobre un dato, una seccion o una ficha.
+ *
+ * Fija peso, espaciado y mayusculas, que antes se escribian en tres pesos y dos espaciados. El
+ * tamaño y el color quedan en cada uso: `text-xs` por defecto, `text-menor` en tarjetas densas.
+ */
+@utility antetitulo {
+  font-weight: 500;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+/*
+ * Todo `<details>` despliega y repliega animando el alto, con la misma duracion que `Plegable`.
+ *
+ * Es mejora progresiva: el navegador que no conoce `::details-content` descarta la regla y el
+ * `<details>` abre de golpe como siempre; el que no tiene `interpolate-size` cambia el alto sin
+ * transicion. `content-visibility` va con `allow-discrete` para que al replegar el contenido siga
+ * pintado hasta que el alto llega a cero. Las propiedades van sueltas y no en el atajo `transition`:
+ * un navegador sin `transition-behavior` descartaria el atajo entero.
+ *
+ * El `overflow-clip-margin` deja asomar los anillos de foco del contenido, que el recorte cortaria.
+ * Con movimiento reducido, `neo.css` baja la transicion a 0.01ms.
+ */
+@layer base {
+  details {
+    interpolate-size: allow-keywords;
+  }
+
+  details::details-content {
+    block-size: 0;
+    overflow: clip;
+    overflow-clip-margin: 0.25rem;
+    transition-property: block-size, content-visibility;
+    transition-duration: var(--wiwo-motion-fast);
+    transition-timing-function: var(--wiwo-ease-emphasized);
+    transition-behavior: allow-discrete;
+  }
+
+  details[open]::details-content {
+    block-size: auto;
+  }
 }
 
 @layer base {
@@ -609,6 +680,13 @@
     to { opacity: 1; transform: translateY(0); }
   }
 
+  /* La vuelta de `entrar-abajo` para lo flotante que se cierra (el chat del orbe): baja los mismos
+   * 8px mientras se funde. El contenido de pagina no la usa: no se va, se reemplaza. */
+  @keyframes salir-abajo {
+    from { opacity: 1; transform: translateY(0); }
+    to { opacity: 0; transform: translateY(8px); }
+  }
+
   /*
    * El aviso flotante que sube desde el borde inferior (`estructura/RecordatorioInstalar`).
    *
@@ -676,6 +754,20 @@
 
 ::view-transition-new(.pagina) {
   animation: var(--wiwo-motion-fast) var(--wiwo-ease-emphasized) both entrar-abajo;
+}
+
+/*
+ * Una fila que entra o sale de una lista editable (`EditorPlantilla`, `EditorPlantillaHito`,
+ * `ListaChecklist`), con `<ViewTransition enter="fila-entrar" exit="fila-salir" update="auto">`.
+ * Las que se quedan se corren a su lugar con la transicion de grupo de arriba; estas dos clases
+ * solo dicen como aparece la nueva y como se va la quitada, con el mismo par que el resto.
+ */
+::view-transition-new(.fila-entrar) {
+  animation: var(--wiwo-motion-fast) var(--wiwo-ease-emphasized) both entrar-abajo;
+}
+
+::view-transition-old(.fila-salir) {
+  animation: 120ms var(--wiwo-ease-emphasized) both desaparecer;
 }
 
 /* Mientras la transicion corre, su capa se queda con los clics. Sin esto, apretar otra seccion de

@@ -16,6 +16,7 @@ import {
   MenuContextual,
   SeparadorMenu
 } from '@/componentes/superposiciones/MenuContextual'
+import { conLimite, TIEMPO_ESCRITURA_MS } from '@/datos/red'
 
 interface PropsMenuUsuario {
   nombre: string
@@ -69,7 +70,9 @@ export function MenuUsuario ({ nombre, imagen, ultimaNovedad }: PropsMenuUsuario
     enviarAlApp(mensajeLogout())
 
     try {
-      await fetch('/api/sesion', { method: 'DELETE' })
+      await fetch('/api/sesion', { method: 'DELETE', signal: conLimite(undefined, TIEMPO_ESCRITURA_MS) })
+    } catch {
+      // Sin respuesta la sesion se da por terminada igual: el destino la revalida.
     } finally {
       // Pase lo que pase con la API, la cookie ya se borro del lado del servidor o la sesion quedo
       // inservible: en los dos casos corresponde ir a entrar.

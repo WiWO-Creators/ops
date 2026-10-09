@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, type ReactElement, type ReactNode } from 'react'
+import { AvisoEnLinea } from '@/componentes/estado/Estados'
 import { Boton } from '@/componentes/formularios/Boton'
 import { Campo } from '@/componentes/formularios/Campo'
 import { Entrada } from '@/componentes/formularios/Entrada'
@@ -16,8 +17,9 @@ import { formatearDesviacion, SIN_DATO, textoDeEntrega } from '@/lib/sla'
 import { hoyLocal } from '@/lib/fechas'
 import { cn } from '@/lib/clases'
 import { GLOSARIO } from '@/dominio/glosario'
-import { ESTADO_COMPLETO, type ProcesoDeFicha } from './tareas'
+import { estaCerrada, type ProcesoDeFicha } from './tareas'
 import type { AprobacionProceso, Proceso } from '@/datos/recursos'
+import { useAviso } from '@/componentes/estado/useAviso'
 
 /**
  * ETA, desviacion y aprobacion del cliente, en el detalle del Proceso.
@@ -80,10 +82,11 @@ export function hayDatosDeSla (tarea: ProcesoDeFicha): boolean {
  * cerrada por una via que no la puso— es justamente la que hay que poder corregir.
  */
 function hayCierre (tarea: ProcesoDeFicha): boolean {
-  return tarea.status === ESTADO_COMPLETO || tarea.date_finished !== null
+  return estaCerrada(tarea.status) || tarea.date_finished !== null
 }
 
 export function BloqueSla ({ tarea, puedeEditar, onCambiado }: PropsBloqueSla): ReactElement | null {
+  const aviso = useAviso()
   const [pidiendo, setPidiendo] = useState(false)
   const [fallo, setFallo] = useState<string | null>(null)
   const [corrigiendoCierre, setCorrigiendoCierre] = useState(false)
@@ -111,6 +114,7 @@ export function BloqueSla ({ tarea, puedeEditar, onCambiado }: PropsBloqueSla): 
       return
     }
 
+    aviso.exito(`Se pidió al ${GLOSARIO.cliente.singular.toLowerCase()} la aprobación de «${tarea.name}».`)
     onCambiado()
   }
 
@@ -208,7 +212,7 @@ export function BloqueSla ({ tarea, puedeEditar, onCambiado }: PropsBloqueSla): 
           >
             Pedir aprobación al cliente
           </Boton>
-          {fallo !== null && <p role="alert" className="text-texto-peligro text-sm">{fallo}</p>}
+          {fallo !== null && <AvisoEnLinea variante="error" mensaje={fallo} className="text-sm" />}
         </div>
       )}
     </section>
@@ -219,7 +223,7 @@ export function BloqueSla ({ tarea, puedeEditar, onCambiado }: PropsBloqueSla): 
 function Celda ({ etiqueta, children }: { etiqueta: string, children: ReactNode }): ReactElement {
   return (
     <div className="flex min-w-0 flex-col items-start gap-1.5">
-      <span className="text-texto-sutil text-xs font-medium tracking-[0.08em] uppercase">{etiqueta}</span>
+      <span className="text-texto-sutil text-xs antetitulo">{etiqueta}</span>
       {children}
     </div>
   )
@@ -291,6 +295,7 @@ function Aprobacion ({ aprobacion }: { aprobacion: AprobacionProceso | undefined
 function CorreccionDeCierre (
   { tarea, onCerrar, onGuardada }: { tarea: ProcesoDeFicha, onCerrar: () => void, onGuardada: () => void }
 ): ReactElement {
+  const aviso = useAviso()
   const [fecha, setFecha] = useState(() => fechaDeCierre(tarea.date_finished) || hoyLocal())
   const [guardando, setGuardando] = useState(false)
   const [fallo, setFallo] = useState<string | null>(null)
@@ -300,7 +305,7 @@ function CorreccionDeCierre (
     const instante = instanteDeCierre(fecha)
 
     if (instante === null) {
-      setFallo('Elegí una fecha válida.')
+      setFallo('Elige una fecha válida.')
       return
     }
 
@@ -316,6 +321,7 @@ function CorreccionDeCierre (
       return
     }
 
+    aviso.exito(`Fecha de cierre de «${tarea.name}» corregida.`)
     onGuardada()
   }
 

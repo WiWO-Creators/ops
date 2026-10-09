@@ -3,12 +3,14 @@
 import { CalendarDays, TriangleAlert } from 'lucide-react'
 import { useEffect, useMemo, useState, type FormEvent, type ReactElement } from 'react'
 import { escribirEnBff } from '@/componentes/datos/mutaciones'
+import { AvisoEnLinea } from '@/componentes/estado/Estados'
 import { Boton } from '@/componentes/formularios/Boton'
 import { Campo } from '@/componentes/formularios/Campo'
 import { Entrada } from '@/componentes/formularios/Entrada'
 import { ContenidoSelector, DisparadorSelector, Opcion, Selector } from '@/componentes/formularios/Selector'
 import { ContenidoDialogo, Dialogo } from '@/componentes/superposiciones/Dialogo'
 import { mensajeDeRespuesta } from '@/datos/cliente'
+import { conLimite, esTiempoAgotado, TIEMPO_LECTURA_MS } from '@/datos/red'
 import {
   camposDeRegla, cuerpoDePrevia, erroresDeApiEnRegla, erroresDeRegla, parcheDeRegla, textoDeFechaDePrevia, tieneDosTopes,
   UNIDADES_REGLA, type CampoRegla, type CamposRegla, type CuerpoPrevia, type Previa, type ReglaGuardada
@@ -16,6 +18,7 @@ import {
 import { formatearFecha } from '@/lib/fechas'
 import { DiasExcluidos } from './DiasExcluidos'
 import { FinDeRecurrencia } from './FinDeRecurrencia'
+import { useAviso } from '@/componentes/estado/useAviso'
 
 /** La Tarea cuya regla se edita: lo guardado y lo minimo para nombrarla. */
 export type TareaConRegla = ReglaGuardada & { id: number, name: string, paused?: boolean }
@@ -75,14 +78,23 @@ type EstadoPrevia =
  * @param senal aborta el pedido si llega otro
  * @returns el estado ya resuelto
  * @throws DOMException `AbortError` si se cancelo; quien llama lo descarta
+ * @throws Error si el servidor tardo mas de `TIEMPO_LECTURA_MS`
  */
 async function pedirPrevia (cuerpo: CuerpoPrevia, senal: AbortSignal): Promise<EstadoPrevia> {
-  const respuesta = await fetch('/api/bff/tasks/recurrentes/previa', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(cuerpo),
-    signal: senal
-  })
+  let respuesta: Response
+
+  try {
+    respuesta = await fetch('/api/bff/tasks/recurrentes/previa', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(cuerpo),
+      signal: conLimite(senal, TIEMPO_LECTURA_MS)
+    })
+  } catch (fallo) {
+    if (esTiempoAgotado(fallo)) throw new Error('El servidor tardó demasiado en calcular la vista previa.')
+
+    throw fallo
+  }
 
   if (!respuesta.ok) {
     const detalles = await respuesta.clone().json()
@@ -145,6 +157,7 @@ function FormularioDeRegla ({ tarea, onCerrar, onGuardada }: {
   onCerrar: () => void
   onGuardada?: () => void
 }): ReactElement {
+  const aviso = useAviso()
   const inicial = useMemo(() => camposDeRegla(tarea), [tarea])
   const [campos, setCampos] = useState<CamposRegla>(inicial)
   const [intentado, setIntentado] = useState(false)
@@ -194,9 +207,17 @@ function FormularioDeRegla ({ tarea, onCerrar, onGuardada }: {
     if (!resultado.ok) {
       setErroresApi(erroresDeApiEnRegla(resultado.detalles))
       setError(resultado.mensaje)
+
+      if (resultado.incierta === true) {
+        // No se sabe si quedo: se avisa y el listado vuelve a leerse; el formulario sigue para reintentar.
+        aviso.advertencia(resultado.mensaje)
+        onGuardada?.()
+      }
+
       return
     }
 
+    aviso.exito(`Recurrencia de «${tarea.name}» guardada.`)
     onGuardada?.()
     onCerrar()
   }
@@ -244,7 +265,7 @@ function FormularioDeRegla ({ tarea, onCerrar, onGuardada }: {
 
         <div className="flex min-w-0 flex-col gap-2 sm:col-span-3">
           <FinDeRecurrencia inicio={campos.inicio} valor={campos.fin} onCambiar={(fin) => { cambiar({ fin }) }} />
-          {errores.fin !== undefined && <p role="alert" className="text-texto-peligro text-xs">{errores.fin}</p>}
+          {errores.fin !== undefined && <AvisoEnLinea variante="error" mensaje={errores.fin} />}
           {dosTopes && (
             <p className="text-texto-sutil text-xs">
               Esta regla termina tras {inicial.fin.ciclos} veces o el {formatearFecha(inicial.fin.hasta)}, lo que ocurra
@@ -256,7 +277,7 @@ function FormularioDeRegla ({ tarea, onCerrar, onGuardada }: {
 
       <VistaPrevia estado={previa} hayErroresLocales={hayErroresLocales} />
 
-      {error !== null && <p role="alert" className="text-texto-peligro animate-entrar-abajo text-sm">{error}</p>}
+      {error !== null && <AvisoEnLinea variante="error" mensaje={error} className="text-sm" />}
 
       <div className="flex justify-end gap-2">
         <Boton variante="secundario" onClick={onCerrar} disabled={enCurso}>Cancelar</Boton>
@@ -284,7 +305,7 @@ function FormularioDeRegla ({ tarea, onCerrar, onGuardada }: {
 function VistaPrevia ({ estado, hayErroresLocales }: { estado: EstadoPrevia, hayErroresLocales: boolean }): ReactElement {
   return (
     <section aria-live="polite" aria-busy={estado.fase === 'esperando' && !hayErroresLocales} className="border-linea bg-superficie-hundida rounded-tarjeta flex flex-col gap-2 border p-4">
-      <h3 className="text-texto-sutil text-xs font-medium tracking-[0.08em] uppercase">Vista previa</h3>
+      <h3 className="text-texto-sutil text-xs antetitulo">Vista previa</h3>
 
       {hayErroresLocales
         ? <p className="text-texto-tenue text-sm">Corrige los campos marcados para ver las próximas copias.</p>

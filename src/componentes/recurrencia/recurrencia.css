@@ -13,13 +13,8 @@
  * color, que es lo que informa— y el brillo del esqueleto queda quieto.
  */
 
-/* Entrada escalonada: cada fila recibe su posicion en `--i` y espera 40ms por cada una, con techo
- * para que una lista larga no tarde un segundo en terminar de aparecer. */
-.rec-escalonada {
-  animation: rec-entrar var(--wiwo-motion-medium) var(--wiwo-ease-emphasized) both;
-  animation-delay: calc(min(var(--i, 0), 10) * 40ms);
-}
-
+/* La entrada escalonada de la lista es de `EntradaEscalonada`. Esta es la de un panel entero, que
+ * pide `::view-transition-new(.rec-entrada)` mas abajo. */
 @keyframes rec-entrar {
   from { opacity: 0; transform: translateY(6px); }
   to { opacity: 1; transform: none; }
@@ -72,7 +67,6 @@
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .rec-escalonada,
   .rec-fila-ok,
   .rec-marca {
     animation-name: aparecer;

@@ -6,6 +6,8 @@ import { Vacio } from '@/componentes/estado/Estados'
 import { EnlacePersona } from '@/componentes/presentadores/EnlacePersona'
 import type { AlcanceDeLive } from '@/dominio/live'
 import type { FilaDeLive } from '@/datos/live'
+import { conLimite, esTiempoAgotado, TIEMPO_LECTURA_MS } from '@/datos/red'
+import { sondeoSinApilar } from '@/datos/sondeo'
 import type { Yo } from '@/datos/tipos'
 import { escucharMedidor } from './medidor'
 import { cn } from '@/lib/clases'
@@ -98,7 +100,7 @@ export function PanelEquipo ({
   useEffect(() => { leidoEn.current = Date.now() }, [])
 
   const refrescar = useCallback(async (senal: AbortSignal): Promise<void> => {
-    const respuesta = await fetch('/api/bff/live', { signal: senal })
+    const respuesta = await fetch('/api/bff/live', { signal: conLimite(senal, TIEMPO_LECTURA_MS) })
 
     if (!respuesta.ok) throw new Error('La API no respondió a la consulta del tablero.')
 
@@ -113,26 +115,33 @@ export function PanelEquipo ({
   useEffect(() => {
     const control = new AbortController()
 
-    function tic (): void {
-      // Con la pestaña oculta no se pregunta: nadie esta mirando, y el tablero se pone al dia solo
-      // en cuanto vuelve al frente.
-      if (document.hidden) return
-
-      refrescar(control.signal).catch((fallo: unknown) => {
+    const consultar = sondeoSinApilar(async () => {
+      try {
+        await refrescar(control.signal)
+      } catch (fallo) {
         if (control.signal.aborted) return
 
-        setError(fallo instanceof Error ? fallo.message : 'No se pudo actualizar el tablero.')
-      })
-    }
+        setError(
+          esTiempoAgotado(fallo)
+            ? 'El tablero tardó en responder. Se vuelve a intentar solo.'
+            : fallo instanceof Error ? fallo.message : 'No se pudo actualizar el tablero.'
+        )
+      }
+    })
+
+    // Con la pestaña oculta no se pregunta: nadie esta mirando, y el tablero se pone al dia solo
+    // en cuanto vuelve al frente. El tic periodico no se apila sobre una consulta en camino.
+    const tic = (): void => { if (!document.hidden) consultar(false) }
+    const ticPeriodico = (): void => { if (!document.hidden) consultar(true) }
 
     const dejarDeEscuchar = escucharMedidor(tic)
-    const intervalo = globalThis.setInterval(tic, segundos * 1000)
-    document.addEventListener('visibilitychange', tic)
+    const intervalo = globalThis.setInterval(ticPeriodico, segundos * 1000)
+    document.addEventListener('visibilitychange', ticPeriodico)
 
     return () => {
       dejarDeEscuchar()
       globalThis.clearInterval(intervalo)
-      document.removeEventListener('visibilitychange', tic)
+      document.removeEventListener('visibilitychange', ticPeriodico)
       control.abort()
     }
   }, [refrescar, segundos])
@@ -228,7 +237,7 @@ function SinJornada ({ filas }: { filas: FilaDeLive[] }) {
           size={14}
           strokeWidth={2}
           aria-hidden="true"
-          className="shrink-0 transition-transform duration-150 group-open:rotate-90"
+          className="ease-neo shrink-0 transition-transform duration-rapida group-open:rotate-90"
         />
         Sin jornada abierta
         <span className="text-texto-sutil tabular-nums">({filas.length})</span>

@@ -6,6 +6,7 @@
  * **Nada de esto decide alcance**: eso lo calcula la API (`GET /accesos/personas/{id}/alcance`). Acá
  * solo se cuentan huecos que están a la vista en los mismos datos que la pantalla pinta.
  */
+import { sinAcentos } from '../lib/texto.ts'
 import { etiquetaDeEscalon } from './escalon.ts'
 import { banderasDeRol, rolDeSistemaDe, type RolDeSistema } from './rol-sistema.ts'
 import type { Escalon } from './escalon.ts'
@@ -139,7 +140,7 @@ export const FILTROS_DE_ROL: ReadonlyArray<{ valor: string, etiqueta: string }> 
  * @returns El texto comparable.
  */
 export function comparable (texto: string): string {
-  return texto.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().trim()
+  return sinAcentos(texto)
 }
 
 /**

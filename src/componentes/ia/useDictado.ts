@@ -1,7 +1,7 @@
 'use client'
 
 import { useCallback, useEffect, useRef, useState, useSyncExternalStore } from 'react'
-import { subirArchivoEnBff } from '@/componentes/datos/mutaciones'
+import { escribirEnBff } from '@/componentes/datos/mutaciones'
 import { mensajeDeMicrofono, mimeDeGrabacion } from '@/dominio/actas'
 import {
   CAMPO_DICTADO,
@@ -229,18 +229,22 @@ export function useDictado (
 
       const archivo = new File([bloque], nombreDeDictado(tipo), { type: tipo })
 
-      void subirArchivoEnBff<{ texto: string }>(RUTA_DICTADO, archivo, CAMPO_DICTADO).then((resultado) => {
+      const cuerpo = new FormData()
+
+      cuerpo.append(CAMPO_DICTADO, archivo)
+
+      void escribirEnBff<{ texto: string } | undefined>(RUTA_DICTADO, 'POST', cuerpo).then((resultado) => {
         if (!vivo.current) return
 
         setFase('reposo')
 
         if (!resultado.ok) {
-          setError(resultado.mensaje)
+          setError(resultado.incierta === true ? 'La transcripción tardó demasiado. Intenta dictar de nuevo.' : resultado.mensaje)
 
           return
         }
 
-        const texto = resultado.datos.texto.trim()
+        const texto = resultado.datos?.texto.trim() ?? ''
 
         if (texto === '') {
           setError('No se entendió nada de lo que se dictó.')

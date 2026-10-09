@@ -1,9 +1,11 @@
 import { headers } from 'next/headers'
+import { Suspense } from 'react'
 import Link from 'next/link'
-import { pedir, pedirOpcional } from '@/datos/servidor'
+import { cargarYo, pedirOpcional } from '@/datos/servidor'
 import { leerSuplantador } from '@/datos/sesion'
 import type { Yo } from '@/datos/tipos'
 import { GLOSARIO } from '@/dominio/glosario'
+import { puedeFusionar } from '@/dominio/fusion'
 import { puedeVerFocals, puedeVerMiArea, puedeVerSeccion } from '@/dominio/permisos'
 import { puedeVerSupervision } from '@/dominio/supervision'
 import { intervaloDeLatido } from '@/datos/auditoria'
@@ -27,7 +29,9 @@ import { ControlJornada } from '@/componentes/live/ControlJornada'
 import { Logo } from '@/componentes/estructura/Logo'
 import { MenuUsuario } from '@/componentes/estructura/MenuUsuario'
 import { ProveedorEnlaces } from '@/componentes/presentadores/ProveedorEnlaces'
+import { ProveedorFusion } from '@/componentes/fusion/ProveedorFusion'
 import { ScrollSuave } from '@/componentes/estructura/ScrollSuave'
+import { IndicadorDeRed } from '@/componentes/estado/IndicadorDeRed'
 import { LlamadaEnCurso } from '@/componentes/teletrabajo/LlamadaEnCurso'
 import { VigilanteDeVersion } from '@/componentes/estructura/VigilanteDeVersion'
 import { vistasPermitidas } from '@/dominio/vistas-de-auditoria'
@@ -50,7 +54,7 @@ const SIN_FIJADOS: Fijado[] = []
  * logica de permisos al navegador, que es exactamente lo que no se quiere.
  */
 export default async function PanelLayout ({ children }: { children: React.ReactNode }) {
-  const { data: yo } = await pedir<Yo>('/me')
+  const { data: yo } = await cargarYo()
   const secciones = seccionesDe(yo)
   const segundosDeLive = intervaloDeLive()
   // Los dos van con `pedirOpcional`: son accesorios de la cabecera y ninguno puede tumbar el armazon
@@ -87,6 +91,8 @@ export default async function PanelLayout ({ children }: { children: React.React
     // `EnlaceCliente` o `EnlaceProyecto` de cualquier pantalla enlace sin que su llamador tenga que
     // pasarle `capacidades` a mano.
     <ProveedorEnlaces permisos={yo.permissions}>
+    <ProveedorFusion puede={puedeFusionar(yo)}>
+      <Suspense fallback={null}><IndicadorDeRed /></Suspense>
     <div className="flex h-dvh flex-col overflow-hidden">
       {suplantando && <BarraSuplantacion nombre={yo.full_name} />}
 
@@ -201,6 +207,7 @@ export default async function PanelLayout ({ children }: { children: React.React
         </div>
       </div>
     </div>
+    </ProveedorFusion>
     </ProveedorEnlaces>
   )
 }
@@ -233,6 +240,10 @@ function seccionesDe (yo: Yo): Seccion[] {
   // sin `tasks.view` ve sus asignaciones igual, que es justamente la regla de `puedeVerSeccion`.
   // Va antes que Tareas: primero lo de uno, despues el listado de toda la casa.
   secciones.push({ href: '/mis-tareas', etiqueta: `Mis ${GLOSARIO.proceso.plural}`, icono: 'mis_tareas', grupo: 'principal' })
+
+  // Propuestas tampoco lleva condicion: son de quien las recibe, la API solo devuelve las propias, y
+  // sin propuestas la pantalla se explica sola. El contador de la barra aparece cuando hay alguna.
+  secciones.push({ href: '/propuestas', etiqueta: 'Propuestas', icono: 'propuestas', grupo: 'operacion' })
 
   if (puedeVerSeccion(yo.permissions.tasks, 'tasks')) {
     secciones.push({ href: '/tareas', etiqueta: GLOSARIO.proceso.plural, icono: 'procesos', grupo: 'operacion' })
@@ -368,6 +379,12 @@ function seccionesDe (yo: Yo): Seccion[] {
   // deshacer lo que borro sin pedirselo a un superadministrador.
   if (yo.is_admin || yo.is_superadmin) {
     secciones.push({ href: '/papelera', etiqueta: 'Papelera', icono: 'papelera', grupo: 'administracion' })
+  }
+
+  // Fusiones tiene su propia llave: la fusion tambien la hace la coordinacion multiarea, que no ve la
+  // Papelera, y el "Deshacer" tiene que estar al alcance de quien fusiono.
+  if (puedeFusionar(yo)) {
+    secciones.push({ href: '/fusiones', etiqueta: 'Fusiones', icono: 'fusiones', grupo: 'administracion' })
   }
 
   return secciones

@@ -4,7 +4,8 @@ import { useState } from 'react'
 import { Plus } from 'lucide-react'
 import { Boton } from '@/componentes/formularios/Boton'
 import { Campo } from '@/componentes/formularios/Campo'
-import { AreaTexto, Entrada } from '@/componentes/formularios/Entrada'
+import { EditorRico } from '@/componentes/formularios/EditorRico'
+import { Entrada } from '@/componentes/formularios/Entrada'
 import { ContenidoDialogo, Dialogo, DisparadorDialogo } from '@/componentes/superposiciones/Dialogo'
 import { escribirEnBff } from '@/componentes/datos/mutaciones'
 import { TareasAsignadas } from '@/componentes/mis-tareas/TareasAsignadas'
@@ -12,6 +13,8 @@ import { errorDeDescripcion } from '@/dominio/descripcion-tarea'
 import { GLOSARIO } from '@/dominio/glosario'
 import { SOLO_SIN_ESPACIO } from '@/dominio/mis-tareas'
 import type { EstadoLookup } from '@/datos/recursos'
+import { useAviso } from '@/componentes/estado/useAviso'
+import { AvisoEnLinea } from '@/componentes/estado/Estados'
 
 interface PropsTareasPrivadas {
   /** Quien mira. Es a la vez el filtro de la lista y el dueño de lo que se cree. */
@@ -80,9 +83,12 @@ export function TareasPrivadas ({ personaId, estados, rutaDetalle, verCompletada
  * @param personaId A quien se le asigna. Es lo que la hace privada y no huerfana.
  */
 function DialogoTareaPrivada ({ personaId }: { personaId: number }) {
+  const aviso = useAviso()
   const [abierto, setAbierto] = useState(false)
   const [nombre, setNombre] = useState('')
+  // HTML del editor; el editor no es controlado y se vacia remontandolo con otra `key`.
   const [descripcion, setDescripcion] = useState('')
+  const [versionDescripcion, setVersionDescripcion] = useState(0)
   const [vence, setVence] = useState('')
   const [enCurso, setEnCurso] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -92,6 +98,7 @@ function DialogoTareaPrivada ({ personaId }: { personaId: number }) {
   function limpiar (): void {
     setNombre('')
     setDescripcion('')
+    setVersionDescripcion((version) => version + 1)
     setVence('')
     setError(null)
   }
@@ -125,6 +132,7 @@ function DialogoTareaPrivada ({ personaId }: { personaId: number }) {
     const resultado = await escribirEnBff<{ id: number }>('tasks', 'POST', {
       name: titulo,
       description: descripcion.trim(),
+      format: 'html',
       // Los dos juntos y explicitos: la API trata "uno de los dos" como error, no como default.
       rel_type: null,
       rel_id: null,
@@ -142,6 +150,7 @@ function DialogoTareaPrivada ({ personaId }: { personaId: number }) {
       return
     }
 
+    aviso.exito(`«${titulo}» se creó.`)
     limpiar()
     setAbierto(false)
   }
@@ -184,10 +193,12 @@ function DialogoTareaPrivada ({ personaId }: { personaId: number }) {
             ayuda="La API la exige: es lo que hace que la tarea se entienda sin preguntarte."
           >
             {(props) => (
-              <AreaTexto
+              <EditorRico
                 {...props}
-                value={descripcion}
-                onChange={(evento) => { setDescripcion(evento.target.value) }}
+                key={versionDescripcion}
+                etiqueta="Descripción"
+                valorInicial={descripcion}
+                onCambio={setDescripcion}
               />
             )}
           </Campo>
@@ -203,7 +214,7 @@ function DialogoTareaPrivada ({ personaId }: { personaId: number }) {
             )}
           </Campo>
 
-          {error !== null && <p role="alert" className="text-texto-peligro text-sm">{error}</p>}
+          {error !== null && <AvisoEnLinea variante="error" mensaje={error} className="text-sm" />}
 
           <div className="flex justify-end gap-2">
             <Boton onClick={() => { setAbierto(false) }}>Cancelar</Boton>

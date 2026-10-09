@@ -13,7 +13,7 @@ import { useRecurso } from './carga'
 import {
   ALTO_FILA,
   ANCHO_NOMBRES,
-  ESTADO_COMPLETA,
+  estaCompleta,
   PASO_FILA,
   ZOOMS,
   altoDeGantt,
@@ -22,6 +22,7 @@ import {
   contarFueraDeVentanaDeGantt,
   describirDependencias,
   esZoomGantt,
+  fechaDeDia,
   filasDeGantt,
   flechasDeGantt,
   lecturasDelGantt,
@@ -204,7 +205,7 @@ export function PanelGantt ({
   /** Suma o quita un estado del filtro. Sin ninguno, la API devuelve todos. */
   function alternarEstado (id: number): void {
     const siguientes = estados.includes(id) ? estados.filter((n) => n !== id) : [...estados, id]
-    const enciendeCompleta = id === ESTADO_COMPLETA && !estados.includes(id)
+    const enciendeCompleta = estaCompleta(id) && !estados.includes(id)
 
     elegir({
       [PARAMETRO.estado]: siguientes.length === 0 ? null : siguientes.join(','),
@@ -222,7 +223,7 @@ export function PanelGantt ({
 
     // Esconder las completadas mientras la ficha "Completa" esta encendida no dejaria nada que ver:
     // se apaga la ficha, que es la que se acaba de contradecir.
-    const sinCompleta = estados.filter((id) => id !== ESTADO_COMPLETA)
+    const sinCompleta = estados.filter((id) => !estaCompleta(id))
 
     elegir({
       [PARAMETRO.completadas]: COMPLETADAS_OCULTAS,
@@ -829,16 +830,6 @@ function Pista ({ fila }: { fila: FilaGantt }): ReactElement {
       </span>
     </div>
   )
-}
-
-/**
- * Convierte un dia UTC desde la epoca de vuelta a `YYYY-MM-DD`.
- *
- * @param dia el dia que devuelve `rangoDeGantt`
- * @returns la fecha en el formato del contrato
- */
-function fechaDeDia (dia: number): string {
-  return new Date(dia * 86400000).toISOString().slice(0, 10)
 }
 
 /**

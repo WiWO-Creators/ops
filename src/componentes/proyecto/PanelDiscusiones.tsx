@@ -6,6 +6,8 @@ import { useRouter, useSearchParams } from 'next/navigation'
 import { useEffect, useState, type ReactElement } from 'react'
 import { idDeParametro, PARAMETRO_TAREA, urlConParametro } from '@/componentes/datos/tabla'
 import { Cargando, ErrorEstado, Vacio } from '@/componentes/estado/Estados'
+import { EntradaEscalonada } from '@/componentes/estructura/EntradaEscalonada'
+import { PaginacionTabla } from '@/componentes/datos/PaginacionTabla'
 import { Boton } from '@/componentes/formularios/Boton'
 import { Entrada } from '@/componentes/formularios/Entrada'
 import { GrupoAvatares } from '@/componentes/presentadores/Avatar'
@@ -19,7 +21,7 @@ import { useRecurso } from './carga'
 import { autorBreve, extractoDeComentario, type ConversacionDeProyecto } from './discusiones'
 import { HiloDeComentarios } from './HiloDeComentarios'
 import { ModalTarea } from './ModalTarea'
-import { ESTADO_COMPLETO } from './tareas'
+import { estaCerrada } from './tareas'
 
 /**
  * Pestaña Discusiones de un Proyecto: las conversaciones de sus Tareas, en una bandeja.
@@ -80,8 +82,10 @@ export function PanelDiscusiones ({ proyectoId, fuente, capacidadesTareas }: Pro
   // La ultima lista que llego se sigue mostrando mientras se pide la siguiente (al responder, al
   // buscar, al volver a la pestaña). Sin eso la lista y el hilo abierto se desmontan en cada recarga:
   // el cuadro pierde el foco y la pantalla parpadea justo despues de escribir.
-  const [ultima, setUltima] = useState<{ datos: ConversacionDeProyecto[], meta: Meta | undefined } | null>(null)
-  if (estado.fase === 'listo' && estado.datos !== ultima?.datos) setUltima({ datos: estado.datos, meta: estado.meta })
+  // Guarda tambien la consulta que la trajo: la lista entra de nuevo cuando llega otra pagina u otra
+  // busqueda, no cuando una respuesta refresca la misma.
+  const [ultima, setUltima] = useState<{ datos: ConversacionDeProyecto[], meta: Meta | undefined, consulta: string } | null>(null)
+  if (estado.fase === 'listo' && estado.datos !== ultima?.datos) setUltima({ datos: estado.datos, meta: estado.meta, consulta: consulta.toString() })
 
   const ultimaLista = ultima?.datos ?? null
   const conversaciones = estado.fase === 'listo' ? estado.datos : (ultimaLista ?? [])
@@ -163,41 +167,34 @@ export function PanelDiscusiones ({ proyectoId, fuente, capacidadesTareas }: Pro
           )}
 
           {conversaciones.length > 0 && (
-            <ol
-              aria-busy={recargando || undefined}
-              className={cn(
-                'flex max-h-[70dvh] flex-col gap-0.5 overflow-y-auto overscroll-contain p-1.5 transition-opacity duration-150',
-                recargando && 'opacity-70'
-              )}
-              data-lenis-prevent
-            >
-              {conversaciones.map((conversacion) => (
-                <li key={conversacion.task.id}>
-                  <FilaDeConversacion
-                    conversacion={conversacion}
-                    activa={conversacion.task.id === abierta}
-                    onAbrir={() => { abrir(conversacion.task.id) }}
-                  />
-                </li>
-              ))}
-            </ol>
+            <EntradaEscalonada densa clave={ultima?.consulta} className="contents">
+              <ol
+                aria-busy={recargando || undefined}
+                className={cn(
+                  'flex max-h-[70dvh] flex-col gap-0.5 overflow-y-auto overscroll-contain p-1.5 transition-opacity duration-rapida ease-neo',
+                  recargando && 'opacity-70'
+                )}
+                data-lenis-prevent
+              >
+                {conversaciones.map((conversacion) => (
+                  <li key={conversacion.task.id} data-entrada="item">
+                    <FilaDeConversacion
+                      conversacion={conversacion}
+                      activa={conversacion.task.id === abierta}
+                      onAbrir={() => { abrir(conversacion.task.id) }}
+                    />
+                  </li>
+                ))}
+              </ol>
+            </EntradaEscalonada>
           )}
 
-          {paginacion !== undefined && paginacion.total_pages > 1 && (
-            <div className="border-linea-suave text-texto-tenue mt-auto flex items-center justify-between gap-2 border-t px-3 py-2 text-xs">
-              <span aria-live="polite" className="tabular-nums">
-                {(paginacion.page - 1) * paginacion.per_page + 1}-{Math.min(paginacion.page * paginacion.per_page, paginacion.total)} de {paginacion.total}
-              </span>
-              <span className="flex gap-1">
-                <Boton variante="sutil" tamano="chico" disabled={paginacion.page <= 1} onClick={() => { setPagina(paginacion.page - 1) }}>
-                  Anteriores
-                </Boton>
-                <Boton variante="sutil" tamano="chico" disabled={paginacion.page >= paginacion.total_pages} onClick={() => { setPagina(paginacion.page + 1) }}>
-                  Siguientes
-                </Boton>
-              </span>
-            </div>
-          )}
+          <PaginacionTabla
+            paginacion={paginacion}
+            conPorPagina={false}
+            onCambiar={({ pagina: destino }) => { if (destino !== undefined) setPagina(destino) }}
+            className="border-linea-suave mt-auto border-t px-3 py-2"
+          />
         </nav>
 
         {/* El hilo. En el telefono aparece solo con una conversacion elegida. */}
@@ -284,7 +281,7 @@ function FilaDeConversacion ({ conversacion, activa, onAbrir }: PropsFilaDeConve
   const ultimo = conversacion.last_comment
   const quien = ultimo === null ? null : autorBreve(ultimo)
   const extracto = ultimo === null ? '' : extractoDeComentario(ultimo.content)
-  const completa = conversacion.task.status === ESTADO_COMPLETO
+  const completa = estaCerrada(conversacion.task.status)
 
   return (
     <button
@@ -292,7 +289,7 @@ function FilaDeConversacion ({ conversacion, activa, onAbrir }: PropsFilaDeConve
       onClick={onAbrir}
       aria-current={activa ? 'true' : undefined}
       className={cn(
-        'rounded-medio relative flex w-full flex-col gap-1.5 px-3 py-2.5 text-left transition-colors duration-150',
+        'rounded-medio relative flex w-full flex-col gap-1.5 px-3 py-2.5 text-left transition-colors duration-rapida ease-neo',
         'hover:bg-hover focus-visible:outline-foco focus-visible:outline-2 focus-visible:-outline-offset-2',
         activa && 'bg-seleccionado hover:bg-seleccionado',
         // La barra marca la elegida sin depender solo del fondo, que en oscuro se distingue poco.

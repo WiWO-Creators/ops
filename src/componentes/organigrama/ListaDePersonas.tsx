@@ -215,7 +215,7 @@ function CeldaPersona ({ fila, editable, onElegir }: {
             : 'Abrir su ficha.'}`}
           onClick={() => { onElegir(persona.staffid) }}
           className={cn(
-            'text-texto truncate text-left text-[13px] leading-tight font-semibold',
+            'text-texto truncate text-left text-sm leading-tight font-semibold',
             'focus-visible:outline-foco focus-visible:outline-2 focus-visible:outline-offset-2'
           )}
         >

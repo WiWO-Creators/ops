@@ -155,13 +155,22 @@ export function Hueso ({ className }: { className?: string }) {
 }
 
 interface PropsAvisoEnLinea {
-  /** `error` interrumpe (se anuncia de inmediato); `exito` solo confirma. */
-  variante: 'error' | 'exito'
+  /** `error` interrumpe (se anuncia de inmediato); `exito` solo confirma; `aviso` advierte sin ser un fallo. */
+  variante: 'error' | 'exito' | 'aviso'
   mensaje: string
   /** Para asociarlo con `aria-describedby` desde el campo que explica. */
   id?: string
+  /** `span` cuando va dentro de un contenedor en linea (un `span` o un `button`), donde un `p` no cabe. */
+  elemento?: 'p' | 'span'
   className?: string
 }
+
+/** El color de cada variante del aviso en línea. */
+const TONO_DE_AVISO = {
+  error: 'text-texto-peligro',
+  exito: 'text-texto-exito',
+  aviso: 'text-texto-aviso'
+} as const
 
 /**
  * Aviso en linea, junto al campo o al boton que lo origino: la variante inline del toast comun.
@@ -173,21 +182,26 @@ interface PropsAvisoEnLinea {
  *
  * No reemplaza el error de validacion de un campo puntual: ese vive en la prop `error` de `Campo`.
  *
- * @param variante `error` o `exito`
+ * Entra con `animate-entrar-abajo`, el mismo gesto para todo aviso en linea; el tamaño de letra y
+ * los margenes se ajustan con `className` (`text-sm` para el error general de un formulario).
+ *
+ * @param variante `error`, `exito` o `aviso` (una advertencia que no es un fallo)
  * @param mensaje el texto a mostrar
+ * @param id para asociarlo con `aria-describedby`
+ * @param elemento `p` por defecto; `span` dentro de un contenedor en linea
  * @param className clases extra
  */
-export function AvisoEnLinea ({ variante, mensaje, id, className }: PropsAvisoEnLinea) {
+export function AvisoEnLinea ({ variante, mensaje, id, elemento: Elemento = 'p', className }: PropsAvisoEnLinea) {
   const esError = variante === 'error'
 
   return (
-    <p
+    <Elemento
       id={id}
       role={esError ? 'alert' : 'status'}
-      className={cn('text-xs', esError ? 'text-texto-peligro' : 'text-texto-exito', className)}
+      className={cn('animate-entrar-abajo text-xs', TONO_DE_AVISO[variante], className)}
     >
       {mensaje}
-    </p>
+    </Elemento>
   )
 }
 

@@ -149,6 +149,8 @@ export interface PropuestasDelActa {
 export interface ParcheDePropuesta {
   titulo?: string
   descripcion?: string | null
+  /** Avisa a la API que `descripcion` es HTML del editor. Viaja siempre que viaja `descripcion`. */
+  format?: 'html'
   vence?: string | null
   prioridad?: number
   asignados?: number[]

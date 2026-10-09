@@ -1,5 +1,5 @@
 import { notFound } from 'next/navigation'
-import { pedir } from '@/datos/servidor'
+import { cargarYo, pedir } from '@/datos/servidor'
 import { ErrorApi } from '@/datos/errores'
 import { firmarEntrada, quienEstaEn } from '@/datos/teletrabajo'
 import {
@@ -11,7 +11,6 @@ import {
 } from '@/dominio/teletrabajo'
 import { Sala } from './Sala'
 import type { Espacio } from '@/datos/recursos'
-import type { Yo } from '@/datos/tipos'
 
 export const metadata = { title: 'Sala · Teletrabajo · WiWO Ops' }
 
@@ -38,7 +37,7 @@ export default async function SalaDeTeletrabajoPage (props: PageProps<'/teletrab
 
   if (!esNombreDeSalaValido(sala)) notFound()
 
-  const { data: yo } = await pedir<Yo>('/me')
+  const { data: yo } = await cargarYo()
 
   const comun = salaComunPorId(sala)
   const espacioId = espacioDeSala(sala)

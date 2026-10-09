@@ -123,6 +123,8 @@ try {
   // === 2. Capa encendida: el boton aparece =========================================================
   modo = 'normal'
   dialogo = await abrirFormulario()
+  // La descripcion es un editor de texto enriquecido (`contenteditable`): se lee con `innerText`, y
+  // dos parrafos se leen separados por una linea en blanco.
   const campoDescripcion = dialogo.getByLabel(/^Descripción/)
   await campoDescripcion.fill(ESCRITO_A_MANO)
 
@@ -168,7 +170,7 @@ try {
   await asistente.getByRole('button', { name: 'Cancelar', exact: true }).click()
   await asistente.waitFor({ state: 'hidden' })
   assert.equal(
-    await campoDescripcion.inputValue(),
+    await campoDescripcion.innerText(),
     ESCRITO_A_MANO,
     'Cerrar el asistente no puede tocar la descripción.'
   )
@@ -186,7 +188,7 @@ try {
   await asistente.getByRole('button', { name: 'Agregar al final', exact: true }).click()
   await asistente.waitFor({ state: 'hidden' })
   assert.equal(
-    await campoDescripcion.inputValue(),
+    await campoDescripcion.innerText(),
     `${ESCRITO_A_MANO}\n\nBorrador del asistente.`,
     'Agregar al final conserva entero lo escrito.'
   )
@@ -204,7 +206,7 @@ try {
   )
   await asistente.getByRole('button', { name: 'Usar esta descripción', exact: true }).click()
   await asistente.waitFor({ state: 'hidden' })
-  assert.equal(await campoDescripcion.inputValue(), 'Borrador del asistente.')
+  assert.equal(await campoDescripcion.innerText(), 'Borrador del asistente.')
 
   assert.deepEqual(errores, [], 'No debe haber errores de JavaScript.')
   console.info('Asistente de descripción: apagado invisible, error claro, cancelación viva y nada pisado.')

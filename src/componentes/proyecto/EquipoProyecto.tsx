@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { Pencil } from 'lucide-react'
+import { AvisoEnLinea } from '@/componentes/estado/Estados'
 import { Boton } from '@/componentes/formularios/Boton'
 import { SelectorPersonas } from '@/componentes/formularios/SelectorPersonas'
 import { GrupoAvatares } from '@/componentes/presentadores/Avatar'
@@ -133,7 +134,7 @@ function EditorEquipo ({ proyectoId, yoId, onCancelar, onGuardado, onSalidaPropi
   return (
     <form onSubmit={guardar} className="flex w-full max-w-md flex-col gap-3">
       {cargando && <p role="status">Cargando equipo…</p>}
-      {error !== null && <p role="alert" className="text-texto-peligro text-sm">{error} Cierra y vuelve a intentar si el problema continúa.</p>}
+      {error !== null && <AvisoEnLinea variante="error" mensaje={`${error} Cierra y vuelve a intentar si el problema continúa.`} className="text-sm" />}
       {cargado && (
         <fieldset disabled={enviando} className="min-w-0">
           <legend className="mb-2 text-sm font-medium">Personas del proyecto</legend>

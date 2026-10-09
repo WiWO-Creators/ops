@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect, useRef, useState } from 'react'
+import { AvisoEnLinea } from '@/componentes/estado/Estados'
 import { Boton } from '@/componentes/formularios/Boton'
 import { Campo } from '@/componentes/formularios/Campo'
 import { AreaTexto } from '@/componentes/formularios/Entrada'
@@ -297,7 +298,7 @@ export function AsistenteDescripcion (
           )}
 
           {error !== null && (
-            <p role="alert" className="text-texto-peligro text-sm">{error}</p>
+            <AvisoEnLinea variante="error" mensaje={error} className="text-sm" />
           )}
 
           <div className="flex flex-wrap justify-end gap-2">

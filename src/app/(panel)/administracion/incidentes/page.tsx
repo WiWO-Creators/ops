@@ -3,12 +3,13 @@ import { CeldaEncabezado, CeldaTabla, CuerpoTabla, EncabezadoTabla, FilaTabla, T
 import { ErrorEstado, SinPermiso, Vacio } from '@/componentes/estado/Estados'
 import { Fecha } from '@/componentes/presentadores/Fecha'
 import { Insignia } from '@/componentes/presentadores/Insignia'
+import { PaginacionTabla } from '@/componentes/datos/PaginacionTabla'
 import { TituloModulo } from '@/componentes/estructura/TituloModulo'
 import { ErrorApi } from '@/datos/errores'
-import { pedir } from '@/datos/servidor'
+import { cargarYo, pedir } from '@/datos/servidor'
 import { describirFalla, describirOrigen, describirPeticion, describirSujeto } from '@/dominio/incidentes'
 import type { Incidente } from '@/datos/recursos'
-import type { Paginacion, Yo } from '@/datos/tipos'
+import type { Paginacion } from '@/datos/tipos'
 
 export const metadata = { title: 'Incidentes · WiWO Ops' }
 
@@ -37,6 +38,21 @@ function paginaPedida (crudo: string | string[] | undefined): number {
   if (!Number.isInteger(numero) || numero < 1) return 1
 
   return numero
+}
+
+/**
+ * Las URLs de la página anterior y la siguiente, para `PaginacionTabla`.
+ *
+ * Son enlaces y no botones porque la pantalla se pinta en el servidor: la página vive en la URL, así
+ * que cada una es una dirección que se puede recargar y pegar en un mensaje.
+ */
+function enlacesDePagina (paginacion: Paginacion | undefined): { anterior: string, siguiente: string } {
+  const actual = paginacion?.page ?? 1
+
+  return {
+    anterior: `/administracion/incidentes?page=${actual - 1}`,
+    siguiente: `/administracion/incidentes?page=${actual + 1}`
+  }
 }
 
 /**
@@ -73,7 +89,7 @@ async function cargar (pagina: number): Promise<Cargado | ErrorApi> {
  * está la compuerta real— pero pedirla igual gastaría un viaje que sabemos que vuelve 403.
  */
 export default async function IncidentesPage (props: PageProps<'/administracion/incidentes'>) {
-  const { data: yo } = await pedir<Yo>('/me')
+  const { data: yo } = await cargarYo()
 
   if (!yo.is_superadmin) return <SinPermiso className="mt-10" />
 
@@ -92,7 +108,7 @@ export default async function IncidentesPage (props: PageProps<'/administracion/
     <section className="flex flex-col gap-6">
       <TituloModulo
         titulo="Incidentes"
-        descripcion="Cada error que le cortó el trabajo a alguien, con el código que esa persona vio en pantalla. Abrí uno para ver el detalle técnico y la traza."
+        descripcion="Cada error que le cortó el trabajo a alguien, con el código que esa persona vio en pantalla. Abre uno para ver el detalle técnico y la traza."
       />
 
       {incidentes.length === 0
@@ -105,7 +121,11 @@ export default async function IncidentesPage (props: PageProps<'/administracion/
         : (
           <>
             <TablaDeIncidentes incidentes={incidentes} />
-            <Paginador paginacion={paginacion} />
+            <PaginacionTabla
+              paginacion={paginacion}
+              enlaces={enlacesDePagina(paginacion)}
+              etiqueta="Paginación de incidentes"
+            />
           </>
           )}
     </section>
@@ -175,51 +195,5 @@ function TablaDeIncidentes ({ incidentes }: { incidentes: Incidente[] }) {
         })}
       </CuerpoTabla>
     </Tabla>
-  )
-}
-
-/**
- * Anterior y siguiente, nada más.
- *
- * Son enlaces y no botones porque la pantalla se pinta en el servidor: la página vive en la URL, así
- * que cada una es una dirección que se puede recargar y pegar en un mensaje. `PaginacionTabla` no
- * sirve acá: es un componente cliente que devuelve el cambio por callback.
- *
- * Sin `meta.pagination` no se dibuja nada: inventar "página 1 de 1" cuando el backend no dijo
- * cuántas hay es afirmar algo que no se sabe.
- */
-function Paginador ({ paginacion }: { paginacion: Paginacion | undefined }) {
-  if (paginacion === undefined) return null
-
-  const { page, total, total_pages: totalPaginas } = paginacion
-
-  if (totalPaginas <= 1) return null
-
-  return (
-    <nav
-      aria-label="Paginación de incidentes"
-      className="text-texto-tenue flex flex-wrap items-center justify-between gap-2 text-xs"
-    >
-      <p aria-live="polite">Página {page} de {totalPaginas} · {total} en total</p>
-
-      <div className="flex items-center gap-4">
-        <SaltoDePagina pagina={page - 1} etiqueta="Anterior" hayADonde={page > 1} />
-        <SaltoDePagina pagina={page + 1} etiqueta="Siguiente" hayADonde={page < totalPaginas} />
-      </div>
-    </nav>
-  )
-}
-
-/** Un salto de página, apagado y sin enlace cuando no hay a dónde ir. */
-function SaltoDePagina ({ pagina, etiqueta, hayADonde }: { pagina: number, etiqueta: string, hayADonde: boolean }) {
-  if (!hayADonde) return <span className="text-texto-sutil">{etiqueta}</span>
-
-  return (
-    <Link
-      href={`/administracion/incidentes?page=${pagina}`}
-      className="text-acento font-semibold underline underline-offset-4"
-    >
-      {etiqueta}
-    </Link>
   )
 }

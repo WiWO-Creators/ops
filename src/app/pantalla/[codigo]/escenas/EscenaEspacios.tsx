@@ -2,6 +2,7 @@ import type { CSSProperties, ReactNode } from 'react'
 import { cn } from '@/lib/clases'
 import { GLOSARIO } from '@/dominio/glosario'
 import { diasHasta } from '@/lib/fechas'
+import { fechaEnLaZona } from '@/dominio/momento-del-dia'
 import { ANCHO_SOBRIO_EM, cupoDeFichas, planDeOla } from '@/dominio/solari'
 import type { PlanDeOla } from '@/dominio/solari'
 import type { ProyectoEnPantalla } from '@/datos/pantalla-area'
@@ -239,7 +240,7 @@ function formatoCorto (fecha: string | null): string {
  * @returns "hoy", "3 días", "−5 días" o una raya cuando no hay con que contestar
  */
 function cuantoFalta (fecha: string | null, ahora: number | null, zona: string | null): string {
-  const hoy = diaCalendario(ahora, zona)
+  const hoy = fechaEnLaZona(ahora, zona)
 
   if (fecha === null || hoy === null) return '—'
 
@@ -252,26 +253,4 @@ function cuantoFalta (fecha: string | null, ahora: number | null, zona: string |
   if (dias > 0) return `${dias} ${dias === 1 ? 'día' : 'días'}`
 
   return `−${-dias} ${dias === -1 ? 'día' : 'días'}`
-}
-
-/**
- * El dia de hoy (`YYYY-MM-DD`) en la zona del negocio.
- *
- * `sv-SE` porque es el unico locale que `Intl` formatea nativamente como `YYYY-MM-DD`: escribirlo a
- * mano con `getFullYear()` daria el dia del televisor, que es justo lo que no se quiere.
- */
-function diaCalendario (ahora: number | null, zona: string | null): string | null {
-  if (ahora === null || !Number.isFinite(ahora)) return null
-
-  const opciones: Intl.DateTimeFormatOptions = { year: 'numeric', month: '2-digit', day: '2-digit' }
-
-  if (zona !== null && zona !== '') opciones.timeZone = zona
-
-  try {
-    return new Intl.DateTimeFormat('sv-SE', opciones).format(new Date(ahora))
-  } catch {
-    // Una zona que no se entiende no puede apagar una columna de la pared: se cae a la del aparato.
-    return new Intl.DateTimeFormat('sv-SE', { year: 'numeric', month: '2-digit', day: '2-digit' })
-      .format(new Date(ahora))
-  }
 }

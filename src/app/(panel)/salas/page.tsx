@@ -1,9 +1,8 @@
-import { pedir } from '@/datos/servidor'
+import { cargarYo, pedir } from '@/datos/servidor'
 import { hoyLocal } from '@/lib/fechas'
 import { ventanaDelDia, ventanaDelMes } from '@/dominio/salas'
 import { AgendaSalas } from './AgendaSalas'
 import type { PersonaDeSala, Reserva, Sala } from '@/datos/recursos'
-import type { Yo } from '@/datos/tipos'
 
 export const metadata = { title: 'Salas · WiWO Ops' }
 
@@ -31,7 +30,7 @@ export default async function SalasPage (props: PageProps<'/salas'>) {
     pedir<Sala[]>('/rooms'),
     pedir<Reserva[]>(`/rooms/bookings?from=${encodeURIComponent(ventana?.desde ?? '')}&to=${encodeURIComponent(ventana?.hasta ?? '')}`),
     pedir<PersonaDeSala[]>('/rooms/people'),
-    pedir<Yo>('/me')
+    cargarYo()
   ])
 
   return (

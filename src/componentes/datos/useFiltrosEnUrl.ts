@@ -1,6 +1,6 @@
 'use client'
 
-import { useMemo } from 'react'
+import { useCallback, useEffect, useMemo, useRef } from 'react'
 import { useRouter, useSearchParams, type ReadonlyURLSearchParams } from 'next/navigation'
 import {
   agregarPrefijo,
@@ -29,7 +29,20 @@ export interface OpcionesFiltrosEnUrl<E> {
   construir: (estado: E) => string
   /** Prefijo de cada clave que esta instancia posee en la URL. Ausente = sin prefijo. */
   prefijo?: string
+  /**
+   * Escribe la URL sin esperar al servidor.
+   *
+   * Con `router.replace`, `useSearchParams` solo cambia cuando el servidor termina de renderizar la
+   * pagina: con red lenta el filtro, el orden y la pagina parecen no responder durante segundos.
+   * Con esto la URL cambia al instante —y con ella la consulta que la tabla pide al BFF— y el
+   * servidor se pone al dia despues, en segundo plano. Solo para listas que se piden solas desde el
+   * navegador; una que depende del render del servidor para pintarse no debe usarlo.
+   */
+  superficial?: boolean
 }
+
+/** Espera para sincronizar el servidor tras cambios seguidos de la URL (por ejemplo, teclear un filtro). */
+const ESPERA_DE_SINCRONIA_MS = 700
 
 export interface FiltrosEnUrl<E> {
   /** El estado vigente, leido de la URL. */
@@ -50,9 +63,29 @@ export interface FiltrosEnUrl<E> {
  * @param opciones `leer`/`construir` de la traduccion estado-URL, y el `prefijo` opcional.
  * @returns el estado vigente y las funciones para cambiarlo o leer/escribir un parametro suelto.
  */
-export function useFiltrosEnUrl<E> ({ leer, construir, prefijo }: OpcionesFiltrosEnUrl<E>): FiltrosEnUrl<E> {
+export function useFiltrosEnUrl<E> ({ leer, construir, prefijo, superficial = false }: OpcionesFiltrosEnUrl<E>): FiltrosEnUrl<E> {
   const router = useRouter()
   const params = useSearchParams()
+  const espera = useRef<ReturnType<typeof setTimeout> | undefined>(undefined)
+
+  useEffect(() => () => { clearTimeout(espera.current) }, [])
+
+  /**
+   * Escribe la URL. En modo superficial lo hace en el historial y deja que el servidor se entere
+   * despues: lo que el servidor deriva de la URL (opciones de filtro, enlaces a otras vistas) se
+   * actualiza en segundo plano, sin bloquear lo que la persona acaba de tocar.
+   */
+  const escribirUrl = useCallback((url: string): void => {
+    if (!superficial) {
+      router.replace(url, { scroll: false })
+
+      return
+    }
+
+    window.history.replaceState(null, '', url)
+    clearTimeout(espera.current)
+    espera.current = setTimeout(() => { router.refresh() }, ESPERA_DE_SINCRONIA_MS)
+  }, [superficial, router])
 
   const estado = useMemo(
     () => leer(parametrosPropios(new URLSearchParams(params.toString()), prefijo)),
@@ -70,7 +103,7 @@ export function useFiltrosEnUrl<E> ({ leer, construir, prefijo }: OpcionesFiltro
       prefijo
     )
 
-    router.replace(url, { scroll: false })
+    escribirUrl(url)
   }
 
   function urlConParametro (clave: string, valor: string): string {
@@ -78,7 +111,7 @@ export function useFiltrosEnUrl<E> ({ leer, construir, prefijo }: OpcionesFiltro
   }
 
   function escribirParametro (clave: string, valor: string): void {
-    router.replace(urlConParametro(clave, valor), { scroll: false })
+    escribirUrl(urlConParametro(clave, valor))
   }
 
   function leerParametro (clave: string): string | null {

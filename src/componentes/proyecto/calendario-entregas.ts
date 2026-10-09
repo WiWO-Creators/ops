@@ -1,6 +1,6 @@
 import { LOCALE, sumarDias } from '../../lib/fechas.ts'
 import { diasDeVista, esDiaValido, inicioDeSemana } from '../../dominio/calendario.ts'
-import { ESTADO_COMPLETO } from './tareas.ts'
+import { estaCerrada } from './tareas.ts'
 
 /**
  * Aritmetica del calendario de entregas de un Espacio.
@@ -316,7 +316,7 @@ export function sinFechaDeEntrega<T extends EntregaOrdenable> (tareas: readonly 
  * @returns Si su estado es "Completo".
  */
 export function estaCompleta (tarea: { status: number }): boolean {
-  return tarea.status === ESTADO_COMPLETO
+  return estaCerrada(tarea.status)
 }
 
 /**

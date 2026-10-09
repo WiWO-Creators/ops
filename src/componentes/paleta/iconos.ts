@@ -1,6 +1,6 @@
 import {
-  Building2, CalendarDays, ClipboardCheck, ClipboardList, Clock, FileSignature, Columns3, DoorOpen, FolderKanban, Gavel, House, Inbox, LifeBuoy,
-  ListChecks, Network, Radio, Repeat, ScrollText, SlidersHorizontal, Sparkles, Star, Target, Trash2, TrendingUp, User, UserRound,
+  Building2, CalendarDays, ClipboardCheck, ClipboardList, Clock, FileSignature, Columns3, DoorOpen, FolderKanban, Gavel, GitMerge, House, Inbox, LifeBuoy,
+  ListChecks, Network, PackageCheck, Radio, Repeat, ScrollText, SlidersHorizontal, Sparkles, Star, Target, Trash2, TrendingUp, User, UserRound,
   Users, UsersRound, Video, type LucideIcon
 } from 'lucide-react'
 import type { IconoSeccion } from '@/lib/navegacion'
@@ -22,6 +22,8 @@ export const ICONOS_DE_SECCION: Record<IconoSeccion, LucideIcon> = {
   // `ClipboardList` y no otro `ListChecks`: Tareas es el listado de toda la casa y Mis Tareas es la
   // hoja de una persona. Con el mismo icono la barra diria que son la misma pantalla.
   mis_tareas: ClipboardList,
+  // `PackageCheck`: algo que llegó preparado y falta darle el visto bueno. `Inbox` ya es Tickets.
+  propuestas: PackageCheck,
   procesos: ListChecks,
   // `Repeat`: lo que distingue a una recurrente es que vuelve, no que sea una Tarea.
   recurrentes: Repeat,
@@ -55,7 +57,8 @@ export const ICONOS_DE_SECCION: Record<IconoSeccion, LucideIcon> = {
   administracion: SlidersHorizontal,
   // `ScrollText` y no un escudo: esto no protege nada, es el registro de lo que se hizo.
   auditoria: ScrollText,
-  papelera: Trash2
+  papelera: Trash2,
+  fusiones: GitMerge
 }
 
 /** Los de la paleta: las secciones mas un icono por tipo de resultado y por atajo. */

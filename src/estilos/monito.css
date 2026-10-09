@@ -16,14 +16,14 @@
  * El telon liso, del color de la pagina. No dibuja nada: solo evita el destello.
  *
  * Va en `body::before` y no en `html::before` porque `body` es quien tiene el color de fondo
- * resuelto. `z-index: 60` lo deja por encima del panel (el mayor en uso es 50) y por debajo de la
+ * resuelto. `--z-index-telon` lo deja por encima del panel (`z-superposicion`) y por debajo de la
  * capa de React, que es la que finalmente se ve.
  */
 html[data-bienvenida] body::before {
   content: '';
   position: fixed;
   inset: 0;
-  z-index: 60;
+  z-index: var(--z-index-telon);
   background: var(--superficie);
   view-transition-name: telon-bienvenida;
 }

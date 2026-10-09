@@ -251,13 +251,13 @@ export function validarImportacion (
   destinoId: number,
   eleccion: EleccionHito
 ): string | null {
-  if (origenId === null) return 'Elegí de qué proyecto vas a traer las tareas.'
+  if (origenId === null) return 'Elige de qué proyecto vas a traer las tareas.'
   if (origenId === destinoId) return 'El proyecto de origen no puede ser este mismo.'
-  if (eleccion.modo === 'existente' && eleccion.hitoId === null) return 'Elegí a qué hito van a entrar las tareas.'
+  if (eleccion.modo === 'existente' && eleccion.hitoId === null) return 'Elige a qué hito van a entrar las tareas.'
 
   if (eleccion.modo === 'nuevo') {
     const nombre = eleccion.nombre.trim()
-    if (nombre === '') return 'Escribí el nombre del hito nuevo.'
+    if (nombre === '') return 'Escribe el nombre del hito nuevo.'
     if (nombre.length > LARGO_MAXIMO_HITO) return `El nombre del hito no puede pasar de ${LARGO_MAXIMO_HITO} caracteres.`
   }
 
@@ -301,7 +301,7 @@ export function resumenDelInforme (informe: InformeImportacion): string {
   if (diferencias.length > 0) {
     return `Se copiaron ${copiadas}, pero ${diferencias.length} `
       + `${plural(diferencias.length, 'dato no coincide', 'datos no coinciden')} con el original. `
-      + 'Revisá antes de archivar.'
+      + 'Revisa antes de archivar.'
   }
 
   return `${copiadas} de "${origen.nombre}" ${plural(importadas, 'está', 'están')} en `

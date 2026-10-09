@@ -2,7 +2,7 @@
 
 import { useRouter } from 'next/navigation'
 import { useState } from 'react'
-import { Eye, KeyRound, Mail, Phone, Plus, Star } from 'lucide-react'
+import { Activity, Eye, KeyRound, Mail, Phone, Plus, Star } from 'lucide-react'
 import { CeldaEncabezado, CeldaTabla, CuerpoTabla, EncabezadoTabla, FilaTabla, Tabla } from '@/componentes/datos/Tabla'
 import { BotonCopiar } from '@/componentes/datos/BotonCopiar'
 import { MenuAccionesFila } from '@/componentes/datos/MenuAccionesFila'
@@ -10,7 +10,7 @@ import { Avatar } from '@/componentes/presentadores/Avatar'
 import { Boton } from '@/componentes/formularios/Boton'
 import { Entrada } from '@/componentes/formularios/Entrada'
 import { Insignia } from '@/componentes/presentadores/Insignia'
-import { Vacio } from '@/componentes/estado/Estados'
+import { AvisoEnLinea, Vacio } from '@/componentes/estado/Estados'
 import { escribirEnBff } from '@/componentes/datos/mutaciones'
 import { useAviso } from '@/componentes/estado/useAviso'
 import { DialogoContacto } from './DialogoContacto'
@@ -19,6 +19,7 @@ import { formatearFecha } from '@/lib/fechas'
 import { cn } from '@/lib/clases'
 import type { Capacidad } from '@/datos/tipos'
 import type { ContactoCompleto } from '@/datos/recursos'
+import { conLimite, TIEMPO_ESCRITURA_MS } from '@/datos/red'
 
 interface PropsPanelContactos {
   clienteId: number
@@ -134,7 +135,8 @@ export function PanelContactos ({ clienteId, contactos, capacidades }: PropsPane
       const respuesta = await fetch('/api/sesion/ver-como-cliente', {
         method: 'POST',
         headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({ contactoId: contacto.id })
+        body: JSON.stringify({ contactoId: contacto.id }),
+        signal: conLimite(undefined, TIEMPO_ESCRITURA_MS)
       })
       const cuerpo = await respuesta.json().catch(() => ({})) as { destino?: string, mensaje?: string }
 
@@ -199,7 +201,7 @@ export function PanelContactos ({ clienteId, contactos, capacidades }: PropsPane
         </div>
       )}
 
-      {error !== null && <p role="alert" className="text-texto-peligro text-sm">{error}</p>}
+      {error !== null && <AvisoEnLinea variante="error" mensaje={error} className="text-sm" />}
 
       {enlace !== null && <EnlaceGenerado enlace={enlace} onCerrar={() => setEnlace(null)} />}
 
@@ -274,6 +276,14 @@ export function PanelContactos ({ clienteId, contactos, capacidades }: PropsPane
                     cargando={ocupado === contacto.id}
                     onEditar={puedeEditar ? () => setEditando(contacto) : undefined}
                     acciones={[
+                      // Para todo el que ve la ficha, igual que "Ver como cliente": es lectura, y la API
+                      // ya exige que el cliente sea visible.
+                      {
+                        clave: 'actividad',
+                        etiqueta: 'Ver actividad en el portal',
+                        icono: Activity,
+                        onSeleccionar: () => { router.push(`/clientes/${clienteId}/actividad/${contacto.id}`) }
+                      },
                       ...(puedeEditar
                         ? [
                           {

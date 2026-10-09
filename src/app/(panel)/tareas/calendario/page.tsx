@@ -4,12 +4,11 @@ import { cargarLookups, opcionesDeFiltroDeEspacio, opcionesDeFiltros } from '@/d
 import { filtrosDeCamposPersonalizados } from '@/definiciones/filtros'
 import { opcionesDeCliente } from '../opciones-de-cliente'
 import { opcionesDeHito } from '../opciones-de-hito'
-import { pedir, pedirOpcional } from '@/datos/servidor'
+import { cargarYo, pedir, pedirOpcional } from '@/datos/servidor'
 import { esDiaValido, leerVista, rangoDeVista, TOPE_POR_VISTA } from '@/dominio/calendario'
 import { hoyLocal } from '@/lib/fechas'
 import { PROCESOS } from '@/definiciones/procesos'
 import type { DefinicionCampoPersonalizado, Espacio, Proceso, ProcesoConAviso } from '@/datos/recursos'
-import type { Yo } from '@/datos/tipos'
 import { VistaCalendario } from '@/componentes/datos/VistaCalendario'
 import { TituloModulo } from '@/componentes/estructura/TituloModulo'
 
@@ -62,7 +61,7 @@ export default async function CalendarioProcesosPage (props: PageProps<'/tareas/
     cargarLookups(),
     opcionesDeCliente(),
     opcionesDeHito(estado.filtros.project_id),
-    pedir<Yo>('/me')
+    cargarYo()
   ])
 
   const delPeriodo = tareas.datos ?? []

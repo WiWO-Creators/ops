@@ -110,35 +110,6 @@ export function extractoDeComentario (html: string, maximo = 140): string {
 }
 
 /**
- * Convierte lo que se escribio en el cuadro en el HTML que guarda la API.
- *
- * Se escapa todo: el texto es de una persona, no marcado. Una linea en blanco separa parrafos y un
- * salto simple queda como `<br>`, que es como lo muestran el panel clasico y la lectura de aca.
- *
- * @param texto lo que se escribio
- * @returns el HTML listo para `content`, o `''` si no habia nada que mandar
- */
-export function htmlDeComentario (texto: string): string {
-  const limpio = texto.replace(/\r\n?/g, '\n').trim()
-  if (limpio === '') return ''
-
-  return limpio
-    .split(/\n{2,}/)
-    .map((parrafo) => `<p>${escaparHtml(parrafo).replace(/\n/g, '<br>')}</p>`)
-    .join('')
-}
-
-/** Escapa los cinco caracteres con significado en HTML. */
-function escaparHtml (texto: string): string {
-  return texto
-    .replaceAll('&', '&amp;')
-    .replaceAll('<', '&lt;')
-    .replaceAll('>', '&gt;')
-    .replaceAll('"', '&quot;')
-    .replaceAll("'", '&#39;')
-}
-
-/**
  * Quien firmo un comentario, en una palabra para la lista.
  *
  * @param comentario el comentario

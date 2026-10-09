@@ -1,8 +1,11 @@
 'use client'
 
+import { Pencil } from 'lucide-react'
 import { useState, type ReactElement } from 'react'
 import { useRouter } from 'next/navigation'
 import { BajaYBorrado } from '@/componentes/datos/BajaYBorrado'
+import { DialogoFusion } from '@/componentes/fusion/DialogoFusion'
+import { usePuedeFusionar } from '@/componentes/fusion/ProveedorFusion'
 import { Boton } from '@/componentes/formularios/Boton'
 import { ImagenEntidad } from '@/componentes/presentadores/ImagenEntidad'
 import { FormularioRecurso } from '@/componentes/proyecto/FormularioRecurso'
@@ -39,6 +42,8 @@ export function AccionesCliente ({
 }: PropsAccionesCliente): ReactElement {
   const router = useRouter()
   const [editando, setEditando] = useState(false)
+  const [fusionando, setFusionando] = useState(false)
+  const puedeFusionar = usePuedeFusionar()
 
   const puedeEditar = capacidades.includes('edit')
   const recargar = (): void => { router.refresh() }
@@ -53,7 +58,14 @@ export function AccionesCliente ({
       />
 
       {puedeEditar && (
-        <Boton variante="secundario" tamano="chico" onClick={() => { setEditando(true) }}>Editar</Boton>
+        <Boton variante="secundario" tamano="chico" onClick={() => { setEditando(true) }}>
+          <Pencil aria-hidden className="size-4" />
+          Editar
+        </Boton>
+      )}
+
+      {puedeFusionar && (
+        <Boton variante="secundario" tamano="chico" onClick={() => { setFusionando(true) }}>Fusionar con…</Boton>
       )}
 
       <BajaYBorrado
@@ -64,6 +76,7 @@ export function AccionesCliente ({
         puedeEditar={puedeEditar}
         puedeBorrar={capacidades.includes('delete')}
         tamano="chico"
+        enMenu
         advertencia={
           `${cliente.company} va a la papelera con sus proyectos y sus tareas, y deja de verse en ` +
           'todas partes. Se puede restaurar entero desde la Papelera durante 30 días.'
@@ -71,6 +84,16 @@ export function AccionesCliente ({
         recargar={recargar}
         alBorrar={() => { router.push('/clientes') }}
       />
+
+      {fusionando && (
+        <DialogoFusion
+          entidad="clients"
+          origen={{ id: cliente.id, nombre: cliente.company }}
+          abierto
+          onCerrar={() => { setFusionando(false) }}
+          onFusionado={(destino) => { router.push(`/clientes/${destino.id}`) }}
+        />
+      )}
 
       {puedeEditar && (
         <FormularioRecurso
@@ -80,7 +103,7 @@ export function AccionesCliente ({
           campos={camposDeCliente(paises, monedas)}
           ruta={`clients/${cliente.id}`}
           metodo="PATCH"
-          registro={cliente as unknown as Record<string, unknown>}
+          registro={cliente}
           onGuardado={recargar}
           columnas={2}
           ancho="grande"
