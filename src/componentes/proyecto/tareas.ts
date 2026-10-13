@@ -11,7 +11,7 @@ import type {
   ValorCampoPersonalizado
 } from '@/datos/recursos'
 import type { Capacidad, StaffReferencia } from '@/datos/tipos'
-import type { AsignadoConAutoria } from '@/dominio/autoria-tarea'
+import type { AsignadoConAutoria, ContactoCreador } from '@/dominio/autoria-tarea'
 import type { ComentarioParaMostrar } from './TarjetaDeComentario.tsx'
 import { estadoVencimiento } from '../../lib/fechas.ts'
 import { textoDeComentario } from './discusiones.ts'
@@ -295,6 +295,8 @@ export interface ProcesoDeFicha {
   assignees?: AsignadoConAutoria[]
   /** Quién creó la Tarea. No llega al portal. */
   created_by?: StaffReferencia | null
+  /** El contacto del cliente que la creó desde el portal; `null` si no fue así. No llega al portal. */
+  created_by_contact?: ContactoCreador | null
   tags?: Etiqueta[]
   counts?: ProcesoAmpliado['counts']
   custom_fields?: ValorCampoPersonalizado[]

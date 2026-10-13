@@ -17,7 +17,9 @@ import { Etiquetas } from '@/componentes/presentadores/Etiqueta'
 import { Fecha } from '@/componentes/presentadores/Fecha'
 import { InsigniaDePrioridad } from '@/componentes/presentadores/InsigniaDePrioridad'
 import { listaDe, nombreDe } from '@/datos/catalogos'
-import { agruparPorQuienAsigno, type GrupoDeAsignacion, type PersonaDeAutoria } from '@/dominio/autoria-tarea'
+import {
+  agruparPorQuienAsigno, textoDeCreadorContacto, type GrupoDeAsignacion, type PersonaDeAutoria
+} from '@/dominio/autoria-tarea'
 import { camposLegibles } from '@/dominio/campos-personalizados'
 import { htmlVacio } from '@/dominio/texto-rico'
 import { GLOSARIO } from '@/dominio/glosario'
@@ -401,10 +403,13 @@ export function DetalleTarea (
             </Dato>
           )}
           {/* Quién creó y quién asignó (WIW-0441). `created_by` no llega al portal, y sin él la fila
-              no se dibuja; `null` es un creador que ya no se puede nombrar. */}
+              no se dibuja; `null` es un creador que ya no se puede nombrar, salvo que la haya creado un contacto del
+              cliente desde el portal (`created_by_contact`). */}
           {tarea.created_by !== undefined && (
             <Dato etiqueta="Creada por">
-              {tarea.created_by === null ? SIN_DATO : <Persona persona={tarea.created_by} />}
+              {tarea.created_by !== null
+                ? <Persona persona={tarea.created_by} />
+                : textoDeCreadorContacto(tarea.created_by_contact) ?? SIN_DATO}
             </Dato>
           )}
           {gruposDeAsignacion.length > 0 && (

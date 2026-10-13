@@ -1,6 +1,6 @@
 import { escribirEnBff } from '../componentes/datos/mutaciones.ts'
 import type { StaffReferencia } from './tipos.ts'
-import type { AsignadoConAutoria } from '../dominio/autoria-tarea.ts'
+import type { AsignadoConAutoria, ContactoCreador } from '../dominio/autoria-tarea.ts'
 import type { Escalon } from '../dominio/escalon.ts'
 
 /**
@@ -54,6 +54,8 @@ export interface Proceso {
   added_from: number
   /** Quién creó la Tarea. `null` si la creó un contacto desde el portal o esa persona ya no existe. */
   created_by: StaffReferencia | null
+  /** El contacto del cliente que la creó desde el portal. Ausente en una API anterior. */
+  created_by_contact?: ContactoCreador | null
   rel_type: string | null
   rel_id: number | null
   project: Referencia | null

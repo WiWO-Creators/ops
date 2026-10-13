@@ -16,6 +16,12 @@ export interface PersonaDeAutoria {
   profile_image_url: string | null
 }
 
+/** El contacto del cliente que creó una Tarea desde el portal (`created_by_contact`). */
+export interface ContactoCreador {
+  id: number
+  nombre: string
+}
+
 /** Un asignado con quien lo asignó. `null` si lo asignó un contacto o esa persona ya no existe. */
 export interface AsignadoConAutoria extends PersonaDeAutoria {
   assigned_by?: PersonaDeAutoria | null
@@ -53,4 +59,22 @@ export function agruparPorQuienAsigno (asignados: AsignadoConAutoria[] | undefin
   }
 
   return [...grupos.values()]
+}
+
+/**
+ * Cómo se lee en la ficha quien creó una Tarea.
+ *
+ * Una Tarea creada por un contacto del cliente trae `created_by: null` —el contacto no es del
+ * equipo— y `created_by_contact` con su nombre. Va como texto y no como enlace: un contacto no tiene
+ * pantalla en el panel, y el «(cliente)» evita que se lea como una persona del equipo.
+ *
+ * @param contacto el `created_by_contact` de la Tarea
+ * @returns el texto para la ficha, o `null` si no la creó un contacto
+ */
+export function textoDeCreadorContacto (contacto: ContactoCreador | null | undefined): string | null {
+  if (contacto === null || contacto === undefined) return null
+
+  const nombre = contacto.nombre.trim()
+
+  return nombre === '' ? 'Cliente' : `${nombre} (cliente)`
 }
