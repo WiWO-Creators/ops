@@ -3,6 +3,7 @@
 import type { ReactElement } from 'react'
 import { Cargando, ErrorEstado } from '@/componentes/estado/Estados'
 import { ASISTENTE } from '@/dominio/glosario'
+import type { ActaPedida } from '@/dominio/orbe-contexto'
 import { conAgente, configuracionDeOrbe, type ConfiguracionConAgente, type SujetoOrbe } from '@/dominio/orbe-sujeto'
 import { ChatAgente } from './ChatAgente'
 import { ConversacionConsulta } from './ConversacionConsulta'
@@ -28,6 +29,8 @@ interface PropsChatOrbe {
   desplazable?: boolean
   proyecto?: { id: number, name?: string }
   sujeto?: SujetoOrbe
+  /** El acta con la que se abrió el orbe flotante; solo la usa el agente del equipo. */
+  actaPedida?: ActaPedida | null
 }
 
 /** Lo que recibe el selector ya resuelto: la configuración en lugar del sujeto. */
@@ -35,6 +38,7 @@ interface PropsSelector {
   desplazable?: boolean
   proyecto?: { id: number, name?: string }
   configuracion: ConfiguracionConAgente
+  actaPedida?: ActaPedida | null
 }
 
 /** Monta un hilo independiente al cambiar entre proyectos o el chat global. */
@@ -50,7 +54,7 @@ export function ChatOrbe (props: PropsChatOrbe = {}): ReactElement {
 }
 
 /** El servidor decide la activación por usuario; no se cambia de motor durante una ejecución. */
-function SelectorChatOrbe ({ desplazable, proyecto, configuracion }: PropsSelector): ReactElement {
+function SelectorChatOrbe ({ desplazable, proyecto, configuracion, actaPedida }: PropsSelector): ReactElement {
   const { capacidades, error, reintentar } = useCapacidadesOrbe(configuracion)
 
   if (error !== '') return <ErrorEstado detalle={error} onReintentar={reintentar} />
@@ -59,6 +63,6 @@ function SelectorChatOrbe ({ desplazable, proyecto, configuracion }: PropsSelect
   const proyectoConNombre = proyecto?.name === undefined ? undefined : { id: proyecto.id, name: proyecto.name }
 
   return capacidades.agente.habilitado
-    ? <ChatAgente desplazable={desplazable} proyecto={proyectoConNombre} configuracion={configuracion} capacidades={capacidades.agente} />
+    ? <ChatAgente desplazable={desplazable} proyecto={proyectoConNombre} configuracion={configuracion} capacidades={capacidades.agente} actaPedida={actaPedida} />
     : <ConversacionConsulta desplazable={desplazable} proyecto={proyecto} configuracion={configuracion} />
 }

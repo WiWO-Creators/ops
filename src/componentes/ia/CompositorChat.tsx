@@ -1,6 +1,6 @@
 'use client'
 
-import type { ReactElement, ReactNode } from 'react'
+import type { ReactElement, ReactNode, Ref } from 'react'
 import { Boton } from '@/componentes/formularios/Boton'
 import { AreaTexto } from '@/componentes/formularios/Entrada'
 import { cn } from '@/lib/clases'
@@ -23,6 +23,10 @@ interface PropsCompositorChat {
   etiquetaEnviar: string
   /** Si el dictado puede caer al respaldo de Whisper (solo el equipo). */
   dictadoConRespaldo?: boolean
+  /** Encima del campo: p. ej. el chip de contexto de la pantalla. */
+  cabecera?: ReactNode
+  /** Ref del campo, para enfocarlo desde fuera (p. ej. «Editar pregunta»). */
+  campoRef?: Ref<HTMLTextAreaElement>
   /** Avisos entre el campo y el pie (p. ej. «envía los cambios o borra el texto»). */
   aviso?: ReactNode
   className?: string
@@ -46,6 +50,8 @@ export function CompositorChat ({
   pie,
   etiquetaEnviar,
   dictadoConRespaldo,
+  cabecera,
+  campoRef,
   aviso,
   className,
   claseCampo,
@@ -53,7 +59,9 @@ export function CompositorChat ({
 }: PropsCompositorChat): ReactElement {
   return (
     <form className={cn('flex flex-col gap-2', className)} onSubmit={(evento) => { evento.preventDefault(); onEnviar() }}>
+      {cabecera}
       <AreaTexto
+        ref={campoRef}
         className={claseCampo}
         value={valor}
         onChange={(evento) => { onCambio(evento.target.value) }}

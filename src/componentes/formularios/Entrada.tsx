@@ -32,7 +32,7 @@ export function Entrada ({ className, ...resto }: PropsEntrada) {
   return <input className={cn(CLASES_CONTROL, 'h-9 text-sm', className)} {...resto} />
 }
 
-type PropsAreaTexto = React.TextareaHTMLAttributes<HTMLTextAreaElement>
+type PropsAreaTexto = React.ComponentProps<'textarea'>
 
 /**
  * Campo de texto de varias líneas.

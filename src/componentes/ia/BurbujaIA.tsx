@@ -6,6 +6,7 @@ import { ASISTENTE } from '@/dominio/glosario'
 import { partirConCitas, type Mensaje } from '@/dominio/ia-chat'
 import type { AccionIA, Cita } from '@/dominio/ia'
 import type { ConfiguracionOrbe } from '@/dominio/orbe-sujeto'
+import { FuentesIA } from './FuentesIA'
 import { TarjetaPreguntaIA } from './TarjetaPreguntaIA'
 import { TarjetaPropuestaIA } from './TarjetaPropuestaIA'
 import { TextoChat } from './TextoChat'
@@ -102,18 +103,7 @@ export const BurbujaIA = memo(function BurbujaIA ({
         <span role="status" className="sr-only">Generando la respuesta…</span>
       )}
 
-      {mensaje.citas.length > 0 && (
-        <div className="animate-aparecer flex flex-col gap-1">
-          <p className="text-texto-sutil text-xs font-medium">Fuentes</p>
-          <ul className="flex flex-wrap gap-1.5">
-            {mensaje.citas.map((cita, i) => (
-              <li key={i}>
-                <Fuente cita={cita} numero={i + 1} href={configuracion.hrefDeCita(cita)} />
-              </li>
-            ))}
-          </ul>
-        </div>
-      )}
+      <FuentesIA citas={mensaje.citas} hrefDeCita={configuracion.hrefDeCita} />
 
       {configuracion.conPropuestas && mensaje.acciones.length > 0 && (
         <ul aria-label="Acciones propuestas" className="animate-aparecer flex flex-col gap-2">
@@ -168,19 +158,4 @@ function Marcador ({ cita, numero, href }: { cita: Cita, numero: number, href: s
       {superindice}
     </Link>
   )
-}
-
-/** Una fuente del pie: la misma regla que el marcador, con el título al lado del número. */
-function Fuente ({ cita, numero, href }: { cita: Cita, numero: number, href: string | null }): ReactElement {
-  const clases = 'border-linea bg-superficie text-texto-tenue rounded-control inline-flex items-center gap-1 border px-2 py-0.5 text-xs'
-  const contenido = (
-    <>
-      <span className="text-texto-sutil">[{numero}]</span>
-      {cita.titulo}
-    </>
-  )
-
-  if (href === null) return <span className={clases}>{contenido}</span>
-
-  return <Link href={href} className={`${clases} hover:bg-hover hover:text-texto`}>{contenido}</Link>
 }

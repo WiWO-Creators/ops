@@ -1,4 +1,5 @@
 import type { FaseConversacion } from './fase-orbe.ts'
+import { leerCita, type Cita } from './ia.ts'
 
 export const MAXIMO_PREGUNTA_AGENTE = 12000
 
@@ -19,15 +20,32 @@ const ESPERA_REINTENTO_BASE_MS = 1000
 
 /** Contratos públicos del agente durable; las escrituras se autorizan en el servidor. */
 export interface ErrorHerramienta { codigo: string, mensaje: string, reintentable: boolean }
-export interface ResultadoHerramienta { resumen: string }
+export interface ResultadoHerramienta {
+  resumen: string
+  /** Fuentes verificadas por el servidor. Opcional: el backend actual no las manda. */
+  citas?: unknown
+}
+
+/** Qué le hace un paso a los datos: solo consulta, modifica o elimina/quita. */
+export type RiesgoPaso = 'lectura' | 'escritura' | 'destructiva'
 export interface Paso {
   id: string
   descripcion: string
   detalle?: string[]
   supuestos?: string[]
   estado: string
+  /** Opcional: backends anteriores no lo mandan y el paso se pinta neutro. */
+  riesgo?: string
   resultado?: ResultadoHerramienta
   error?: ErrorHerramienta
+}
+
+/** Una pregunta del agente. `id`, `opciones` y `admite_texto` pueden faltar en backends anteriores. */
+export interface PreguntaAgente {
+  id?: string | number
+  pregunta: string
+  opciones?: string[]
+  admite_texto?: boolean
 }
 export interface Plan { id: string, version: string, resumen: string, pasos: Paso[] }
 export interface Ejecucion {
@@ -38,7 +56,7 @@ export interface Ejecucion {
   mensaje?: string
   progreso?: string
   plan?: Plan
-  preguntas?: Array<{ pregunta: string, opciones?: string[] }>
+  preguntas?: PreguntaAgente[]
   resultado?: ResultadoHerramienta
   error?: ErrorHerramienta
   /** Última vez que el servidor avanzó la ejecución. Opcional: backends anteriores no lo mandan. */
@@ -188,4 +206,100 @@ export function faseDeEjecucion (ejecucion: Ejecucion | undefined, entorno: { en
   if (entorno.enviando || (ejecucion !== undefined && estaTrabajando(ejecucion))) return 'generando'
   if (ejecucion !== undefined && ['esperando_datos', 'esperando_confirmacion', 'incompleta'].includes(ejecucion.estado)) return 'esperando'
   return 'reposo'
+}
+
+const RIESGOS: readonly RiesgoPaso[] = ['lectura', 'escritura', 'destructiva']
+
+/**
+ * Riesgo de un paso, tolerando que falte o venga con un valor desconocido.
+ *
+ * @param paso Paso del plan.
+ * @returns El riesgo, o `null` si el servidor no lo dijo (el paso se pinta neutro).
+ */
+export function riesgoDePaso (paso: Paso): RiesgoPaso | null {
+  return RIESGOS.find(r => r === paso.riesgo) ?? null
+}
+
+/** Indica si algún paso elimina o quita datos. @param plan Plan a aprobar. @returns `true` si hay un paso destructivo. */
+export function hayPasoDestructivo (plan: Plan): boolean {
+  return plan.pasos.some(p => riesgoDePaso(p) === 'destructiva')
+}
+
+/** Una pregunta que se puede contestar con botones. */
+export interface PreguntaPulsable {
+  id: string
+  pregunta: string
+  opciones: string[]
+  admiteTexto: boolean
+}
+
+/**
+ * Convierte una pregunta del agente en una pulsable.
+ *
+ * @param pregunta Pregunta recibida.
+ * @returns La pregunta normalizada, o `null` si falta el id o las opciones (se degrada a la vista de lista).
+ */
+export function preguntaPulsable (pregunta: PreguntaAgente): PreguntaPulsable | null {
+  const { id, opciones } = pregunta
+  if (typeof id !== 'string' && typeof id !== 'number') return null
+  if (!Array.isArray(opciones)) return null
+  const limpias = opciones.filter(o => typeof o === 'string' && o.trim() !== '')
+  if (limpias.length === 0) return null
+  return { id: String(id), pregunta: pregunta.pregunta, opciones: limpias, admiteTexto: pregunta.admite_texto === true }
+}
+
+/**
+ * Texto de `reanudar` a partir de las respuestas dadas.
+ *
+ * @param respuestas Pares pregunta-respuesta, en el orden de las preguntas.
+ * @returns La respuesta sola si hay una pregunta; una línea «pregunta: respuesta» por cada una si hay varias.
+ */
+export function respuestaDePreguntas (respuestas: Array<{ pregunta: string, respuesta: string }>): string {
+  if (respuestas.length === 1) return respuestas[0]?.respuesta ?? ''
+  return respuestas.map(r => `${r.pregunta} ${r.respuesta}`).join('\n')
+}
+
+/**
+ * Indica si lo escrito abriría una pregunta nueva: el compositor está libre y no hay una ejecución abierta que responder.
+ *
+ * Es la condición de «Reintentar» y «Editar pregunta» en cada respuesta.
+ *
+ * @param ejecucion Última ejecución.
+ * @param entorno Operación en vuelo, error de seguimiento y si se aceptan solicitudes nuevas.
+ * @returns `true` si se puede iniciar otra ejecución.
+ */
+export function puedeNuevaPregunta (ejecucion: Ejecucion | undefined, entorno: EntornoCompositor): boolean {
+  return !estaBloqueado(ejecucion, entorno) && !respondeEjecucion(ejecucion)
+}
+
+/**
+ * Las citas del resultado de una ejecución, descartando las inválidas.
+ *
+ * @param resultado Resultado recibido, sin fiarse de su forma.
+ * @returns Citas válidas; vacío si el servidor no manda ninguna.
+ */
+export function citasDeResultado (resultado: ResultadoHerramienta | undefined): Cita[] {
+  const crudas = resultado?.citas
+  if (!Array.isArray(crudas)) return []
+  return crudas.map(leerCita).filter((c): c is Cita => c !== null)
+}
+
+/**
+ * El texto de una respuesta del agente para copiarlo: explicación, pasos del plan, resultado y error.
+ *
+ * @param ejecucion Ejecución a copiar.
+ * @returns Texto plano (conserva el markdown de origen).
+ */
+export function textoDeEjecucion (ejecucion: Ejecucion): string {
+  const partes: string[] = []
+  if (ejecucion.mensaje?.trim()) partes.push(ejecucion.mensaje.trim())
+  if (ejecucion.plan) {
+    const { resumen, pasos } = ejecucion.plan
+    if (resumen.trim() && resumen.trim() !== ejecucion.mensaje?.trim()) partes.push(resumen.trim())
+    if (pasos.length > 0) partes.push(pasos.map((p, i) => `${i + 1}. ${p.descripcion}`).join('\n'))
+  }
+  const resumen = ejecucion.resultado?.resumen?.trim()
+  if (resumen && resumen !== ejecucion.mensaje?.trim()) partes.push(resumen)
+  if (ejecucion.error?.mensaje) partes.push(ejecucion.error.mensaje)
+  return partes.join('\n\n')
 }

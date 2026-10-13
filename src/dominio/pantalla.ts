@@ -55,3 +55,9 @@ export function actaAbiertaDeUrl (ruta: string, busqueda: URLSearchParams): numb
 
   return Number.isInteger(id) && id > 0 ? id : null
 }
+
+/**
+ * Evento de ventana con el que el panel flotante pide a la conversación abierta que empiece de cero.
+ * La conversación responde con su propia confirmación de borrado.
+ */
+export const EVENTO_NUEVA_CONVERSACION = 'wiwo:nueva-conversacion-orbe'

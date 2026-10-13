@@ -1,7 +1,7 @@
 'use client'
 
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { usePathname, useRouter } from 'next/navigation'
+import { useRouter } from 'next/navigation'
 import { escribirEnBff } from '@/componentes/datos/mutaciones'
 import { pedirSobre } from '@/datos/cliente'
 import {
@@ -16,7 +16,6 @@ import {
   REINTENTOS_SEGUIMIENTO,
   type Ejecucion
 } from '@/dominio/ia-ejecucion'
-import { pantallaDeRuta } from '@/dominio/pantalla'
 import type { ConfiguracionConAgente } from '@/dominio/orbe-sujeto'
 
 /** Operaciones sobre la conversación del agente. */
@@ -24,6 +23,20 @@ export type AccionAgente = 'crear' | 'confirmar' | 'reanudar' | 'cancelar'
 
 /** Cómo terminó un borrado: la conversación entera, solo las ejecuciones, o nada. */
 export type ResultadoBorrado = 'completo' | 'parcial' | 'fallido'
+
+/** El borrado y, si no salió entero, qué decir. */
+export interface RespuestaBorrado {
+  resultado: ResultadoBorrado
+  mensaje: string
+}
+
+/** Dónde está parada la persona al crear una ejecución. Ambos campos son pistas para el servidor. */
+export interface ContextoCreacion {
+  /** Ruta saneada, o `null` para no mandarla. */
+  pantalla: string | null
+  /** Meeting Paper abierto, o `null` para no mandarlo. */
+  actaId: number | null
+}
 
 interface OpcionesEjecuciones {
   configuracion: ConfiguracionConAgente
@@ -33,6 +46,10 @@ interface OpcionesEjecuciones {
   intervalo: number
   /** Segundos sin avances tras los cuales una ejecución en trabajo «parece detenida». */
   umbralDetenidaSegundos: number
+  /** Contexto que viaja al crear una ejecución. Se lee en el momento de enviar, no al montar. */
+  contexto: ContextoCreacion
+  /** El servidor rechazó el acta como contexto (422): quien llama debe quitarla para reintentar. */
+  alActaRechazada: () => void
   /** Lo que el compositor debe vaciar cuando una operación con texto sale bien o se borra todo. */
   alLimpiarTexto: () => void
 }
@@ -51,7 +68,7 @@ export interface EjecucionesAgente {
   /** Vuelve a leer el historial (tras un error de seguimiento). */
   recuperar: () => void
   operar: (accion: AccionAgente, respuesta?: string) => Promise<void>
-  eliminar: () => Promise<ResultadoBorrado>
+  eliminar: () => Promise<RespuestaBorrado>
   limpiarErrorBorrado: () => void
 }
 
@@ -74,7 +91,7 @@ function pestanaVisible (): boolean {
  * @param opciones Alcance, intervalos y callback para vaciar el compositor.
  * @returns Estado y acciones para la vista.
  */
-export function useEjecucionesAgente ({ configuracion, proyectoId, intervalo, umbralDetenidaSegundos, alLimpiarTexto }: OpcionesEjecuciones): EjecucionesAgente {
+export function useEjecucionesAgente ({ configuracion, proyectoId, intervalo, umbralDetenidaSegundos, contexto, alActaRechazada, alLimpiarTexto }: OpcionesEjecuciones): EjecucionesAgente {
   const { agente, rutaHilo } = configuracion
   const [historial, setHistorial] = useState<Ejecucion[]>([])
   const [cargando, setCargando] = useState(true)
@@ -90,7 +107,7 @@ export function useEjecucionesAgente ({ configuracion, proyectoId, intervalo, um
   const montado = useRef(true)
   const ultimaRef = useRef<Ejecucion | undefined>(undefined)
   const volviendo = useRef(false)
-  const ruta = usePathname()
+  const contextoRef = useRef(contexto)
   const router = useRouter()
 
   const ultima = historial.at(-1)
@@ -102,6 +119,10 @@ export function useEjecucionesAgente ({ configuracion, proyectoId, intervalo, um
   useEffect(() => {
     ultimaRef.current = ultima
   }, [ultima])
+
+  useEffect(() => {
+    contextoRef.current = contexto
+  }, [contexto])
 
   useEffect(() => {
     montado.current = true
@@ -203,19 +224,27 @@ export function useEjecucionesAgente ({ configuracion, proyectoId, intervalo, um
     ocupado.current = true
     setEnviando(true)
     setError('')
-    const pantalla = pantallaDeRuta(ruta)
+    const { pantalla, actaId } = contextoRef.current
     const previa = solicitudPendiente.current
     const version = editando ? ultima?.plan?.version : undefined
     const clave = previa?.accion === accion && previa.texto === respuesta && previa.version === version ? previa.clave : crypto.randomUUID()
     solicitudPendiente.current = { accion, texto: respuesta, version, clave }
     const proyectoIdApi = agente.proyectoIdApi(proyectoId)
     const cuerpo = accion === 'crear'
-      ? { pregunta: respuesta, clave_idempotencia: clave, proyecto_id: proyectoIdApi, ...(proyectoId === undefined && pantalla ? { pantalla } : {}) }
+      ? { pregunta: respuesta, clave_idempotencia: clave, proyecto_id: proyectoIdApi, ...(pantalla ? { pantalla } : {}), ...(actaId !== null ? { acta_id: actaId } : {}) }
       : { proyecto_id: proyectoIdApi, ...((accion === 'confirmar' || (accion === 'reanudar' && editando && respuesta)) ? { plan_id: ultima?.plan?.id, version: ultima?.plan?.version } : {}), clave_idempotencia: clave, ...(respuesta ? { respuesta } : {}) }
     const endpoint = accion === 'crear' || ultima === undefined ? agente.rutaCrear : agente.rutaOperacion(ultima.id, accion)
     try {
       const resultado = await escribirEnBff<unknown>(endpoint, 'POST', cuerpo)
-      if (!resultado.ok) throw new Error(resultado.mensaje)
+      if (!resultado.ok) {
+        // Un acta que el servidor no acepta (422) no se reintenta tal cual: se quita del contexto y
+        // la próxima vez viaja con otra clave, porque el cuerpo ya es otro.
+        if (accion === 'crear' && actaId !== null && resultado.codigo === 'validation_failed') {
+          solicitudPendiente.current = null
+          alActaRechazada()
+        }
+        throw new Error(resultado.mensaje)
+      }
       const ejecucion = leerEjecucion(resultado.datos)
       solicitudPendiente.current = null
       if (!montado.current) return
@@ -238,23 +267,27 @@ export function useEjecucionesAgente ({ configuracion, proyectoId, intervalo, um
    * vacía aunque el hilo falle: el error solo habla del hilo y repetir es seguro, lo ya archivado no
    * vuelve a contar.
    *
-   * @returns `completo`, `parcial` (ejecuciones borradas, hilo no) o `fallido`; el mensaje queda en `errorBorrado`.
+   * @returns `completo`, `parcial` (ejecuciones borradas, hilo no) o `fallido`, con el mensaje a mostrar; también queda en `errorBorrado`.
    */
-  const eliminar = async (): Promise<ResultadoBorrado> => {
-    if (ocupado.current) return 'fallido'
+  const eliminar = async (): Promise<RespuestaBorrado> => {
+    if (ocupado.current) return { resultado: 'fallido', mensaje: 'Hay otra operación en curso. Espera un momento.' }
     ocupado.current = true
     setBorrando(true)
     setErrorBorrado('')
     try {
       const ejecuciones = await escribirEnBff<unknown>(agente.rutaEjecuciones(proyectoId), 'DELETE')
-      if (!ejecuciones.ok) { if (montado.current) setErrorBorrado(ejecuciones.mensaje); return 'fallido' }
+      if (!ejecuciones.ok) { if (montado.current) setErrorBorrado(ejecuciones.mensaje); return { resultado: 'fallido', mensaje: ejecuciones.mensaje } }
       const hilo = await escribirEnBff<unknown>(rutaHilo(proyectoId), 'DELETE')
-      if (!montado.current) return 'completo'
+      if (!montado.current) return { resultado: 'completo', mensaje: '' }
       setHistorial([])
       alLimpiarTexto()
       solicitudPendiente.current = null
-      if (!hilo.ok) { setErrorBorrado(`No se pudo borrar la conversación anterior: ${hilo.mensaje}`); return 'parcial' }
-      return 'completo'
+      if (!hilo.ok) {
+        const mensaje = `No se pudo borrar la conversación anterior: ${hilo.mensaje}`
+        setErrorBorrado(mensaje)
+        return { resultado: 'parcial', mensaje }
+      }
+      return { resultado: 'completo', mensaje: '' }
     } finally {
       ocupado.current = false
       if (montado.current) setBorrando(false)
