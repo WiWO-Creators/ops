@@ -156,6 +156,8 @@ export interface AlmacenDeBorradores {
   getItem: (clave: string) => string | null
   setItem: (clave: string, valor: string) => void
   removeItem: (clave: string) => void
+  readonly length: number
+  key: (indice: number) => string | null
 }
 
 const PREFIJO_BORRADOR = 'ops.orbe.borrador:'
@@ -188,6 +190,26 @@ export function guardarBorrador (almacen: AlmacenDeBorradores | null, ambito: st
     else almacen?.setItem(PREFIJO_BORRADOR + ambito, texto)
   } catch {
     // Almacenamiento lleno o bloqueado: el borrador es una comodidad, no un dato.
+  }
+}
+
+/**
+ * Borra todos los borradores del orbe, de cualquier ámbito. Al cerrar sesión: el `sessionStorage`
+ * dura lo que la pestaña, y lo que una persona dejó escrito no debe verlo quien entre después.
+ *
+ * @param almacen el almacén, o `null`
+ */
+export function vaciarBorradores (almacen: AlmacenDeBorradores | null): void {
+  try {
+    if (almacen === null) return
+    const claves: string[] = []
+    for (let i = 0; i < almacen.length; i += 1) {
+      const clave = almacen.key(i)
+      if (clave?.startsWith(PREFIJO_BORRADOR)) claves.push(clave)
+    }
+    for (const clave of claves) almacen.removeItem(clave)
+  } catch {
+    // Almacén bloqueado: no hay nada que se pueda leer ni quedar a la vista.
   }
 }
 

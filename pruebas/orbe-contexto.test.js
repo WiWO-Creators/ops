@@ -13,7 +13,8 @@ import {
   hrefDePestanaDelOrbe,
   leerBorrador,
   pantallaParaAgente,
-  proyectoDeRutaPanel
+  proyectoDeRutaPanel,
+  vaciarBorradores
 } from '../src/dominio/orbe-contexto.ts'
 import {
   citasDeResultado,
@@ -116,7 +117,7 @@ test('una pregunta es pulsable solo con id y opciones; si no, se degrada', () =>
 
 test('la respuesta a varias preguntas lleva una línea por pregunta', () => {
   assert.equal(respuestaDePreguntas([{ pregunta: '¿Quién?', respuesta: 'Ana' }]), 'Ana')
-  assert.equal(respuestaDePreguntas([{ pregunta: '¿Quién?', respuesta: 'Ana' }, { pregunta: '¿Cuándo?', respuesta: 'Hoy' }]), '¿Quién? Ana\n¿Cuándo? Hoy')
+  assert.equal(respuestaDePreguntas([{ pregunta: '¿Quién?', respuesta: 'Ana' }, { pregunta: '¿Cuándo?', respuesta: 'Hoy' }]), '¿Quién?: Ana\n¿Cuándo?: Hoy')
 })
 
 test('solo se puede reintentar o editar con el compositor libre y sin ejecución abierta que responder', () => {
@@ -164,4 +165,21 @@ test('el orbe es ligero hasta 2rem (o 32px) y solo en medidas reconocibles', asy
   assert.equal(esOrbeLigero('medio', '4.5rem'), false)
   assert.equal(esOrbeLigero('medio', 'clamp(14rem, 22vw, 21rem)'), false)
   assert.equal(esOrbeLigero('chico', '14rem'), false)
+})
+
+test('vaciarBorradores borra solo los del orbe, de todos los ámbitos', () => {
+  const datos = new Map([['ops.orbe.borrador:staff:global', 'a'], ['ops.orbe.borrador:staff:4', 'b'], ['otra.cosa', 'c']])
+  const almacen = {
+    getItem: k => datos.get(k) ?? null,
+    setItem: (k, v) => { datos.set(k, v) },
+    removeItem: k => { datos.delete(k) },
+    get length () { return datos.size },
+    key: i => [...datos.keys()][i] ?? null
+  }
+
+  vaciarBorradores(almacen)
+
+  assert.deepEqual([...datos.keys()], ['otra.cosa'])
+  assert.doesNotThrow(() => vaciarBorradores(null))
+  assert.doesNotThrow(() => vaciarBorradores({ ...almacen, key: () => { throw new Error('bloqueado') } }))
 })

@@ -53,7 +53,8 @@ try {
     const e = lista.find(x => x.id === id)
     assert.ok(e, `Ejecución ${id} ajena a scope ${scope}`)
     if (path.endsWith('/confirmar')) {
-      assert.deepEqual(cuerpo, { proyecto_id: scope, plan_id: e.id, version: e.plan.version })
+      assert.match(cuerpo.clave_idempotencia, /^[\da-f-]{36}$/)
+      assert.deepEqual({ ...cuerpo, clave_idempotencia: undefined }, { proyecto_id: scope, plan_id: e.id, version: e.plan.version, clave_idempotencia: undefined })
       e.estado = 'ejecutando'
       if (perderConfirmacion) { perderConfirmacion = false; return ruta.abort() }
     } else if (path.endsWith('/cancelar')) e.estado = 'cancelada'
@@ -83,10 +84,15 @@ try {
   pagina.on('pageerror', error => errores.push(error.message))
   pagina.setDefaultTimeout(20000)
   await pagina.goto(new URL('/proyectos/1?tab=wibot', destino).href, { waitUntil: 'networkidle', timeout: 90000 })
-  const jornada = pagina.getByRole('dialog', { name: 'Abre tu jornada', exact: true })
-  await jornada.waitFor()
-  await jornada.getByRole('button', { name: 'Cerrar', exact: true }).click()
-  await jornada.waitFor({ state: 'hidden' })
+  const cerrarJornada = async () => {
+    const jornada = pagina.getByRole('dialog', { name: 'Abre tu jornada', exact: true })
+    try {
+      await jornada.waitFor({ timeout: 4000 })
+      await jornada.getByRole('button', { name: 'Cerrar', exact: true }).click()
+      await jornada.waitFor({ state: 'hidden' })
+    } catch { /* sin jornada pendiente */ }
+  }
+  await cerrarJornada()
   await pagina.getByText('Conversación anterior', { exact: true }).click()
   await pagina.getByText('Historial del motor anterior', { exact: true }).waitFor()
   assert.equal(await pagina.getByRole('textbox', { name: 'Tu pregunta' }).getAttribute('maxlength'), '6000')
@@ -121,7 +127,7 @@ try {
   assert.ok(await pagina.getByText('Andrés Morales asignado', { exact: true }).isVisible())
   await pagina.reload({ waitUntil: 'networkidle' })
   await pagina.getByText('Tarea creada y asignada correctamente.', { exact: true }).waitFor()
-  await pagina.getByRole('button', { name: 'Preguntarle a Thinking Orb', exact: true }).click()
+  await pagina.getByRole('button', { name: /^Preguntarle a Thinking Orb/ }).click()
   const global = pagina.getByRole('dialog', { name: 'Thinking Orb', exact: true })
   await global.getByRole('textbox', { name: 'Tu pregunta' }).waitFor()
   assert.equal(await global.getByText('Tarea creada y asignada correctamente.', { exact: true }).count(), 0)
@@ -129,9 +135,9 @@ try {
   await global.getByRole('button', { name: 'Preguntar', exact: true }).click()
   perderConfirmacion = true
   await global.getByRole('button', { name: 'Confirmar plan completo' }).click()
-  await global.getByRole('button', { name: 'Recuperar estado' }).waitFor()
+  await global.getByRole('button', { name: 'Reintentar recuperar la conversación' }).waitFor()
   assert.ok(await global.getByRole('button', { name: 'Confirmar plan completo' }).isDisabled())
-  await global.getByRole('button', { name: 'Recuperar estado' }).click()
+  await global.getByRole('button', { name: 'Reintentar recuperar la conversación' }).click()
   await global.getByText('Tarea creada y asignada correctamente.', { exact: true }).waitFor()
   assert.equal(solicitudes.filter(s => s.path.endsWith('/confirmar')).length, 2, 'Recuperar no repite confirmación')
   const e = historial.get(0).at(-1)
@@ -140,7 +146,7 @@ try {
   e.plan.pasos = e.plan.pasos.map(p => ({ id: p.id, descripcion: p.descripcion, estado: 'pendiente' }))
   e.preguntas = [{ pregunta: '¿Quiénes serán responsables?', opciones: ['Andrés Morales', 'Javier Auspunt'] }]
   await global.getByRole('button', { name: 'Cerrar Thinking Orb', exact: true }).click()
-  await pagina.getByRole('button', { name: 'Preguntarle a Thinking Orb', exact: true }).click()
+  await pagina.getByRole('button', { name: /^Preguntarle a Thinking Orb/ }).click()
   await global.getByText('¿Quiénes serán responsables?', { exact: true }).waitFor()
   await global.getByRole('textbox', { name: 'Tu pregunta' }).fill('Andrés Morales y Javier Auspunt')
   await global.getByRole('button', { name: 'Responder y continuar' }).click()
@@ -155,7 +161,7 @@ try {
   perderCreacion = true
   await global.getByRole('textbox', { name: 'Tu pregunta' }).fill('Crear otro plan tras recuperar conexión')
   await global.getByRole('button', { name: 'Preguntar', exact: true }).click()
-  await global.getByRole('button', { name: 'Recuperar estado' }).click()
+  await global.getByRole('button', { name: 'Reintentar recuperar la conversación' }).click()
   await global.getByRole('button', { name: 'Preguntar', exact: true }).click()
   await global.getByRole('button', { name: 'Confirmar plan completo' }).waitFor()
   const altas = solicitudes.filter(s => s.metodo === 'POST' && s.path.endsWith('/ejecuciones'))
@@ -166,22 +172,22 @@ try {
   permanente.estado = 'error'
   permanente.error = { codigo: 'plan_obsoleto', mensaje: 'Cancela pasos pendientes y prepara nuevo plan.', reintentable: false }
   await global.getByRole('button', { name: 'Cerrar Thinking Orb', exact: true }).click()
-  await pagina.getByRole('button', { name: 'Preguntarle a Thinking Orb', exact: true }).click()
+  await pagina.getByRole('button', { name: /^Preguntarle a Thinking Orb/ }).click()
   await global.getByText('Cancela pasos pendientes y prepara nuevo plan.', { exact: true }).waitFor()
-  assert.equal(await global.getByRole('button', { name: 'Continuar ejecución' }).count(), 0, 'Error permanente no permite reanudar')
+  assert.equal(await global.getByRole('button', { name: 'Seguir con la ejecución' }).count(), 0, 'Error permanente no permite reanudar')
   assert.ok(await global.getByRole('textbox', { name: 'Tu pregunta' }).isDisabled(), 'Requiere cancelar antes de preparar otro plan')
-  await global.getByRole('button', { name: 'Cancelar ejecución' }).click()
-  await global.getByRole('button', { name: 'Cancelar ejecución' }).waitFor({ state: 'hidden' })
+  await global.getByRole('button', { name: 'Descartar y preguntar' }).click()
+  await global.getByRole('button', { name: 'Descartar y preguntar' }).waitFor({ state: 'hidden' })
   assert.ok(await global.getByRole('textbox', { name: 'Tu pregunta' }).isEnabled(), 'Cancelar libera la conversación')
   permanente.estado = 'esperando_confirmacion'
   permanente.plan = null
   await global.getByRole('button', { name: 'Cerrar Thinking Orb', exact: true }).click()
-  await pagina.getByRole('button', { name: 'Preguntarle a Thinking Orb', exact: true }).click()
+  await pagina.getByRole('button', { name: /^Preguntarle a Thinking Orb/ }).click()
   await global.getByText('Revisa el plan completo', { exact: true }).waitFor()
   assert.equal(await global.getByRole('button', { name: 'Actualizar plan', exact: true }).count(), 0, 'Plan null no permite edición sin versión')
   assert.ok(await global.getByRole('textbox', { name: 'Tu pregunta' }).isDisabled())
-  await global.getByRole('button', { name: 'Cancelar ejecución' }).click()
-  await global.getByRole('button', { name: 'Cancelar ejecución' }).waitFor({ state: 'hidden' })
+  await global.getByRole('button', { name: 'Detener la ejecución' }).click()
+  await global.getByRole('button', { name: 'Detener la ejecución' }).waitFor({ state: 'hidden' })
   // El caso visual reproduce la propuesta extensa de la captura, con datos sintéticos.
   historial.set(0, [{
     id: '900', estado: 'esperando_confirmacion', pregunta: 'Crea Proyecto Skydive para Skydiveandes, con hitos semanales y las tareas de diseño, programación y puesta a producción.',
@@ -194,7 +200,7 @@ try {
   }])
   await global.getByRole('button', { name: 'Cerrar Thinking Orb', exact: true }).click()
   await pagina.setViewportSize({ width: 1440, height: 1100 })
-  await pagina.getByRole('button', { name: 'Preguntarle a Thinking Orb', exact: true }).click()
+  await pagina.getByRole('button', { name: /^Preguntarle a Thinking Orb/ }).click()
   await global.getByRole('heading', { name: 'Plan de trabajo' }).waitFor()
   await global.getByText('Ver explicación del plan', { exact: true }).click()
   assert.ok(await global.locator('strong').filter({ hasText: 'Proyecto Skydive' }).count() >= 1, 'Markdown interpreta negritas')
@@ -217,42 +223,57 @@ try {
   assert.equal(await global.evaluate(el => el.scrollWidth > el.clientWidth + 1), false, 'Sin desborde en oscuro')
   await global.screenshot({ path: 'output/playwright/orbe-plan-dark.png' })
   await pagina.evaluate(() => { document.documentElement.dataset.theme = 'light' })
-  // Eliminar chat: el conflicto del servidor se muestra y no vacía nada; el éxito borra ejecuciones e hilo anterior.
-  const eliminarChat = global.getByRole('button', { name: 'Eliminar chat', exact: true })
+  // Nueva conversación (antes «Eliminar chat»): el conflicto del servidor se muestra en el diálogo y no vacía nada;
+  // el éxito borra ejecuciones e hilo anterior. Con una ejecución esperando el panel avisa y no abre nada.
+  const nueva = global.getByRole('button', { name: 'Nueva conversación', exact: true })
+  const confirmacion = pagina.getByRole('dialog', { name: 'Nueva conversación' })
+  await nueva.click()
+  await pagina.getByText('Para borrar el chat, primero responde, confirma o detén la ejecución abierta.', { exact: false }).waitFor()
+  assert.equal(await confirmacion.count(), 0, 'Con una ejecución abierta no se abre la confirmación')
+  historial.get(0)[0].estado = 'completada'
+  await global.getByRole('button', { name: 'Cerrar Thinking Orb', exact: true }).click()
+  await pagina.getByRole('button', { name: /^Preguntarle a Thinking Orb/ }).click()
+  await global.getByText('Completado', { exact: true }).waitFor()
   conflictoAlEliminar = true
-  await eliminarChat.click()
-  await global.getByRole('button', { name: 'Eliminar', exact: true }).click()
-  await global.getByText('Hay una ejecución en curso. Espera a que termine.', { exact: true }).waitFor()
+  await nueva.click()
+  await confirmacion.getByRole('button', { name: 'Eliminar', exact: true }).click()
+  await confirmacion.getByText('Hay una ejecución en curso. Espera a que termine.', { exact: true }).waitFor()
   assert.equal(historial.get(0).length, 1, 'El conflicto no vacía el historial')
   assert.equal(solicitudes.filter(s => s.metodo === 'DELETE' && s.path.endsWith('/chat')).length, 0, 'Sin borrar el hilo anterior si la ejecución falla')
   conflictoAlEliminar = false
-  await global.getByRole('button', { name: 'Eliminar', exact: true }).click()
-  await eliminarChat.waitFor({ state: 'hidden' })
+  await confirmacion.getByRole('button', { name: 'Eliminar', exact: true }).click()
+  await confirmacion.waitFor({ state: 'hidden' })
   assert.equal(historial.get(0).length, 0)
   assert.deepEqual(hiloAnterior, [])
   const borrados = solicitudes.filter(s => s.metodo === 'DELETE')
   assert.equal(borrados.at(-2).query, '?proyecto_id=0')
   assert.ok(borrados.at(-2).path.endsWith('/ia/ejecuciones'))
   assert.ok(borrados.at(-1).path.endsWith('/ia/chat'))
-  await global.getByText('Pregunta por Ops o describe una tarea.', { exact: false }).waitFor()
+  await global.getByText('Revisarás el plan completo antes de aplicar cambios.', { exact: false }).waitFor()
   await global.getByRole('button', { name: 'Cerrar Thinking Orb', exact: true }).click()
-  await pagina.getByRole('button', { name: 'Preguntarle a Thinking Orb', exact: true }).click()
-  await global.getByText('Pregunta por Ops o describe una tarea.', { exact: false }).waitFor()
-  assert.equal(await eliminarChat.count(), 0, 'Sin chat no hay botón de eliminar')
+  await pagina.getByRole('button', { name: /^Preguntarle a Thinking Orb/ }).click()
+  await global.getByText('Revisarás el plan completo antes de aplicar cambios.', { exact: false }).waitFor()
+  await nueva.click()
+  await pagina.getByText('La conversación ya está vacía.', { exact: true }).waitFor()
+  assert.equal(await confirmacion.count(), 0, 'Sin chat no hay nada que eliminar')
   hiloAnterior = [{ rol: 'ia', texto: 'Historial del motor anterior' }]
+  // Las capacidades se cachean 60 s por pestaña: cada cambio de servidor se prueba con una recarga.
+  const abrirTrasRecargar = async () => {
+    await pagina.reload({ waitUntil: 'networkidle' })
+    await cerrarJornada()
+    // Un aviso de error reciente puede cubrir el botón: el clic va por `evaluate`.
+    await pagina.getByRole('button', { name: /^Preguntarle a Thinking Orb/ }).evaluate(el => { el.click() })
+  }
   agenteHabilitado = false
-  await global.getByRole('button', { name: 'Cerrar Thinking Orb', exact: true }).click()
-  await pagina.getByRole('button', { name: 'Preguntarle a Thinking Orb', exact: true }).click()
+  await abrirTrasRecargar()
   await global.getByText('Historial del motor anterior', { exact: true }).waitFor()
   estadoCapacidades = 404
-  await global.getByRole('button', { name: 'Cerrar Thinking Orb', exact: true }).click()
-  await pagina.getByRole('button', { name: 'Preguntarle a Thinking Orb', exact: true }).click()
+  await abrirTrasRecargar()
   await global.getByText('Historial del motor anterior', { exact: true }).waitFor()
   assert.equal(await global.getByRole('textbox', { name: 'Tu pregunta' }).count(), 1, '404 capacidades conserva chat anterior')
   for (const estado of [500, 401]) {
     estadoCapacidades = estado
-    await global.getByRole('button', { name: 'Cerrar Thinking Orb', exact: true }).click()
-    await pagina.getByRole('button', { name: 'Preguntarle a Thinking Orb', exact: true }).click()
+    await abrirTrasRecargar()
     await global.getByRole('alert').waitFor()
     assert.equal(await global.getByRole('textbox', { name: 'Tu pregunta' }).count(), 0, `${estado} no activa chat anterior`)
   }

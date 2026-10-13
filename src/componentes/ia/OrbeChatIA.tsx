@@ -13,9 +13,14 @@ import { hrefDePestanaDelOrbe, proyectoDeRutaPanel } from '@/dominio/orbe-contex
 import { EVENTO_NUEVA_CONVERSACION } from '@/dominio/pantalla'
 import { PESTANA_ORBE } from '@/dominio/orbe-contexto'
 import { useFaseDeSujeto } from '@/dominio/fase-orbe'
+import { useConsultaDeMedios } from '@/lib/useConsultaDeMedios'
+import { useAislarFondo } from './useAislarFondo'
 import { useNombreDeProyecto } from './useNombreDeProyecto'
 import { usePanelFlotante } from './usePanelFlotante'
 import { usePanelRedimensionable } from './usePanelRedimensionable'
+
+/** Mismo corte que `max-sm:` de Tailwind (40rem): la hoja a pantalla completa. */
+const MEDIA_HOJA_MOVIL = '(max-width: 639.98px)'
 
 /** Importa el chat; compartido por la carga diferida y por la precarga al acercarse al boton. */
 const importarChat = async (): Promise<typeof import('./ChatOrbe')['ChatOrbe']> => (await import('./ChatOrbe')).ChatOrbe
@@ -113,6 +118,9 @@ export function OrbeChatIA ({ sujeto = 'staff' }: { sujeto?: SujetoOrbe } = {}):
   const { abierto, montado, saliendo, alTerminarAnimacion, apertura, actaPedida, botonRef, alternar, cerrar } = usePanelFlotante(panel, ruta)
   const { tamanoVisible, propsTirador } = usePanelRedimensionable(panel)
   const fase = useFaseDeSujeto(configuracion.sujeto)
+  // Por debajo de 640 px el panel es una hoja a pantalla completa: modal, con el fondo inerte.
+  const hoja = useConsultaDeMedios(MEDIA_HOJA_MOVIL)
+  useAislarFondo(panel, hoja && montado && !saliendo)
 
   // El contacto del portal siempre conversa en el Proyecto de la ruta. El equipo, en el hilo global
   // salvo que elija continuar en el del Proyecto que tiene abierto.
@@ -137,6 +145,7 @@ export function OrbeChatIA ({ sujeto = 'staff' }: { sujeto?: SujetoOrbe } = {}):
           id={idPanel}
           role="dialog"
           aria-label={ASISTENTE}
+          aria-modal={hoja ? true : undefined}
           onAnimationEnd={alTerminarAnimacion}
           // El tamaño va en variables y no en `width`/`height` en linea: el estilo en linea le
           // ganaria a la clase que en movil lo lleva al ancho completo. Durante un arrastre las

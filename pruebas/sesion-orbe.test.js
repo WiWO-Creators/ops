@@ -9,6 +9,8 @@ import { cerrarSesionOrbe } from '../src/dominio/sesion-orbe.ts'
 import { capacidadesEnCache, pedirCapacidadesCacheadas, vaciarCapacidadesOrbe } from '../src/dominio/cache-capacidades.ts'
 import { ambitoDeOrbe, conservarFaseOrbe, faseDeSujeto, leerFaseOrbe, publicarFaseOrbe, vaciarFasesOrbe } from '../src/dominio/fase-orbe.ts'
 import { guardarHilo, leerHilo } from '../src/dominio/ia-chat.ts'
+import { guardarNombreDeProyecto, nombreDeProyectoGuardado } from '../src/dominio/nombres-proyecto.ts'
+import { guardarBorrador, leerBorrador } from '../src/dominio/orbe-contexto.ts'
 import { firmaDeEjecucion } from '../src/dominio/ia-ejecucion.ts'
 
 const CAPACIDADES = { habilitado: true, agente: { habilitado: true } }
@@ -25,6 +27,30 @@ test('cerrarSesionOrbe vacía hilos, capacidades y fases a la vez', async () => 
   assert.deepEqual(leerHilo(undefined, 'staff'), { mensajes: [], cargado: false })
   assert.equal(capacidadesEnCache('ia/capacidades'), null)
   assert.equal(faseDeSujeto('staff'), 'reposo')
+})
+
+test('cerrarSesionOrbe borra los borradores de sessionStorage y los nombres de Proyecto', () => {
+  const datos = new Map([['otra.cosa', 'c']])
+  const almacen = {
+    getItem: k => datos.get(k) ?? null,
+    setItem: (k, v) => { datos.set(k, v) },
+    removeItem: k => { datos.delete(k) },
+    get length () { return datos.size },
+    key: i => [...datos.keys()][i] ?? null
+  }
+  globalThis.window = { sessionStorage: almacen }
+  try {
+    guardarBorrador(almacen, 'staff:global', 'borrador de la persona anterior')
+    guardarNombreDeProyecto(4, 'Proyecto privado')
+
+    cerrarSesionOrbe()
+
+    assert.equal(leerBorrador(almacen, 'staff:global'), '')
+    assert.equal(nombreDeProyectoGuardado(4), undefined)
+    assert.equal(datos.get('otra.cosa'), 'c', 'lo que no es del orbe no se toca')
+  } finally {
+    delete globalThis.window
+  }
 })
 
 test('unas capacidades que llegan tarde, tras cerrar sesión, no se guardan', async () => {

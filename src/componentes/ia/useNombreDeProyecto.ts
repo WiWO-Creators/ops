@@ -2,8 +2,7 @@
 
 import { useEffect, useState } from 'react'
 import { pedirSobre } from '@/datos/cliente'
-
-const nombres = new Map<number, string>()
+import { guardarNombreDeProyecto, nombreDeProyectoGuardado } from '@/dominio/nombres-proyecto'
 
 /**
  * El nombre de un Proyecto, para rotular el chip «Continuar en el hilo de …».
@@ -19,13 +18,13 @@ export function useNombreDeProyecto (proyectoId: number | undefined, activo: boo
   const [leido, setLeido] = useState<{ id: number, nombre: string } | null>(null)
 
   useEffect(() => {
-    if (!activo || proyectoId === undefined || nombres.has(proyectoId)) return
+    if (!activo || proyectoId === undefined || nombreDeProyectoGuardado(proyectoId) !== undefined) return
     const abortador = new AbortController()
     void pedirSobre<{ name?: unknown }>(`projects/${proyectoId}`, abortador.signal)
       .then(sobre => {
         const nombre = sobre.data?.name
         if (typeof nombre !== 'string' || nombre.trim() === '' || abortador.signal.aborted) return
-        nombres.set(proyectoId, nombre)
+        guardarNombreDeProyecto(proyectoId, nombre)
         setLeido({ id: proyectoId, nombre })
       })
       .catch(() => {})
@@ -33,5 +32,5 @@ export function useNombreDeProyecto (proyectoId: number | undefined, activo: boo
   }, [proyectoId, activo])
 
   if (proyectoId === undefined) return null
-  return nombres.get(proyectoId) ?? (leido?.id === proyectoId ? leido.nombre : null)
+  return nombreDeProyectoGuardado(proyectoId) ?? (leido?.id === proyectoId ? leido.nombre : null)
 }

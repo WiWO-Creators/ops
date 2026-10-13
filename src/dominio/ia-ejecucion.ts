@@ -256,7 +256,7 @@ export function preguntaPulsable (pregunta: PreguntaAgente): PreguntaPulsable | 
  */
 export function respuestaDePreguntas (respuestas: Array<{ pregunta: string, respuesta: string }>): string {
   if (respuestas.length === 1) return respuestas[0]?.respuesta ?? ''
-  return respuestas.map(r => `${r.pregunta} ${r.respuesta}`).join('\n')
+  return respuestas.map(r => `${r.pregunta}: ${r.respuesta}`).join('\n')
 }
 
 /**

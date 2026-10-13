@@ -264,7 +264,7 @@ export function ChatAgente ({ desplazable = false, proyecto, configuracion, capa
               {e.error?.mensaje && <TextoChat texto={e.error.mensaje} className="text-texto-peligro" />}
               <FuentesIA citas={citasDeResultado(e.resultado)} hrefDeCita={configuracion.hrefDeCita} />
               {e.preguntas && e.preguntas.length > 0 && (e.id === ultima?.id && e.estado === 'esperando_datos'
-                ? <PreguntasAgente preguntas={e.preguntas} deshabilitado={enviando || error !== ''} onResponder={responderPregunta} />
+                ? <PreguntasAgente preguntas={e.preguntas} deshabilitado={enviando || error !== ''} maximo={maximoPregunta} onResponder={responderPregunta} />
                 : e.preguntas.map((p, indice) => <div key={indice} className="space-y-2"><TextoChat texto={p.pregunta} className="font-medium" />{p.opciones && <ul className="text-texto-tenue list-disc pl-5">{p.opciones.map(o => <li key={o}><TextoChat texto={o} /></li>)}</ul>}</div>))}
               {e.id === ultima?.id && <div className="flex flex-wrap gap-2 [&>button]:min-h-11 [&>button]:whitespace-normal">
                 {(e.estado === 'incompleta' || (e.estado === 'error' && e.error?.reintentable)) && <Boton disabled={enviando || error !== ''} aria-label="Seguir con la ejecución" onClick={() => { void operar('reanudar') }}>Seguir</Boton>}

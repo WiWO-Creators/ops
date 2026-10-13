@@ -39,6 +39,15 @@ async function cerrarJornada (pagina) {
     await jornada.getByRole('button', { name: 'Cerrar', exact: true }).click()
     await jornada.waitFor({ state: 'hidden' })
   } catch { /* sin jornada pendiente */ }
+  await esperarHidratacion(pagina)
+}
+
+/** Espera a que React haya hidratado el botón del orbe: antes de eso el atajo Ctrl+J no tiene oyente. */
+async function esperarHidratacion (pagina) {
+  await pagina.waitForFunction(() => {
+    const boton = document.querySelector('[data-rastreo="orbe.alternar"]')
+    return boton !== null && Object.keys(boton).some(clave => clave.startsWith('__reactProps'))
+  })
 }
 
 const PASOS = [
@@ -116,6 +125,12 @@ try {
   assert.match(await panel.getByText('Contexto:', { exact: false }).innerText(), /Tareas/)
   await pagina.screenshot({ path: `${SALIDA}/01-vacio-desktop.png` })
 
+  // Escape solo cierra con el foco en el panel o en su botón.
+  await pagina.evaluate(() => { if (document.activeElement instanceof HTMLElement) document.activeElement.blur() })
+  await pagina.keyboard.press('Escape')
+  await pagina.waitForTimeout(300)
+  assert.ok(await panel.isVisible(), 'Escape con el foco fuera del panel no lo cierra')
+  await panel.getByRole('textbox', { name: 'Tu pregunta' }).focus()
   // Escape cierra y Ctrl+J vuelve a abrir.
   await pagina.keyboard.press('Escape')
   await panel.waitFor({ state: 'hidden' })
@@ -154,14 +169,15 @@ try {
     const [c, p] = await Promise.all([confirmar.boundingBox(), panel.boundingBox()])
     return c.y >= p.y && c.y + c.height <= p.y + p.height
   }
-  await panel.locator('div.overflow-y-auto').first().evaluate(el => { el.scrollTop = 0 })
-  assert.ok(await dentro(), 'Confirmar queda a la vista sin hacer scroll hasta el final del plan')
-  assert.equal(await panel.getByRole('button', { name: 'Copiar', exact: true }).count(), 0, 'Sin acciones de respuesta mientras espera confirmación')
-  // Los pasos se ven por encima de la barra fija, que no los tapa.
+  // Posición natural (el chat baja solo al final): los pasos se ven por encima de la barra fija, que no los tapa.
   const primero = await panel.getByText('Buscar la tarea Zoho', { exact: true }).boundingBox()
   const barra = await confirmar.boundingBox()
   assert.ok(primero !== null && primero.y + primero.height <= barra.y, 'El primer paso queda visible por encima de la barra fija')
+  assert.equal(await panel.getByRole('button', { name: 'Copiar', exact: true }).count(), 0, 'Sin acciones de respuesta mientras espera confirmación')
   await pagina.screenshot({ path: `${SALIDA}/03-plan-desktop.png` })
+  // Con el plan arriba del todo, la barra sigue a la vista.
+  await panel.locator('div.overflow-y-auto').first().evaluate(el => { el.scrollTop = 0 })
+  assert.ok(await dentro(), 'Confirmar queda a la vista sin hacer scroll hasta el final del plan')
   await panel.getByRole('button', { name: 'Cancelar ejecución' }).waitFor()
   await panel.getByRole('list', { name: 'Pasos del plan' }).evaluate(el => { el.scrollTop = 120 })
   await pagina.screenshot({ path: `${SALIDA}/03b-plan-pasos-desktop.png` })
@@ -247,10 +263,15 @@ try {
   await pagina.waitForTimeout(400)
   const caja = await panel.boundingBox()
   assert.ok(Math.abs(caja.width - 390) <= 1 && Math.abs(caja.height - 844) <= 1, `La hoja ocupa toda la pantalla (${caja.width}x${caja.height})`)
+  assert.equal(await panel.getAttribute('aria-modal'), 'true', 'La hoja móvil es modal')
+  assert.equal(await pagina.evaluate(() => document.querySelector('main')?.closest('[inert]') !== null), true, 'El fondo queda inerte bajo la hoja')
   assert.equal(await panel.getByRole('button', { name: /Redimensionar/ }).isVisible(), false, 'Sin tirador en móvil')
   assert.equal(await panel.evaluate(el => el.scrollWidth > el.clientWidth + 1), false, 'Sin desborde horizontal')
   await pagina.screenshot({ path: `${SALIDA}/05-hoja-movil-390.png` })
   await panel.getByRole('button', { name: 'Cerrar Thinking Orb', exact: true }).click()
+  await panel.waitFor({ state: 'hidden' })
+  assert.match(await pagina.evaluate(() => document.activeElement?.getAttribute('aria-label') ?? ''), /^Preguntarle a Thinking Orb/, 'Al cerrar la hoja el foco vuelve al botón flotante')
+  assert.equal(await pagina.evaluate(() => document.querySelector('main')?.closest('[inert]') ?? null), null, 'Al cerrar se restaura el fondo')
   await pagina.setViewportSize({ width: 1440, height: 1000 })
 
   // ---------------------------------------------------------------- Proyecto: hilo, ampliar y acta
@@ -312,6 +333,7 @@ try {
   portal.on('pageerror', error => erroresPortal.push(error.message))
   portal.setDefaultTimeout(20000)
   await portal.goto(new URL('/portal', destino).href, { waitUntil: 'networkidle', timeout: 90000 })
+  await esperarHidratacion(portal)
   await portal.keyboard.press('Control+j')
   const panelPortal = portal.getByRole('dialog', { name: 'Thinking Orb', exact: true })
   await panelPortal.waitFor()

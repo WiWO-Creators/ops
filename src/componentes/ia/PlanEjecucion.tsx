@@ -39,7 +39,7 @@ export function PlanEjecucion ({ plan, acciones }: PropsPlanEjecucion): ReactEle
       {plan.resumen.trim() && !resumenRepetido && <TextoChat texto={plan.resumen} className="px-4 pt-4" />}
       {/* Los pasos scrollean dentro del plan (tope de alto): así la barra fija nunca los tapa y siguen a la
           vista. Es enfocable para poder recorrerlos con el teclado. */}
-      <ol aria-label="Pasos del plan" tabIndex={0} className="divide-linea focus-visible:outline-acento max-h-[min(18rem,40dvh)] divide-y overflow-y-auto px-4 focus-visible:outline-2 focus-visible:-outline-offset-2">
+      <ol aria-label="Pasos del plan" tabIndex={0} className="divide-linea focus-visible:outline-acento max-h-[min(12rem,30dvh)] divide-y overflow-y-auto px-4 focus-visible:outline-2 focus-visible:-outline-offset-2">
         {plan.pasos.map((paso, indice) => <PasoDelPlan key={paso.id} paso={paso} numero={indice + 1} />)}
       </ol>
       {plan.pasos.length === 0 && <p className="text-texto-tenue px-4 py-4 text-sm">El detalle de los pasos todavía no está disponible.</p>}

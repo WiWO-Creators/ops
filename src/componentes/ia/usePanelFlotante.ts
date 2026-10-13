@@ -31,9 +31,19 @@ export interface PanelFlotante {
   cerrar: () => void
 }
 
-/** Indica si hay otro diálogo modal abierto (Radix), distinto del propio panel. @returns `true` si lo hay. */
-function hayOtroDialogo (): boolean {
-  return document.querySelector('[role="dialog"][data-state="open"]') !== null
+/**
+ * Indica si hay otro diálogo modal abierto, distinto del propio panel.
+ *
+ * Cuenta los `aria-modal="true"` y `alertdialog`, y el bloqueo de scroll que ponen los diálogos de
+ * Radix (que no declaran `aria-modal`). Un `role="dialog"` no modal —un popover— no cuenta. La hoja
+ * móvil del propio panel es `aria-modal` y se excluye.
+ *
+ * @param propio El panel flotante, o `null`.
+ * @returns `true` si hay otro modal encima.
+ */
+function hayOtroDialogo (propio: HTMLElement | null): boolean {
+  if (document.body.hasAttribute('data-scroll-locked')) return true
+  return Array.from(document.querySelectorAll('[role="dialog"][aria-modal="true"], [role="alertdialog"]')).some(el => el !== propio)
 }
 
 /**
@@ -58,6 +68,8 @@ export function usePanelFlotante (panel: RefObject<HTMLDivElement | null>, ruta:
   const [actaPedida, setActaPedida] = useState<ActaPedida | null>(null)
   const botonRef = useRef<HTMLButtonElement>(null)
   const rutaRef = useRef(ruta)
+  // El foco estaba dentro del panel al pedir el cierre: hay que devolverlo cuando el botón ya se vea.
+  const veniaDeDentro = useRef(false)
   useEffect(() => { rutaRef.current = ruta })
 
   function abrir (): void {
@@ -66,7 +78,7 @@ export function usePanelFlotante (panel: RefObject<HTMLDivElement | null>, ruta:
   }
 
   function cerrar (): void {
-    if (panel.current?.contains(document.activeElement)) botonRef.current?.focus()
+    veniaDeDentro.current = panel.current?.contains(document.activeElement) === true
     setAbierto(false)
   }
 
@@ -94,23 +106,34 @@ export function usePanelFlotante (panel: RefObject<HTMLDivElement | null>, ruta:
   useEffect(() => {
     const alTeclear = (evento: KeyboardEvent): void => {
       if (evento.key.toLowerCase() !== TECLA_ATAJO_PANEL || !(evento.metaKey || evento.ctrlKey) || evento.altKey || evento.shiftKey) return
-      if (hayOtroDialogo()) return
+      if (hayOtroDialogo(panel.current)) return
       evento.preventDefault()
       ultimas.current.alternar()
     }
     window.addEventListener('keydown', alTeclear)
     return () => { window.removeEventListener('keydown', alTeclear) }
-  }, [])
+  }, [panel])
 
   // Cerrar con Escape es lo que espera cualquiera que abra algo flotante; acá no lo da Radix.
   useEffect(() => {
     if (!abierto) return
     const alTeclado = (evento: KeyboardEvent): void => {
-      if (evento.key !== 'Escape' || evento.defaultPrevented || hayOtroDialogo()) return
+      if (evento.key !== 'Escape' || evento.defaultPrevented || hayOtroDialogo(panel.current)) return
+      // Solo con el foco en el panel o en su botón: Escape en otra parte de la página no es para él.
+      const foco = document.activeElement
+      if (foco === null || !(panel.current?.contains(foco) === true || foco === botonRef.current)) return
       ultimas.current.cerrar()
     }
     document.addEventListener('keydown', alTeclado)
     return () => { document.removeEventListener('keydown', alTeclado) }
+  }, [abierto, panel])
+
+  // Al cerrar, el foco vuelve al botón flotante. Va en un efecto sobre `abierto` y no en `cerrar`: en
+  // móvil el botón está oculto mientras la hoja está abierta y solo se puede enfocar tras el render.
+  useEffect(() => {
+    if (abierto || !veniaDeDentro.current) return
+    veniaDeDentro.current = false
+    botonRef.current?.focus()
   }, [abierto])
 
   // El foco va al campo, no al panel: quien abre el chat es para escribir. El campo no existe cuando

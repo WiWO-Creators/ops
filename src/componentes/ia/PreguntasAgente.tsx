@@ -11,6 +11,8 @@ interface PropsPreguntasAgente {
   preguntas: PreguntaAgente[]
   /** Bloquea los botones mientras se envía o hay un error de seguimiento. */
   deshabilitado: boolean
+  /** Límite de la respuesta (el mismo del compositor): con varias preguntas la suma no puede pasarlo. */
+  maximo: number
   /** Manda la respuesta como `reanudar`. */
   onResponder: (respuesta: string) => void
 }
@@ -29,7 +31,7 @@ const CLASE_OPCION = 'h-auto min-h-11 w-full justify-start whitespace-normal py-
  *
  * @param props preguntas, estado de bloqueo y manejador de respuesta
  */
-export function PreguntasAgente ({ preguntas, deshabilitado, onResponder }: PropsPreguntasAgente): ReactElement {
+export function PreguntasAgente ({ preguntas, deshabilitado, maximo, onResponder }: PropsPreguntasAgente): ReactElement {
   const [elegidas, setElegidas] = useState<Record<string, string>>({})
   const pulsables = preguntas.map(preguntaPulsable)
   const cantidad = pulsables.filter(p => p !== null).length
@@ -38,10 +40,13 @@ export function PreguntasAgente ({ preguntas, deshabilitado, onResponder }: Prop
   const respuestaDe = (p: PreguntaPulsable): string => elegidas[p.id] ?? ''
   const completas = cantidad > 0 && cantidad === preguntas.length && pulsables.every(p => p !== null && respuestaDe(p) !== '')
 
+  const respuestasJuntas = respuestaDePreguntas(pulsables.flatMap(p => p === null ? [] : [{ pregunta: p.pregunta, respuesta: respuestaDe(p) }]))
+  const excede = respuestasJuntas.length > maximo
+
   /** Envía las respuestas de todas las preguntas pulsables. */
   function enviarTodas (): void {
-    const respuestas = pulsables.flatMap(p => p === null ? [] : [{ pregunta: p.pregunta, respuesta: respuestaDe(p) }])
-    onResponder(respuestaDePreguntas(respuestas))
+    if (excede) return
+    onResponder(respuestasJuntas)
   }
 
   return (
@@ -83,7 +88,10 @@ export function PreguntasAgente ({ preguntas, deshabilitado, onResponder }: Prop
         )
       })}
       {cantidad > 0 && !inmediato && (
-        <Boton variante="primario" className="min-h-11" disabled={deshabilitado || !completas} onClick={enviarTodas}>Responder y continuar</Boton>
+        <>
+          {completas && excede && <p role="alert" className="text-texto-peligro text-xs">Las respuestas juntas pasan el límite de {maximo} caracteres.</p>}
+          <Boton variante="primario" className="min-h-11" disabled={deshabilitado || !completas || excede} onClick={enviarTodas}>Responder y continuar</Boton>
+        </>
       )}
     </div>
   )
