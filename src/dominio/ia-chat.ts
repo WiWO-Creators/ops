@@ -1,3 +1,4 @@
+import type { FaseConversacion } from './fase-orbe.ts'
 import { PARAMETRO_TAREA } from '../componentes/datos/tabla.ts'
 import {
   esObjeto, leerAccion, leerCita, leerPregunta,
@@ -386,4 +387,26 @@ function leerMensaje (valor: unknown): Mensaje | null {
     preguntas,
     fase: 'listo'
   }
+}
+
+/**
+ * Fase de conversación que corresponde a un hilo del chat de consulta.
+ *
+ * @param mensajes el hilo completo
+ * @param enviando si hay una respuesta en curso
+ * @param conPreguntas si el sujeto recibe preguntas de la IA (solo el equipo)
+ * @returns `generando` mientras llega la respuesta; `error` si la última falló; `esperando` si la
+ *   última trae preguntas sin contestar; `reposo` en cualquier otro caso
+ */
+export function faseDeHilo (mensajes: Mensaje[], enviando: boolean, conPreguntas: boolean): FaseConversacion {
+  if (enviando) return 'generando'
+
+  const indice = mensajes.length - 1
+  const ultimo = mensajes[indice]
+
+  if (ultimo === undefined || ultimo.rol !== 'ia') return 'reposo'
+  if (ultimo.fase === 'error') return 'error'
+  if (conPreguntas && ultimo.preguntas.length > 0 && respuestaAPreguntas(mensajes, indice) === null) return 'esperando'
+
+  return 'reposo'
 }

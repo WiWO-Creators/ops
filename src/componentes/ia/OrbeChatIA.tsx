@@ -9,6 +9,7 @@ import { cn } from '@/lib/clases'
 import { usePresencia } from '@/lib/usePresencia'
 import { ASISTENTE } from '@/dominio/glosario'
 import { configuracionDeOrbe, proyectoDeRutaPortal, type SujetoOrbe } from '@/dominio/orbe-sujeto'
+import { useFaseDeSujeto } from '@/dominio/fase-orbe'
 import {
   acotarTamanoChat,
   almacenamientoDelNavegador,
@@ -53,7 +54,7 @@ const ChatOrbe = dynamic(importarChat, {
  *
  * La regla del sistema de diseño prohibe animaciones infinitas en elementos SIEMPRE visibles, y este
  * boton lo esta en todo el panel. En reposo va el orbe quieto; se anima al pasar por encima, al
- * enfocarlo con el teclado y mientras el panel esta abierto, que son estados que terminan.
+ * enfocarlo con el teclado y mientras una conversacion genera o espera con el panel cerrado, que son estados que terminan. Con el panel abierto vuelve al reposo.
  *
  * === POR QUE EL BOTON LLEVA EL GRADIENTE DE MARCA ===
  *
@@ -106,6 +107,7 @@ export function OrbeChatIA ({ sujeto = 'staff' }: { sujeto?: SujetoOrbe } = {}):
   // salida reutilizaria el chat que se estaba yendo, con lo que tenia al cerrarse.
   const [apertura, setApertura] = useState(0)
   const [encima, setEncima] = useState(false)
+  const fase = useFaseDeSujeto(configuracion.sujeto)
   const panel = useRef<HTMLDivElement>(null)
   const idPanel = useId()
 
@@ -352,7 +354,9 @@ export function OrbeChatIA ({ sujeto = 'staff' }: { sujeto?: SujetoOrbe } = {}):
           abierto && 'max-md:hidden'
         )}
       >
-        <Orbe tamano="medio" estado={abierto || encima ? 'thinking' : undefined} />
+        {/* Con el chat abierto el botón queda en reposo (el chat ya muestra el estado y el halo animado
+            cuesta); cerrado, piensa al pasar por encima o si una conversación genera o espera. */}
+        <Orbe tamano="medio" estado={!abierto && (encima || fase === 'generando' || fase === 'esperando') ? 'thinking' : undefined} />
       </button>
     </>
   )

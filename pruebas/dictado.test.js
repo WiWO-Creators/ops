@@ -200,7 +200,9 @@ test('el microfono se cierra al desmontar el chat', () => {
 })
 
 test('los dos chats del orbe tienen microfono', () => {
-  for (const chat of ['../src/componentes/ia/ChatOrbe.tsx', '../src/componentes/ia/ChatAgente.tsx']) {
-    assert.match(leer(chat), /<BotonDictado/, `${chat} se quedo sin dictado`)
+  // El microfono vive en el compositor compartido: los dos motores lo montan, no lo repiten.
+  assert.match(leer('../src/componentes/ia/CompositorChat.tsx'), /<BotonDictado/, 'el compositor se quedo sin dictado')
+  for (const chat of ['../src/componentes/ia/ConversacionConsulta.tsx', '../src/componentes/ia/ChatAgente.tsx']) {
+    assert.match(leer(chat), /<CompositorChat/, `${chat} no usa el compositor con dictado`)
   }
 })

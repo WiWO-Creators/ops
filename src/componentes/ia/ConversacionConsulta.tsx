@@ -1,0 +1,412 @@
+'use client'
+
+import { useCallback, useEffect, useRef, useState, type ReactElement } from 'react'
+import { usePathname, useRouter, useSearchParams } from 'next/navigation'
+import { Boton } from '@/componentes/formularios/Boton'
+import { Cargando, ErrorEstado, Vacio } from '@/componentes/estado/Estados'
+import { ConfirmacionEnLinea } from '@/componentes/datos/ConfirmacionEnLinea'
+import { escribirEnBff } from '@/componentes/datos/mutaciones'
+import { pedirSobre } from '@/datos/cliente'
+import { leerSSE } from '@/datos/sse'
+import { leerEventoIA, type AccionIA, type Cita, type PasoIA, type PreguntaIA } from '@/dominio/ia'
+import {
+  conAccionResuelta,
+  faseDeHilo,
+  guardarHilo,
+  LARGO_MAXIMO_PREGUNTA,
+  leerHilo,
+  leerMensajesGuardados,
+  respuestaAPreguntas,
+  type FaseMensaje,
+  type Mensaje
+} from '@/dominio/ia-chat'
+import { ambitoDeOrbe, usePublicarFaseOrbe } from '@/dominio/fase-orbe'
+import { actaAbiertaDeUrl, pantallaDeRuta, SUGERENCIAS_DE_ACTA } from '@/dominio/pantalla'
+import { ASISTENTE } from '@/dominio/glosario'
+import type { ConfiguracionOrbe } from '@/dominio/orbe-sujeto'
+import { BurbujaIA, MENSAJE_GENERICO } from './BurbujaIA'
+import { BurbujaPersona } from './BurbujaPersona'
+import { CompositorChat } from './CompositorChat'
+import { MarcoConversacion } from './MarcoConversacion'
+import { useAutoScroll } from './useAutoScroll'
+
+/**
+ * El chat de Thinking Orb: se le pregunta por el estado de Ops y contesta citando.
+ *
+ * **Responde, cita, navega y —con las escrituras encendidas— propone o pregunta.** Preguntar es lo
+ * que hace cuando le falta un dato que cambia el efecto de la escritura: deja opciones, ese turno no
+ * trae tarjeta para esa accion, y elegir una manda su etiqueta por el mismo camino que una pregunta
+ * escrita a mano. No hay endpoint de respuesta. Proponer no es escribir: lo
+ * que llega es una tarjeta con un id, y `TarjetaPropuestaIA` la confirma mandando SOLO ese id. Este
+ * archivo no arma un cuerpo de escritura en ningun lado: el QUE vive congelado en el servidor desde
+ * que se propuso.
+ *
+ * Con el interruptor de escrituras apagado no llega ningun `event: propuesta` ni ningun
+ * `event: paso`, y esta pantalla es exactamente la de antes. No hace falta preguntar por el
+ * interruptor: la ausencia de los eventos ES el interruptor.
+ *
+ * === POR QUE EL CHAT NO ES DE UN ESPACIO ===
+ *
+ * Vivia dentro de la ficha de un Espacio, como pestaña y como orbe, y el hilo era por Espacio. Ahora
+ * lo monta el armazon del panel: hay uno solo, la conversacion es de la persona y sigue viva
+ * mientras ella cambia de pantalla. Lo que reemplaza al Espacio de la ruta es `pantalla`: donde esta
+ * parada quien pregunta, para que "esta tarea" signifique algo. Es la misma cadena que manda el
+ * latido de presencia, y por eso las dos salen de `pantallaDeRuta()`.
+ *
+ * El hilo no vive aca sino en `dominio/ia-chat.ts`, porque cerrar el chat desmonta este componente
+ * entero. Lo que si vive aca es el `AbortController` del stream en curso: al desmontar se aborta, y
+ * lo que llego queda marcado `interrumpido`. Se aborta y no se deja correr porque un stream que
+ * escribe cuando nadie mira igual quema tokens del proveedor.
+ *
+ * No monta `ModalTarea`: las pantallas que listan Tareas ya montan la suya, y dos modales sobre el
+ * mismo `?tarea={id}` serian dos dialogos, dos peticiones del detalle y dos trampas de foco. Por eso
+ * una cita a una Tarea es un salto al listado global, que la abre por id venga del Espacio que venga.
+ */
+
+
+/** Lo que recibe la conversación ya resuelta: la configuración en lugar del sujeto. */
+export interface PropsConversacionConsulta {
+  /** En el orbe el alto está acotado: la conversación scrollea sola y el campo queda fijo abajo. */
+  desplazable?: boolean
+  /** El Proyecto de la conversación; el nombre puede faltar (el portal lo saca de la ruta). */
+  proyecto?: { id: number, name?: string }
+  /** De quién es la sesión: decide rutas, textos y qué partes del chat existen. Ver `dominio/orbe-sujeto.ts`. */
+  configuracion: ConfiguracionOrbe
+}
+
+/** Conversación con historial y rutas de acciones limitadas al alcance indicado. */
+export function ConversacionConsulta ({ desplazable = false, proyecto, configuracion }: PropsConversacionConsulta): ReactElement {
+  const proyectoId = proyecto?.id
+  const { sujeto, textos } = configuracion
+  const rutaChat = configuracion.rutaHilo(proyectoId)
+  const rutaEnvio = configuracion.rutaEnvio(proyectoId)
+  const conProyecto = proyectoId !== undefined
+  const router = useRouter()
+  const ruta = usePathname()
+  const parametros = useSearchParams()
+  // El acta que la persona está leyendo, solo en el chat del equipo fuera de un Proyecto fijo.
+  const actaId = proyectoId === undefined && sujeto === 'staff' ? actaAbiertaDeUrl(ruta, parametros) : null
+  const [mensajes, setMensajes] = useState<Mensaje[]>(() => leerHilo(proyectoId, sujeto).mensajes)
+  const [carga, setCarga] = useState<'cargando' | 'listo' | 'error'>(
+    () => leerHilo(proyectoId, sujeto).cargado ? 'listo' : 'cargando'
+  )
+  const [errorCarga, setErrorCarga] = useState('')
+  const [errorRespuesta, setErrorRespuesta] = useState('')
+  const [destino, setDestino] = useState('')
+  const [pregunta, setPregunta] = useState('')
+  const [enviando, setEnviando] = useState(false)
+  const [intento, setIntento] = useState(0)
+  const [confirmandoBorrado, setConfirmandoBorrado] = useState(false)
+  const [borrando, setBorrando] = useState(false)
+  const enCurso = useRef<AbortController | null>(null)
+  // Solo en el orbe el alto está acotado; sin acotar scrollea la página y moverla sería arrebatarle
+  // el scroll a quien lee más arriba. Tampoco se arrastra a quien subió a releer: solo se baja al
+  // abrir, al mandar una pregunta propia o si ya estaba cerca del final.
+  const { ref: desplazador, forzarFondo } = useAutoScroll(mensajes, { activo: desplazable, listo: carga === 'listo' })
+  usePublicarFaseOrbe(ambitoDeOrbe(sujeto, proyectoId), faseDeHilo(mensajes, enviando, configuracion.conPropuestas))
+
+  /** Escribe el hilo en el store de modulo y en el estado local a la vez: una sola fuente. */
+  const escribir = useCallback((siguientes: Mensaje[]) => {
+    guardarHilo({ mensajes: siguientes, cargado: true }, proyectoId, sujeto)
+    setMensajes(siguientes)
+  }, [proyectoId, sujeto])
+
+  // El hilo guardado se pide UNA vez y no cada vez que se abre el chat: repetir el GET pisaria lo
+  // que hay en memoria, incluida una respuesta interrumpida que el servidor no guardo.
+  useEffect(() => {
+    if (leerHilo(proyectoId, sujeto).cargado) return
+
+    const abortador = new AbortController()
+
+    void pedirSobre<unknown>(rutaChat, abortador.signal)
+      .then((sobre) => {
+        if (abortador.signal.aborted) return
+
+        escribir(leerMensajesGuardados(sobre.data))
+        setCarga('listo')
+      })
+      .catch((fallo: unknown) => {
+        if (abortador.signal.aborted) return
+
+        setErrorCarga(fallo instanceof Error ? fallo.message : 'No se pudo leer el hilo.')
+        setCarga('error')
+      })
+
+    return () => { abortador.abort() }
+  }, [intento, escribir, proyectoId, rutaChat, sujeto])
+
+  // Al desmontar —cerrar el chat— se corta el stream en curso.
+  useEffect(() => {
+    return () => { enCurso.current?.abort() }
+  }, [])
+
+  /**
+   * Manda la pregunta y va escribiendo la respuesta en el hilo.
+   *
+   * @param texto la pregunta, ya recortada
+   * @param previos el hilo sobre el que se apoya la respuesta, con la burbuja de la persona incluida
+   */
+  async function preguntar (texto: string, previos: Mensaje[]): Promise<void> {
+    const abortador = new AbortController()
+
+    enCurso.current = abortador
+    setEnviando(true)
+    setErrorRespuesta('')
+    setDestino('')
+
+    let acumulado = ''
+    let citas: Cita[] = []
+    let paso: PasoIA | null = null
+    let acciones: AccionIA[] = []
+    let preguntas: PreguntaIA[] = []
+    let fallo = false
+
+    /** Repinta la burbuja de la IA con lo que se lleva acumulado. */
+    const pintar = (fase: FaseMensaje): void => {
+      escribir([...previos, { rol: 'ia', texto: acumulado, citas, paso, acciones, preguntas, fase }])
+    }
+
+    pintar('generando')
+
+    try {
+      // `pantalla` es lo que le dice al servidor donde esta parada la persona, para que "esta tarea"
+      // se pueda resolver. Si el pathname no pasa la validacion no viaja a medias: se pregunta sin
+      // pantalla y el servidor responde sin ese contexto.
+      // En el portal no viaja: el contacto no tiene pantallas del panel, y su contexto es el
+      // `proyecto_id` que ya pone la configuracion.
+      const pantalla = proyectoId === undefined && sujeto === 'staff' ? pantallaDeRuta(ruta) : null
+      const cuerpo = {
+        ...configuracion.cuerpo(texto, proyectoId, pantalla),
+        ...(actaId === null ? {} : { acta_id: actaId })
+      }
+
+      for await (const crudo of leerSSE(rutaEnvio, { cuerpo, senal: abortador.signal })) {
+        const evento = leerEventoIA(crudo)
+
+        // Un evento que este parser no conoce vuelve como `null` y se saltea: es lo que hace que
+        // un backend mas nuevo no rompa esta pantalla, y al reves.
+        if (evento === null || evento.tipo === 'fin') continue
+        if (evento.tipo === 'delta') acumulado += evento.texto
+        if (evento.tipo === 'citas') citas = evento.citas
+        // La fase `fin` de un paso no se limpia: dejar el ultimo puesto evita el parpadeo entre una
+        // herramienta y la siguiente, y el paso entero desaparece cuando la burbuja deja de generar.
+        if (evento.tipo === 'paso') paso = evento.paso
+        // Sin propuestas (portal) una tarjeta que se colara igual no se pinta: el contrato del portal
+        // no las manda nunca, y si llegaran no habria con que confirmarlas.
+        if (evento.tipo === 'propuesta' && configuracion.conPropuestas) acciones = [...acciones, evento.accion]
+        if (evento.tipo === 'pregunta' && configuracion.conPropuestas) preguntas = [...preguntas, evento.pregunta]
+        if (evento.tipo === 'navegar' && proyectoId === undefined && configuracion.conNavegacion) {
+          // El `href` ya lo valido `leerEventoIA()` como ruta interna; aca no se toca. Se dice a
+          // donde se fue porque la pantalla cambia sola debajo de quien esta leyendo.
+          setDestino(evento.etiqueta)
+          router.push(evento.href)
+        }
+        if (evento.tipo === 'error') {
+          setErrorRespuesta(evento.mensaje)
+          fallo = true
+          break
+        }
+
+        pintar('generando')
+      }
+
+      pintar(fallo ? 'error' : 'listo')
+    } catch (error: unknown) {
+      // Abortado es lo que pasa al cerrar el chat: no es un fallo y lo que llego se conserva.
+      if (abortador.signal.aborted) {
+        pintar('interrumpido')
+      } else {
+        setErrorRespuesta(error instanceof Error ? error.message : MENSAJE_GENERICO)
+        pintar('error')
+      }
+    } finally {
+      enCurso.current = null
+      setEnviando(false)
+    }
+  }
+
+  /**
+   * Borra el hilo entero, en el servidor y en memoria.
+   *
+   * Es un borron de verdad y no un "ocultar": el contexto que el modelo recibe en la proxima
+   * pregunta es el hilo guardado, asi que limpiarlo solo en pantalla dejaria a la IA respondiendo
+   * sobre una conversacion que la persona ya no ve. Por eso pega el `DELETE` primero y solo vacia
+   * la pantalla si el servidor confirmo.
+   *
+   * El hilo es de la persona: la ruta no lleva a quien, lo pone la sesion.
+   */
+  async function borrar (): Promise<void> {
+    setBorrando(true)
+
+    const resultado = await escribirEnBff(rutaChat, 'DELETE')
+
+    setBorrando(false)
+
+    if (!resultado.ok) {
+      setErrorRespuesta(resultado.mensaje)
+
+      return
+    }
+
+    setConfirmandoBorrado(false)
+    setErrorRespuesta('')
+    escribir([])
+  }
+
+  /**
+   * Manda un texto como mensaje de la persona.
+   *
+   * Es el unico camino que existe, y por eso lo comparten el campo de abajo y las tarjetas de
+   * pregunta: contestar una pregunta ES mandar el mensaje siguiente, no una operacion aparte. Si
+   * cada uno tuviera el suyo, el hilo terminaria con dos formas de crecer y una sola probada.
+   *
+   * @param texto lo que se manda, ya recortado
+   */
+  function enviarTexto (texto: string): void {
+    if (texto === '' || enviando) return
+
+    forzarFondo()
+    void preguntar(texto, [
+      ...mensajes,
+      { rol: 'persona', texto, citas: [], paso: null, acciones: [], preguntas: [], fase: 'listo' }
+    ])
+  }
+
+  /** Manda lo que hay escrito en el campo como pregunta nueva. */
+  function enviar (): void {
+    const texto = pregunta.trim()
+
+    if (texto === '' || enviando) return
+
+    setPregunta('')
+    enviarTexto(texto)
+  }
+
+  /**
+   * Vuelve a preguntar lo mismo, reemplazando la respuesta que fallo o quedo a medias.
+   *
+   * @param indice posicion de la burbuja de la IA a rehacer; la pregunta es la burbuja anterior
+   */
+  function reintentar (indice: number): void {
+    const previa = mensajes[indice - 1]
+
+    if (previa === undefined || enviando) return
+
+    void preguntar(previa.texto, mensajes.slice(0, indice))
+  }
+
+  // Los callbacks de las burbujas leen siempre el render más reciente por este ref, así su identidad
+  // es estable y `BurbujaIA` (en `memo`) no se repinta cuando cambia otro mensaje del hilo.
+  const manejadores = useRef({ reintentar, enviarTexto, resolver: (accion: AccionIA): void => { escribir(conAccionResuelta(mensajes, accion)) } })
+  useEffect(() => {
+    manejadores.current = { reintentar, enviarTexto, resolver: (accion) => { escribir(conAccionResuelta(mensajes, accion)) } }
+  })
+  const alReintentar = useCallback((indice: number): void => { manejadores.current.reintentar(indice) }, [])
+  const alResponder = useCallback((texto: string): void => { manejadores.current.enviarTexto(texto) }, [])
+  const alResolverAccion = useCallback((accion: AccionIA): void => { manejadores.current.resolver(accion) }, [])
+
+  if (carga === 'cargando') return <Cargando mensaje="Cargando el chat…" />
+  if (carga === 'error') {
+    return <ErrorEstado detalle={errorCarga} onReintentar={() => { setCarga('cargando'); setIntento((n) => n + 1) }} />
+  }
+
+  return (
+    <MarcoConversacion
+      desplazable={desplazable}
+      desplazadorRef={desplazador}
+      encabezado={proyecto !== undefined && (
+        <div className="border-linea flex flex-col gap-1 border-b pb-3">
+          {proyecto.name !== undefined && (
+            <h2 className="text-texto text-base font-semibold">{ASISTENTE} · {proyecto.name}</h2>
+          )}
+          <p className="text-texto-sutil text-sm">{textos.alcanceProyecto}</p>
+        </div>
+      )}
+      // Fuera del desplazador: en el orbe, un boton que se va con el scroll no se encuentra cuando
+      // la conversacion es larga, que es justo cuando se quiere borrar.
+      barra={mensajes.length > 0 && (
+        <div className="flex flex-col items-end gap-1">
+          {confirmandoBorrado
+            ? (
+              <ConfirmacionEnLinea
+                advertencia={`Se elimina la conversación entera, también la que ${ASISTENTE} recuerda.`}
+                etiquetaConfirmar="Eliminar"
+                cargando={borrando}
+                onCancelar={() => { setConfirmandoBorrado(false) }}
+                onConfirmar={() => { void borrar() }}
+              />
+              )
+            : (
+              <Boton
+                tamano="chico"
+                variante="sutil"
+                disabled={enviando}
+                onClick={() => { setConfirmandoBorrado(true) }}
+              >
+                Eliminar chat
+              </Boton>
+              )}
+        </div>
+      )}
+      vacio={mensajes.length === 0 && (
+        <Vacio
+          titulo={`Pregúntale a ${ASISTENTE}`}
+          descripcion={textos.descripcion(proyecto === undefined ? undefined : proyecto.name ?? 'este proyecto')}
+          accion={
+            <div className="flex flex-wrap justify-center gap-2">
+              {(actaId === null ? textos.sugerencias : SUGERENCIAS_DE_ACTA).map((sugerencia) => (
+                <Boton key={sugerencia} tamano="chico" onClick={() => setPregunta(sugerencia)}>
+                  {sugerencia}
+                </Boton>
+              ))}
+            </div>
+          }
+        />
+      )}
+      // La pantalla de atras cambio sola: quien estaba leyendo el chat tiene que enterarse de que
+      // lo que hay detras ya no es lo que estaba mirando.
+      avisos={destino !== '' && (
+        <p role="status" className="text-texto-tenue text-xs">Te llevé a {destino}.</p>
+      )}
+      pie={(
+        <CompositorChat
+          valor={pregunta}
+          onCambio={setPregunta}
+          onEnviar={enviar}
+          maximo={LARGO_MAXIMO_PREGUNTA}
+          deshabilitado={enviando}
+          placeholder={textos.placeholder(conProyecto)}
+          // La frase vale en los dos estados del interruptor de escrituras: apagado no cambia nada
+          // nunca, y encendido no cambia nada hasta que alguien aprieta Confirmar.
+          pie={textos.pie(conProyecto)}
+          etiquetaEnviar="Preguntar"
+          dictadoConRespaldo={configuracion.dictadoConRespaldo}
+        />
+      )}
+    >
+      {mensajes.length > 0 && (
+        <ol aria-label="Conversación" className="flex flex-col gap-4">
+          {mensajes.map((mensaje, indice) => (
+            mensaje.rol === 'persona'
+              ? <BurbujaPersona key={indice} texto={mensaje.texto} comoItem />
+              : (
+                <BurbujaIA
+                  key={indice}
+                  mensaje={mensaje}
+                  indice={indice}
+                  configuracion={configuracion}
+                  conProyecto={conProyecto}
+                  proyectoId={proyectoId}
+                  error={mensaje.fase === 'error' ? errorRespuesta : ''}
+                  respuesta={respuestaAPreguntas(mensajes, indice)}
+                  onReintentar={alReintentar}
+                  onResponder={alResponder}
+                  onAccionResuelta={alResolverAccion}
+                />
+                )
+          ))}
+        </ol>
+      )}
+    </MarcoConversacion>
+  )
+}

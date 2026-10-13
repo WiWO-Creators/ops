@@ -9,7 +9,7 @@
 
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
-import { configuracionDeOrbe, hrefDeCitaPortal, proyectoDeRutaPortal } from '../src/dominio/orbe-sujeto.ts'
+import { conAgente, configuracionDeOrbe, hrefDeCitaPortal, proyectoDeRutaPortal } from '../src/dominio/orbe-sujeto.ts'
 import { guardarHilo, leerHilo } from '../src/dominio/ia-chat.ts'
 
 test('el orbe del equipo conserva rutas, cuerpo y capacidades de siempre', () => {
@@ -100,4 +100,26 @@ test('el hilo del equipo y el del portal no se pisan en memoria', () => {
   assert.equal(leerHilo(1, 'staff').mensajes[0].texto, 'equipo')
   assert.equal(leerHilo(1, 'contacto').mensajes[0].texto, 'cliente')
   assert.equal(leerHilo(undefined, 'contacto').cargado, false)
+})
+
+test('el agente solo existe para el equipo y «global» es siempre undefined', () => {
+  const staff = configuracionDeOrbe('staff')
+  const portal = configuracionDeOrbe('contacto')
+
+  assert.equal(portal.agente, null)
+  assert.equal(portal.conAgente, false)
+  assert.equal(staff.conAgente, staff.agente !== null)
+  assert.equal(conAgente(staff), true)
+  assert.equal(conAgente(portal), false)
+
+  const agente = staff.agente
+  assert.equal(agente.rutaCrear, 'ia/ejecuciones')
+  assert.equal(agente.rutaEjecuciones(), 'ia/ejecuciones?proyecto_id=0')
+  assert.equal(agente.rutaEjecuciones(5), 'ia/ejecuciones?proyecto_id=5')
+  assert.equal(agente.rutaEjecucion('12'), 'ia/ejecuciones/12?proyecto_id=0')
+  assert.equal(agente.rutaEjecucion('12', 5), 'ia/ejecuciones/12?proyecto_id=5')
+  assert.equal(agente.rutaOperacion('12', 'cancelar'), 'ia/ejecuciones/12/cancelar')
+  assert.equal(agente.proyectoIdApi(), 0)
+  assert.equal(agente.proyectoIdApi(5), 5)
+  assert.match(agente.textos.detenida(3), /3 min/)
 })
