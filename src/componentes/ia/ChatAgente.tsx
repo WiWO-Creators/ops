@@ -5,10 +5,12 @@ import { usePathname, useRouter } from 'next/navigation'
 import { Boton } from '@/componentes/formularios/Boton'
 import { AreaTexto } from '@/componentes/formularios/Entrada'
 import { Cargando } from '@/componentes/estado/Estados'
+import { ConfirmacionEnLinea } from '@/componentes/datos/ConfirmacionEnLinea'
 import { escribirEnBff } from '@/componentes/datos/mutaciones'
 import { pedirSobre } from '@/datos/cliente'
 import { actualizarEjecucion, estaTrabajando, ESTADOS_EJECUCION, leerEjecucion, type Ejecucion } from '@/dominio/ia-ejecucion'
 import { leerMensajesGuardados, type Mensaje } from '@/dominio/ia-chat'
+import { ASISTENTE } from '@/dominio/glosario'
 import { pantallaDeRuta } from '@/dominio/pantalla'
 import { BotonDictado } from './BotonDictado'
 import { TextoChat } from './TextoChat'
@@ -24,6 +26,11 @@ export function ChatAgente ({ desplazable, proyecto, intervalo, nuevasHabilitada
   const [texto, setTexto] = useState('')
   const [enviando, setEnviando] = useState(false)
   const [recuperar, setRecuperar] = useState(0)
+  const [confirmandoBorrado, setConfirmandoBorrado] = useState(false)
+  const [borrando, setBorrando] = useState(false)
+  const [errorBorrado, setErrorBorrado] = useState('')
+  const [hayHiloAnterior, setHayHiloAnterior] = useState(false)
+  const [versionAnterior, setVersionAnterior] = useState(0)
   const ocupado = useRef(false)
   const solicitudPendiente = useRef<{ accion: string, texto?: string, version?: string, clave: string } | null>(null)
   const montado = useRef(true)
@@ -112,13 +119,65 @@ export function ChatAgente ({ desplazable, proyecto, intervalo, nuevasHabilitada
     }
   }
 
+  /**
+   * Vacía la conversación entera: las ejecuciones del alcance y el hilo del motor anterior.
+   *
+   * Pega primero `DELETE ia/ejecuciones` (el servidor responde 409 si hay una en curso) y luego el
+   * del hilo anterior; la pantalla solo se vacía si ambos confirman, para no mostrar vacío algo que
+   * el asistente aún recuerda. Repetir tras un fallo parcial es seguro: lo ya archivado no vuelve a contar.
+   *
+   * @returns Finalización del borrado; los errores del servidor quedan en `errorBorrado`.
+   */
+  async function eliminar (): Promise<void> {
+    if (ocupado.current) return
+    ocupado.current = true
+    setBorrando(true)
+    setErrorBorrado('')
+    try {
+      const ejecuciones = await escribirEnBff<unknown>(`ia/ejecuciones?proyecto_id=${proyectoId}`, 'DELETE')
+      if (!ejecuciones.ok) { if (montado.current) setErrorBorrado(ejecuciones.mensaje); return }
+      const hilo = await escribirEnBff<unknown>(rutaHiloAnterior(proyectoId), 'DELETE')
+      if (!hilo.ok) { if (montado.current) setErrorBorrado(hilo.mensaje); return }
+      if (!montado.current) return
+      setHistorial([])
+      setTexto('')
+      setHayHiloAnterior(false)
+      setVersionAnterior(n => n + 1)
+      setConfirmandoBorrado(false)
+      solicitudPendiente.current = null
+    } finally {
+      ocupado.current = false
+      if (montado.current) setBorrando(false)
+    }
+  }
+
   if (cargando) return <Cargando mensaje="Recuperando conversación…" />
   const bloqueado = enviando || trabajando || pendiente || error !== '' || (!nuevasHabilitadas && !respondeEjecucion)
   return (
     <div className={desplazable ? 'flex min-h-0 flex-1 flex-col gap-4' : 'flex flex-col gap-4'}>
       {proyecto && <p className="text-texto-sutil text-sm">Esta conversación solo consulta y modifica {proyecto.name}.</p>}
+      {(historial.length > 0 || hayHiloAnterior) && (
+        <div className="flex flex-col items-end gap-1">
+          {confirmandoBorrado
+            ? (
+              <ConfirmacionEnLinea
+                advertencia={`Se elimina la conversación entera, también la que ${ASISTENTE} recuerda.`}
+                etiquetaConfirmar="Eliminar"
+                cargando={borrando}
+                error={errorBorrado}
+                onCancelar={() => { setConfirmandoBorrado(false); setErrorBorrado('') }}
+                onConfirmar={() => { void eliminar() }}
+              />
+              )
+            : (
+              <Boton tamano="chico" variante="sutil" disabled={enviando || trabajando} onClick={() => { setConfirmandoBorrado(true) }}>
+                Eliminar chat
+              </Boton>
+              )}
+        </div>
+      )}
       <div ref={desplazador} className={desplazable ? 'min-h-0 flex-1 overflow-y-auto pr-1' : ''}>
-        <HistorialAnterior proyectoId={proyectoId} />
+        <HistorialAnterior key={versionAnterior} proyectoId={proyectoId} alCargar={setHayHiloAnterior} />
         {historial.length === 0 && <p className="text-texto-tenue py-6">Pregunta por Ops o describe una tarea. Revisarás el plan completo antes de aplicar cambios.</p>}
         <ol aria-label="Conversación" className="flex flex-col gap-8">
           {historial.map(e => (
@@ -163,8 +222,13 @@ export function ChatAgente ({ desplazable, proyecto, intervalo, nuevasHabilitada
   )
 }
 
+/** Ruta del hilo del motor anterior. @param proyectoId Proyecto del alcance, 0 para el chat global. @returns Ruta relativa del BFF. */
+function rutaHiloAnterior (proyectoId: number): string {
+  return proyectoId === 0 ? 'ia/chat' : `ia/proyectos/${proyectoId}/chat`
+}
+
 /** Permite consultar el hilo anterior sin ejecutar sus propuestas ni enviar al motor retirado. */
-function HistorialAnterior ({ proyectoId }: { proyectoId: number }): ReactElement {
+function HistorialAnterior ({ proyectoId, alCargar }: { proyectoId: number, alCargar: (hayMensajes: boolean) => void }): ReactElement {
   const [mensajes, setMensajes] = useState<Mensaje[] | null>(null)
   const [error, setError] = useState('')
   const [cargando, setCargando] = useState(false)
@@ -179,9 +243,12 @@ function HistorialAnterior ({ proyectoId }: { proyectoId: number }): ReactElemen
     setCargando(true)
     setError('')
     try {
-      const ruta = proyectoId === 0 ? 'ia/chat' : `ia/proyectos/${proyectoId}/chat`
-      const sobre = await pedirSobre<unknown>(ruta, abortador.signal)
-      if (!abortador.signal.aborted) setMensajes(leerMensajesGuardados(sobre.data))
+      const sobre = await pedirSobre<unknown>(rutaHiloAnterior(proyectoId), abortador.signal)
+      if (!abortador.signal.aborted) {
+        const guardados = leerMensajesGuardados(sobre.data)
+        setMensajes(guardados)
+        alCargar(guardados.length > 0)
+      }
     } catch (fallo: unknown) {
       if (!abortador.signal.aborted) setError(fallo instanceof Error ? fallo.message : 'No se pudo cargar la conversación anterior.')
     } finally {
