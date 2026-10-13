@@ -30,7 +30,7 @@ import { TextoChat } from './TextoChat'
 import { useAutoScroll } from './useAutoScroll'
 import { useEjecucionesAgente } from './useEjecucionesAgente'
 
-/** La espera de una decisión sigue pendiente aunque se cierre el chat: se conserva en el store de fases. */
+/** La espera de una decisión sigue pendiente aunque se cierre el chat: se conserva en el store de fases hasta que caduca (el umbral de «detenida») o se revalida. */
 const FASES_QUE_SOBREVIVEN: readonly FaseConversacion[] = ['esperando']
 
 interface Props {
@@ -60,7 +60,7 @@ export function ChatAgente ({ desplazable = false, proyecto, configuracion, capa
     alLimpiarTexto: () => { setTexto('') }
   })
   const { ref: desplazador, forzarFondo } = useAutoScroll(historial, { activo: desplazable, listo: !cargando })
-  usePublicarFaseOrbe(ambitoDeOrbe(configuracion.sujeto, proyectoId), faseDeEjecucion(ultima, { enviando, conError: error !== '' }), FASES_QUE_SOBREVIVEN)
+  usePublicarFaseOrbe(ambitoDeOrbe(configuracion.sujeto, proyectoId), faseDeEjecucion(ultima, { enviando, conError: error !== '' }), FASES_QUE_SOBREVIVEN, capacidades.umbral_detenida_segundos * 1000)
 
   const trabajando = ultima !== undefined && estaTrabajando(ultima)
   const editando = estaEditando(ultima)

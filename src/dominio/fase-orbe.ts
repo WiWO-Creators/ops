@@ -1,4 +1,5 @@
 import { useEffect, useRef, useSyncExternalStore } from 'react'
+import { UMBRAL_DETENIDA_SEGUNDOS } from './ia-ejecucion.ts'
 
 /**
  * Estado compartido de la conversación del orbe.
@@ -15,7 +16,12 @@ export type FaseConversacion = 'reposo' | 'generando' | 'esperando' | 'error'
 /** Gravedad para resumir varios ámbitos: gana el que más reclama la atención. */
 const PRIORIDAD: Record<FaseConversacion, number> = { reposo: 0, error: 1, esperando: 2, generando: 3 }
 
+/** Cuánto sobrevive una fase conservada tras cerrar el chat si nadie la revalida: el umbral de «detenida». */
+export const TTL_FASE_CONSERVADA_MS = UMBRAL_DETENIDA_SEGUNDOS * 1000
+
 const fases = new Map<string, FaseConversacion>()
+/** Instante en que caduca cada fase conservada, y el temporizador que la borra. */
+const caducidades = new Map<string, { hasta: number, temporizador: ReturnType<typeof setTimeout> | undefined }>()
 const oyentes = new Set<() => void>()
 
 /** Avisa a los lectores de que alguna fase cambió. */
@@ -35,7 +41,9 @@ export function ambitoDeOrbe (sujeto: string, proyectoId?: number): string {
 }
 
 /** Fase publicada de un ámbito. @param ambito Clave de `ambitoDeOrbe`. @returns La fase, o `reposo` si nadie publicó. */
-export function leerFaseOrbe (ambito: string): FaseConversacion {
+export function leerFaseOrbe (ambito: string, ahora = Date.now()): FaseConversacion {
+  const caducidad = caducidades.get(ambito)
+  if (caducidad !== undefined && caducidad.hasta <= ahora) return 'reposo'
   return fases.get(ambito) ?? 'reposo'
 }
 
@@ -45,24 +53,54 @@ export function leerFaseOrbe (ambito: string): FaseConversacion {
  * @param sujeto De quién es la sesión.
  * @returns La fase más urgente entre sus ámbitos: generando, esperando, error, reposo.
  */
-export function faseDeSujeto (sujeto: string): FaseConversacion {
+export function faseDeSujeto (sujeto: string, ahora = Date.now()): FaseConversacion {
   let mejor: FaseConversacion = 'reposo'
-  for (const [ambito, fase] of fases) {
+  for (const ambito of fases.keys()) {
+    const fase = leerFaseOrbe(ambito, ahora)
     if (ambito.startsWith(`${sujeto}:`) && PRIORIDAD[fase] > PRIORIDAD[mejor]) mejor = fase
   }
   return mejor
 }
 
+/** Olvida la caducidad de un ámbito y cancela su temporizador. @param ambito Clave de `ambitoDeOrbe`. */
+function olvidarCaducidad (ambito: string): void {
+  clearTimeout(caducidades.get(ambito)?.temporizador)
+  caducidades.delete(ambito)
+}
+
 /** Publica la fase de un ámbito. `reposo` borra la entrada. @param ambito Clave de `ambitoDeOrbe`. @param fase Fase actual. */
 export function publicarFaseOrbe (ambito: string, fase: FaseConversacion): void {
+  olvidarCaducidad(ambito)
   if (leerFaseOrbe(ambito) === fase) return
   if (fase === 'reposo') fases.delete(ambito)
   else fases.set(ambito, fase)
   avisar()
 }
 
-/** Olvida todas las fases. Solo para pruebas. */
+/**
+ * Marca la fase de un ámbito como conservada tras cerrar el chat: caduca a los `ttlMs` si nadie la
+ * vuelve a publicar. Sin esto, una espera de decisión que ya se resolvió en otro lado (otra
+ * pestaña, el propio servidor) dejaría el aviso del botón para siempre.
+ *
+ * @param ambito Clave de `ambitoDeOrbe`.
+ * @param ttlMs Vigencia en ms.
+ */
+export function conservarFaseOrbe (ambito: string, ttlMs = TTL_FASE_CONSERVADA_MS): void {
+  olvidarCaducidad(ambito)
+  const hasta = Date.now() + ttlMs
+  const temporizador = setTimeout(() => {
+    if (caducidades.get(ambito)?.hasta !== hasta) return
+    caducidades.delete(ambito)
+    fases.delete(ambito)
+    avisar()
+  }, ttlMs)
+  temporizador.unref?.()
+  caducidades.set(ambito, { hasta, temporizador })
+}
+
+/** Olvida todas las fases y sus caducidades. Al cerrar sesión y en pruebas. */
 export function vaciarFasesOrbe (): void {
+  for (const ambito of [...caducidades.keys()]) olvidarCaducidad(ambito)
   fases.clear()
   avisar()
 }
@@ -100,14 +138,16 @@ export const NO_CONSERVAR: readonly FaseConversacion[] = []
  * @param ambito Clave de `ambitoDeOrbe`.
  * @param fase Fase actual del motor.
  * @param conservar Fases que no se limpian al desmontar; pasar una constante de módulo.
+ * @param ttlConservadaMs Cuánto sobrevive una fase conservada si nadie la revalida.
  */
-export function usePublicarFaseOrbe (ambito: string, fase: FaseConversacion, conservar: readonly FaseConversacion[] = NO_CONSERVAR): void {
+export function usePublicarFaseOrbe (ambito: string, fase: FaseConversacion, conservar: readonly FaseConversacion[] = NO_CONSERVAR, ttlConservadaMs = TTL_FASE_CONSERVADA_MS): void {
   const ultima = useRef(fase)
   useEffect(() => {
     ultima.current = fase
     publicarFaseOrbe(ambito, fase)
   }, [ambito, fase])
   useEffect(() => () => {
-    if (!conservar.includes(ultima.current)) publicarFaseOrbe(ambito, 'reposo')
-  }, [ambito, conservar])
+    if (conservar.includes(ultima.current)) conservarFaseOrbe(ambito, ttlConservadaMs)
+    else publicarFaseOrbe(ambito, 'reposo')
+  }, [ambito, conservar, ttlConservadaMs])
 }

@@ -86,7 +86,7 @@ export function leerEjecucion (valor: unknown): Ejecucion {
 /**
  * Huella del snapshot para saber si una consulta trajo algo nuevo.
  *
- * Cubre estado, progreso, versión del plan, `actualizada_en` y el estado de cada paso: si cambia
+ * Cubre estado, progreso, versión del plan, `actualizada_en`, el largo del mensaje, cuántas preguntas hay y el estado de cada paso: si cambia
  * alguno de ellos hay algo que pintar; si ninguno, repintar solo gasta renders.
  *
  * @param ejecucion Snapshot actual.
@@ -94,7 +94,7 @@ export function leerEjecucion (valor: unknown): Ejecucion {
  */
 export function firmaDeEjecucion (ejecucion: Ejecucion): string {
   const pasos = (ejecucion.plan?.pasos ?? []).map(p => `${p.id}:${p.estado}`).join(',')
-  return [ejecucion.id, ejecucion.estado, ejecucion.progreso ?? '', ejecucion.plan?.version ?? '', ejecucion.actualizada_en ?? '', pasos].join('|')
+  return [ejecucion.id, ejecucion.estado, ejecucion.progreso ?? '', ejecucion.plan?.version ?? '', ejecucion.actualizada_en ?? '', ejecucion.mensaje?.length ?? 0, ejecucion.preguntas?.length ?? 0, pasos].join('|')
 }
 
 /** Indica si dos snapshots son equivalentes para el seguimiento. @param a Snapshot previo, si hay. @param b Snapshot nuevo. @returns `true` si no hay nada que repintar. */

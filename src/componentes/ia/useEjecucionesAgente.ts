@@ -111,7 +111,10 @@ export function useEjecucionesAgente ({ configuracion, proyectoId, intervalo, um
   useEffect(() => {
     const alCambiarVisibilidad = (): void => {
       const ahora = pestanaVisible()
-      if (ahora) volviendo.current = true
+      if (ahora) {
+        volviendo.current = true
+        setFirmaDetenida(null)
+      }
       setVisible(ahora)
     }
     document.addEventListener('visibilitychange', alCambiarVisibilidad)
@@ -186,7 +189,7 @@ export function useEjecucionesAgente ({ configuracion, proyectoId, intervalo, um
     return () => { clearTimeout(temporizador) }
   }, [trabajando, visible, firma, umbralDetenidaSegundos])
 
-  const detenida = trabajando && firmaDetenida === firma
+  const detenida = trabajando && error === '' && firmaDetenida === firma
 
   /**
    * Envía una operación una sola vez y recupera su snapshot.

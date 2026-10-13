@@ -78,7 +78,7 @@ test('con las solicitudes nuevas pausadas aún se puede responder a la ejecució
   assert.equal(estaBloqueado(ejecucion('esperando_confirmacion', { plan: PLAN }), pausadas), false)
 })
 
-test('la huella cambia con estado, progreso, versión del plan, actualizada_en y estado de pasos', () => {
+test('la huella cambia con estado, progreso, versión del plan, actualizada_en y estado de pasos, largo del mensaje y preguntas', () => {
   const base = ejecucion('ejecutando', { progreso: 'Paso 1', plan: PLAN, actualizada_en: '2026-10-13T10:00:00Z' })
 
   assert.equal(mismaInstantanea(base, { ...base }), true)
@@ -88,7 +88,8 @@ test('la huella cambia con estado, progreso, versión del plan, actualizada_en y
   assert.equal(mismaInstantanea(base, { ...base, plan: { ...PLAN, version: 'v2' } }), false)
   assert.equal(mismaInstantanea(base, { ...base, actualizada_en: '2026-10-13T10:00:05Z' }), false)
   assert.equal(mismaInstantanea(base, { ...base, plan: { ...PLAN, pasos: [{ ...PLAN.pasos[0], estado: 'hecho' }] } }), false)
-  assert.equal(firmaDeEjecucion(base), firmaDeEjecucion({ ...base, mensaje: 'prosa que no cuenta' }))
+  assert.notEqual(firmaDeEjecucion(base), firmaDeEjecucion({ ...base, mensaje: 'prosa nueva' }), 'el largo del mensaje cuenta')
+  assert.equal(firmaDeEjecucion({ ...base, mensaje: 'aaaa' }), firmaDeEjecucion({ ...base, mensaje: 'bbbb' }), 'solo cuenta el largo, no el texto')
 })
 
 test('el seguimiento crece de 1,5 s a 5 s sin cambios y respeta una base mayor', () => {

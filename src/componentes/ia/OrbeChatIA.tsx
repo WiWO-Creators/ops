@@ -54,7 +54,7 @@ const ChatOrbe = dynamic(importarChat, {
  *
  * La regla del sistema de diseño prohibe animaciones infinitas en elementos SIEMPRE visibles, y este
  * boton lo esta en todo el panel. En reposo va el orbe quieto; se anima al pasar por encima, al
- * enfocarlo con el teclado y mientras una conversacion genera o espera con el panel cerrado, que son estados que terminan. Con el panel abierto vuelve al reposo.
+ * enfocarlo con el teclado y mientras el agente espera una decision con el panel cerrado (esa fase se conserva al cerrar y caduca sola). La consulta (SSE) se corta al cerrar el chat, asi que su fase `generando` no sobrevive. Con el panel abierto vuelve al reposo.
  *
  * === POR QUE EL BOTON LLEVA EL GRADIENTE DE MARCA ===
  *
