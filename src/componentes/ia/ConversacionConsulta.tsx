@@ -25,6 +25,7 @@ import { ambitoDeOrbe, usePublicarFaseOrbe } from '@/dominio/fase-orbe'
 import { actaAbiertaDeUrl, pantallaDeRuta, SUGERENCIAS_DE_ACTA } from '@/dominio/pantalla'
 import { ASISTENTE } from '@/dominio/glosario'
 import type { ConfiguracionOrbe } from '@/dominio/orbe-sujeto'
+import { BotonEliminarChat } from './BotonEliminarChat'
 import { BurbujaIA, MENSAJE_GENERICO } from './BurbujaIA'
 import { BurbujaPersona } from './BurbujaPersona'
 import { CompositorChat } from './CompositorChat'
@@ -350,17 +351,11 @@ export function ConversacionConsulta ({ desplazable = false, proyecto, configura
       )}
       // Fuera del desplazador: en el orbe, un boton que se va con el scroll no se encuentra cuando
       // la conversacion es larga, que es justo cuando se quiere borrar.
-      barra={mensajes.length > 0 && (
-        <div className="flex flex-col items-end gap-1">
-          <Boton
-            tamano="chico"
-            variante="sutil"
-            disabled={enviando}
-            onClick={() => { setConfirmandoBorrado(true) }}
-          >
-            Eliminar chat
-          </Boton>
-        </div>
+      barra={!desplazable && mensajes.length > 0 && (
+        <BotonEliminarChat
+          motivoDeshabilitado={enviando ? 'Espera a que termine la respuesta en curso.' : undefined}
+          onClick={() => { setConfirmandoBorrado(true) }}
+        />
       )}
       vacio={mensajes.length === 0 && (
         <Vacio

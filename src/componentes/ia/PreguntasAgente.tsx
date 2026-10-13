@@ -2,7 +2,6 @@
 
 import { useState, type ReactElement } from 'react'
 import { Boton } from '@/componentes/formularios/Boton'
-import { Entrada } from '@/componentes/formularios/Entrada'
 import { cn } from '@/lib/clases'
 import { preguntaPulsable, respuestaDePreguntas, type PreguntaAgente, type PreguntaPulsable } from '@/dominio/ia-ejecucion'
 import { TextoChat } from './TextoChat'
@@ -12,8 +11,6 @@ interface PropsPreguntasAgente {
   preguntas: PreguntaAgente[]
   /** Bloquea los botones mientras se envía o hay un error de seguimiento. */
   deshabilitado: boolean
-  /** Límite de la respuesta escrita. */
-  maximo: number
   /** Manda la respuesta como `reanudar`. */
   onResponder: (respuesta: string) => void
 }
@@ -24,21 +21,21 @@ const CLASE_OPCION = 'h-auto min-h-11 w-full justify-start whitespace-normal py-
 /**
  * Las preguntas del agente cuando faltan datos, con opciones pulsables.
  *
- * - Una sola pregunta pulsable: elegir una opción (o enviar el texto libre) responde en el acto.
+ * - Una sola pregunta pulsable: elegir una opción responde en el acto.
  * - Varias: cada opción se marca y un botón envía todas las respuestas juntas, una por línea.
- * - Una pregunta sin `id` o sin opciones se degrada a la vista de lista de siempre; el compositor
- *   sigue sirviendo para contestarla.
+ * - Aquí solo hay botones: si la pregunta admite texto libre, se escribe en el compositor principal,
+ *   cuyo placeholder ya pide los datos. Una pregunta sin `id` o sin opciones se degrada a la vista de
+ *   lista de siempre.
  *
- * @param props preguntas, estado de bloqueo, límite y manejador de respuesta
+ * @param props preguntas, estado de bloqueo y manejador de respuesta
  */
-export function PreguntasAgente ({ preguntas, deshabilitado, maximo, onResponder }: PropsPreguntasAgente): ReactElement {
+export function PreguntasAgente ({ preguntas, deshabilitado, onResponder }: PropsPreguntasAgente): ReactElement {
   const [elegidas, setElegidas] = useState<Record<string, string>>({})
-  const [escritas, setEscritas] = useState<Record<string, string>>({})
   const pulsables = preguntas.map(preguntaPulsable)
   const cantidad = pulsables.filter(p => p !== null).length
   const inmediato = cantidad === 1 && preguntas.length === 1
 
-  const respuestaDe = (p: PreguntaPulsable): string => (escritas[p.id] ?? '').trim() || (elegidas[p.id] ?? '')
+  const respuestaDe = (p: PreguntaPulsable): string => elegidas[p.id] ?? ''
   const completas = cantidad > 0 && cantidad === preguntas.length && pulsables.every(p => p !== null && respuestaDe(p) !== '')
 
   /** Envía las respuestas de todas las preguntas pulsables. */
@@ -73,7 +70,7 @@ export function PreguntasAgente ({ preguntas, deshabilitado, maximo, onResponder
                       disabled={deshabilitado}
                       onClick={() => {
                         if (inmediato) onResponder(opcion)
-                        else { setElegidas(e => ({ ...e, [pulsable.id]: opcion })); setEscritas(e => ({ ...e, [pulsable.id]: '' })) }
+                        else setElegidas(e => ({ ...e, [pulsable.id]: opcion }))
                       }}
                     >
                       {opcion}
@@ -82,26 +79,6 @@ export function PreguntasAgente ({ preguntas, deshabilitado, maximo, onResponder
                 )
               })}
             </ul>
-            {pulsable.admiteTexto && (
-              <form
-                className="flex items-center gap-2"
-                onSubmit={(evento) => {
-                  evento.preventDefault()
-                  const escrito = (escritas[pulsable.id] ?? '').trim()
-                  if (escrito !== '' && inmediato) onResponder(escrito)
-                }}
-              >
-                <Entrada
-                  value={escritas[pulsable.id] ?? ''}
-                  onChange={(evento) => { setEscritas(e => ({ ...e, [pulsable.id]: evento.target.value })) }}
-                  maxLength={maximo}
-                  disabled={deshabilitado}
-                  aria-label={`Otra respuesta para: ${pulsable.pregunta}`}
-                  placeholder="O escríbelo tú…"
-                />
-                {inmediato && <Boton type="submit" tamano="chico" variante="primario" disabled={deshabilitado || (escritas[pulsable.id] ?? '').trim() === ''}>Enviar</Boton>}
-              </form>
-            )}
           </div>
         )
       })}

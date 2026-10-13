@@ -134,7 +134,10 @@ try {
   // Opciones pulsables y texto libre.
   const opcion = panel.getByRole('button', { name: 'Andrés Morales', exact: true })
   await opcion.waitFor()
-  await panel.getByRole('textbox', { name: /Otra respuesta/ }).waitFor()
+  assert.equal(await panel.getByRole('textbox', { name: /Otra respuesta/ }).count(), 0, 'La tarjeta solo tiene botones: el texto libre va en el compositor')
+  assert.equal(await panel.getByRole('button', { name: 'Copiar', exact: true }).count(), 0, 'Sin acciones de respuesta mientras espera datos')
+  assert.equal(await panel.getByRole('button', { name: 'Eliminar chat' }).count(), 0, 'En el panel flotante «Eliminar chat» es «Nueva conversación», en la cabecera')
+  assert.equal(await panel.getByText('Para borrar el chat', { exact: false }).count(), 0)
   await pagina.screenshot({ path: `${SALIDA}/02-opciones-desktop.png` })
   await opcion.click()
   await panel.getByRole('heading', { name: 'Plan de trabajo' }).waitFor()
@@ -153,9 +156,14 @@ try {
   }
   await panel.locator('div.overflow-y-auto').first().evaluate(el => { el.scrollTop = 0 })
   assert.ok(await dentro(), 'Confirmar queda a la vista sin hacer scroll hasta el final del plan')
+  assert.equal(await panel.getByRole('button', { name: 'Copiar', exact: true }).count(), 0, 'Sin acciones de respuesta mientras espera confirmación')
+  // Los pasos se ven por encima de la barra fija, que no los tapa.
+  const primero = await panel.getByText('Buscar la tarea Zoho', { exact: true }).boundingBox()
+  const barra = await confirmar.boundingBox()
+  assert.ok(primero !== null && primero.y + primero.height <= barra.y, 'El primer paso queda visible por encima de la barra fija')
   await pagina.screenshot({ path: `${SALIDA}/03-plan-desktop.png` })
   await panel.getByRole('button', { name: 'Cancelar ejecución' }).waitFor()
-  await panel.locator('div.overflow-y-auto').first().evaluate(el => { el.scrollTop = 260 })
+  await panel.getByRole('list', { name: 'Pasos del plan' }).evaluate(el => { el.scrollTop = 120 })
   await pagina.screenshot({ path: `${SALIDA}/03b-plan-pasos-desktop.png` })
   await confirmar.click()
   const activo = panel.locator('li[aria-current="step"]')

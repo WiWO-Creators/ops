@@ -31,6 +31,7 @@ import { ASISTENTE } from '@/dominio/glosario'
 import type { CapacidadesAgente } from '@/dominio/orbe-capacidades'
 import type { ConfiguracionConAgente } from '@/dominio/orbe-sujeto'
 import { AccionesRespuestaAgente } from './AccionesRespuestaAgente'
+import { BotonEliminarChat } from './BotonEliminarChat'
 import { BurbujaPersona } from './BurbujaPersona'
 import { TarjetaIA } from './BurbujaIA'
 import { ChipContexto } from './ChipContexto'
@@ -43,6 +44,9 @@ import { TextoChat } from './TextoChat'
 import { useAutoScroll } from './useAutoScroll'
 import { useSolicitudNuevaConversacion } from './useSolicitudNuevaConversacion'
 import { useEjecucionesAgente } from './useEjecucionesAgente'
+
+/** Estados en los que la respuesta ya terminó: solo entonces se ofrece copiarla, repetirla o editarla. */
+const ESTADOS_TERMINADOS: ReadonlyArray<Ejecucion['estado']> = ['completada', 'error', 'cancelada', 'incompleta']
 
 /** La espera de una decisión sigue pendiente aunque se cierre el chat: se conserva en el store de fases hasta que caduca (el umbral de «detenida») o se revalida. */
 const FASES_QUE_SOBREVIVEN: readonly FaseConversacion[] = ['esperando']
@@ -184,13 +188,11 @@ export function ChatAgente ({ desplazable = false, proyecto, configuracion, capa
       desplazable={desplazable}
       desplazadorRef={desplazador}
       encabezado={proyecto && <p className="text-texto-sutil text-sm">{textos.alcanceProyecto(proyecto.name)}</p>}
-      barra={(historial.length > 0 || hayHiloAnterior) && (
-        <div className="flex flex-col items-end gap-1">
-          <Boton tamano="chico" variante="sutil" disabled={enviando || trabajando || sinBorrado} title={sinBorrado ? textos.sinBorrado : undefined} onClick={() => { setConfirmandoBorrado(true) }}>
-            Eliminar chat
-          </Boton>
-          {sinBorrado && <p className="text-texto-tenue text-xs">{textos.sinBorrado}</p>}
-        </div>
+      barra={!desplazable && (historial.length > 0 || hayHiloAnterior) && (
+        <BotonEliminarChat
+          motivoDeshabilitado={sinBorrado ? textos.sinBorrado : enviando || trabajando ? 'Espera a que termine la ejecución en curso.' : undefined}
+          onClick={() => { setConfirmandoBorrado(true) }}
+        />
       )}
       antesDeLista={<HistorialAnterior key={versionAnterior} rutaHilo={configuracion.rutaHilo(proyectoId)} alCargar={setHayHiloAnterior} />}
       vacio={historial.length === 0 && (
@@ -262,7 +264,7 @@ export function ChatAgente ({ desplazable = false, proyecto, configuracion, capa
               {e.error?.mensaje && <TextoChat texto={e.error.mensaje} className="text-texto-peligro" />}
               <FuentesIA citas={citasDeResultado(e.resultado)} hrefDeCita={configuracion.hrefDeCita} />
               {e.preguntas && e.preguntas.length > 0 && (e.id === ultima?.id && e.estado === 'esperando_datos'
-                ? <PreguntasAgente preguntas={e.preguntas} deshabilitado={enviando || error !== ''} maximo={maximoPregunta} onResponder={responderPregunta} />
+                ? <PreguntasAgente preguntas={e.preguntas} deshabilitado={enviando || error !== ''} onResponder={responderPregunta} />
                 : e.preguntas.map((p, indice) => <div key={indice} className="space-y-2"><TextoChat texto={p.pregunta} className="font-medium" />{p.opciones && <ul className="text-texto-tenue list-disc pl-5">{p.opciones.map(o => <li key={o}><TextoChat texto={o} /></li>)}</ul>}</div>))}
               {e.id === ultima?.id && <div className="flex flex-wrap gap-2 [&>button]:min-h-11 [&>button]:whitespace-normal">
                 {(e.estado === 'incompleta' || (e.estado === 'error' && e.error?.reintentable)) && <Boton disabled={enviando || error !== ''} aria-label="Seguir con la ejecución" onClick={() => { void operar('reanudar') }}>Seguir</Boton>}
@@ -272,7 +274,7 @@ export function ChatAgente ({ desplazable = false, proyecto, configuracion, capa
                   : !barraDelPlan && !['completada', 'cancelada'].includes(e.estado) && <Boton variante="sutil" disabled={enviando} aria-label="Detener la ejecución" onClick={() => { void operar('cancelar') }}>Detener</Boton>}
               </div>}
               {e.id === ultima?.id && descartable && <p role="status" className="text-texto-sutil text-sm">{e.estado === 'error' ? 'Esta ejecución falló y no se puede reintentar. Mientras siga abierta no puedes hacer otra pregunta: descártala para empezar de nuevo.' : 'Esta ejecución quedó a medias y bloquea las preguntas nuevas. Puedes seguirla o descartarla para preguntar otra cosa.'}</p>}
-              {!estaTrabajando(e) && <AccionesRespuestaAgente
+              {ESTADOS_TERMINADOS.includes(e.estado) && <AccionesRespuestaAgente
                 conTexto={textoDeEjecucion(e) !== ''}
                 puedeNueva={puedeNueva}
                 onCopiar={() => { void copiar(e) }}
