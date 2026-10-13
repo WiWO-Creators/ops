@@ -55,6 +55,13 @@ export const NOVEDADES: Novedad[] = [
   {
     fecha: '2026-10-13',
     tipo: 'mejora',
+    titulo: 'Thinking Orb: más a mano y con más control',
+    detalle: 'Se abre y se cierra con Ctrl+J (⌘+J en Mac), y en el teléfono ocupa toda la pantalla. La cabecera trae «Nueva conversación», «Ampliar» (lleva al chat del proyecto que miras) y «Cerrar». Dentro de un proyecto puedes «Continuar en el hilo» de ese proyecto sin perder el hilo general. El chat muestra sobre qué pantalla o Meeting Paper estás preguntando (y puedes quitarlo), guarda lo que ibas escribiendo, y cada respuesta se puede copiar, repetir o editar. Los planes llevan Confirmar y Cancelar siempre a la vista, y el botón flotante avisa con un punto cuando Thinking Orb espera tu respuesta.',
+    commits: []
+  },
+  {
+    fecha: '2026-10-13',
+    tipo: 'mejora',
     titulo: 'Thinking Orb: chat más claro y sin callejones sin salida',
     detalle: 'El chat ahora muestra sugerencias para empezar, se envía con Enter (Shift+Enter hace un salto de línea) y muestra el avance mientras trabaja, con un aviso que explica por qué no puedes escribir. Si una ejecución falla o queda a medias, puedes seguirla o descartarla con «Descartar y preguntar». «Eliminar chat» avisa cuándo no se puede usar, y al abrir el chat ya no te arrastra al final si estabas releyendo.',
     commits: []
