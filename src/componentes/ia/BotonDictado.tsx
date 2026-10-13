@@ -81,7 +81,7 @@ export function BotonDictado ({ valor, alEscribir, maximo, deshabilitado = false
         <span role="status" className="text-texto-tenue text-xs">{aviso}</span>
       )}
       {dictado.error !== '' && (
-        <span role="alert" className="text-texto-tenue text-xs">{dictado.error}</span>
+        <span role="alert" className="text-texto-peligro text-xs">{dictado.error}</span>
       )}
     </div>
   )

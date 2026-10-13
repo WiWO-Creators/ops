@@ -1,8 +1,8 @@
 'use client'
 
-import { useEffect, useRef, useState } from 'react'
+import { memo, useEffect, useRef, useState } from 'react'
 import { cn } from '@/lib/clases'
-import type { EstadoOrbe } from '@/dominio/orbe'
+import { esOrbeLigero, type EstadoOrbe } from '@/dominio/orbe'
 
 /**
  * Los estados del orbe.
@@ -98,10 +98,37 @@ interface PropsOrbe {
  * Es `aria-hidden` a proposito. Lo que se anuncia a un lector de pantalla es el TEXTO que lo acompaña
  * —ver `SuperposicionOrbe` y `CargandoConOrbe`—, no el adorno.
  */
-export function Orbe ({ estado, tamano = 'medio', medida, className }: PropsOrbe) {
+export const Orbe = memo(function Orbe ({ estado, tamano = 'medio', medida, className }: PropsOrbe) {
   // El reposo quieto es solo de los tamaños que se repiten en pantalla; una medida libre siempre es
   // un orbe protagonista, aunque el valor sea chico.
   const quieto = estado === undefined && medida === undefined && (tamano === 'chico' || tamano === 'medio')
+  const ligero = esOrbeLigero(tamano, medida)
+
+  if (ligero) {
+    // Mismo contenedor, mismos estados: `generating` conserva su estela y `error` su muesca, que son
+    // lo que distingue un estado de otro a este tamaño.
+    return (
+      <span
+        aria-hidden="true"
+        data-thinking-state={estado}
+        style={medida === undefined ? undefined : ({ '--orbe-ancho': medida } as React.CSSProperties)}
+        className={cn('orbe-wiwo orbe-ligero', CLASE_TAMANO[tamano], quieto && 'orbe-quieto', className)}
+      >
+        <span className="orbe-escenario">
+          <span className="orb-state-field">
+            <span className="orb-state-ring" />
+            <span className="orb-output-trail one" />
+            <span className="orb-success-burst" />
+            <span className="orb-retry-notch" />
+          </span>
+          <span className="wiwo-thinking-orb">
+            <span className="orb-light-field" />
+            <span className="orb-core" />
+          </span>
+        </span>
+      </span>
+    )
+  }
 
   return (
     <span
@@ -146,7 +173,7 @@ export function Orbe ({ estado, tamano = 'medio', medida, className }: PropsOrbe
       </span>
     </span>
   )
-}
+})
 
 interface PropsSuperposicion {
   mensaje: string

@@ -256,7 +256,7 @@ export function DetalleActa ({
           puedeVerHistorial={puedeEditar && traduccionActiva === null && !edicion.editando}
           onHistorial={() => { setVerHistorial(true) }}
           puedePreguntar={conIa}
-          onPreguntar={() => { window.dispatchEvent(new Event(EVENTO_ABRIR_ORBE)) }}
+          onPreguntar={() => { window.dispatchEvent(new CustomEvent(EVENTO_ABRIR_ORBE, { detail: { actaId: acta.id } })) }}
           onDescartar={descartar}
           onGuardar={() => { void edicion.guardar() }}
           onExportar={(formato) => { void exportar(formato) }}

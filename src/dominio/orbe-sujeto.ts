@@ -36,6 +36,43 @@ export interface TextosOrbe {
   alcanceProyecto: string
 }
 
+/** Lo que dice el agente durable. Solo existe para el equipo. */
+export interface TextosAgente {
+  /** Frase que se suma a la descripción del estado vacío. */
+  vacioAdicional: string
+  /** Aviso fijo cuando la conversación es de un Proyecto. */
+  alcanceProyecto: (proyecto: string) => string
+  /** El límite de la función, al pie del compositor. */
+  pie: string
+  /** Aviso cuando el servidor pausó las solicitudes nuevas. */
+  pausadas: string
+  /** Por qué no se puede borrar el chat con una ejecución abierta. */
+  sinBorrado: string
+  placeholderEditando: string
+  placeholderDatos: string
+  placeholderBase: string
+  /** Aviso de una ejecución que no avanza. */
+  detenida: (minutos: number) => string
+}
+
+/**
+ * Rutas y textos del agente durable. «Global» es siempre `proyectoId === undefined`; el servidor lo
+ * espera como `0` y esa traducción vive solo aquí.
+ */
+export interface ConfiguracionAgente {
+  /** Ruta del BFF para listar y borrar las ejecuciones del alcance. */
+  rutaEjecuciones: (proyectoId?: number) => string
+  /** Ruta del POST que crea una ejecución. */
+  rutaCrear: string
+  /** Ruta de una ejecución (GET) con el alcance como parámetro. */
+  rutaEjecucion: (id: string, proyectoId?: number) => string
+  /** Ruta del POST de una operación sobre una ejecución. */
+  rutaOperacion: (id: string, accion: 'confirmar' | 'reanudar' | 'cancelar') => string
+  /** El `proyecto_id` que espera el servidor: `0` para el chat global. */
+  proyectoIdApi: (proyectoId?: number) => number
+  textos: TextosAgente
+}
+
 /** Todo lo que distingue un orbe del otro. Datos planos y funciones puras. */
 export interface ConfiguracionOrbe {
   sujeto: SujetoOrbe
@@ -43,6 +80,8 @@ export interface ConfiguracionOrbe {
   rutaCapacidades: string
   /** Si puede montar el agente (`ChatAgente`). Solo el equipo. */
   conAgente: boolean
+  /** Rutas y textos del agente durable, o `null` si el sujeto no lo tiene (coincide con `conAgente`). */
+  agente: ConfiguracionAgente | null
   /** Si pinta tarjetas de propuesta y de pregunta. Solo el equipo: el cliente no escribe. */
   conPropuestas: boolean
   /** Si obedece `event: navegar`. Las rutas que manda el servidor son del panel. */
@@ -66,11 +105,38 @@ export interface ConfiguracionOrbe {
   textos: TextosOrbe
 }
 
+/** Ruta base de las ejecuciones del agente. */
+const RUTA_EJECUCIONES = 'ia/ejecuciones'
+
+/** `proyecto_id` del servidor para el chat global. */
+const PROYECTO_GLOBAL_API = 0
+
+/** El agente durable del equipo. */
+const AGENTE_STAFF: ConfiguracionAgente = {
+  rutaEjecuciones: (proyectoId) => `${RUTA_EJECUCIONES}?proyecto_id=${proyectoId ?? PROYECTO_GLOBAL_API}`,
+  rutaCrear: RUTA_EJECUCIONES,
+  rutaEjecucion: (id, proyectoId) => `${RUTA_EJECUCIONES}/${id}?proyecto_id=${proyectoId ?? PROYECTO_GLOBAL_API}`,
+  rutaOperacion: (id, accion) => `${RUTA_EJECUCIONES}/${id}/${accion}`,
+  proyectoIdApi: (proyectoId) => proyectoId ?? PROYECTO_GLOBAL_API,
+  textos: {
+    vacioAdicional: 'Revisarás el plan completo antes de aplicar cambios.',
+    alcanceProyecto: (proyecto) => `Esta conversación solo consulta y modifica ${proyecto}.`,
+    pie: 'Los cambios se aplican al confirmar.',
+    pausadas: 'Las nuevas solicitudes están pausadas. Puedes continuar las ejecuciones pendientes.',
+    sinBorrado: 'Para borrar el chat, primero responde, confirma o detén la ejecución abierta.',
+    placeholderEditando: 'Describe los cambios que quieres hacer al plan…',
+    placeholderDatos: 'Completa los datos solicitados…',
+    placeholderBase: 'Pregunta lo que necesites…',
+    detenida: (minutos) => `Parece detenida: lleva más de ${minutos} min sin avances. Puedes detenerla y volver a preguntar.`
+  }
+}
+
 /** El Thinking Orb del equipo: exactamente el de antes de existir este archivo. */
 const STAFF: ConfiguracionOrbe = {
   sujeto: 'staff',
   rutaCapacidades: 'ia/capacidades',
   conAgente: true,
+  agente: AGENTE_STAFF,
   conPropuestas: true,
   conNavegacion: true,
   dictadoConRespaldo: true,
@@ -139,6 +205,7 @@ const CONTACTO: ConfiguracionOrbe = {
   sujeto: 'contacto',
   rutaCapacidades: 'portal/ia/capacidades',
   conAgente: false,
+  agente: null,
   conPropuestas: false,
   conNavegacion: false,
   dictadoConRespaldo: false,
@@ -175,6 +242,14 @@ const CONTACTO: ConfiguracionOrbe = {
  */
 export function configuracionDeOrbe (sujeto: SujetoOrbe = 'staff'): ConfiguracionOrbe {
   return sujeto === 'contacto' ? CONTACTO : STAFF
+}
+
+/** Una configuración con agente: la que necesita `ChatAgente`. */
+export type ConfiguracionConAgente = ConfiguracionOrbe & { agente: ConfiguracionAgente }
+
+/** Indica si la configuración trae agente. @param configuracion La del sujeto. @returns `true` si puede montar `ChatAgente`. */
+export function conAgente (configuracion: ConfiguracionOrbe): configuracion is ConfiguracionConAgente {
+  return configuracion.agente !== null
 }
 
 /** `/portal/proyectos/{id}` y lo que cuelgue de ahi. El id son solo digitos. */

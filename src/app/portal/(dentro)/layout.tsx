@@ -6,6 +6,7 @@ import { Logo } from '@/componentes/estructura/Logo'
 import { ProveedorEnlaces } from '@/componentes/presentadores/ProveedorEnlaces'
 import { pedirOpcional, proyectoUnicoDelPortal, yoDelPortal } from '@/datos/servidor'
 import { navegacionDelPortal } from '@/dominio/portal'
+import { leerCapacidadesOrbe } from '@/dominio/orbe-capacidades'
 import { BarraVerComoCliente } from '../BarraVerComoCliente'
 import { BotonSalirPortal } from '../BotonSalirPortal'
 import { NavegacionPortal } from '../NavegacionPortal'
@@ -36,9 +37,9 @@ import { RefrescoDelPortal } from '@/componentes/portal/RefrescoDelPortal'
 export default async function PortalLayout ({ children }: { children: React.ReactNode }) {
   const [{ data: yo }, capacidades] = await Promise.all([
     yoDelPortal(),
-    pedirOpcional<{ habilitado?: boolean }>('/portal/ia/capacidades', 'contacto')
+    pedirOpcional<unknown>('/portal/ia/capacidades', 'contacto')
   ])
-  const conOrbe = capacidades.datos?.habilitado === true
+  const conOrbe = leerCapacidadesOrbe(capacidades.datos).habilitado
   const unico = yo.secciones_habilitadas.includes('projects') ? await proyectoUnicoDelPortal() : null
   const secciones = navegacionDelPortal(yo.secciones_habilitadas, unico)
 

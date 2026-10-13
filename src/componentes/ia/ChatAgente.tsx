@@ -1,234 +1,305 @@
 'use client'
 
-import { useCallback, useEffect, useRef, useState, type ReactElement } from 'react'
-import { usePathname, useRouter } from 'next/navigation'
+import { useEffect, useMemo, useRef, useState, type ReactElement } from 'react'
+import { usePathname, useSearchParams } from 'next/navigation'
 import { Boton } from '@/componentes/formularios/Boton'
-import { AreaTexto } from '@/componentes/formularios/Entrada'
-import { Cargando } from '@/componentes/estado/Estados'
-import { ConfirmacionEnLinea } from '@/componentes/datos/ConfirmacionEnLinea'
-import { escribirEnBff } from '@/componentes/datos/mutaciones'
+import { Cargando, Vacio } from '@/componentes/estado/Estados'
+import { CargandoConOrbe } from '@/componentes/estado/Orbe'
+import { ConfirmarBorrado } from '@/componentes/datos/ConfirmarBorrado'
+import { useAviso } from '@/componentes/estado/useAviso'
 import { pedirSobre } from '@/datos/cliente'
-import { actualizarEjecucion, estaTrabajando, ESTADOS_EJECUCION, leerEjecucion, type Ejecucion } from '@/dominio/ia-ejecucion'
+import {
+  citasDeResultado,
+  esDescartable,
+  estaBloqueado,
+  estaEditando,
+  estaTrabajando,
+  ESTADOS_EJECUCION,
+  faseDeEjecucion,
+  hayPasoDestructivo,
+  motivoBloqueo,
+  puedeNuevaPregunta,
+  respondeEjecucion,
+  textoDeEjecucion
+} from '@/dominio/ia-ejecucion'
+import { almacenDeBorradoresDelNavegador, contextoDeOrbe, etiquetaDePantalla, guardarBorrador, leerBorrador, type ActaPedida } from '@/dominio/orbe-contexto'
+import { SUGERENCIAS_DE_ACTA } from '@/dominio/pantalla'
+import { ambitoDeOrbe, usePublicarFaseOrbe, type FaseConversacion } from '@/dominio/fase-orbe'
 import { leerMensajesGuardados, type Mensaje } from '@/dominio/ia-chat'
+import type { Ejecucion } from '@/dominio/ia-ejecucion'
 import { ASISTENTE } from '@/dominio/glosario'
-import { pantallaDeRuta } from '@/dominio/pantalla'
-import { BotonDictado } from './BotonDictado'
-import { TextoChat } from './TextoChat'
+import type { CapacidadesAgente } from '@/dominio/orbe-capacidades'
+import type { ConfiguracionConAgente } from '@/dominio/orbe-sujeto'
+import { AccionesRespuestaAgente } from './AccionesRespuestaAgente'
+import { BotonEliminarChat } from './BotonEliminarChat'
+import { BurbujaPersona } from './BurbujaPersona'
+import { TarjetaIA } from './BurbujaIA'
+import { ChipContexto } from './ChipContexto'
+import { CompositorChat } from './CompositorChat'
+import { FuentesIA } from './FuentesIA'
+import { MarcoConversacion } from './MarcoConversacion'
 import { PlanEjecucion } from './PlanEjecucion'
+import { PreguntasAgente } from './PreguntasAgente'
+import { TextoChat } from './TextoChat'
+import { useAutoScroll } from './useAutoScroll'
+import { useSolicitudNuevaConversacion } from './useSolicitudNuevaConversacion'
+import { useEjecucionesAgente } from './useEjecucionesAgente'
 
-interface Props { desplazable?: boolean, proyecto?: { id: number, name: string }, intervalo: number, nuevasHabilitadas: boolean, maximoPregunta: number }
+/** Estados en los que la respuesta ya terminó: solo entonces se ofrece copiarla, repetirla o editarla. */
+const ESTADOS_TERMINADOS: ReadonlyArray<Ejecucion['estado']> = ['completada', 'error', 'cancelada', 'incompleta']
+
+/** La espera de una decisión sigue pendiente aunque se cierre el chat: se conserva en el store de fases hasta que caduca (el umbral de «detenida») o se revalida. */
+const FASES_QUE_SOBREVIVEN: readonly FaseConversacion[] = ['esperando']
+
+interface Props {
+  desplazable?: boolean
+  proyecto?: { id: number, name: string }
+  configuracion: ConfiguracionConAgente
+  capacidades: CapacidadesAgente
+  /** El acta con la que se abrió el orbe (evento de apertura), válida mientras siga la misma ruta. */
+  actaPedida?: ActaPedida | null
+}
 
 /** Conversación recuperable por usuario y proyecto. Cerrar la vista solo detiene el seguimiento local. */
-export function ChatAgente ({ desplazable, proyecto, intervalo, nuevasHabilitadas, maximoPregunta }: Props): ReactElement {
-  const [historial, setHistorial] = useState<Ejecucion[]>([])
-  const [cargando, setCargando] = useState(true)
-  const [error, setError] = useState('')
-  const [texto, setTexto] = useState('')
-  const [enviando, setEnviando] = useState(false)
-  const [recuperar, setRecuperar] = useState(0)
+export function ChatAgente ({ desplazable = false, proyecto, configuracion, capacidades, actaPedida = null }: Props): ReactElement {
+  const proyectoId = proyecto?.id
+  const { textos: textosOrbe, agente: { textos } } = configuracion
+  const { nuevas_habilitadas: nuevasHabilitadas, maximo_pregunta: maximoPregunta } = capacidades
+  const ambito = ambitoDeOrbe(configuracion.sujeto, proyectoId)
+  // El borrador vive en sessionStorage por ámbito: sobrevive a cerrar el panel y a recargar la pestaña.
+  const [texto, setTexto] = useState(() => leerBorrador(almacenDeBorradoresDelNavegador(), ambito))
   const [confirmandoBorrado, setConfirmandoBorrado] = useState(false)
-  const [borrando, setBorrando] = useState(false)
-  const [errorBorrado, setErrorBorrado] = useState('')
+  const [contextoQuitado, setContextoQuitado] = useState<string | null>(null)
+  const [actaRechazada, setActaRechazada] = useState<number | null>(null)
+  const aviso = useAviso()
+  const campo = useRef<HTMLTextAreaElement>(null)
+  const ruta = usePathname()
+  const parametros = useSearchParams()
+  const sugerido = useMemo(() => contextoDeOrbe(ruta, parametros, actaPedida), [ruta, parametros, actaPedida])
+  const claveContexto = `${sugerido.pantalla ?? ''}|${sugerido.actaId ?? ''}`
+  const sinContexto = contextoQuitado === claveContexto
+  const actaId = sinContexto || sugerido.actaId === actaRechazada ? null : sugerido.actaId
+  // Con el acta rechazada por el servidor el chip vuelve a decir solo la pantalla: no promete lo que no viaja.
+  const etiquetaContexto = sugerido.actaId !== null && actaId === null && !sinContexto && sugerido.pantalla !== null ? etiquetaDePantalla(sugerido.pantalla) : sugerido.etiqueta
+  const contexto = useMemo(() => ({ pantalla: sinContexto ? null : sugerido.pantalla, actaId }), [sinContexto, sugerido.pantalla, actaId])
   const [hayHiloAnterior, setHayHiloAnterior] = useState(false)
   const [versionAnterior, setVersionAnterior] = useState(0)
-  const ocupado = useRef(false)
-  const solicitudPendiente = useRef<{ accion: string, texto?: string, version?: string, clave: string } | null>(null)
-  const montado = useRef(true)
-  const desplazador = useRef<HTMLDivElement>(null)
-  const ruta = usePathname()
-  const router = useRouter()
-  const proyectoId = proyecto?.id ?? 0
-  const ultima = historial.at(-1)
+  const {
+    historial, ultima, cargando, error, enviando, detenida,
+    recuperar, operar, eliminar, limpiarErrorBorrado
+  } = useEjecucionesAgente({
+    configuracion,
+    proyectoId,
+    intervalo: capacidades.intervalo_consulta_ms,
+    umbralDetenidaSegundos: capacidades.umbral_detenida_segundos,
+    contexto,
+    alActaRechazada: () => {
+      setActaRechazada(sugerido.actaId)
+      aviso.advertencia('No se pudo usar ese Meeting Paper como contexto. Lo quité; reintenta tu pregunta.')
+    },
+    alLimpiarTexto: () => { setTexto('') }
+  })
+  useEffect(() => { guardarBorrador(almacenDeBorradoresDelNavegador(), ambito, texto) }, [ambito, texto])
+  const { ref: desplazador, forzarFondo } = useAutoScroll(historial, { activo: desplazable, listo: !cargando })
+  usePublicarFaseOrbe(ambitoDeOrbe(configuracion.sujeto, proyectoId), faseDeEjecucion(ultima, { enviando, conError: error !== '' }), FASES_QUE_SOBREVIVEN, capacidades.umbral_detenida_segundos * 1000)
+
   const trabajando = ultima !== undefined && estaTrabajando(ultima)
-  const editando = ultima?.estado === 'esperando_confirmacion' && ultima.plan != null
-  const respondeEjecucion = editando || ultima?.estado === 'esperando_datos'
-  const pendiente = ultima !== undefined && (['incompleta', 'error'].includes(ultima.estado) || (ultima.estado === 'esperando_confirmacion' && !editando))
+  const editando = estaEditando(ultima)
+  const descartable = esDescartable(ultima)
+  const sinBorrado = ultima?.estado === 'esperando_datos' || ultima?.estado === 'esperando_confirmacion'
+  const entorno = { enviando, conError: error !== '', nuevasHabilitadas }
+  const bloqueado = estaBloqueado(ultima, entorno)
+  const puedeNueva = puedeNuevaPregunta(ultima, entorno)
+  /** Confirmar y Cancelar van en la barra fija del plan, no en la fila de acciones. */
+  const barraDelPlan = ultima?.estado === 'esperando_confirmacion' && ultima.plan != null
+  const placeholder = motivoBloqueo(ultima, entorno)
+    ?? (editando ? textos.placeholderEditando : ultima?.estado === 'esperando_datos' ? textos.placeholderDatos : textos.placeholderBase)
 
-  useEffect(() => {
-    montado.current = true
-    return () => { montado.current = false }
-  }, [])
+  /** Envía lo escrito como pregunta nueva o como respuesta a la ejecución abierta, si el compositor lo permite. */
+  function enviar (): void {
+    if (bloqueado || texto.trim() === '') return
+    forzarFondo()
+    void operar(respondeEjecucion(ultima) ? 'reanudar' : 'crear', texto.trim())
+  }
 
-  /** Recupera el historial del alcance actual. @param senal Permite detener la lectura al desmontar. @returns Historial confirmado. */
-  const leerHistorial = useCallback(async (senal: AbortSignal): Promise<Ejecucion[]> => {
-    const sobre = await pedirSobre<unknown>(`ia/ejecuciones?proyecto_id=${proyectoId}`, senal)
-    if (!Array.isArray(sobre.data)) throw new Error('No se pudo recuperar la conversación.')
-    return sobre.data.map(leerEjecucion)
-  }, [proyectoId])
-
-  useEffect(() => {
-    const abortador = new AbortController()
-    void leerHistorial(abortador.signal).then(ejecuciones => { if (!abortador.signal.aborted) { setHistorial(ejecuciones); setError('') } }).catch((fallo: unknown) => {
-      if (!abortador.signal.aborted) setError(fallo instanceof Error ? fallo.message : 'No se pudo recuperar la conversación.')
-    }).finally(() => { if (!abortador.signal.aborted) setCargando(false) })
-    return () => { abortador.abort() }
-  }, [leerHistorial, recuperar])
-
-  useEffect(() => {
-    if (!ultima || !trabajando || error !== '' || enviando) return
-    const abortador = new AbortController()
-    const temporizador = setTimeout(() => {
-      void pedirSobre<unknown>(`ia/ejecuciones/${ultima.id}?proyecto_id=${proyectoId}`, abortador.signal)
-        .then(sobre => {
-          const ejecucion = leerEjecucion(sobre.data)
-          if (!abortador.signal.aborted) {
-            setHistorial(actual => actualizarEjecucion(actual, ejecucion))
-            if (ejecucion.estado === 'completada') router.refresh()
-          }
-        }).catch((fallo: unknown) => {
-          if (!abortador.signal.aborted) setError(fallo instanceof Error ? fallo.message : 'Se perdió el seguimiento. Recupera el estado para continuar.')
-        })
-    }, intervalo)
-    return () => { clearTimeout(temporizador); abortador.abort() }
-  }, [ultima, trabajando, error, enviando, intervalo, proyectoId, router])
-
-  useEffect(() => {
-    const caja = desplazador.current
-    if (caja && caja.scrollHeight - caja.scrollTop - caja.clientHeight < 180) caja.scrollTop = caja.scrollHeight
-  }, [historial])
-
-  /** Envía una operación una sola vez y recupera su snapshot. @param accion Acción sobre la ejecución o creación. @param respuesta Aclaración escrita. @returns Finalización de la petición. */
-  async function operar (accion: 'crear' | 'confirmar' | 'reanudar' | 'cancelar', respuesta?: string): Promise<void> {
-    if (ocupado.current || (accion !== 'crear' && !ultima) || (accion === 'confirmar' && texto.trim() !== '')) return
-    ocupado.current = true
-    setEnviando(true)
-    setError('')
-    const pantalla = pantallaDeRuta(ruta)
-    const previa = solicitudPendiente.current
-    const version = editando ? ultima?.plan?.version : undefined
-    const clave = previa?.accion === accion && previa.texto === respuesta && previa.version === version ? previa.clave : crypto.randomUUID()
-    solicitudPendiente.current = { accion, texto: respuesta, version, clave }
-    const cuerpo = accion === 'crear'
-      ? { pregunta: respuesta, clave_idempotencia: clave, proyecto_id: proyectoId, ...(proyectoId === 0 && pantalla ? { pantalla } : {}) }
-      : { proyecto_id: proyectoId, ...((accion === 'confirmar' || (accion === 'reanudar' && editando && respuesta)) ? { plan_id: ultima?.plan?.id, version: ultima?.plan?.version } : {}), ...(respuesta ? { respuesta, clave_idempotencia: clave } : {}) }
-    const endpoint = accion === 'crear' ? 'ia/ejecuciones' : `ia/ejecuciones/${ultima?.id}/${accion}`
-    try {
-      const resultado = await escribirEnBff<unknown>(endpoint, 'POST', cuerpo)
-      if (!resultado.ok) throw new Error(resultado.mensaje)
-      const ejecucion = leerEjecucion(resultado.datos)
-      solicitudPendiente.current = null
-      if (!montado.current) return
-      setHistorial(actual => actualizarEjecucion(actual, ejecucion))
-      if (respuesta) setTexto('')
-      if (ejecucion.estado === 'completada') router.refresh()
-    } catch (fallo: unknown) {
-      if (montado.current) setError(`${fallo instanceof Error ? fallo.message : 'No se recibió el resultado.'} Recupera el estado antes de repetir la operación.`)
-    } finally {
-      ocupado.current = false
-      if (montado.current) setEnviando(false)
-    }
+  /** Confirma el plan completo; con texto escrito no se confirma, se actualiza el plan. */
+  function confirmar (): void {
+    if (texto.trim() === '') void operar('confirmar')
   }
 
   /**
-   * Vacía la conversación entera: las ejecuciones del alcance y el hilo del motor anterior.
+   * Borra la conversación entera y deja la vista como recién abierta.
    *
-   * Pega primero `DELETE ia/ejecuciones` (el servidor responde 409 si hay una en curso) y luego el
-   * del hilo anterior; la pantalla solo se vacía si ambos confirman, para no mostrar vacío algo que
-   * el asistente aún recuerda. Repetir tras un fallo parcial es seguro: lo ya archivado no vuelve a contar.
-   *
-   * @returns Finalización del borrado; los errores del servidor quedan en `errorBorrado`.
+   * @throws Error con el mensaje del servidor si no se pudo borrar nada: `ConfirmarBorrado` lo
+   *   muestra y deja el diálogo abierto para reintentar.
    */
-  async function eliminar (): Promise<void> {
-    if (ocupado.current) return
-    ocupado.current = true
-    setBorrando(true)
-    setErrorBorrado('')
+  async function borrarTodo (): Promise<void> {
+    const { resultado, mensaje } = await eliminar()
+    if (resultado === 'fallido') throw new Error(mensaje)
+    setVersionAnterior(n => n + 1)
+    if (resultado === 'parcial') { aviso.advertencia(mensaje); return }
+    setHayHiloAnterior(false)
+    aviso.exito('Conversación eliminada.')
+  }
+
+  /** Pedido del panel flotante («Nueva conversación»): abre la confirmación si hay algo que borrar. */
+  function pedirNuevaConversacion (): void {
+    if (historial.length === 0 && !hayHiloAnterior) { aviso.info('La conversación ya está vacía.'); return }
+    if (sinBorrado) { aviso.advertencia(textos.sinBorrado); return }
+    if (enviando || trabajando) { aviso.advertencia('Espera a que termine la ejecución en curso.'); return }
+    setConfirmandoBorrado(true)
+  }
+  useSolicitudNuevaConversacion(desplazable, pedirNuevaConversacion)
+
+  /** Responde la pregunta abierta de la ejecución con la opción pulsada o el texto libre. */
+  function responderPregunta (respuesta: string): void {
+    forzarFondo()
+    void operar('reanudar', respuesta)
+  }
+
+  /** Copia al portapapeles el texto de una respuesta. */
+  async function copiar (ejecucion: Ejecucion): Promise<void> {
     try {
-      const ejecuciones = await escribirEnBff<unknown>(`ia/ejecuciones?proyecto_id=${proyectoId}`, 'DELETE')
-      if (!ejecuciones.ok) { if (montado.current) setErrorBorrado(ejecuciones.mensaje); return }
-      const hilo = await escribirEnBff<unknown>(rutaHiloAnterior(proyectoId), 'DELETE')
-      if (!hilo.ok) { if (montado.current) setErrorBorrado(hilo.mensaje); return }
-      if (!montado.current) return
-      setHistorial([])
-      setTexto('')
-      setHayHiloAnterior(false)
-      setVersionAnterior(n => n + 1)
-      setConfirmandoBorrado(false)
-      solicitudPendiente.current = null
-    } finally {
-      ocupado.current = false
-      if (montado.current) setBorrando(false)
+      await navigator.clipboard.writeText(textoDeEjecucion(ejecucion))
+      aviso.exito('Respuesta copiada.')
+    } catch {
+      aviso.error('No se pudo copiar. Selecciona el texto y cópialo a mano.')
     }
   }
 
+  /** Repite la pregunta de una respuesta como ejecución nueva, si no hay otra pendiente. */
+  function reintentarPregunta (ejecucion: Ejecucion): void {
+    if (!puedeNueva) return
+    forzarFondo()
+    void operar('crear', ejecucion.pregunta)
+  }
+
+  /** Lleva la pregunta de una respuesta al compositor para ajustarla antes de enviarla. */
+  function editarPregunta (ejecucion: Ejecucion): void {
+    if (!puedeNueva) return
+    setTexto(ejecucion.pregunta.slice(0, maximoPregunta))
+    campo.current?.focus()
+  }
+
   if (cargando) return <Cargando mensaje="Recuperando conversación…" />
-  const bloqueado = enviando || trabajando || pendiente || error !== '' || (!nuevasHabilitadas && !respondeEjecucion)
   return (
-    <div className={desplazable ? 'flex min-h-0 flex-1 flex-col gap-4' : 'flex flex-col gap-4'}>
-      {proyecto && <p className="text-texto-sutil text-sm">Esta conversación solo consulta y modifica {proyecto.name}.</p>}
-      {(historial.length > 0 || hayHiloAnterior) && (
-        <div className="flex flex-col items-end gap-1">
-          {confirmandoBorrado
-            ? (
-              <ConfirmacionEnLinea
-                advertencia={`Se elimina la conversación entera, también la que ${ASISTENTE} recuerda.`}
-                etiquetaConfirmar="Eliminar"
-                cargando={borrando}
-                error={errorBorrado}
-                onCancelar={() => { setConfirmandoBorrado(false); setErrorBorrado('') }}
-                onConfirmar={() => { void eliminar() }}
-              />
-              )
-            : (
-              <Boton tamano="chico" variante="sutil" disabled={enviando || trabajando} onClick={() => { setConfirmandoBorrado(true) }}>
-                Eliminar chat
-              </Boton>
-              )}
-        </div>
+    <>
+    <MarcoConversacion
+      desplazable={desplazable}
+      desplazadorRef={desplazador}
+      encabezado={proyecto && <p className="text-texto-sutil text-sm">{textos.alcanceProyecto(proyecto.name)}</p>}
+      barra={!desplazable && (historial.length > 0 || hayHiloAnterior) && (
+        <BotonEliminarChat
+          motivoDeshabilitado={sinBorrado ? textos.sinBorrado : enviando || trabajando ? 'Espera a que termine la ejecución en curso.' : undefined}
+          onClick={() => { setConfirmandoBorrado(true) }}
+        />
       )}
-      <div ref={desplazador} className={desplazable ? 'min-h-0 flex-1 overflow-y-auto pr-1' : ''}>
-        <HistorialAnterior key={versionAnterior} proyectoId={proyectoId} alCargar={setHayHiloAnterior} />
-        {historial.length === 0 && <p className="text-texto-tenue py-6">Pregunta por Ops o describe una tarea. Revisarás el plan completo antes de aplicar cambios.</p>}
-        <ol aria-label="Conversación" className="flex flex-col gap-8">
-          {historial.map(e => (
-            <li key={e.id} className="flex min-w-0 flex-col gap-3">
-              <p className="bg-relleno-neutro text-texto ml-8 self-end rounded-xl px-4 py-3 text-sm leading-relaxed whitespace-pre-wrap wrap-anywhere">{e.pregunta}</p>
-              {e.aclaraciones?.map((aclaracion, i) => <p key={i} className="bg-relleno-neutro text-texto ml-8 self-end rounded-xl px-4 py-3 text-sm leading-relaxed whitespace-pre-wrap wrap-anywhere">{aclaracion}</p>)}
-              <section aria-label={ESTADOS_EJECUCION[e.estado]} className="min-w-0 space-y-4">
-                <p role={e.id === ultima?.id ? 'status' : undefined} className="text-texto text-sm font-semibold">{e.progreso || ESTADOS_EJECUCION[e.estado]}</p>
-                {e.mensaje && !e.plan && <TextoChat texto={e.mensaje} />}
-                {e.plan && <PlanEjecucion plan={e.plan} />}
-                {e.plan && e.mensaje && <details className="text-sm">
-                  <summary className="text-texto-tenue hover:text-texto cursor-pointer py-2 font-medium">Ver explicación del plan</summary>
-                  <TextoChat texto={e.mensaje} className="mt-2" />
-                </details>}
-                {e.resultado?.resumen && e.resultado.resumen.trim() !== e.mensaje?.trim() && <TextoChat texto={e.resultado.resumen} />}
-                {e.error?.mensaje && <TextoChat texto={e.error.mensaje} className="text-texto-peligro" />}
-                {e.preguntas?.map((p, indice) => <div key={indice} className="space-y-2"><TextoChat texto={p.pregunta} className="font-medium" />{p.opciones && <ul className="text-texto-tenue list-disc pl-5">{p.opciones.map(o => <li key={o}><TextoChat texto={o} /></li>)}</ul>}</div>)}
-                {e.id === ultima?.id && <div className="flex flex-wrap gap-2 [&>button]:min-h-11 [&>button]:whitespace-normal">
-                  {e.estado === 'esperando_confirmacion' && e.plan && <Boton variante="primario" disabled={enviando || error !== '' || texto.trim() !== ''} onClick={() => { void operar('confirmar') }}>Confirmar plan completo</Boton>}
-                  {(e.estado === 'incompleta' || (e.estado === 'error' && e.error?.reintentable)) && <Boton disabled={enviando || error !== ''} onClick={() => { void operar('reanudar') }}>Continuar ejecución</Boton>}
-                  {!['completada', 'cancelada'].includes(e.estado) && <Boton variante="sutil" disabled={enviando || error !== ''} onClick={() => { void operar('cancelar') }}>Cancelar ejecución</Boton>}
-                </div>}
-              </section>
-            </li>
-          ))}
-        </ol>
-      </div>
-      {error && <div role="alert" className="text-texto-peligro flex flex-col items-start gap-2"><p>{error}</p><Boton onClick={() => { setRecuperar(n => n + 1) }}>Recuperar estado</Boton></div>}
-      {!nuevasHabilitadas && <p className="text-texto-sutil text-sm">Las nuevas solicitudes están pausadas. Puedes continuar las ejecuciones pendientes.</p>}
-      <form className="border-linea flex flex-col gap-3 border-t pt-4" onSubmit={e => { e.preventDefault(); if (!bloqueado && texto.trim()) void operar(respondeEjecucion ? 'reanudar' : 'crear', texto.trim()) }}>
-        <AreaTexto className="min-h-16 text-base" aria-label="Tu pregunta" value={texto} onChange={e => setTexto(e.target.value)} maxLength={maximoPregunta} disabled={bloqueado} placeholder={editando ? 'Describe los cambios que quieres hacer al plan…' : ultima?.estado === 'esperando_datos' ? 'Completa los datos solicitados…' : 'Pregunta lo que necesites…'} />
-        {editando && texto.trim() !== '' && <p role="status" className="text-texto-sutil text-sm">Envía los cambios o borra el texto para confirmar este plan.</p>}
-        <div className="flex items-center justify-between gap-3">
-          <p className="text-texto-tenue text-xs leading-relaxed">Los cambios se aplican al confirmar.</p>
-          <div className="flex items-center gap-2">
-            <BotonDictado valor={texto} alEscribir={setTexto} maximo={maximoPregunta} deshabilitado={bloqueado} />
-            <Boton type="submit" variante="primario" className="min-h-11" disabled={bloqueado || texto.trim() === ''}>{enviando ? 'Enviando…' : editando ? 'Actualizar plan' : ultima?.estado === 'esperando_datos' ? 'Responder y continuar' : 'Preguntar'}</Boton>
-          </div>
-        </div>
-      </form>
-    </div>
+      antesDeLista={<HistorialAnterior key={versionAnterior} rutaHilo={configuracion.rutaHilo(proyectoId)} alCargar={setHayHiloAnterior} />}
+      vacio={historial.length === 0 && (
+        <Vacio
+          titulo={`Pregúntale a ${ASISTENTE}`}
+          descripcion={`${textosOrbe.descripcion(proyecto?.name)} ${textos.vacioAdicional}`}
+          accion={
+            <div className="flex flex-wrap justify-center gap-2">
+              {(actaId === null ? textosOrbe.sugerencias : SUGERENCIAS_DE_ACTA).map(sugerencia => <Boton key={sugerencia} tamano="chico" disabled={bloqueado} onClick={() => { setTexto(sugerencia) }}>{sugerencia}</Boton>)}
+            </div>
+          }
+        />
+      )}
+      avisos={(
+        <>
+          {error && <div role="alert" className="text-texto-peligro flex flex-col items-start gap-2"><p>{error}</p><Boton aria-label="Reintentar recuperar la conversación" onClick={recuperar}>Reintentar</Boton></div>}
+          {!nuevasHabilitadas && <p className="text-texto-sutil text-sm">{textos.pausadas}</p>}
+        </>
+      )}
+      pie={(
+        <CompositorChat
+          className="border-linea gap-3 border-t pt-4"
+          claseCampo="min-h-16 text-base"
+          claseEnviar="min-h-11"
+          campoRef={campo}
+          cabecera={etiquetaContexto !== null && (
+            <ChipContexto
+              etiqueta={etiquetaContexto}
+              quitado={sinContexto}
+              onQuitar={() => { setContextoQuitado(claveContexto) }}
+              onRestablecer={() => { setContextoQuitado(null) }}
+            />
+          )}
+          valor={texto}
+          onCambio={setTexto}
+          onEnviar={enviar}
+          maximo={maximoPregunta}
+          deshabilitado={bloqueado}
+          placeholder={placeholder}
+          pie={textos.pie}
+          etiquetaEnviar={enviando ? 'Enviando…' : editando ? 'Actualizar plan' : ultima?.estado === 'esperando_datos' ? 'Responder y continuar' : 'Preguntar'}
+          dictadoConRespaldo={configuracion.dictadoConRespaldo}
+          aviso={editando && texto.trim() !== '' && <p role="status" className="text-texto-sutil text-sm">Envía los cambios o borra el texto para confirmar este plan.</p>}
+        />
+      )}
+    >
+      <ol aria-label="Conversación" className="flex flex-col gap-8">
+        {historial.map(e => (
+          <li key={e.id} className="flex min-w-0 flex-col gap-3">
+            <BurbujaPersona texto={e.pregunta} className="self-end" />
+            {e.aclaraciones?.map((aclaracion, i) => <BurbujaPersona key={i} texto={aclaracion} className="self-end" />)}
+            <TarjetaIA como="section" aria-label={ESTADOS_EJECUCION[e.estado]} className="min-w-0 space-y-4 p-4">
+              {e.id === ultima?.id && trabajando
+                ? <CargandoConOrbe mensaje={e.progreso || ESTADOS_EJECUCION[e.estado]} retardoMs={0} />
+                : <p role={e.id === ultima?.id ? 'status' : undefined} className="text-texto text-sm font-semibold">{e.progreso || ESTADOS_EJECUCION[e.estado]}</p>}
+              {e.id === ultima?.id && detenida && <p role="status" className="text-texto-peligro text-sm">{textos.detenida(Math.max(1, Math.floor(capacidades.umbral_detenida_segundos / 60)))}</p>}
+              {e.mensaje && !e.plan && <TextoChat texto={e.mensaje} />}
+              {e.plan && <PlanEjecucion plan={e.plan} acciones={e.id === ultima?.id && barraDelPlan ? (
+                <>
+                  <Boton variante="sutil" disabled={enviando} aria-label="Cancelar ejecución" onClick={() => { void operar('cancelar') }}>Cancelar</Boton>
+                  <Boton variante={hayPasoDestructivo(e.plan) ? 'peligro' : 'primario'} disabled={enviando || error !== '' || texto.trim() !== ''} onClick={confirmar}>Confirmar plan completo</Boton>
+                </>
+              ) : undefined} />}
+              {e.plan && e.mensaje && <details className="text-sm">
+                <summary className="text-texto-tenue hover:text-texto cursor-pointer py-2 font-medium">Ver explicación del plan</summary>
+                <TextoChat texto={e.mensaje} className="mt-2" />
+              </details>}
+              {e.resultado?.resumen && e.resultado.resumen.trim() !== e.mensaje?.trim() && <TextoChat texto={e.resultado.resumen} />}
+              {e.error?.mensaje && <TextoChat texto={e.error.mensaje} className="text-texto-peligro" />}
+              <FuentesIA citas={citasDeResultado(e.resultado)} hrefDeCita={configuracion.hrefDeCita} />
+              {e.preguntas && e.preguntas.length > 0 && (e.id === ultima?.id && e.estado === 'esperando_datos'
+                ? <PreguntasAgente preguntas={e.preguntas} deshabilitado={enviando || error !== ''} maximo={maximoPregunta} onResponder={responderPregunta} />
+                : e.preguntas.map((p, indice) => <div key={indice} className="space-y-2"><TextoChat texto={p.pregunta} className="font-medium" />{p.opciones && <ul className="text-texto-tenue list-disc pl-5">{p.opciones.map(o => <li key={o}><TextoChat texto={o} /></li>)}</ul>}</div>))}
+              {e.id === ultima?.id && <div className="flex flex-wrap gap-2 [&>button]:min-h-11 [&>button]:whitespace-normal">
+                {(e.estado === 'incompleta' || (e.estado === 'error' && e.error?.reintentable)) && <Boton disabled={enviando || error !== ''} aria-label="Seguir con la ejecución" onClick={() => { void operar('reanudar') }}>Seguir</Boton>}
+                {/* Detener y Descartar no dependen del error de seguimiento: es justo cuando se necesitan. */}
+                {descartable
+                  ? <Boton variante={e.estado === 'error' ? 'primario' : 'sutil'} disabled={enviando} onClick={() => { void operar('cancelar') }}>Descartar y preguntar</Boton>
+                  : !barraDelPlan && !['completada', 'cancelada'].includes(e.estado) && <Boton variante="sutil" disabled={enviando} aria-label="Detener la ejecución" onClick={() => { void operar('cancelar') }}>Detener</Boton>}
+              </div>}
+              {e.id === ultima?.id && descartable && <p role="status" className="text-texto-sutil text-sm">{e.estado === 'error' ? 'Esta ejecución falló y no se puede reintentar. Mientras siga abierta no puedes hacer otra pregunta: descártala para empezar de nuevo.' : 'Esta ejecución quedó a medias y bloquea las preguntas nuevas. Puedes seguirla o descartarla para preguntar otra cosa.'}</p>}
+              {ESTADOS_TERMINADOS.includes(e.estado) && <AccionesRespuestaAgente
+                conTexto={textoDeEjecucion(e) !== ''}
+                puedeNueva={puedeNueva}
+                onCopiar={() => { void copiar(e) }}
+                onReintentar={() => { reintentarPregunta(e) }}
+                onEditar={() => { editarPregunta(e) }}
+              />}
+            </TarjetaIA>
+          </li>
+        ))}
+      </ol>
+    </MarcoConversacion>
+    <ConfirmarBorrado
+      abierto={confirmandoBorrado}
+      onCerrar={() => { setConfirmandoBorrado(false); limpiarErrorBorrado() }}
+      titulo="Nueva conversación"
+      advertencia={`Se elimina la conversación entera, también la que ${ASISTENTE} recuerda.`}
+      etiquetaConfirmar="Eliminar"
+      onConfirmar={borrarTodo}
+    />
+    </>
   )
 }
 
-/** Ruta del hilo del motor anterior. @param proyectoId Proyecto del alcance, 0 para el chat global. @returns Ruta relativa del BFF. */
-function rutaHiloAnterior (proyectoId: number): string {
-  return proyectoId === 0 ? 'ia/chat' : `ia/proyectos/${proyectoId}/chat`
-}
-
 /** Permite consultar el hilo anterior sin ejecutar sus propuestas ni enviar al motor retirado. */
-function HistorialAnterior ({ proyectoId, alCargar }: { proyectoId: number, alCargar: (hayMensajes: boolean) => void }): ReactElement {
+function HistorialAnterior ({ rutaHilo, alCargar }: { rutaHilo: string, alCargar: (hayMensajes: boolean) => void }): ReactElement {
   const [mensajes, setMensajes] = useState<Mensaje[] | null>(null)
   const [error, setError] = useState('')
   const [cargando, setCargando] = useState(false)
@@ -243,7 +314,7 @@ function HistorialAnterior ({ proyectoId, alCargar }: { proyectoId: number, alCa
     setCargando(true)
     setError('')
     try {
-      const sobre = await pedirSobre<unknown>(rutaHiloAnterior(proyectoId), abortador.signal)
+      const sobre = await pedirSobre<unknown>(rutaHilo, abortador.signal)
       if (!abortador.signal.aborted) {
         const guardados = leerMensajesGuardados(sobre.data)
         setMensajes(guardados)
@@ -262,6 +333,6 @@ function HistorialAnterior ({ proyectoId, alCargar }: { proyectoId: number, alCa
     {cargando && <p role="status" className="mt-2 text-sm">Cargando mensajes anteriores…</p>}
     {error && <div role="alert" className="mt-2"><p>{error}</p><Boton onClick={() => { void cargar() }}>Reintentar historial</Boton></div>}
     {mensajes?.length === 0 && <p className="text-texto-sutil mt-2 text-sm">No hay mensajes anteriores.</p>}
-    {mensajes && mensajes.length > 0 && <><p className="text-texto-sutil my-2 text-sm">Solo lectura. Para continuar una solicitud, escríbela en esta conversación.</p><ol aria-label="Conversación anterior" className="flex flex-col gap-3">{mensajes.map((m, i) => <li key={i} className="space-y-2"><p className="text-texto-sutil text-sm">{m.rol === 'persona' ? 'Tú' : 'Thinking Orb'}</p><TextoChat texto={m.texto} />{m.acciones.map(a => <TextoChat key={a.id} texto={a.resumen} />)}</li>)}</ol></>}
+    {mensajes && mensajes.length > 0 && <><p className="text-texto-sutil my-2 text-sm">Solo lectura. Para continuar una solicitud, escríbela en esta conversación.</p><ol aria-label="Conversación anterior" className="flex flex-col gap-3">{mensajes.map((m, i) => <li key={i} className="space-y-2"><p className="text-texto-sutil text-sm">{m.rol === 'persona' ? 'Tú' : ASISTENTE}</p><TextoChat texto={m.texto} />{m.acciones.map(a => <TextoChat key={a.id} texto={a.resumen} />)}</li>)}</ol></>}
   </details>
 }

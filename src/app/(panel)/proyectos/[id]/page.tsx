@@ -1,5 +1,6 @@
 import Link from 'next/link'
 import { ChatOrbe } from '@/componentes/ia/ChatOrbe'
+import { PuntoDeEspera } from '@/componentes/ia/PuntoDeEspera'
 import { Suspense, cache } from 'react'
 import { CabeceraProyecto } from '@/componentes/proyecto/CabeceraProyecto'
 import { BotonFijar } from '@/componentes/fijados/BotonFijar'
@@ -264,7 +265,7 @@ export default async function ProyectoPage (props: PageProps<'/proyectos/[id]'>)
     // el valor que viaja en `?tab=` de esta ficha. Cambiarla dejaría muerto cualquier enlace que
     // alguien haya guardado o pegado en otro lado, y el nombre del asistente no se lee de ahí
     // sino de la etiqueta, que sí sale de `ASISTENTE`.
-    ...(conIa ? [{ clave: 'wibot', etiqueta: ASISTENTE, contenido: <ChatOrbe proyecto={{ id: proyecto.id, name: proyecto.name }} /> }] : []),
+    ...(conIa ? [{ clave: 'wibot', etiqueta: ASISTENTE, adorno: <PuntoDeEspera proyectoId={proyecto.id} className="ml-1.5 align-middle" />, contenido: <ChatOrbe proyecto={{ id: proyecto.id, name: proyecto.name }} /> }] : []),
     { clave: 'notas', etiqueta: GLOSARIO.nota.plural, contenido: <PanelNotas proyectoId={proyecto.id} /> },
     {
       clave: 'actividad',

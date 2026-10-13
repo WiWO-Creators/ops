@@ -6,6 +6,16 @@ import { STAFF } from '../mock/datos.js'
 /** Verifica el chat de proyecto contra un frontend local, interceptando toda escritura. */
 const destino = new URL(process.env.ORBE_TEST_URL ?? 'http://localhost:3122')
 assert.ok(['localhost', '127.0.0.1', '[::1]'].includes(destino.hostname))
+
+/** Cierra el modal «Abre tu jornada» si aparece: con él abierto el resto de la página está inerte. */
+async function cerrarJornada (pagina) {
+  const jornada = pagina.getByRole('dialog', { name: 'Abre tu jornada', exact: true })
+  try {
+    await jornada.waitFor({ timeout: 4000 })
+    await jornada.getByRole('button', { name: 'Cerrar', exact: true }).click()
+    await jornada.waitFor({ state: 'hidden' })
+  } catch { /* sin jornada pendiente */ }
+}
 const navegador = await chromium.launch({ executablePath: process.env.PLAYWRIGHT_CHROMIUM_EXECUTABLE })
 try {
   const contexto = await navegador.newContext({ viewport: { width: 1440, height: 1000 } })
@@ -32,6 +42,7 @@ try {
   const errores = []
   pagina.on('pageerror', error => errores.push(error.message))
   await pagina.goto(new URL('/proyectos/1?tab=wibot', destino).href, { waitUntil: 'networkidle', timeout: 90000 })
+  await cerrarJornada(pagina)
   await pagina.getByText('Esta conversación solo consulta y modifica este proyecto.', { exact: true }).waitFor()
   await pagina.getByText('Historial exclusivo 1', { exact: true }).waitFor()
   assert.ok(await pagina.getByRole('button', { name: 'Preguntar', exact: true }).isDisabled())
@@ -56,6 +67,7 @@ try {
   assert.ok(solicitudes.some(s => s.metodo === 'DELETE' && s.path === '/api/bff/ia/proyectos/1/chat'))
   assert.ok(!solicitudes.some(s => s.metodo === 'DELETE' && s.path === '/api/bff/ia/chat'))
   await pagina.goto(new URL('/proyectos/2?tab=wibot', destino).href, { waitUntil: 'networkidle' })
+  await cerrarJornada(pagina)
   await pagina.getByText('Historial exclusivo 2', { exact: true }).waitFor()
   assert.equal(await pagina.getByText('Historial exclusivo 1', { exact: true }).count(), 0)
   assert.equal(await pagina.getByText('Historial exclusivo global', { exact: true }).count(), 0)

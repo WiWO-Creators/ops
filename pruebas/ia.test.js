@@ -279,7 +279,7 @@ test('lee un navegar y deja pasar el prefill tal cual', () => {
 test('un navegar que apunta fuera del panel se descarta entero', () => {
   // Lo que esta prueba protege: `router.push()` sigue sin chistar lo que le den. Un `//host` o un
   // `https://` en ese campo convertiria una respuesta de un modelo en una redireccion afuera.
-  for (const href of ['https://evil.example/x', '//evil.example/x', '/\\evil.example', 'procesos', '', 'javascript:alert(1)']) {
+  for (const href of ['https://evil.example/x', '//evil.example/x', '/\\evil.example', 'procesos', '', 'javascript:alert(1)', '/a\\b', '/tareas\\..', '/\t/evil.example', '/ta\nreas', '/tareas\u0000', '/tareas\u007f']) {
     assert.equal(leerEventoIA(frame('navegar', { href, etiqueta: 'algo' })), null, href)
   }
 })
