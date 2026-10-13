@@ -2384,3 +2384,12 @@
     animation: none !important;
   }
 }
+
+/* Variante ligera (`esOrbeLigero`, <= 2rem): sin filtros ni desenfoques. A este tamaño no se
+   distinguen y cada orbe de línea los pagaba; los estados se siguen leyendo por forma y color. */
+.orbe-wiwo.orbe-ligero .wiwo-thinking-orb,
+.orbe-wiwo.orbe-ligero .wiwo-thinking-orb *,
+.orbe-wiwo.orbe-ligero .orb-state-field * {
+  filter: none;
+  backdrop-filter: none;
+}

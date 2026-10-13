@@ -4,7 +4,8 @@ import { useCallback, useEffect, useRef, useState, type ReactElement } from 'rea
 import { usePathname, useRouter, useSearchParams } from 'next/navigation'
 import { Boton } from '@/componentes/formularios/Boton'
 import { Cargando, ErrorEstado, Vacio } from '@/componentes/estado/Estados'
-import { ConfirmacionEnLinea } from '@/componentes/datos/ConfirmacionEnLinea'
+import { ConfirmarBorrado } from '@/componentes/datos/ConfirmarBorrado'
+import { useAviso } from '@/componentes/estado/useAviso'
 import { escribirEnBff } from '@/componentes/datos/mutaciones'
 import { pedirSobre } from '@/datos/cliente'
 import { leerSSE } from '@/datos/sse'
@@ -29,6 +30,7 @@ import { BurbujaPersona } from './BurbujaPersona'
 import { CompositorChat } from './CompositorChat'
 import { MarcoConversacion } from './MarcoConversacion'
 import { useAutoScroll } from './useAutoScroll'
+import { useSolicitudNuevaConversacion } from './useSolicitudNuevaConversacion'
 
 /**
  * El chat de Thinking Orb: se le pregunta por el estado de Ops y contesta citando.
@@ -97,7 +99,7 @@ export function ConversacionConsulta ({ desplazable = false, proyecto, configura
   const [enviando, setEnviando] = useState(false)
   const [intento, setIntento] = useState(0)
   const [confirmandoBorrado, setConfirmandoBorrado] = useState(false)
-  const [borrando, setBorrando] = useState(false)
+  const aviso = useAviso()
   const enCurso = useRef<AbortController | null>(null)
   // Solo en el orbe el alto está acotado; sin acotar scrollea la página y moverla sería arrebatarle
   // el scroll a quien lee más arriba. Tampoco se arrastra a quien subió a releer: solo se baja al
@@ -161,9 +163,31 @@ export function ConversacionConsulta ({ desplazable = false, proyecto, configura
     let preguntas: PreguntaIA[] = []
     let fallo = false
 
+    // Los deltas llegan por decenas por segundo y cada repintado reescribe el hilo y rehace la lista:
+    // se agrupan en un solo repintado por fotograma, y solo si algo cambió desde el último.
+    let cambios = 0
+    let pintados = 0
+    let fotograma = 0
+
     /** Repinta la burbuja de la IA con lo que se lleva acumulado. */
     const pintar = (fase: FaseMensaje): void => {
+      pintados = cambios
       escribir([...previos, { rol: 'ia', texto: acumulado, citas, paso, acciones, preguntas, fase }])
+    }
+
+    /** Pide un repintado en el próximo fotograma; los pedidos de ese fotograma se funden en uno. */
+    const programar = (): void => {
+      if (fotograma !== 0) return
+      fotograma = requestAnimationFrame(() => {
+        fotograma = 0
+        if (cambios !== pintados) pintar('generando')
+      })
+    }
+
+    /** Repinta ya, con la fase final, y cancela el fotograma pendiente. */
+    const volcar = (fase: FaseMensaje): void => {
+      if (fotograma !== 0) { cancelAnimationFrame(fotograma); fotograma = 0 }
+      pintar(fase)
     }
 
     pintar('generando')
@@ -186,15 +210,15 @@ export function ConversacionConsulta ({ desplazable = false, proyecto, configura
         // Un evento que este parser no conoce vuelve como `null` y se saltea: es lo que hace que
         // un backend mas nuevo no rompa esta pantalla, y al reves.
         if (evento === null || evento.tipo === 'fin') continue
-        if (evento.tipo === 'delta') acumulado += evento.texto
-        if (evento.tipo === 'citas') citas = evento.citas
+        if (evento.tipo === 'delta' && evento.texto !== '') { acumulado += evento.texto; cambios += 1 }
+        if (evento.tipo === 'citas') { citas = evento.citas; cambios += 1 }
         // La fase `fin` de un paso no se limpia: dejar el ultimo puesto evita el parpadeo entre una
         // herramienta y la siguiente, y el paso entero desaparece cuando la burbuja deja de generar.
-        if (evento.tipo === 'paso') paso = evento.paso
+        if (evento.tipo === 'paso') { paso = evento.paso; cambios += 1 }
         // Sin propuestas (portal) una tarjeta que se colara igual no se pinta: el contrato del portal
         // no las manda nunca, y si llegaran no habria con que confirmarlas.
-        if (evento.tipo === 'propuesta' && configuracion.conPropuestas) acciones = [...acciones, evento.accion]
-        if (evento.tipo === 'pregunta' && configuracion.conPropuestas) preguntas = [...preguntas, evento.pregunta]
+        if (evento.tipo === 'propuesta' && configuracion.conPropuestas) { acciones = [...acciones, evento.accion]; cambios += 1 }
+        if (evento.tipo === 'pregunta' && configuracion.conPropuestas) { preguntas = [...preguntas, evento.pregunta]; cambios += 1 }
         if (evento.tipo === 'navegar' && proyectoId === undefined && configuracion.conNavegacion) {
           // El `href` ya lo valido `leerEventoIA()` como ruta interna; aca no se toca. Se dice a
           // donde se fue porque la pantalla cambia sola debajo de quien esta leyendo.
@@ -207,17 +231,17 @@ export function ConversacionConsulta ({ desplazable = false, proyecto, configura
           break
         }
 
-        pintar('generando')
+        programar()
       }
 
-      pintar(fallo ? 'error' : 'listo')
+      volcar(fallo ? 'error' : 'listo')
     } catch (error: unknown) {
       // Abortado es lo que pasa al cerrar el chat: no es un fallo y lo que llego se conserva.
       if (abortador.signal.aborted) {
-        pintar('interrumpido')
+        volcar('interrumpido')
       } else {
         setErrorRespuesta(error instanceof Error ? error.message : MENSAJE_GENERICO)
-        pintar('error')
+        volcar('error')
       }
     } finally {
       enCurso.current = null
@@ -236,22 +260,23 @@ export function ConversacionConsulta ({ desplazable = false, proyecto, configura
    * El hilo es de la persona: la ruta no lleva a quien, lo pone la sesion.
    */
   async function borrar (): Promise<void> {
-    setBorrando(true)
-
     const resultado = await escribirEnBff(rutaChat, 'DELETE')
 
-    setBorrando(false)
+    // `ConfirmarBorrado` muestra este mensaje y deja el diálogo abierto para reintentar.
+    if (!resultado.ok) throw new Error(resultado.mensaje)
 
-    if (!resultado.ok) {
-      setErrorRespuesta(resultado.mensaje)
-
-      return
-    }
-
-    setConfirmandoBorrado(false)
     setErrorRespuesta('')
     escribir([])
+    aviso.exito('Conversación eliminada.')
   }
+
+  /** Pedido del panel flotante («Nueva conversación»): abre la confirmación si hay algo que borrar. */
+  function pedirNuevaConversacion (): void {
+    if (mensajes.length === 0) { aviso.info('La conversación ya está vacía.'); return }
+    if (enviando) { aviso.advertencia('Espera a que termine la respuesta en curso.'); return }
+    setConfirmandoBorrado(true)
+  }
+  useSolicitudNuevaConversacion(desplazable, pedirNuevaConversacion)
 
   /**
    * Manda un texto como mensaje de la persona.
@@ -311,6 +336,7 @@ export function ConversacionConsulta ({ desplazable = false, proyecto, configura
   }
 
   return (
+    <>
     <MarcoConversacion
       desplazable={desplazable}
       desplazadorRef={desplazador}
@@ -326,26 +352,14 @@ export function ConversacionConsulta ({ desplazable = false, proyecto, configura
       // la conversacion es larga, que es justo cuando se quiere borrar.
       barra={mensajes.length > 0 && (
         <div className="flex flex-col items-end gap-1">
-          {confirmandoBorrado
-            ? (
-              <ConfirmacionEnLinea
-                advertencia={`Se elimina la conversación entera, también la que ${ASISTENTE} recuerda.`}
-                etiquetaConfirmar="Eliminar"
-                cargando={borrando}
-                onCancelar={() => { setConfirmandoBorrado(false) }}
-                onConfirmar={() => { void borrar() }}
-              />
-              )
-            : (
-              <Boton
-                tamano="chico"
-                variante="sutil"
-                disabled={enviando}
-                onClick={() => { setConfirmandoBorrado(true) }}
-              >
-                Eliminar chat
-              </Boton>
-              )}
+          <Boton
+            tamano="chico"
+            variante="sutil"
+            disabled={enviando}
+            onClick={() => { setConfirmandoBorrado(true) }}
+          >
+            Eliminar chat
+          </Boton>
         </div>
       )}
       vacio={mensajes.length === 0 && (
@@ -408,5 +422,14 @@ export function ConversacionConsulta ({ desplazable = false, proyecto, configura
         </ol>
       )}
     </MarcoConversacion>
+    <ConfirmarBorrado
+      abierto={confirmandoBorrado}
+      onCerrar={() => { setConfirmandoBorrado(false) }}
+      titulo="Nueva conversación"
+      advertencia={`Se elimina la conversación entera, también la que ${ASISTENTE} recuerda.`}
+      etiquetaConfirmar="Eliminar"
+      onConfirmar={borrar}
+    />
+    </>
   )
 }
