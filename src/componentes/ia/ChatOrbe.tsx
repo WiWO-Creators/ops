@@ -67,6 +67,9 @@ import { configuracionDeOrbe, type ConfiguracionOrbe, type SujetoOrbe } from '@/
  */
 
 
+/** Distancia al final bajo la cual la conversacion sigue a la respuesta que va llegando. */
+const DISTANCIA_PEGADO_PX = 180
+
 /** Lo que se dice cuando el fallo no trae mensaje propio. */
 const MENSAJE_GENERICO = 'No se pudo completar la respuesta.'
 
@@ -123,12 +126,12 @@ function SelectorChatOrbe (props: PropsConversacion): ReactElement {
         const maximo = sobre.data?.agente?.maximo_pregunta
         setAgente({ maximo_pregunta: typeof maximo === 'number' && Number.isInteger(maximo) && maximo > 0 ? maximo : MAXIMO_PREGUNTA_AGENTE, nuevas_habilitadas: sobre.data?.agente?.nuevas_habilitadas !== false, habilitado: sobre.data?.agente?.habilitado === true, intervalo_consulta_ms: typeof intervalo === 'number' && intervalo >= 500 ? intervalo : 1500 })
       }).catch((fallo: unknown) => {
-        if (!abortador.signal.aborted) setError(fallo instanceof Error ? fallo.message : 'No se pudo cargar Thinking Orb.')
+        if (!abortador.signal.aborted) setError(fallo instanceof Error ? fallo.message : `No se pudo cargar ${ASISTENTE}.`)
       })
     return () => { abortador.abort() }
   }, [intento, rutaCapacidades])
   if (error) return <ErrorEstado detalle={error} onReintentar={() => { setError(''); setIntento(n => n + 1) }} />
-  if (!agente) return <Cargando mensaje="Cargando Thinking Orb…" />
+  if (!agente) return <Cargando mensaje={`Cargando ${ASISTENTE}…`} />
   const proyectoConNombre = props.proyecto?.name === undefined ? undefined : { id: props.proyecto.id, name: props.proyecto.name }
   return agente.habilitado ? <ChatAgente desplazable={props.desplazable} proyecto={proyectoConNombre} intervalo={agente.intervalo_consulta_ms} nuevasHabilitadas={agente.nuevas_habilitadas} maximoPregunta={agente.maximo_pregunta} /> : <ConversacionOrbe {...props} />
 }
@@ -159,6 +162,7 @@ function ConversacionOrbe ({ desplazable = false, proyecto, configuracion }: Pro
   const [borrando, setBorrando] = useState(false)
   const enCurso = useRef<AbortController | null>(null)
   const desplazador = useRef<HTMLDivElement>(null)
+  const primerDesplazamiento = useRef(true)
 
   /** Escribe el hilo en el store de modulo y en el estado local a la vez: una sola fuente. */
   const escribir = useCallback((siguientes: Mensaje[]) => {
@@ -197,13 +201,18 @@ function ConversacionOrbe ({ desplazable = false, proyecto, configuracion }: Pro
 
   // Solo en el orbe: el alto esta acotado, asi que sin esto la respuesta crece fuera de la vista y
   // hay que perseguirla con la rueda. Sin acotar scrollea la pagina y moverla seria arrebatarle el
-  // scroll a quien esta leyendo mas arriba.
+  // scroll a quien esta leyendo mas arriba. Tampoco se arrastra a quien subio a releer: solo se baja
+  // al abrir, al mandar una pregunta propia o si ya estaba cerca del final.
   useEffect(() => {
     if (!desplazable) return
 
     const caja = desplazador.current
     if (caja === null) return
 
+    const cerca = caja.scrollHeight - caja.scrollTop - caja.clientHeight < DISTANCIA_PEGADO_PX
+    if (!primerDesplazamiento.current && !cerca && mensajes.at(-1)?.rol !== 'persona') return
+
+    primerDesplazamiento.current = false
     caja.scrollTop = caja.scrollHeight
   }, [desplazable, mensajes])
 

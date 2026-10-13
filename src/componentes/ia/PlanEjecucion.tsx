@@ -8,7 +8,7 @@ export function PlanEjecucion ({ plan }: { plan: Plan }): ReactElement {
   const completados = plan.pasos.filter(p => ['completada', 'ejecutada'].includes(p.estado)).length
   const resumenRepetido = plan.pasos.length === 1 && plan.resumen.trim() === plan.pasos[0]?.descripcion.trim()
   return (
-    <div className="border-linea rounded-xl border">
+    <div className="border-linea rounded-tarjeta border">
       <div className="border-linea flex flex-wrap items-center justify-between gap-2 border-b px-4 py-3">
         <h3 className="text-texto flex items-center gap-2 text-base font-semibold">
           <ClipboardList aria-hidden="true" className="size-4 shrink-0" />Plan de trabajo

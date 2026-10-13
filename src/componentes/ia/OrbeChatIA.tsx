@@ -1,6 +1,7 @@
 'use client'
 
 import { useCallback, useEffect, useId, useRef, useState, type PointerEvent as EventoPuntero, type KeyboardEvent as EventoTeclado, type CSSProperties, type ReactElement } from 'react'
+import dynamic from 'next/dynamic'
 import { usePathname } from 'next/navigation'
 import { EVENTO_ABRIR_ORBE } from '@/dominio/pantalla'
 import { Orbe } from '@/componentes/estado/Orbe'
@@ -17,7 +18,16 @@ import {
   type TamanoChat,
   type VentanaVisible
 } from '@/dominio/tamano-chat'
-import { ChatOrbe } from './ChatOrbe'
+
+/** Importa el chat; compartido por la carga diferida y por la precarga al acercarse al boton. */
+const importarChat = async (): Promise<typeof import('./ChatOrbe')['ChatOrbe']> => (await import('./ChatOrbe')).ChatOrbe
+
+// El chat (con el agente, el dictado y el texto enriquecido) pesa bastante y solo se usa al abrir el
+// orbe: sale del bundle inicial de todo el panel. Se precarga al acercarse al boton para que abrir no espere.
+const ChatOrbe = dynamic(importarChat, {
+  ssr: false,
+  loading: () => <p role="status" className="text-texto-tenue p-4 text-sm">Cargando {ASISTENTE}…</p>
+})
 
 /**
  * Thinking Orb como orbe flotante: se pregunta desde cualquier pantalla del panel, sin salir de ella.
@@ -328,9 +338,9 @@ export function OrbeChatIA ({ sujeto = 'staff' }: { sujeto?: SujetoOrbe } = {}):
           if (!abierto) setApertura((n) => n + 1)
           setAbierto(!abierto)
         }}
-        onPointerEnter={() => setEncima(true)}
+        onPointerEnter={() => { setEncima(true); void importarChat() }}
         onPointerLeave={() => setEncima(false)}
-        onFocus={() => setEncima(true)}
+        onFocus={() => { setEncima(true); void importarChat() }}
         onBlur={() => setEncima(false)}
         aria-expanded={abierto}
         aria-controls={abierto ? idPanel : undefined}

@@ -21,7 +21,8 @@ import {
   leerMensajesGuardados,
   partirConCitas,
   respuestaAPreguntas,
-  segundosParaExpirar
+  segundosParaExpirar,
+  vaciarHilos
 } from '../src/dominio/ia-chat.ts'
 
 const TAREA = { tipo: 'tarea', id: 512, titulo: 'Corregir el informe' }
@@ -263,4 +264,14 @@ test('un mensaje guardado sin `preguntas` trae [] y no rompe', () => {
   const mensajes = leerMensajesGuardados({ mensajes: [{ rol: 'asistente', texto: 'Hoy vencen dos.' }] })
 
   assert.deepEqual(mensajes[0].preguntas, [])
+})
+
+test('vaciarHilos olvida todas las conversaciones en memoria, de cualquier sujeto y proyecto', () => {
+  guardarHilo({ mensajes: [{ rol: 'persona', texto: 'hola' }], cargado: true }, undefined, 'staff')
+  guardarHilo({ mensajes: [{ rol: 'persona', texto: 'hola' }], cargado: true }, 7, 'contacto')
+
+  vaciarHilos()
+
+  assert.deepEqual(leerHilo(undefined, 'staff'), { mensajes: [], cargado: false })
+  assert.deepEqual(leerHilo(7, 'contacto'), { mensajes: [], cargado: false })
 })

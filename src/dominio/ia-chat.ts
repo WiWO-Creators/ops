@@ -126,6 +126,14 @@ function claveDeHilo (proyectoId: number | undefined, sujeto: string): string {
 }
 
 /**
+ * Vacia todas las conversaciones en memoria. Se llama al cerrar sesion: el modulo vive lo que la
+ * pestaña, y el hilo de una persona no debe verlo quien inicie sesion despues en el mismo navegador.
+ */
+export function vaciarHilos (): void {
+  HILOS.clear()
+}
+
+/**
  * Devuelve la conversacion en memoria.
  *
  * @param proyectoId proyecto del hilo; omitido para la conversación global

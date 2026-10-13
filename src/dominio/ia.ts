@@ -587,12 +587,14 @@ function leerNavegar (datos: Record<string, unknown>): EventoIA | null {
  * `true` si el destino es una ruta de este panel y no una salida a otro sitio.
  *
  * Una sola barra al principio y nada de `//` ni `/\`: las dos formas las lee el navegador como
- * "protocolo relativo" y terminan en otro dominio.
+ * "protocolo relativo" y terminan en otro dominio. Tampoco se aceptan la barra invertida ni los
+ * caracteres de control en ninguna posicion: el navegador los normaliza (quita tabuladores y saltos,
+ * lee `\` como `/`) y `/\t/evil` o `/a\..` se convierten en destinos distintos del que se validó.
  *
  * @param href el destino tal como llego
  */
 function esRutaInterna (href: string): boolean {
-  return /^\/(?![/\\])/.test(href)
+  return /^\/(?![/\\])/.test(href) && !/[\u0000-\u001f\u007f\\]/.test(href)
 }
 
 /**

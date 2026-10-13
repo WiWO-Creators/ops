@@ -4,6 +4,7 @@ import { useRouter } from 'next/navigation'
 import { useState } from 'react'
 import { Boton } from '@/componentes/formularios/Boton'
 import { conLimite, TIEMPO_ESCRITURA_MS } from '@/datos/red'
+import { vaciarHilos } from '@/dominio/ia-chat'
 
 /**
  * Cierra la sesion del portal.
@@ -19,6 +20,7 @@ export function BotonSalirPortal () {
     setSaliendo(true)
 
     try {
+      vaciarHilos()
       await fetch('/api/sesion?portal=1', { method: 'DELETE', signal: conLimite(undefined, TIEMPO_ESCRITURA_MS) })
     } catch {
       // Sin respuesta la sesion se da por terminada igual: el destino la revalida.

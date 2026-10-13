@@ -55,6 +55,13 @@ export const NOVEDADES: Novedad[] = [
   {
     fecha: '2026-10-13',
     tipo: 'mejora',
+    titulo: 'Thinking Orb: chat más claro y sin callejones sin salida',
+    detalle: 'El chat ahora muestra sugerencias para empezar, se envía con Enter (Shift+Enter hace un salto de línea) y muestra el avance mientras trabaja, con un aviso que explica por qué no puedes escribir. Si una ejecución falla o queda a medias, puedes seguirla o descartarla con «Descartar y preguntar». «Eliminar chat» avisa cuándo no se puede usar, y al abrir el chat ya no te arrastra al final si estabas releyendo.',
+    commits: []
+  },
+  {
+    fecha: '2026-10-13',
+    tipo: 'mejora',
     titulo: 'Eliminar el chat de Thinking Orb',
     detalle: 'Ahora puedes vaciar tu conversación con Thinking Orb desde el botón «Eliminar chat», arriba a la derecha del chat. Se borra todo, también lo que el asistente recordaba. No se puede mientras haya una solicitud en curso.',
     commits: []

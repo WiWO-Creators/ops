@@ -17,6 +17,7 @@ import {
   SeparadorMenu
 } from '@/componentes/superposiciones/MenuContextual'
 import { conLimite, TIEMPO_ESCRITURA_MS } from '@/datos/red'
+import { vaciarHilos } from '@/dominio/ia-chat'
 
 interface PropsMenuUsuario {
   nombre: string
@@ -70,6 +71,7 @@ export function MenuUsuario ({ nombre, imagen, ultimaNovedad }: PropsMenuUsuario
     enviarAlApp(mensajeLogout())
 
     try {
+      vaciarHilos()
       await fetch('/api/sesion', { method: 'DELETE', signal: conLimite(undefined, TIEMPO_ESCRITURA_MS) })
     } catch {
       // Sin respuesta la sesion se da por terminada igual: el destino la revalida.
