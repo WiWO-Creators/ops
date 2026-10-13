@@ -109,7 +109,12 @@ export const BurbujaIA = memo(function BurbujaIA ({
         <ul aria-label="Acciones propuestas" className="animate-aparecer flex flex-col gap-2">
           {mensaje.acciones.map((accion) => (
             <li key={accion.id}>
-              <TarjetaPropuestaIA accion={accion} onResuelta={onAccionResuelta} proyectoId={proyectoId} />
+              <TarjetaPropuestaIA
+                accion={accion}
+                onResuelta={onAccionResuelta}
+                proyectoId={proyectoId}
+                rutaConfirmar={configuracion.rutaConfirmar(accion.id, proyectoId)}
+              />
             </li>
           ))}
         </ul>

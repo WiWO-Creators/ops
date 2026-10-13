@@ -32,9 +32,10 @@ import { analizarScope, interpretarScope, scopeRuta } from './scope.js'
 import { supervisionDelEquipo } from './supervision.js'
 import { driveDeEntidadRuta, driveRuta, sesionDirectaRuta } from './drive.js'
 import { escribirAjustesDelOrbePortal, opcionDelOrbePortal, orbePortalRuta } from './orbe-portal.js'
+import { altaDeTareasDelEspacio, crearTareaDelPortal, puedeCrearEnAlgunProyecto } from './tareas-del-portal.js'
 import {
   ADMINS_DE_CLIENTE, AREAS, ARCHIVOS, CAMPOS_PERSONALIZADOS, CHECKLIST, CLIENTES, COMENTARIOS, CRONOMETROS,
-  CLIENTES_SIN_VENCIMIENTO, DEPARTAMENTOS, EMPRESAS_DEL_GRUPO, ENTRADA_DE_CLIENTE, ESPACIOS, ESTADOS_ESPACIO, ESTADOS_PROCESO,
+  CLIENTES_CREAN_TAREAS, CLIENTES_SIN_VENCIMIENTO, DEPARTAMENTOS, EMPRESAS_DEL_GRUPO, ENTRADA_DE_CLIENTE, ESPACIOS, ESTADOS_ESPACIO, ESTADOS_PROCESO,
   ESTADOS_TICKET, PRIORIDADES_TICKET, TICKETS_PORTAL,
   ESPACIOS_DE_LICITACION, ESPACIOS_DE_UPSELL, ETIQUETAS, HITOS, LICITACIONES, MONEDAS, PROSPECTOS, CONTACTOS_DE_PROSPECTO, UPSELLS,
   AVISOS_CONTACTO, CONTACTOS, OPCIONES_AREA_EN_TAREAS, PRIORIDADES, PROCESOS, PROCESOS_POR_AREA,
@@ -3226,9 +3227,9 @@ function trozosDe (texto) {
  *
  * @param {import('node:http').ServerResponse} respuesta
  * @param {string} texto lo que se escribe, que sale troceado en `event: delta`
- * @param {{citas?: object[], fin: object, falla: boolean}} opciones
+ * @param {{citas?: object[], fin: object, falla: boolean, propuestas?: object[]}} opciones
  */
-function transmitirSSE (respuesta, texto, { citas, fin, falla }) {
+function transmitirSSE (respuesta, texto, { citas, fin, falla, propuestas = [] }) {
   respuesta.writeHead(200, {
     'Content-Type': 'text/event-stream; charset=utf-8',
     'Cache-Control': 'no-cache, no-transform',
@@ -3264,6 +3265,8 @@ function transmitirSSE (respuesta, texto, { citas, fin, falla }) {
       emitir('error', { code: 'provider_error', message: 'El proveedor cortó la respuesta.' })
     } else {
       if (citas) emitir('citas', { citas })
+      // Una por evento, antes del `fin`: asi las recibe el orbe del equipo y el del portal.
+      for (const propuesta of propuestas) emitir('propuesta', propuesta)
       emitir('fin', fin)
     }
 
@@ -6712,6 +6715,13 @@ async function resolverRuta (metodo, segmentos, parametros, token, cuerpo, petic
     if (resto[0] === 'ia') {
       return await orbePortalRuta(metodo, resto.slice(1), parametros, sesion.resolverContacto(token, 'acceso'), cuerpo, peticion, {
         proyectosDelContacto: (c) => ESPACIOS.filter((e) => e.clientid === c.client_id),
+        // Las propuestas de Tarea del orbe: lo que cada Proyecto del contacto deja crear, y el mismo
+        // alta que usa el `POST` del portal para cuando la persona confirma.
+        puedeProponerTareas: (c) => puedeCrearEnAlgunProyecto(c, proyectosConPestanias),
+        altaDelProyecto: (c, e) => altaDeTareasDelEspacio(c, e, pestaniasDeEspacio(e.id)),
+        crearTarea: (c, e, datos) => crearTareaDelPortal({
+          contacto: c, espacio: e, pestanias: pestaniasDeEspacio(e.id), datos, deps: { crearProceso, procesos: PROCESOS }
+        }),
         tareasVisibles: (id) => PROCESOS.filter((p) => p.rel_type === 'project' && p.rel_id === id && Number(p.visible_to_client) === 1 && p.status !== 5),
         aceptaStream,
         transmitirSSE
@@ -6725,10 +6735,14 @@ async function resolverRuta (metodo, segmentos, parametros, token, cuerpo, petic
       return { estado: 204, cuerpo: null }
     }
 
-    // El alta de una solicitud es lo UNICO que el contacto escribe en todo el portal, asi que el
-    // resto sigue siendo de solo lectura: cualquier otro metodo cae en el 404 de siempre.
+    // El contacto escribe solo lo enumerado —las solicitudes de soporte y, con el interruptor de su
+    // cliente, sus Tareas—, asi que el resto sigue siendo de solo lectura: cualquier otro metodo cae
+    // en el 404 de siempre.
     const escribeTicket = (metodo === 'POST' && resto[0] === 'tickets' && resto.length === 1) || esAccionDelPortal(metodo, resto)
-    if (metodo !== 'GET' && !escribeTicket) throw new ErrorApi(404, 'not_found', 'Recurso desconocido.')
+    // La otra escritura enumerada: crear una Tarea en un Proyecto. Si el cliente no la tiene
+    // encendida la ruta contesta 404, como cualquier otra que no existe para el contacto.
+    const escribeTarea = metodo === 'POST' && resto[0] === 'projects' && resto[2] === 'tasks' && resto.length === 3
+    if (metodo !== 'GET' && !escribeTicket && !escribeTarea) throw new ErrorApi(404, 'not_found', 'Recurso desconocido.')
 
     const contacto = sesion.resolverContacto(token, 'acceso')
     const [seccion] = resto
@@ -6909,6 +6923,9 @@ async function resolverRuta (metodo, segmentos, parametros, token, cuerpo, petic
             // Al lado de `tabs` y por el mismo motivo: la pestaña de Tareas necesita saber que
             // columnas existen ANTES de pedir la primera fila.
             campos_tareas: camposDeTareaDelPortal(espacio.id),
+            // `null` con el interruptor del cliente apagado o sin la pestaña de Tareas: ahi el portal
+            // no ofrece ningun alta.
+            alta_de_tareas: altaDeTareasDelEspacio(contacto, espacio, pestaniasDelContacto(espacio.id, suyo)),
             members: STAFF.filter((persona) => espacio.miembros.includes(persona.id))
               .map(({ id, full_name, profile_image_url }) => ({ id, full_name, profile_image_url }))
           })
@@ -6929,6 +6946,18 @@ async function resolverRuta (metodo, segmentos, parametros, token, cuerpo, petic
         if (!pestanias.includes(pestania)) {
           throw new ErrorApi(403, 'forbidden', `Este proyecto no comparte "${pestania}".`)
         }
+      }
+
+      if (resto[2] === 'tasks' && resto.length === 3 && metodo === 'POST') {
+        const { estado, proceso } = crearTareaDelPortal({
+          contacto,
+          espacio,
+          pestanias,
+          datos: await cuerpo(),
+          deps: { crearProceso, procesos: PROCESOS }
+        })
+
+        return { estado, cuerpo: conDatos(presentarTareaPortal(proceso, camposDeTareaDelPortal(espacio.id))) }
       }
 
       if (resto[2] === 'tasks' && resto.length === 3) {
@@ -7721,6 +7750,30 @@ async function resolverRuta (metodo, segmentos, parametros, token, cuerpo, petic
     exigirPermiso(actual, 'customers', 'view')
 
     return { estado: 200, cuerpo: conDatos({ sin_vencimiento: CLIENTES_SIN_VENCIMIENTO.has(cliente.id) }) }
+  }
+
+  // --- Los contactos del cliente crean Tareas desde el portal ----------------------
+  //
+  // Mismo lugar y misma razon que el bloque anterior: antes del `clients` de solo lectura, o el PUT
+  // cae al 404 final. La fila es el interruptor y nace vacia; el PUT exige el booleano como la API.
+  if (recurso === 'clients' && resto[1] === 'portal-crea-tareas' && resto.length === 2) {
+    const cliente = buscarO404(CLIENTES, Number(resto[0]), 'cliente')
+
+    if (metodo === 'PUT') {
+      exigirPermiso(actual, 'customers', 'edit')
+      const datos = await cuerpo()
+
+      if (typeof datos?.habilitado !== 'boolean') {
+        throw new ErrorApi(422, 'validation_failed', 'Falta decir si los contactos pueden crear tareas.', { habilitado: ['no_booleano'] })
+      }
+
+      if (datos.habilitado) CLIENTES_CREAN_TAREAS.add(cliente.id)
+      else CLIENTES_CREAN_TAREAS.delete(cliente.id)
+    }
+
+    exigirPermiso(actual, 'customers', 'view')
+
+    return { estado: 200, cuerpo: conDatos({ habilitado: CLIENTES_CREAN_TAREAS.has(cliente.id) }) }
   }
 
   // --- Personas asignadas a un cliente --------------------------------------
@@ -10098,6 +10151,28 @@ function camposDeTareaDelPortal (espacioId) {
  */
 function pestaniasDelContacto (espacioId, compartido) {
   return ajustesDelPortal(espacioId).wiwo_portal_actas ? [...compartido.tabs, 'actas'] : compartido.tabs
+}
+
+/**
+ * Las pestañas que un Proyecto comparte hoy con su cliente, sin tener a mano el `compartido`.
+ *
+ * @param {number} espacioId
+ * @returns {string[]}
+ */
+function pestaniasDeEspacio (espacioId) {
+  return pestaniasDelContacto(espacioId, COMPARTIDO_CON_EL_CLIENTE[espacioId] ?? COMPARTIDO_CON_EL_CLIENTE.defecto)
+}
+
+/**
+ * Los Proyectos de un contacto con las pestañas que cada uno comparte.
+ *
+ * @param {{ client_id: number }} contacto
+ * @returns {{ espacio: object, pestanias: string[] }[]}
+ */
+function proyectosConPestanias (contacto) {
+  return ESPACIOS
+    .filter((espacio) => espacio.clientid === contacto.client_id)
+    .map((espacio) => ({ espacio, pestanias: pestaniasDeEspacio(espacio.id) }))
 }
 
 /**

@@ -142,12 +142,38 @@ export interface EspacioPortal {
    * Opcional acá porque el mismo tipo describe el listado, donde no viaja.
    */
   campos_tareas?: string[]
+  /**
+   * Solo en el detalle: lo que este contacto puede hacer para crear Tareas en el Proyecto.
+   *
+   * `null` —o ausente, en una API anterior— es «no puede»: el cliente no tiene la funcion encendida
+   * o el Proyecto no comparte la pestaña de Tareas. Ahi no se ofrece ningun boton de alta.
+   */
+  alta_de_tareas?: AltaDeTareas | null
   /** Solo con `view_finance_overview`. */
   project_cost?: number | null
   project_rate_per_hour?: number | null
   estimated_hours?: number | null
   /** Solo con `view_team_members`. */
   members?: Array<{ id: number, full_name: string, profile_image_url: string | null }>
+}
+
+/** Una persona del equipo a quien el cliente puede asignar una Tarea (`alta_de_tareas.asignables`). */
+export interface AsignablePortal {
+  id: number
+  nombre: string
+  avatar: string | null
+}
+
+/**
+ * Lo que el contacto puede hacer al crear una Tarea en un Proyecto.
+ *
+ * `asignables` viene vacio cuando el Proyecto no muestra su equipo al cliente: sin lista no hay
+ * selector, y mandar `assignees` seria un `422`.
+ */
+export interface AltaDeTareas {
+  /** El cliente exige fecha de vencimiento en sus Tareas: sin `due_date` la API contesta `422`. */
+  vencimiento_requerido: boolean
+  asignables: AsignablePortal[]
 }
 
 /**

@@ -28,6 +28,7 @@ import { TableroDelProyecto } from '@/componentes/portal/TableroDelProyecto'
 import { mesEnCurso, mesesOfrecidos } from '@/dominio/gestion'
 import { cargarDetalle, EstadoDeError, estadoDelPortal, sinFallar } from '../../detalle'
 import { AprobacionesPendientes } from './AprobacionesPendientes'
+import { NuevaTareaPortal } from './NuevaTareaPortal'
 
 /**
  * Detalle de un proyecto, con las pestañas que el equipo compartio.
@@ -238,10 +239,17 @@ function contenidoDePestania (
       )
     case 'tasks':
       // `conIa={false}`: la capa de IA es del panel, y el alta por texto que habilita ni se ofrece
-      // con `capacidades={[]}`. Las aprobaciones van arriba de la lista: es lo unico que el cliente
-      // puede escribir en todo el portal, y lo que aprueba son estas mismas tareas.
+      // con `capacidades={[]}`. Las aprobaciones van arriba de la lista, y el alta de la Tarea (cuando
+      // el cliente la tiene encendida) es su propio dialogo: no es el alta por texto del panel.
       return (
         <div className="flex flex-col gap-4">
+          {/* Solo con `alta_de_tareas`: la API lo manda cuando el cliente tiene encendida la creacion
+              de Tareas desde el portal y este Proyecto comparte la pestaña. */}
+          {proyecto.alta_de_tareas != null && (
+            <div className="flex justify-end">
+              <NuevaTareaPortal proyectoId={proyecto.id} alta={proyecto.alta_de_tareas} />
+            </div>
+          )}
           {pagina.aprobaciones}
           <PanelTareas
             proyectoId={proyecto.id}

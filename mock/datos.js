@@ -489,6 +489,27 @@ export const ENTRADA_DE_CLIENTE = new Map()
 export const CLIENTES_SIN_VENCIMIENTO = new Set()
 
 /**
+ * Clientes cuyos contactos pueden crear Tareas desde el portal, como `tblapi_cliente_portal_tareas`.
+ *
+ * La fila es el interruptor y nace VACIA, igual que la migracion `1530`: ningun cliente la tiene
+ * encendida hasta que alguien marque la casilla en su ficha. Con el set vacio el portal y el orbe
+ * del mock se ven exactamente como antes de existir la funcion.
+ *
+ * @type {Set<number>}
+ */
+export const CLIENTES_CREAN_TAREAS = new Set()
+
+/**
+ * Proyectos que NO muestran su equipo al cliente (`view_team_members = 0` en `tblproject_settings`).
+ *
+ * Nace vacio: hoy todos lo muestran. Existe para ejercitar el otro lado, el de `asignables` vacio y
+ * el `422` de quien igual manda `assignees`.
+ *
+ * @type {Set<number>}
+ */
+export const PROYECTOS_SIN_EQUIPO_VISIBLE = new Set()
+
+/**
  * Supervisores de cada cliente (`tblwiwo_supervision_clientes`), por id de cliente.
  *
  * Ana (gerencia, la cuenta con la que se entra al mock) supervisa Acme (1) y Rivera (7): con las fechas

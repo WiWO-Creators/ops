@@ -6,7 +6,7 @@ import { Logo } from '@/componentes/estructura/Logo'
 import { ProveedorEnlaces } from '@/componentes/presentadores/ProveedorEnlaces'
 import { pedirOpcional, proyectoUnicoDelPortal, yoDelPortal } from '@/datos/servidor'
 import { navegacionDelPortal } from '@/dominio/portal'
-import { leerCapacidadesOrbe } from '@/dominio/orbe-capacidades'
+import { leerCapacidadesOrbe, leerPuedeProponerTareas } from '@/dominio/orbe-capacidades'
 import { BarraVerComoCliente } from '../BarraVerComoCliente'
 import { BotonSalirPortal } from '../BotonSalirPortal'
 import { NavegacionPortal } from '../NavegacionPortal'
@@ -32,7 +32,8 @@ import { RefrescoDelPortal } from '@/componentes/portal/RefrescoDelPortal'
  *
  * Tambien decide si monta el Thinking Orb del cliente: solo con `GET /portal/ia/capacidades` en
  * `habilitado: true` (`ia_habilitada` y `wiwo_portal_ia_chat` encendidas). Cualquier fallo de esa
- * consulta lo deja sin orbe: es una comodidad, y el portal no se cae por ella.
+ * consulta lo deja sin orbe: es una comodidad, y el portal no se cae por ella. El mismo `GET` dice si
+ * ademas puede proponer Tareas (`puede_proponer_tareas`): sin eso el orbe sigue siendo de solo lectura.
  */
 export default async function PortalLayout ({ children }: { children: React.ReactNode }) {
   const [{ data: yo }, capacidades] = await Promise.all([
@@ -40,6 +41,8 @@ export default async function PortalLayout ({ children }: { children: React.Reac
     pedirOpcional<unknown>('/portal/ia/capacidades', 'contacto')
   ])
   const conOrbe = leerCapacidadesOrbe(capacidades.datos).habilitado
+  // Solo se lee con el orbe habilitado: sin el, la propuesta no tiene donde mostrarse.
+  const puedeProponerTareas = conOrbe && leerPuedeProponerTareas(capacidades.datos)
   const unico = yo.secciones_habilitadas.includes('projects') ? await proyectoUnicoDelPortal() : null
   const secciones = navegacionDelPortal(yo.secciones_habilitadas, unico)
 
@@ -106,7 +109,7 @@ export default async function PortalLayout ({ children }: { children: React.Reac
           primera linea. En movil el logo no cuelga y no hace falta. */}
       <ScrollSuave className="min-h-0 min-w-0 flex-1 p-4 md:pt-12">{children}</ScrollSuave>
 
-      {conOrbe && <OrbeChatIA sujeto="contacto" />}
+      {conOrbe && <OrbeChatIA sujeto="contacto" puedeProponerTareas={puedeProponerTareas} />}
     </div>
     </ProveedorEnlaces>
   )

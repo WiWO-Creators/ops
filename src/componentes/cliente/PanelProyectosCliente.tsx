@@ -9,6 +9,7 @@ import { enriquecerColumnas } from '@/componentes/proyecto/ColumnasProyecto'
 import { Metrica } from '@/componentes/proyecto/ResumenProyecto'
 import { Cargando, ErrorEstado, Vacio } from '@/componentes/estado/Estados'
 import { ProyectoDeEntradaCliente } from '@/componentes/cliente/ProyectoDeEntradaCliente'
+import { ClienteCreaTareasPortal } from '@/componentes/cliente/ClienteCreaTareasPortal'
 import { TareasSinVencimientoCliente } from '@/componentes/cliente/TareasSinVencimientoCliente'
 import { pedirSobre } from '@/datos/cliente'
 import { construirConsulta, leerConsulta } from '@/datos/consulta'
@@ -131,6 +132,7 @@ function CuerpoProyectosCliente ({ clienteId, estados, capacidades, capacidadesP
     return (
       <div className="flex flex-col gap-4">
         <TareasSinVencimientoCliente clienteId={clienteId} capacidades={capacidades} />
+        <ClienteCreaTareasPortal clienteId={clienteId} capacidades={capacidades} />
         <Vacio
           titulo={`Este cliente no tiene ${GLOSARIO.espacio.plural.toLowerCase()}`}
           descripcion={`Cuando se le abra el primero va a aparecer acá, con su avance y su fecha de entrega.`}
@@ -151,6 +153,7 @@ function CuerpoProyectosCliente ({ clienteId, estados, capacidades, capacidadesP
     <div className="flex flex-col gap-4">
       <ProyectoDeEntradaCliente clienteId={clienteId} proyectos={inicial.filas} capacidades={capacidades} />
       <TareasSinVencimientoCliente clienteId={clienteId} capacidades={capacidades} />
+      <ClienteCreaTareasPortal clienteId={clienteId} capacidades={capacidades} />
 
       <div className="grid max-w-2xl gap-3 sm:grid-cols-3">
         <Metrica etiqueta={GLOSARIO.espacio.plural} valor={String(total)} />

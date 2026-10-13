@@ -896,6 +896,61 @@ la exige pide la fecha en el mismo parche. Plantillas, recurrentes e IA no la ex
   `PUT` recibe `{ "sin_vencimiento": true }`; nace en `false` para todos. Pide `view`/`edit` sobre
   `customers` y que el cliente sea visible.
 
+#### Los contactos del cliente crean Tareas desde el portal (migraciones `1530` y `1540`)
+
+Un contacto del portal puede crear una Tarea en un Proyecto suyo, y el Thinking Orb del portal puede
+proponérsela. Todo cuelga de **un interruptor por cliente**: la fila de `tblapi_cliente_portal_tareas`
+es el interruptor y nace vacía, así que con el interruptor apagado ninguna ruta de abajo existe para el
+contacto (`404`) y el portal se ve como siempre. El portal sigue siendo de solo lectura salvo lo
+enumerado: las solicitudes de soporte y esta alta.
+
+- **Staff.** `GET|PUT /clients/{id}/portal-crea-tareas` → `{ "data": { "habilitado": false } }`. El `PUT`
+  recibe `{ "habilitado": true }`. Pide `view`/`edit` sobre `customers`.
+- **Capacidad.** `GET /portal/projects/{id}` suma `alta_de_tareas`: `null` si el interruptor está apagado
+  o el Proyecto no comparte la pestaña `tasks`; si no,
+  `{ "vencimiento_requerido": bool, "asignables": [{ "id", "nombre", "avatar" }] }`. `asignables` son los
+  miembros activos del Proyecto y viene `[]` si el Proyecto oculta su equipo (`view_team_members = 0`).
+  `vencimiento_requerido` es la regla `0970` de ese cliente.
+- **Alta.** `POST /portal/projects/{id}/tasks` con
+  `{ "name"(req, ≤191), "description"?, "due_date"?: "YYYY-MM-DD", "priority"?: 1..4, "assignees"?: [int] }`
+  → `201` con la Tarea en la forma del portal. Cualquier otro campo es `422` `no_editable`. La Tarea entra
+  al flujo normal; la autoría es del contacto (`added_from` = contacto, `is_added_from_contact = 1`), y la
+  ficha del equipo la recibe con `created_by: null` y `created_by_contact: { id, nombre }`.
+  - `404`: interruptor apagado o Proyecto ajeno (indistinguibles). `403`: el Proyecto no comparte `tasks`.
+  - `422` (`error.details` por campo): `name` `requerido`; `due_date` `requerido_por_cliente`,
+    `formato_invalido` o `anterior_al_inicio` (anterior a hoy); `assignees` `no_es_del_equipo` (id inválido
+    o que no es miembro); `priority` `no_valido`. `start_date` no se acepta (`no_editable`).
+  - `429` (`reintentar_en_segundos`): tope por contacto y por hora (`PORTAL_TAREAS_ALTAS_POR_HORA`, 10).
+  - Repetir la misma alta (contacto, Proyecto, nombre) dentro de un minuto devuelve `200` con la Tarea
+    que ya existe.
+- **Orbe.** `GET /portal/ia/capacidades` suma `puede_proponer_tareas: bool` (interruptor encendido y algún
+  Proyecto con `alta_de_tareas`). El chat del portal emite `event: propuesta` con la misma forma que el del
+  equipo (`id`, `herramienta`, `resumen`, `detalle`, `supuestos`, `estado`, `resultado`, `expira_en`) y la
+  hidrata en el historial bajo `acciones`. Proponer **no escribe**: la fila queda en
+  `tblapi_ia_portal_acciones` con los argumentos congelados y vence a las 24 h.
+- **Confirmar.** `POST /portal/ia/acciones/{id}` con `{ "decision": "confirmar" | "rechazar" }` →
+  `200 { "data": { "id", "estado": "ejecutada" | "rechazada", "tarea_id"? } }`. `404` si la propuesta es
+  ajena o inexistente; `409` con `error.code` `ya_resuelta` o `expirada`; `422` si la revalidación falla.
+  Estados de la propuesta: `pendiente`, `ejecutada`, `rechazada`, `fallida`, `expirada`. Un `403`/`404`/`422`
+  al confirmar la deja `fallida`; un `429` (tope) la deja `pendiente`. Confirmar vuelve a validar todo lo
+  del alta (interruptor, pertenencia, vencimiento, tope). La tarjeta del frontend manda
+  solo `{ decision }` y se queda con su resumen: la respuesta del portal no repite la propuesta entera.
+- **Invariante del orbe del portal.** Hasta esta rama el orbe del contacto no podía escribir nada. Ahora
+  la única excepción es `IA/Portal/PropuestasDelContacto.php`: es la única clase del chat que puede
+  importar `TareaDelPortal` y `ClienteCreaTareas`, y en el camino del stream solo escribe en
+  `tblapi_ia_portal_acciones` (y en el hilo). `resolver()` se llama únicamente desde la ruta de
+  confirmación `POST /portal/ia/acciones/{id}` en `controllers/V1.php`, en otra petición y con una
+  decisión humana. Greps de verificación:
+
+  ```bash
+  grep -rln 'TareaDelPortal\|ClienteCreaTareas' modules/api/IA/        # solo IA/Portal/PropuestasDelContacto.php
+  grep -rn '>resolver(' modules/api/IA/Portal/ modules/api/controllers/  # solo controllers/V1.php (confirmación)
+  ```
+
+- **Avisos.** La Tarea creada por el cliente dispara el evento `proceso_nuevo_del_cliente` de las
+  preferencias de avisos («Tarea nueva creada por el cliente»); ops-v2 todavía no tiene pantalla de
+  preferencias que lo liste.
+
 ### `POST /tasks/multi-espacio` — el mismo Proceso en varios Espacios
 
 Mismo cuerpo que `POST /tasks`, más `espacios` (la lista de destinos) y sin `rel_type`, `rel_id`,

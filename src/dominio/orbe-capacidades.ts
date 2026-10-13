@@ -51,3 +51,16 @@ export function leerCapacidadesOrbe (valor: unknown): CapacidadesOrbe {
     }
   }
 }
+
+/**
+ * Lee si el portal deja al cliente proponer Tareas desde el orbe (`puede_proponer_tareas`).
+ *
+ * Es aparte de `leerCapacidadesOrbe` porque solo existe en `GET /portal/ia/capacidades`. Cualquier
+ * valor distinto de `true` (campo ausente, respuesta vacía, backend anterior) lo deja de solo lectura.
+ *
+ * @param valor El `data` de `portal/ia/capacidades`.
+ * @returns `true` solo si el servidor lo dijo explícitamente.
+ */
+export function leerPuedeProponerTareas (valor: unknown): boolean {
+  return valor !== null && typeof valor === 'object' && (valor as Record<string, unknown>).puede_proponer_tareas === true
+}

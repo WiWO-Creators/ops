@@ -70,6 +70,42 @@ test('los textos del portal hablan al cliente y dicen que solo consulta', () => 
   }
 })
 
+test('el orbe del portal propone Tareas solo cuando su cliente puede crearlas', () => {
+  const sinPermiso = configuracionDeOrbe('contacto', { puedeProponerTareas: false })
+  const conPermiso = configuracionDeOrbe('contacto', { puedeProponerTareas: true })
+
+  assert.equal(configuracionDeOrbe('contacto').conPropuestas, false)
+  assert.equal(sinPermiso.conPropuestas, false)
+  assert.equal(conPermiso.conPropuestas, true)
+  // Lo demas no cambia: sigue sin agente, sin navegar y sin Whisper, y todo bajo portal/.
+  assert.equal(conPermiso.conAgente, false)
+  assert.equal(conPermiso.conNavegacion, false)
+  assert.equal(conPermiso.dictadoConRespaldo, false)
+  assert.equal(conPermiso.rutaEnvio(4), 'portal/ia/chat')
+  // Con propuestas el pie ya no puede decir que no cambia nada, y sigue sin prometer lo que no hace.
+  assert.doesNotMatch(conPermiso.textos.pie(true), /no cambia nada\./i)
+  assert.match(conPermiso.textos.pie(true), /confirmes/)
+  for (const texto of [...conPermiso.textos.sugerencias, conPermiso.textos.subtitulo, conPermiso.textos.pie(false), conPermiso.textos.descripcion(), conPermiso.textos.descripcion('X')]) {
+    assert.doesNotMatch(texto, /[—–]/, texto)
+  }
+})
+
+test('el equipo ignora las opciones del portal y su confirmacion no cambia', () => {
+  const staff = configuracionDeOrbe('staff', { puedeProponerTareas: false })
+
+  assert.equal(staff.conPropuestas, true)
+  assert.equal(staff.rutaConfirmar(5), 'ia/acciones/5')
+  assert.equal(staff.rutaConfirmar(5, 7), 'ia/proyectos/7/acciones/5')
+})
+
+test('la propuesta del portal se confirma por portal/ia/acciones, con o sin Proyecto', () => {
+  const portal = configuracionDeOrbe('contacto', { puedeProponerTareas: true })
+
+  assert.equal(portal.rutaConfirmar(5), 'portal/ia/acciones/5')
+  assert.equal(portal.rutaConfirmar(5, 7), 'portal/ia/acciones/5')
+  assert.equal(configuracionDeOrbe('contacto').rutaConfirmar(5), 'portal/ia/acciones/5')
+})
+
 test('las citas del portal solo llevan a pantallas del portal', () => {
   assert.equal(hrefDeCitaPortal({ tipo: 'espacio', id: 5, titulo: 'P' }), '/portal/proyectos/5')
   assert.equal(hrefDeCitaPortal({ tipo: 'tarea', id: 9, titulo: 'T', espacio_id: 5 }), '/portal/proyectos/5?tab=tasks')

@@ -26,6 +26,7 @@
  */
 
 import { ESTADOS_ORBE, type EstadoOrbe } from './orbe.ts'
+import { GLOSARIO } from './glosario.ts'
 
 /** Una referencia que el modelo cito y el servidor ya verifico contra la base. */
 export interface Cita {
@@ -458,6 +459,38 @@ export function leerAccion (valor: unknown): AccionIA | null {
     resultado: typeof resultado === 'string' ? resultado.slice(0, LARGO_MAXIMO_DETALLE) : null,
     expira_en: typeof expira === 'string' ? expira : null
   }
+}
+
+/**
+ * La propuesta ya resuelta, a partir de lo que contesto el servidor al confirmar o rechazar.
+ *
+ * El orbe del equipo devuelve la accion completa, y esa se lee tal cual. El del portal contesta solo
+ * `{ id, estado, tarea_id? }`: la tarjeta ya tiene el resumen y el detalle —lo que se leyo antes de
+ * decidir—, asi que se conservan y solo cambian el estado y el resultado. La respuesta tiene que ser
+ * de ESTA propuesta (mismo `id`) y traer un estado conocido; si no, `null` y la tarjeta no pinta un
+ * «Hecho» sobre algo que no se confirmo.
+ *
+ * @param previa la propuesta que la tarjeta tenia en pantalla
+ * @param respuesta el `data` que devolvio el servidor, sin validar
+ * @returns la propuesta resuelta, o `null` si la respuesta no la describe
+ */
+export function accionResuelta (previa: AccionIA, respuesta: unknown): AccionIA | null {
+  const completa = leerAccion(respuesta)
+
+  if (completa !== null) return completa
+  if (!esObjeto(respuesta) || respuesta.id !== previa.id) return null
+
+  const estado = ESTADOS_ACCION.find((candidato) => candidato === respuesta.estado)
+
+  if (estado === undefined) return null
+
+  const resultado = typeof respuesta.resultado === 'string'
+    ? respuesta.resultado.slice(0, LARGO_MAXIMO_DETALLE)
+    : estado === 'ejecutada' && typeof respuesta.tarea_id === 'number'
+      ? `${GLOSARIO.proceso.singular} creada.`
+      : previa.resultado
+
+  return { ...previa, estado, resultado }
 }
 
 /**

@@ -31,6 +31,8 @@ interface PropsChatOrbe {
   sujeto?: SujetoOrbe
   /** El acta con la que se abrió el orbe flotante; solo la usa el agente del equipo. */
   actaPedida?: ActaPedida | null
+  /** Solo el portal: el cliente puede crear Tareas, asi que el orbe muestra sus propuestas. */
+  puedeProponerTareas?: boolean
 }
 
 /** Lo que recibe el selector ya resuelto: la configuración en lugar del sujeto. */
@@ -43,8 +45,8 @@ interface PropsSelector {
 
 /** Monta un hilo independiente al cambiar entre proyectos o el chat global. */
 export function ChatOrbe (props: PropsChatOrbe = {}): ReactElement {
-  const { sujeto, ...resto } = props
-  const configuracion = configuracionDeOrbe(sujeto)
+  const { sujeto, puedeProponerTareas, ...resto } = props
+  const configuracion = configuracionDeOrbe(sujeto, { puedeProponerTareas })
   const clave = `${configuracion.sujeto}:${resto.proyecto?.id ?? 'global'}`
 
   // El agente solo existe para el equipo: en el portal la capacidad del agente no se consulta siquiera.

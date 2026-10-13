@@ -1,6 +1,6 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
-import { agruparPorQuienAsigno } from '../src/dominio/autoria-tarea.ts'
+import { agruparPorQuienAsigno, textoDeCreadorContacto } from '../src/dominio/autoria-tarea.ts'
 
 const renata = { id: 16, full_name: 'Renata Valenzuela', profile_image_url: null }
 const oscar = { id: 68, full_name: 'Óscar Canelo', profile_image_url: null }
@@ -35,4 +35,14 @@ test('sin assigned_by, con null, vacío o undefined no hay grupos', () => {
   assert.deepEqual(agruparPorQuienAsigno([{ ...juan, assigned_by: null }, { ...deborah }]), [])
   assert.deepEqual(agruparPorQuienAsigno([]), [])
   assert.deepEqual(agruparPorQuienAsigno(undefined), [])
+})
+
+test('una Tarea creada por un contacto se lee con su nombre y la marca de cliente', () => {
+  assert.equal(textoDeCreadorContacto({ id: 3, nombre: ' Renata Ferreyra ' }), 'Renata Ferreyra (cliente)')
+  assert.equal(textoDeCreadorContacto({ id: 3, nombre: '' }), 'Cliente')
+})
+
+test('sin created_by_contact no hay texto de creador', () => {
+  assert.equal(textoDeCreadorContacto(null), null)
+  assert.equal(textoDeCreadorContacto(undefined), null)
 })
