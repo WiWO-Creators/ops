@@ -80,14 +80,17 @@ import { ChatOrbe } from './ChatOrbe'
  * === EL MISMO ORBE EN EL PORTAL ===
  *
  * Con `sujeto="contacto"` lo monta el armazon del portal (`app/portal/(dentro)/layout.tsx`) y es el
- * Thinking Orb de solo lectura del cliente: rutas `portal/ia/*`, sin agente ni tarjetas, dictado solo
- * del navegador. Dentro de la ficha de un Proyecto la conversacion es de ese Proyecto: el id sale de
+ * Thinking Orb del cliente: rutas `portal/ia/*`, sin agente, dictado solo del navegador y tarjetas de
+ * propuesta unicamente si su cliente puede crear Tareas. Dentro de la ficha de un Proyecto la conversacion es de ese Proyecto: el id sale de
  * la ruta y viaja como `proyecto_id`. Todo lo que cambia esta en `dominio/orbe-sujeto.ts`.
  *
  * @param sujeto de quien es la sesion; por defecto el equipo
+ * @param puedeProponerTareas solo el portal: si su cliente puede crear Tareas, el orbe las propone
  */
-export function OrbeChatIA ({ sujeto = 'staff' }: { sujeto?: SujetoOrbe } = {}): ReactElement {
-  const configuracion = configuracionDeOrbe(sujeto)
+export function OrbeChatIA (
+  { sujeto = 'staff', puedeProponerTareas = false }: { sujeto?: SujetoOrbe, puedeProponerTareas?: boolean } = {}
+): ReactElement {
+  const configuracion = configuracionDeOrbe(sujeto, { puedeProponerTareas })
   const ruta = usePathname()
   const proyectoId = sujeto === 'contacto' ? proyectoDeRutaPortal(ruta) : undefined
   const [abierto, setAbierto] = useState(false)
@@ -317,7 +320,7 @@ export function OrbeChatIA ({ sujeto = 'staff' }: { sujeto?: SujetoOrbe } = {}):
             </button>
           </header>
 
-          <ChatOrbe key={apertura} desplazable sujeto={sujeto} proyecto={proyectoId === undefined ? undefined : { id: proyectoId }} />
+          <ChatOrbe key={apertura} desplazable sujeto={sujeto} puedeProponerTareas={puedeProponerTareas} proyecto={proyectoId === undefined ? undefined : { id: proyectoId }} />
         </div>
       )}
 

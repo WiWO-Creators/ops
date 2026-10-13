@@ -9,7 +9,7 @@
 
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
-import { leerEventoIA, leerTareasResumen } from '../src/dominio/ia.ts'
+import { accionResuelta, leerEventoIA, leerTareasResumen } from '../src/dominio/ia.ts'
 
 const frame = (evento, datos) => `event: ${evento}\ndata: ${typeof datos === 'string' ? datos : JSON.stringify(datos)}`
 
@@ -453,4 +453,39 @@ test('el resumen conserva el proyecto de la tarea y lo deja en null si falta o n
     { ...base, id: 4, project_id: 0 }
   ])
   assert.deepEqual(leidas.map((t) => t.project_id), [7, null, null, null])
+})
+
+const pendiente = {
+  id: 12,
+  herramienta: 'proponer_tarea',
+  resumen: 'Crear la Tarea «Revisar el brief» en el Proyecto «Web»',
+  detalle: ['Vence el 05/11'],
+  supuestos: [],
+  estado: 'pendiente',
+  resultado: null,
+  expira_en: '2026-10-14T10:00:00Z'
+}
+
+test('accionResuelta: la respuesta completa del equipo se lee tal cual', () => {
+  const completa = { ...pendiente, estado: 'ejecutada', resultado: 'Tarea creada: WIW-0001' }
+
+  assert.deepEqual(accionResuelta(pendiente, completa), completa)
+})
+
+test('accionResuelta: la respuesta corta del portal conserva el resumen y cambia estado y resultado', () => {
+  const hecha = accionResuelta(pendiente, { id: 12, estado: 'ejecutada', tarea_id: 99 })
+
+  assert.equal(hecha.estado, 'ejecutada')
+  assert.equal(hecha.resumen, pendiente.resumen)
+  assert.deepEqual(hecha.detalle, pendiente.detalle)
+  assert.equal(hecha.resultado, 'Tarea creada.')
+  assert.equal(accionResuelta(pendiente, { id: 12, estado: 'rechazada' }).resultado, null)
+})
+
+test('accionResuelta: una respuesta de otra propuesta, sin estado o con estado inventado no resuelve nada', () => {
+  assert.equal(accionResuelta(pendiente, { id: 13, estado: 'ejecutada' }), null)
+  assert.equal(accionResuelta(pendiente, { id: 12 }), null)
+  assert.equal(accionResuelta(pendiente, { id: 12, estado: 'hecho' }), null)
+  assert.equal(accionResuelta(pendiente, null), null)
+  assert.equal(accionResuelta(pendiente, 'ok'), null)
 })

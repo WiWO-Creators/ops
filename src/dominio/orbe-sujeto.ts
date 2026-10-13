@@ -11,8 +11,10 @@ import type { Cita } from './ia.ts'
  * `node --test` sin navegador (`pruebas/orbe-sujeto.test.js`).
  *
  * El staff es el comportamiento de siempre, sin cambios. El contacto es el Thinking Orb del portal
- * (contrato O1): solo lee. No hay agente, no hay tarjetas de propuesta ni de pregunta, no navega
- * solo y no dicta por Whisper (`/ia/dictado` es del equipo): solo el reconocimiento del navegador.
+ * (contrato O1): lee, y solo propone crear Tareas cuando su cliente lo tiene
+ * encendido (`puede_proponer_tareas` de `GET /portal/ia/capacidades`). No hay agente, no hay tarjetas
+ * de pregunta, no navega solo y no dicta por Whisper (`/ia/dictado` es del equipo): solo el
+ * reconocimiento del navegador.
  */
 
 /** Los dos sujetos de sesion de ops-v2. Coincide con `Sujeto` de `datos/servidor.ts`. */
@@ -43,7 +45,10 @@ export interface ConfiguracionOrbe {
   rutaCapacidades: string
   /** Si puede montar el agente (`ChatAgente`). Solo el equipo. */
   conAgente: boolean
-  /** Si pinta tarjetas de propuesta y de pregunta. Solo el equipo: el cliente no escribe. */
+  /**
+   * Si pinta tarjetas de propuesta y de pregunta. El equipo siempre; el cliente solo cuando puede
+   * crear Tareas, y entonces unicamente las de propuesta llegan del servidor.
+   */
   conPropuestas: boolean
   /** Si obedece `event: navegar`. Las rutas que manda el servidor son del panel. */
   conNavegacion: boolean
@@ -53,6 +58,13 @@ export interface ConfiguracionOrbe {
   rutaHilo: (proyectoId?: number) => string
   /** Ruta del POST que genera. */
   rutaEnvio: (proyectoId?: number) => string
+  /**
+   * Ruta del POST que confirma o rechaza una propuesta (`{ decision }`).
+   *
+   * @param accionId la propuesta que se resuelve
+   * @param proyectoId el Proyecto de la conversacion, si hay
+   */
+  rutaConfirmar: (accionId: number, proyectoId?: number) => string
   /**
    * Cuerpo del POST.
    *
@@ -76,6 +88,9 @@ const STAFF: ConfiguracionOrbe = {
   dictadoConRespaldo: true,
   rutaHilo: (proyectoId) => proyectoId === undefined ? 'ia/chat' : `ia/proyectos/${proyectoId}/chat`,
   rutaEnvio: (proyectoId) => proyectoId === undefined ? 'ia/chat' : `ia/proyectos/${proyectoId}/chat`,
+  rutaConfirmar: (accionId, proyectoId) => proyectoId === undefined
+    ? `ia/acciones/${accionId}`
+    : `ia/proyectos/${proyectoId}/acciones/${accionId}`,
   cuerpo: (texto, _proyectoId, pantalla) => pantalla === null ? { pregunta: texto } : { pregunta: texto, pantalla },
   hrefDeCita,
   textos: {
@@ -134,7 +149,7 @@ export function hrefDeCitaPortal (cita: Cita): string | null {
   return pestana === null ? null : `${proyecto}${cita.espacio_id}?${PARAMETRO_PESTANA}=${pestana}`
 }
 
-/** El Thinking Orb del portal (contrato O1): de solo lectura. */
+/** El Thinking Orb del portal (contrato O1): de solo lectura salvo que se habiliten propuestas. */
 const CONTACTO: ConfiguracionOrbe = {
   sujeto: 'contacto',
   rutaCapacidades: 'portal/ia/capacidades',
@@ -144,6 +159,8 @@ const CONTACTO: ConfiguracionOrbe = {
   dictadoConRespaldo: false,
   rutaHilo: rutaHiloPortal,
   rutaEnvio: () => RUTA_CHAT_PORTAL,
+  // Una sola ruta para todo el portal: la propuesta ya lleva su Proyecto congelado en la fila.
+  rutaConfirmar: (accionId) => `portal/ia/acciones/${accionId}`,
   // `mensaje` es el nombre del contrato O1; `pregunta` es el que lee `IA\Chat` del staff, que el
   // backend del portal replica. Viajan los dos con el mismo texto hasta que el contrato se cierre.
   cuerpo: (texto, proyectoId) => proyectoId === undefined
@@ -167,14 +184,41 @@ const CONTACTO: ConfiguracionOrbe = {
   }
 }
 
+/** Lo que cambia del orbe del cliente cuando puede proponer Tareas. */
+const CONTACTO_CON_PROPUESTAS: ConfiguracionOrbe = {
+  ...CONTACTO,
+  conPropuestas: true,
+  textos: {
+    ...CONTACTO.textos,
+    subtitulo: 'Consulta el avance y pide nuevas tareas',
+    sugerencias: [
+      ...CONTACTO.textos.sugerencias.slice(0, 2),
+      `Crea una ${GLOSARIO.proceso.singular.toLowerCase()} para revisar el último entregable`
+    ],
+    descripcion: (proyecto) => proyecto === undefined
+      ? `Responde con lo que tu equipo comparte contigo en el portal y cita de dónde lo sacó. Puede preparar una ${GLOSARIO.proceso.singular.toLowerCase()} para que la confirmes.`
+      : `Pregunta por las tareas, hitos y avances de ${proyecto}, o pídele que prepare una ${GLOSARIO.proceso.singular.toLowerCase()}.`,
+    pie: () => 'No crea nada sin que lo confirmes.'
+  }
+}
+
+/** Lo que el portal sabe del cliente y cambia al orbe: viene de `GET /portal/ia/capacidades`. */
+export interface OpcionesDeOrbe {
+  /** Si el cliente puede crear Tareas desde el portal, y el orbe puede proponérselas. */
+  puedeProponerTareas?: boolean
+}
+
 /**
  * La configuracion del orbe de un sujeto.
  *
  * @param sujeto de quien es la sesion; cualquier otro valor cae al del equipo, que es el de siempre
+ * @param opciones lo que el portal sabe del contacto; el equipo las ignora
  * @returns la configuracion completa
  */
-export function configuracionDeOrbe (sujeto: SujetoOrbe = 'staff'): ConfiguracionOrbe {
-  return sujeto === 'contacto' ? CONTACTO : STAFF
+export function configuracionDeOrbe (sujeto: SujetoOrbe = 'staff', opciones: OpcionesDeOrbe = {}): ConfiguracionOrbe {
+  if (sujeto !== 'contacto') return STAFF
+
+  return opciones.puedeProponerTareas === true ? CONTACTO_CON_PROPUESTAS : CONTACTO
 }
 
 /** `/portal/proyectos/{id}` y lo que cuelgue de ahi. El id son solo digitos. */

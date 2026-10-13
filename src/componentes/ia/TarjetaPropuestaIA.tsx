@@ -4,7 +4,7 @@ import { useEffect, useRef, useState, type ReactElement } from 'react'
 import { AvisoEnLinea } from '@/componentes/estado/Estados'
 import { Boton } from '@/componentes/formularios/Boton'
 import { escribirEnBff } from '@/componentes/datos/mutaciones'
-import { leerAccion, type AccionIA } from '@/dominio/ia'
+import { accionResuelta, type AccionIA } from '@/dominio/ia'
 import { esResoluble, estadoDeAccion, segundosParaExpirar } from '@/dominio/ia-chat'
 import { textoDeRestante } from '@/dominio/propuestas'
 
@@ -80,7 +80,13 @@ const ESTADOS: Record<string, { texto: string, clase: string }> = {
  * @param onResuelta se llama con la accion ya resuelta que devolvio el servidor
  */
 export function TarjetaPropuestaIA (
-  { accion, onResuelta, proyectoId }: { accion: AccionIA, onResuelta: (accion: AccionIA) => void, proyectoId?: number }
+  { accion, onResuelta, proyectoId, rutaConfirmar }: {
+    accion: AccionIA
+    onResuelta: (accion: AccionIA) => void
+    proyectoId?: number
+    /** Ruta del BFF que recibe la decision. Sin ella, la del equipo segun `proyectoId`. */
+    rutaConfirmar?: string
+  }
 ): ReactElement {
   const [ahora, setAhora] = useState(() => Date.now())
   const [enviando, setEnviando] = useState(false)
@@ -114,7 +120,7 @@ export function TarjetaPropuestaIA (
     setEnviando(true)
     setError('')
 
-    const ruta = proyectoId === undefined ? `ia/acciones/${accion.id}` : `ia/proyectos/${proyectoId}/acciones/${accion.id}`
+    const ruta = rutaConfirmar ?? (proyectoId === undefined ? `ia/acciones/${accion.id}` : `ia/proyectos/${proyectoId}/acciones/${accion.id}`)
     const resultado = await escribirEnBff<unknown>(ruta, 'POST', { decision })
 
     enVuelo.current = false
@@ -128,7 +134,7 @@ export function TarjetaPropuestaIA (
 
     // Se pinta lo que devolvio el servidor, no lo que el navegador supone que paso: un `409` que
     // llegara como `ok` por un cambio futuro no puede pintar "Hecho" sobre algo que no se hizo.
-    const resuelta = leerAccion(resultado.datos)
+    const resuelta = accionResuelta(accion, resultado.datos)
 
     if (resuelta === null) {
       setError(MENSAJE_GENERICO)

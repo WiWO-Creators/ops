@@ -83,6 +83,8 @@ interface PropsChatOrbe {
   desplazable?: boolean
   proyecto?: { id: number, name?: string }
   sujeto?: SujetoOrbe
+  /** Solo el portal: el cliente puede crear Tareas, asi que el orbe muestra sus propuestas. */
+  puedeProponerTareas?: boolean
 }
 
 /** Lo que recibe la conversacion ya resuelta: la configuracion en lugar del sujeto. */
@@ -94,8 +96,8 @@ interface PropsConversacion {
 
 /** Monta un hilo independiente al cambiar entre proyectos o el chat global. */
 export function ChatOrbe (props: PropsChatOrbe = {}): ReactElement {
-  const { sujeto, ...resto } = props
-  const configuracion = configuracionDeOrbe(sujeto)
+  const { sujeto, puedeProponerTareas, ...resto } = props
+  const configuracion = configuracionDeOrbe(sujeto, { puedeProponerTareas })
   const clave = `${configuracion.sujeto}:${resto.proyecto?.id ?? 'global'}`
 
   // El agente solo existe para el equipo: en el portal la capacidad del agente no se consulta siquiera.
@@ -605,7 +607,12 @@ function BurbujaIA ({
         <ul aria-label="Acciones propuestas" className="animate-aparecer flex flex-col gap-2">
           {mensaje.acciones.map((accion) => (
             <li key={accion.id}>
-              <TarjetaPropuestaIA accion={accion} onResuelta={onAccionResuelta} proyectoId={proyectoId} />
+              <TarjetaPropuestaIA
+                accion={accion}
+                onResuelta={onAccionResuelta}
+                proyectoId={proyectoId}
+                rutaConfirmar={configuracion.rutaConfirmar(accion.id, proyectoId)}
+              />
             </li>
           ))}
         </ul>
