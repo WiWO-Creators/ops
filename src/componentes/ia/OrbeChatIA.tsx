@@ -1,24 +1,21 @@
 'use client'
 
-import { useCallback, useEffect, useId, useRef, useState, type PointerEvent as EventoPuntero, type KeyboardEvent as EventoTeclado, type CSSProperties, type ReactElement } from 'react'
+import { useId, useRef, useState, type CSSProperties, type ReactElement } from 'react'
 import dynamic from 'next/dynamic'
-import { usePathname } from 'next/navigation'
-import { EVENTO_ABRIR_ORBE } from '@/dominio/pantalla'
+import { usePathname, useRouter, useSearchParams } from 'next/navigation'
+import { Maximize2, MessageSquarePlus, X } from 'lucide-react'
 import { Orbe } from '@/componentes/estado/Orbe'
+import { Boton } from '@/componentes/formularios/Boton'
 import { cn } from '@/lib/clases'
-import { usePresencia } from '@/lib/usePresencia'
 import { ASISTENTE } from '@/dominio/glosario'
 import { configuracionDeOrbe, proyectoDeRutaPortal, type SujetoOrbe } from '@/dominio/orbe-sujeto'
+import { hrefDePestanaDelOrbe, proyectoDeRutaPanel } from '@/dominio/orbe-contexto'
+import { EVENTO_NUEVA_CONVERSACION } from '@/dominio/pantalla'
+import { PESTANA_ORBE } from '@/dominio/orbe-contexto'
 import { useFaseDeSujeto } from '@/dominio/fase-orbe'
-import {
-  acotarTamanoChat,
-  almacenamientoDelNavegador,
-  guardarTamanoChat,
-  leerTamanoChatGuardado,
-  PASO_TAMANO_CHAT,
-  type TamanoChat,
-  type VentanaVisible
-} from '@/dominio/tamano-chat'
+import { useNombreDeProyecto } from './useNombreDeProyecto'
+import { usePanelFlotante } from './usePanelFlotante'
+import { usePanelRedimensionable } from './usePanelRedimensionable'
 
 /** Importa el chat; compartido por la carga diferida y por la precarga al acercarse al boton. */
 const importarChat = async (): Promise<typeof import('./ChatOrbe')['ChatOrbe']> => (await import('./ChatOrbe')).ChatOrbe
@@ -88,6 +85,14 @@ const ChatOrbe = dynamic(importarChat, {
  * puede ser una funcion exclusiva del raton: con el foco puesto, las flechas mueven la esquina de a
  * `PASO_TAMANO_CHAT` pixeles en la misma direccion que la mano.
  *
+ * === ATAJO, ESTADO Y CONTEXTO ===
+ *
+ * Cmd/Ctrl+J abre y cierra el panel desde cualquier parte (la K es de la paleta de comandos). El
+ * comportamiento de abrir, cerrar, Escape y foco vive en `usePanelFlotante`, y el tamaño en
+ * `usePanelRedimensionable`. En el equipo, dentro de la ficha de un Proyecto el panel sigue en el
+ * hilo global y ofrece «Continuar en el hilo de …» en vez de cambiar de hilo en silencio. Con el
+ * agente esperando una decisión y el panel cerrado, el botón lleva un punto de aviso.
+ *
  * === EL MISMO ORBE EN EL PORTAL ===
  *
  * Con `sujeto="contacto"` lo monta el armazon del portal (`app/portal/(dentro)/layout.tsx`) y es el
@@ -100,178 +105,28 @@ const ChatOrbe = dynamic(importarChat, {
 export function OrbeChatIA ({ sujeto = 'staff' }: { sujeto?: SujetoOrbe } = {}): ReactElement {
   const configuracion = configuracionDeOrbe(sujeto)
   const ruta = usePathname()
-  const proyectoId = sujeto === 'contacto' ? proyectoDeRutaPortal(ruta) : undefined
-  const [abierto, setAbierto] = useState(false)
-  const { montado, saliendo, alTerminarAnimacion } = usePresencia(abierto)
-  // Cada apertura monta un chat nuevo, que relee el hilo guardado. Sin la clave, reabrir durante la
-  // salida reutilizaria el chat que se estaba yendo, con lo que tenia al cerrarse.
-  const [apertura, setApertura] = useState(0)
-  const [encima, setEncima] = useState(false)
-  const fase = useFaseDeSujeto(configuracion.sujeto)
-  const panel = useRef<HTMLDivElement>(null)
+  const parametros = useSearchParams()
+  const router = useRouter()
   const idPanel = useId()
+  const panel = useRef<HTMLDivElement>(null)
+  const [encima, setEncima] = useState(false)
+  const { abierto, montado, saliendo, alTerminarAnimacion, apertura, actaPedida, botonRef, alternar, cerrar } = usePanelFlotante(panel, ruta)
+  const { tamanoVisible, propsTirador } = usePanelRedimensionable(panel)
+  const fase = useFaseDeSujeto(configuracion.sujeto)
 
-  // El tamaño que la persona eligio, acotado solo a los limites fijos. Lo que se pinta sale de
-  // acotarlo ademas contra `ventana`, y esa segunda cuenta NO se guarda: achicar un rato la ventana
-  // no tiene por que borrar para siempre la preferencia de quien trabaja en un monitor grande.
-  //
-  // Se lee en el inicializador perezoso y no en un efecto por dos motivos. El primero es que un
-  // `setState` sincrono dentro de un efecto encadena un render de mas —la regla de lint lo corta—.
-  // El segundo es que no hay riesgo de hidratacion: el panel solo existe con `abierto` en `true`, y
-  // eso empieza en `false`, asi que el servidor y el cliente pintan lo mismo —nada— mientras el
-  // tamaño se resuelve. En el servidor `almacenamientoDelNavegador()` devuelve `null` y sale el
-  // defecto, que es exactamente lo que corresponde.
-  const [tamano, setTamano] = useState<TamanoChat>(() => leerTamanoChatGuardado(almacenamientoDelNavegador(), null))
+  // El contacto del portal siempre conversa en el Proyecto de la ruta. El equipo, en el hilo global
+  // salvo que elija continuar en el del Proyecto que tiene abierto.
+  const proyectoRuta = sujeto === 'contacto' ? proyectoDeRutaPortal(ruta) : proyectoDeRutaPanel(ruta)
+  const [hiloElegido, setHiloElegido] = useState<number | undefined>(undefined)
+  const proyectoId = sujeto === 'contacto' ? proyectoRuta : (hiloElegido !== undefined && hiloElegido === proyectoRuta ? hiloElegido : undefined)
+  const nombreProyecto = useNombreDeProyecto(sujeto === 'staff' ? proyectoRuta : undefined, abierto)
+  const puedeAmpliar = sujeto === 'staff' && proyectoRuta !== undefined && !(parametros.get('tab') === PESTANA_ORBE && proyectoRuta === proyectoDeRutaPanel(ruta) && /^\/(proyectos|espacios)\/\d+\/?$/.test(ruta))
 
-  // `null` hasta que haya un `window` que medir. En el render del servidor y en el primero del
-  // cliente vale `null` a proposito: leer `window.innerWidth` ahi daria una hidratacion distinta a
-  // la del HTML que ya se mando.
-  const [ventana, setVentana] = useState<VentanaVisible | null>(null)
-
-  const arrastre = useRef<{ x: number, y: number, ancho: number, alto: number } | null>(null)
-
-  // Espejo de `tamano` para leerlo al soltar el puntero. El handler de `pointerup` se cierra sobre
-  // el `tamano` del render en el que se creo, y durante un arrastre hay un render por cada
-  // `pointermove`: sin el ref se guardaria un tamaño de hace un fotograma.
-  const tamanoElegido = useRef<TamanoChat>(tamano)
-
-  const tamanoVisible = acotarTamanoChat(tamano, ventana)
-
-  // Otras pantallas piden abrir el chat (p. ej. "Preguntar" en un Meeting Paper) con un evento de
-  // ventana, sin tener que conocer el estado de este componente.
-  useEffect(() => {
-    const alPedirApertura = (): void => {
-      setApertura((n) => n + 1)
-      setAbierto(true)
-    }
-
-    window.addEventListener(EVENTO_ABRIR_ORBE, alPedirApertura)
-
-    return () => { window.removeEventListener(EVENTO_ABRIR_ORBE, alPedirApertura) }
-  }, [])
-
-  // Cerrar con Escape es lo que espera cualquiera que abra algo flotante, y aca no lo da Radix.
-  useEffect(() => {
-    if (!abierto) return
-
-    const alTeclado = (evento: KeyboardEvent): void => {
-      if (evento.key === 'Escape') setAbierto(false)
-    }
-
-    document.addEventListener('keydown', alTeclado)
-
-    return () => { document.removeEventListener('keydown', alTeclado) }
-  }, [abierto])
-
-  // Cuanto mide la ventana, y mantenerlo al dia. Es el unico dato de este componente que viene de
-  // afuera de React y que cambia solo, asi que es el unico que un efecto tiene que sincronizar.
-  //
-  // Si la ventana se achica hasta que el tamaño elegido ya no entra, `acotarTamanoChat` lo recorta
-  // en el render siguiente y el panel nunca se sale por el costado. Lo guardado queda intacto: en
-  // cuanto vuelva la pantalla grande, vuelve el tamaño que la persona habia pedido.
-  useEffect(() => {
-    const medir = (): void => { setVentana({ ancho: window.innerWidth, alto: window.innerHeight }) }
-
-    medir()
-    window.addEventListener('resize', medir)
-
-    return () => { window.removeEventListener('resize', medir) }
-  }, [])
-
-  // El foco va al campo, no al panel: quien abre el chat es para escribir.
-  //
-  // El campo no existe todavia cuando el panel se monta —el chat puede estar leyendo el hilo
-  // guardado—, asi que enfocarlo en el acto no toma nada. El observador espera a que aparezca y se
-  // desconecta con el primero que encuentre.
-  useEffect(() => {
-    const caja = panel.current
-    if (!abierto || caja === null) return
-
-    const enfocar = (): boolean => {
-      const campo = caja.querySelector('textarea')
-      campo?.focus()
-
-      return campo !== null
-    }
-
-    if (enfocar()) return
-
-    const observador = new MutationObserver(() => { if (enfocar()) observador.disconnect() })
-    observador.observe(caja, { childList: true, subtree: true })
-
-    return () => { observador.disconnect() }
-  }, [abierto])
-
-  /** Aplica un tamaño pedido, ya acotado a los limites y a la ventana de este momento. */
-  const redimensionar = useCallback((pedido: TamanoChat): TamanoChat => {
-    const acotado = acotarTamanoChat(pedido, ventana)
-    tamanoElegido.current = acotado
-    setTamano(acotado)
-
-    return acotado
-  }, [ventana])
-
-  const alBajarPuntero = (evento: EventoPuntero<HTMLButtonElement>): void => {
-    const caja = panel.current
-
-    // Solo el boton principal. Con el secundario el navegador abre su menu y el `pointerup` nunca
-    // llega, asi que el arrastre quedaria pegado al puntero hasta el proximo clic.
-    if (evento.button !== 0 || caja === null) return
-
-    // Sin esto el gesto arranca una seleccion de texto y el panel se arrastra con medio chat pintado
-    // de azul.
-    evento.preventDefault()
-    evento.currentTarget.setPointerCapture(evento.pointerId)
-    arrastre.current = { x: evento.clientX, y: evento.clientY, ancho: caja.offsetWidth, alto: caja.offsetHeight }
-  }
-
-  const alMoverPuntero = (evento: EventoPuntero<HTMLButtonElement>): void => {
-    const inicio = arrastre.current
-    if (inicio === null) return
-
-    redimensionar({
-      ancho: inicio.ancho + (inicio.x - evento.clientX),
-      alto: inicio.alto + (inicio.y - evento.clientY)
-    })
-  }
-
-  const alTerminarPuntero = (evento: EventoPuntero<HTMLButtonElement>): void => {
-    if (arrastre.current === null) return
-
-    arrastre.current = null
-
-    // Se guarda al soltar y no en cada `pointermove`: un arrastre de dos segundos son cientos de
-    // eventos, y `localStorage` escribe sincrono en el hilo principal.
-    guardarTamanoChat(almacenamientoDelNavegador(), tamanoElegido.current)
-
-    if (evento.currentTarget.hasPointerCapture(evento.pointerId)) {
-      evento.currentTarget.releasePointerCapture(evento.pointerId)
-    }
-  }
-
-  const alTecladoDelTirador = (evento: EventoTeclado<HTMLButtonElement>): void => {
-    // Arriba e izquierda agrandan porque son las direcciones en las que la esquina se aleja del
-    // anclaje: la misma regla que con el raton, para que el gesto se aprenda una sola vez.
-    const pasos: Record<string, TamanoChat> = {
-      ArrowLeft: { ancho: PASO_TAMANO_CHAT, alto: 0 },
-      ArrowRight: { ancho: -PASO_TAMANO_CHAT, alto: 0 },
-      ArrowUp: { ancho: 0, alto: PASO_TAMANO_CHAT },
-      ArrowDown: { ancho: 0, alto: -PASO_TAMANO_CHAT }
-    }
-
-    const paso = pasos[evento.key]
-    if (paso === undefined) return
-
-    // Las flechas hacen scroll de la pagina de atras si no se las corta, y la pagina de atras sigue
-    // viva justamente porque este panel no es un modal.
-    evento.preventDefault()
-
-    const aplicado = redimensionar({
-      ancho: tamanoVisible.ancho + paso.ancho,
-      alto: tamanoVisible.alto + paso.alto
-    })
-
-    guardarTamanoChat(almacenamientoDelNavegador(), aplicado)
+  /** Lleva el hilo al Proyecto abierto en su pestaña del Orbe, que tiene todo el ancho. */
+  const ampliar = (): void => {
+    if (proyectoRuta === undefined) return
+    cerrar()
+    router.push(hrefDePestanaDelOrbe(proyectoRuta))
   }
 
   return (
@@ -284,26 +139,26 @@ export function OrbeChatIA ({ sujeto = 'staff' }: { sujeto?: SujetoOrbe } = {}):
           aria-label={ASISTENTE}
           onAnimationEnd={alTerminarAnimacion}
           // El tamaño va en variables y no en `width`/`height` en linea: el estilo en linea le
-          // ganaria a la clase que en movil lo lleva al ancho completo.
+          // ganaria a la clase que en movil lo lleva al ancho completo. Durante un arrastre las
+          // variables se escriben directo (ver `usePanelRedimensionable`).
           style={{ '--ancho-chat': `${tamanoVisible.ancho}px`, '--alto-chat': `${tamanoVisible.alto}px` } as CSSProperties}
           className={cn(
             saliendo ? 'animate-salir-abajo pointer-events-none' : 'animate-entrar-abajo',
-            'border-linea bg-superficie-flotante shadow-flotante rounded-tarjeta fixed bottom-[calc(6rem_+_var(--barra-inferior,0px))] right-4 z-superposicion flex h-(--alto-chat) max-h-[calc(100dvh_-_7rem_-_var(--barra-inferior,0px))] w-(--ancho-chat) max-w-[calc(100vw-2rem)] flex-col gap-3 border p-3',
-            'max-md:inset-x-0 max-md:bottom-[var(--barra-inferior,0px)] max-md:max-h-[calc(100dvh_-_4rem_-_var(--barra-inferior,0px))] max-md:w-full max-md:max-w-full max-md:rounded-b-none max-md:border-x-0 max-md:border-b-0'
+            // `contain: layout paint` aísla el panel: lo que pasa dentro (streaming, orbe animado) no
+            // obliga al navegador a recalcular ni repintar la página de atrás.
+            'border-linea bg-superficie-flotante shadow-flotante rounded-tarjeta fixed bottom-[calc(6rem_+_var(--barra-inferior,0px))] right-4 z-superposicion flex h-(--alto-chat) max-h-[calc(100dvh_-_7rem_-_var(--barra-inferior,0px))] w-(--ancho-chat) max-w-[calc(100vw-2rem)] flex-col gap-3 border p-3 [contain:layout_paint]',
+            // Por debajo de 640 px es una hoja inferior a pantalla completa.
+            'max-sm:inset-0 max-sm:h-dvh max-sm:max-h-none max-sm:w-full max-sm:max-w-full max-sm:rounded-none max-sm:border-0 max-sm:pb-[max(0.75rem,env(safe-area-inset-bottom))]'
           )}
         >
           {/* El tirador va dentro del `padding` del panel y no encima del borde: pegado al canto
-              taparia el redondeo de la tarjeta y, en el tema oscuro, se leeria como un defecto del
-              borde en vez de como un control. */}
+              taparia el redondeo de la tarjeta. Se oculta en pantallas tactiles y en la hoja a
+              pantalla completa, donde no hay nada que redimensionar. */}
           <button
             type="button"
-            onPointerDown={alBajarPuntero}
-            onPointerMove={alMoverPuntero}
-            onPointerUp={alTerminarPuntero}
-            onPointerCancel={alTerminarPuntero}
-            onKeyDown={alTecladoDelTirador}
+            {...propsTirador}
             aria-label={`Redimensionar el chat de ${ASISTENTE}. Flechas izquierda y arriba para agrandar, derecha y abajo para achicar`}
-            className="text-texto-tenue hover:bg-hover hover:text-texto focus-visible:outline-acento focus-visible:outline-2 focus-visible:outline-offset-2 rounded-chico absolute left-1 top-1 flex size-5 cursor-nwse-resize touch-none items-center justify-center max-md:hidden"
+            className="text-texto-tenue hover:bg-hover hover:text-texto focus-visible:outline-acento focus-visible:outline-2 focus-visible:outline-offset-2 rounded-chico absolute left-1 top-1 flex size-5 cursor-nwse-resize touch-none items-center justify-center max-sm:hidden [@media(pointer:coarse)]:hidden"
           >
             {/* Dos trazos en diagonal, el gesto que ya usa cualquier esquina redimensionable.
                 `aria-hidden` porque lo que hay que anunciar es la etiqueta del boton, no el dibujo. */}
@@ -313,50 +168,97 @@ export function OrbeChatIA ({ sujeto = 'staff' }: { sujeto?: SujetoOrbe } = {}):
             </svg>
           </button>
 
-          <header className="flex items-center justify-between gap-2 md:pl-6">
-            <div className="flex flex-col">
+          <header className="flex items-center justify-between gap-2 sm:pl-6 [@media(pointer:coarse)]:pl-0">
+            <div className="flex min-w-0 flex-col">
               <p className="text-texto text-sm font-semibold">{ASISTENTE}</p>
               <p className="text-texto-sutil text-xs">{configuracion.textos.subtitulo}</p>
             </div>
-            <button
-              type="button"
-              data-rastreo="orbe.cerrar"
-              onClick={() => setAbierto(false)}
-              aria-label={`Cerrar ${ASISTENTE}`}
-              className="text-texto-tenue hover:bg-hover hover:text-texto rounded-control px-2 py-1 text-sm"
-            >
-              Cerrar
-            </button>
+            <div className="flex shrink-0 items-center gap-0.5">
+              <Boton
+                soloIcono
+                variante="sutil"
+                tamano="chico"
+                aria-label="Nueva conversación"
+                title="Nueva conversación"
+                onClick={() => { window.dispatchEvent(new Event(EVENTO_NUEVA_CONVERSACION)) }}
+              >
+                <MessageSquarePlus aria-hidden="true" className="size-4" />
+              </Boton>
+              {puedeAmpliar && (
+                <Boton soloIcono variante="sutil" tamano="chico" aria-label="Ampliar a la pestaña del proyecto" title="Ampliar a la pestaña del proyecto" onClick={ampliar}>
+                  <Maximize2 aria-hidden="true" className="size-4" />
+                </Boton>
+              )}
+              <Boton
+                soloIcono
+                variante="sutil"
+                tamano="chico"
+                data-rastreo="orbe.cerrar"
+                aria-label={`Cerrar ${ASISTENTE}`}
+                title="Cerrar (Esc)"
+                onClick={cerrar}
+              >
+                <X aria-hidden="true" className="size-4" />
+              </Boton>
+            </div>
           </header>
 
-          <ChatOrbe key={apertura} desplazable sujeto={sujeto} proyecto={proyectoId === undefined ? undefined : { id: proyectoId }} />
+          {sujeto === 'staff' && proyectoRuta !== undefined && (
+            <div className="flex flex-wrap items-center gap-2">
+              {proyectoId === undefined
+                ? (
+                  <Boton tamano="chico" variante="secundario" className="max-w-full" title="Cambia a la conversación de este proyecto; la general queda guardada" onClick={() => { setHiloElegido(proyectoRuta) }}>
+                    <span className="truncate">Continuar en el hilo de {nombreProyecto ?? 'este proyecto'}</span>
+                  </Boton>
+                  )
+                : (
+                  <>
+                    <p className="text-texto-tenue min-w-0 truncate text-xs">Hilo de <span className="text-texto font-medium">{nombreProyecto ?? 'este proyecto'}</span></p>
+                    <Boton tamano="chico" variante="sutil" title="Vuelve a la conversación general" onClick={() => { setHiloElegido(undefined) }}>Volver al hilo global</Boton>
+                  </>
+                  )}
+            </div>
+          )}
+
+          <ChatOrbe
+            key={apertura}
+            desplazable
+            sujeto={sujeto}
+            proyecto={proyectoId === undefined ? undefined : { id: proyectoId, name: sujeto === 'staff' ? (nombreProyecto ?? 'este proyecto') : undefined }}
+            actaPedida={actaPedida}
+          />
         </div>
       )}
 
       <button
+        ref={botonRef}
         type="button"
         data-rastreo="orbe.alternar"
-        onClick={() => {
-          if (!abierto) setApertura((n) => n + 1)
-          setAbierto(!abierto)
-        }}
+        onClick={alternar}
         onPointerEnter={() => { setEncima(true); void importarChat() }}
         onPointerLeave={() => setEncima(false)}
         onFocus={() => { setEncima(true); void importarChat() }}
         onBlur={() => setEncima(false)}
         aria-expanded={abierto}
         aria-controls={abierto ? idPanel : undefined}
-        aria-label={abierto ? `Cerrar ${ASISTENTE}` : `Preguntarle a ${ASISTENTE}`}
+        aria-keyshortcuts="Control+J Meta+J"
+        aria-label={abierto ? `Cerrar ${ASISTENTE}` : fase === 'esperando' ? `Preguntarle a ${ASISTENTE}. Espera tu respuesta` : `Preguntarle a ${ASISTENTE}`}
+        title={abierto ? 'Cerrar (Esc)' : 'Abrir (Ctrl+J)'}
         className={cn(
           'bg-gradiente-marca text-gradiente-marca-contenido shadow-flotante fixed bottom-[calc(1.5rem_+_var(--barra-inferior,0px))] right-4 z-superposicion inline-flex size-14 items-center justify-center rounded-full transition-[transform,filter] duration-rapida ease-neo hover:brightness-95 active:scale-[0.96]',
-          // En movil el panel abierto ocupa el fondo de la pantalla y el boton le taparia el campo: se
-          // cierra con el «Cerrar» de su cabecera.
-          abierto && 'max-md:hidden'
+          // En movil el panel abierto ocupa la pantalla entera y el boton le taparia el campo: se
+          // cierra con el icono de su cabecera.
+          abierto && 'max-sm:hidden'
         )}
       >
         {/* Con el chat abierto el botón queda en reposo (el chat ya muestra el estado y el halo animado
-            cuesta); cerrado, piensa al pasar por encima o si una conversación genera o espera. */}
-        <Orbe tamano="medio" estado={!abierto && (encima || fase === 'generando' || fase === 'esperando') ? 'thinking' : undefined} />
+            cuesta); cerrado, piensa al pasar por encima o si el agente espera una decisión. */}
+        <Orbe tamano="medio" estado={!abierto && (encima || fase === 'esperando') ? 'thinking' : undefined} />
+        {!abierto && fase === 'esperando' && (
+          // Un punto quieto: el botón está siempre a la vista y no puede llevar otra animación
+          // infinita. El texto del aviso va en el `aria-label` del botón.
+          <span aria-hidden="true" className="bg-relleno-aviso border-superficie absolute -right-0.5 -top-0.5 size-4 rounded-full border-2" />
+        )}
       </button>
     </>
   )
