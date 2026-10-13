@@ -18,6 +18,8 @@ try {
   let perderCreacion = false
   let agenteHabilitado = true
   let estadoCapacidades = 200
+  let hiloAnterior = [{ rol: 'ia', texto: 'Historial del motor anterior' }]
+  let conflictoAlEliminar = false
   await contexto.route('**/api/bff/**', async ruta => {
     const p = ruta.request()
     const url = new URL(p.url())
@@ -25,9 +27,16 @@ try {
     if (!path.includes('/ia/')) return ['GET', 'HEAD', 'OPTIONS'].includes(p.method()) ? ruta.continue() : ruta.abort()
     const cuerpo = p.postData() ? p.postDataJSON() : null
     solicitudes.push({ path, metodo: p.method(), cuerpo, query: url.search })
+    if (path.endsWith('/ia/propuestas')) return ruta.fulfill({ json: { data: [] } })
     if (path.endsWith('/capacidades') && estadoCapacidades !== 200) return ruta.fulfill({ status: estadoCapacidades, json: { error: { code: 'capabilities_unavailable', message: 'Capacidades temporalmente no disponibles.' } } })
     if (path.endsWith('/capacidades')) return ruta.fulfill({ json: { data: { agente: { habilitado: agenteHabilitado, intervalo_consulta_ms: 500, maximo_pregunta: 6000 } } } })
-    if (path.endsWith('/chat')) return ruta.fulfill({ json: { data: { mensajes: [{ rol: 'ia', texto: 'Historial del motor anterior' }] } } })
+    if (path.endsWith('/chat') && p.method() === 'DELETE') { hiloAnterior = []; return ruta.fulfill({ json: { data: { ok: true } } }) }
+    if (path.endsWith('/chat')) return ruta.fulfill({ json: { data: { mensajes: hiloAnterior } } })
+    if (path.endsWith('/ejecuciones') && p.method() === 'DELETE') {
+      if (conflictoAlEliminar) return ruta.fulfill({ status: 409, json: { error: { code: 'execution_running', message: 'Hay una ejecución en curso. Espera a que termine.' } } })
+      const archivadas = historial.get(Number(url.searchParams.get('proyecto_id') ?? 0)).splice(0).length
+      return ruta.fulfill({ json: { data: { archivadas } } })
+    }
     const scope = Number(cuerpo?.proyecto_id ?? url.searchParams.get('proyecto_id') ?? 0)
     const lista = historial.get(scope)
     assert.ok(lista, `Scope inesperado ${scope}`)
@@ -208,6 +217,29 @@ try {
   assert.equal(await global.evaluate(el => el.scrollWidth > el.clientWidth + 1), false, 'Sin desborde en oscuro')
   await global.screenshot({ path: 'output/playwright/orbe-plan-dark.png' })
   await pagina.evaluate(() => { document.documentElement.dataset.theme = 'light' })
+  // Eliminar chat: el conflicto del servidor se muestra y no vacía nada; el éxito borra ejecuciones e hilo anterior.
+  const eliminarChat = global.getByRole('button', { name: 'Eliminar chat', exact: true })
+  conflictoAlEliminar = true
+  await eliminarChat.click()
+  await global.getByRole('button', { name: 'Eliminar', exact: true }).click()
+  await global.getByText('Hay una ejecución en curso. Espera a que termine.', { exact: true }).waitFor()
+  assert.equal(historial.get(0).length, 1, 'El conflicto no vacía el historial')
+  assert.equal(solicitudes.filter(s => s.metodo === 'DELETE' && s.path.endsWith('/chat')).length, 0, 'Sin borrar el hilo anterior si la ejecución falla')
+  conflictoAlEliminar = false
+  await global.getByRole('button', { name: 'Eliminar', exact: true }).click()
+  await eliminarChat.waitFor({ state: 'hidden' })
+  assert.equal(historial.get(0).length, 0)
+  assert.deepEqual(hiloAnterior, [])
+  const borrados = solicitudes.filter(s => s.metodo === 'DELETE')
+  assert.equal(borrados.at(-2).query, '?proyecto_id=0')
+  assert.ok(borrados.at(-2).path.endsWith('/ia/ejecuciones'))
+  assert.ok(borrados.at(-1).path.endsWith('/ia/chat'))
+  await global.getByText('Pregunta por Ops o describe una tarea.', { exact: false }).waitFor()
+  await global.getByRole('button', { name: 'Cerrar Thinking Orb', exact: true }).click()
+  await pagina.getByRole('button', { name: 'Preguntarle a Thinking Orb', exact: true }).click()
+  await global.getByText('Pregunta por Ops o describe una tarea.', { exact: false }).waitFor()
+  assert.equal(await eliminarChat.count(), 0, 'Sin chat no hay botón de eliminar')
+  hiloAnterior = [{ rol: 'ia', texto: 'Historial del motor anterior' }]
   agenteHabilitado = false
   await global.getByRole('button', { name: 'Cerrar Thinking Orb', exact: true }).click()
   await pagina.getByRole('button', { name: 'Preguntarle a Thinking Orb', exact: true }).click()

@@ -53,6 +53,13 @@ export const ROTULO_TIPO: Record<TipoNovedad, string> = {
  */
 export const NOVEDADES: Novedad[] = [
   {
+    fecha: '2026-10-13',
+    tipo: 'mejora',
+    titulo: 'Eliminar el chat de Thinking Orb',
+    detalle: 'Ahora puedes vaciar tu conversación con Thinking Orb desde el botón «Eliminar chat», arriba a la derecha del chat. Se borra todo, también lo que el asistente recordaba. No se puede mientras haya una solicitud en curso.',
+    commits: []
+  },
+  {
     fecha: '2026-10-09',
     tipo: 'nuevo',
     titulo: 'Fusionar Proyectos, Clientes y Prospectos',
