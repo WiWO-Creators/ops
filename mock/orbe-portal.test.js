@@ -3,7 +3,9 @@
  *
  * El mock es con lo unico que se mira el orbe del portal antes del backend, asi que tiene que
  * portarse como la API: apagado de fabrica, `capacidades` sin 404, chat apagado en 404, Proyecto
- * ajeno en 404, SSE sin tarjetas de escritura y la opcion editable desde `PATCH /settings`.
+ * ajeno en 404, SSE sin tarjetas de escritura (mientras el cliente no cree Tareas) y la opcion editable
+ * desde `PATCH /settings`. Las propuestas con el interruptor encendido se prueban en
+ * `cliente-crea-tareas.test.js`.
  */
 
 import { test, before, after } from 'node:test'
@@ -51,7 +53,7 @@ async function orbe (ruta, opciones = {}) {
 test('nace apagado: capacidades en false, sin 404, y el chat en 404', async () => {
   const capacidades = await orbe('capacidades')
   assert.equal(capacidades.status, 200)
-  assert.deepEqual((await capacidades.json()).data, { habilitado: false })
+  assert.deepEqual((await capacidades.json()).data, { habilitado: false, puede_proponer_tareas: false })
 
   assert.equal((await orbe('chat')).status, 404)
 
@@ -67,12 +69,12 @@ test('PATCH /settings rechaza claves ajenas y valores no booleanos sin escribir'
   })
   assert.equal(ajena.status, 422)
   assert.equal((await interruptor('tal vez')).status, 422)
-  assert.deepEqual((await (await orbe('capacidades')).json()).data, { habilitado: false })
+  assert.deepEqual((await (await orbe('capacidades')).json()).data, { habilitado: false, puede_proponer_tareas: false })
 })
 
 test('encendido: conversa por SSE, guarda el hilo por Proyecto y lo borra', async () => {
   assert.equal((await interruptor(true)).status, 200)
-  assert.deepEqual((await (await orbe('capacidades')).json()).data, { habilitado: true })
+  assert.deepEqual((await (await orbe('capacidades')).json()).data, { habilitado: true, puede_proponer_tareas: false })
 
   const respuesta = await orbe('chat', {
     method: 'POST',
