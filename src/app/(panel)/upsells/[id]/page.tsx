@@ -12,6 +12,7 @@ import { cargarYo, pedir } from '@/datos/servidor'
 import type { EstadoLookup, Lookups, UpsellDetalle } from '@/datos/recursos'
 import type { Yo } from '@/datos/tipos'
 import { GLOSARIO } from '@/dominio/glosario'
+import { capacidadesDeEspacios } from '@/dominio/permisos'
 
 /**
  * Pide el Upsell una sola vez por peticion.
@@ -119,7 +120,7 @@ export default async function UpsellPage (props: PageProps<'/upsells/[id]'>) {
     <DetalleDeEspacio
       espacio={upsell.espacio}
       lookups={lookups}
-      capacidadesProyecto={yo.permissions.projects}
+      capacidadesProyecto={capacidadesDeEspacios(yo)}
       capacidadesTareas={yo.permissions.tasks}
       volverA={{ href: '/upsells', etiqueta: GLOSARIO.upsell.plural }}
       subtitulo={upsell.client?.company}
@@ -127,7 +128,7 @@ export default async function UpsellPage (props: PageProps<'/upsells/[id]'>) {
         <AccionesUpsell
           upsell={upsell}
           monedas={comoOpciones(monedas)}
-          capacidades={yo.permissions.projects}
+          capacidades={capacidadesDeEspacios(yo)}
         />
       }
       ficha={<FichaUpsell upsell={upsell} monedas={monedas} />}

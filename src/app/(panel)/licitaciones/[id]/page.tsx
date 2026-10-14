@@ -15,6 +15,7 @@ import { cargarYo, pedir } from '@/datos/servidor'
 import type { EstadoLookup, LicitacionDetalle, Lookups } from '@/datos/recursos'
 import type { Yo } from '@/datos/tipos'
 import { GLOSARIO } from '@/dominio/glosario'
+import { capacidadesDeEspacios } from '@/dominio/permisos'
 
 /**
  * Pide la Licitacion una sola vez por peticion.
@@ -124,7 +125,7 @@ export default async function LicitacionPage (props: PageProps<'/licitaciones/[i
     <DetalleDeEspacio
       espacio={licitacion.espacio}
       lookups={lookups}
-      capacidadesProyecto={yo.permissions.projects}
+      capacidadesProyecto={capacidadesDeEspacios(yo)}
       capacidadesTareas={yo.permissions.tasks}
       meetingPaper={
         <PanelActas
@@ -141,7 +142,7 @@ export default async function LicitacionPage (props: PageProps<'/licitaciones/[i
       acciones={
         <AccionesLicitacion
           licitacion={licitacion}
-          capacidades={yo.permissions.projects}
+          capacidades={capacidadesDeEspacios(yo)}
           areas={comoOpciones(listaDe(lookups, 'areas'))}
           staff={staff}
           etiquetas={comoOpciones(listaDe(lookups, 'tags'))}

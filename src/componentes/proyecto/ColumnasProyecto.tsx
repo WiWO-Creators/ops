@@ -31,6 +31,8 @@ export interface AccionesDeFila {
   onCopiar: (espacio: Espacio) => void
   onEditar: (espacio: Espacio) => void
   onEliminar: (espacio: Espacio) => void
+  /** Quien no es administrador no borra: "Eliminar" abre la solicitud de eliminacion. */
+  onSolicitarEliminacion: (espacio: Espacio) => void
 }
 
 /**
@@ -124,6 +126,9 @@ function CeldaNombre ({ espacio, acciones }: { espacio: Espacio, acciones: Accio
           )}
           {capacidades.includes('delete') && (
             <BotonAccion peligrosa onClick={() => { acciones.onEliminar(espacio) }}>Eliminar</BotonAccion>
+          )}
+          {!capacidades.includes('delete') && !espacio.archived && (
+            <BotonAccion peligrosa onClick={() => { acciones.onSolicitarEliminacion(espacio) }}>Eliminar</BotonAccion>
           )}
         </span>
       )}

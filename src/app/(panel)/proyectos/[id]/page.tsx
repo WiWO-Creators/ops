@@ -6,6 +6,7 @@ import { CabeceraProyecto } from '@/componentes/proyecto/CabeceraProyecto'
 import { BotonFijar } from '@/componentes/fijados/BotonFijar'
 import { RegistrarReciente } from '@/componentes/fijados/RegistrarReciente'
 import { BotonNuevaTarea, MenuProyecto } from '@/componentes/proyecto/MenuProyecto'
+import { capacidadesDeEspacios } from '@/dominio/permisos'
 import { proyectoDelPanel } from '@/dominio/proyecto'
 import { fuenteDelPanel } from '@/dominio/fuente-proyecto'
 import { PESTANA_TICKETS } from '@/dominio/ticket-vista'
@@ -176,7 +177,7 @@ export default async function ProyectoPage (props: PageProps<'/proyectos/[id]'>)
 
   const { proyecto, lookups, yo, ia } = detalle
   const conIa = ia.activa
-  const capacidadesProyecto = yo.permissions.projects
+  const capacidadesProyecto = capacidadesDeEspacios(yo)
   const capacidadesTareas = yo.permissions.tasks
   const estados = listaDe(lookups, 'project_statuses')
   // La primera de las tres capas del patron de `administracion/acceso`: si no corresponde, la pestaña

@@ -180,6 +180,11 @@ interface PropsEnlaceSeccion extends Omit<React.ComponentProps<typeof Link>, 'hr
   etiqueta: string
   Icono: React.ComponentType<{ size?: number, strokeWidth?: number, 'aria-hidden'?: boolean | 'true', className?: string }>
   activa: boolean
+  /**
+   * Si este item pinta la barrita con `view-transition-name`. Solo uno por documento puede: ver
+   * `NavegacionAgrupada`. Por defecto `true`, que es lo que necesita un item suelto.
+   */
+  conBarrita?: boolean
 }
 
 /**
@@ -228,12 +233,14 @@ const ITEM_ABATIDO = '[[data-barra-abatida]_&]:text-menor [[data-barra-abatida]_
  * La barrita del item activo lleva un `view-transition-name` compartido: al navegar, el navegador
  * ve el mismo nombre en la pantalla vieja y en la nueva, e interpola la posicion entre las dos. Asi
  * el indicador se desliza de una seccion a la otra —tambien entre bloques y hacia un fijado— sin
- * medir nada con JS. El nombre tiene que ser unico en el documento, y por eso la barrita solo se
- * pinta desde `md`: por debajo de ese corte el riel esta oculto y quien navega es el cajon, que
- * renderiza estos mismos items. Fuera del riel el color y el `aria-current` ya dicen cual es la
- * seccion actual.
+ * medir nada con JS. El nombre tiene que ser unico en el documento —con dos elementos con el mismo
+ * nombre el navegador aborta la transicion con «Multiple elements found with view-transition-name»—,
+ * y por eso la barrita solo se pinta desde `md` y solo en el riel: el cajon de movil renderiza estos
+ * mismos items y puede estar abierto con el riel a la vista (tablet, ventana que se agranda), asi que
+ * `NavegacionAgrupada` le quita la barrita (`conBarrita`) y reparte una sola por arbol. Fuera del riel
+ * el color y el `aria-current` ya dicen cual es la seccion actual.
  */
-function EnlaceSeccion ({ href, etiqueta, Icono, activa, className, ...resto }: PropsEnlaceSeccion) {
+function EnlaceSeccion ({ href, etiqueta, Icono, activa, conBarrita = true, className, ...resto }: PropsEnlaceSeccion) {
   return (
     <Link
       href={href}
@@ -245,7 +252,7 @@ function EnlaceSeccion ({ href, etiqueta, Icono, activa, className, ...resto }: 
       )}
       {...resto}
     >
-      {activa && (
+      {activa && conBarrita && (
         <span
           aria-hidden="true"
           style={{ viewTransitionName: 'seccion-activa' }}
@@ -266,6 +273,8 @@ interface PropsNavegacion {
   /** Envuelve cada enlace: el cajon lo usa para cerrarse al navegar. */
   envolver?: (enlace: React.ReactElement<{ style?: React.CSSProperties }>, clave: string) => React.ReactNode
   claseItem?: string
+  /** Si este arbol puede pintar la barrita del item activo. El cajon de movil la apaga: el riel ya la lleva. */
+  conBarrita?: boolean
 }
 
 /**
@@ -276,11 +285,19 @@ interface PropsNavegacion {
  *
  * @returns los grupos del menu
  */
-function NavegacionAgrupada ({ secciones, fijados, envolver = (enlace) => enlace, claseItem }: PropsNavegacion) {
+function NavegacionAgrupada ({ secciones, fijados, envolver = (enlace) => enlace, claseItem, conBarrita = true }: PropsNavegacion) {
   const ruta = usePathname()
   const { principales, bloques } = agruparSecciones(secciones)
   const hrefs = [...secciones.map((seccion) => seccion.href), ...fijados.map(hrefDeElemento)]
   const activa = seccionActiva(hrefs, ruta)
+
+  // El `view-transition-name` es unico por documento: aunque dos items compartieran `href` (una
+  // seccion y un fijado, o la misma seccion repetida) la barrita tiene un solo dueño, elegido por
+  // identidad: la primera seccion con el href activo y, si no hay ninguna, el primer fijado.
+  const seccionDuena = conBarrita ? secciones.find((seccion) => seccion.href === activa) : undefined
+  const fijadoDueno = conBarrita && seccionDuena === undefined
+    ? fijados.find((fijado) => hrefDeElemento(fijado) === activa)
+    : undefined
 
   /** Un enlace de seccion, ya envuelto. */
   const enlaceDe = (seccion: Seccion) => envolver(
@@ -290,6 +307,7 @@ function NavegacionAgrupada ({ secciones, fijados, envolver = (enlace) => enlace
       etiqueta={seccion.etiqueta}
       Icono={ICONOS_DE_SECCION[seccion.icono]}
       activa={activa === seccion.href}
+      conBarrita={seccion === seccionDuena}
       className={claseItem}
     />,
     seccion.href
@@ -313,6 +331,7 @@ function NavegacionAgrupada ({ secciones, fijados, envolver = (enlace) => enlace
               etiqueta={fijado.name}
               Icono={fijado.type === 'project' ? FolderKanban : Building2}
               activa={activa === hrefDeElemento(fijado)}
+              conBarrita={fijado === fijadoDueno}
               className={cn('nav-fijado', claseItem)}
             />,
             claveDeElemento(fijado)
@@ -623,6 +642,7 @@ export function BarraLateralMovil ({ secciones, className }: { secciones: Seccio
               fijados={fijados}
               claseItem="animate-entrar-abajo pointer-coarse:min-h-11 py-2.5 active:scale-[0.98]"
               envolver={envolver}
+              conBarrita={false}
             />
           </nav>
         </div>

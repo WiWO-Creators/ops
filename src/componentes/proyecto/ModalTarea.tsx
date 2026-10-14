@@ -2,13 +2,13 @@
 
 import { X } from 'lucide-react'
 import { useRouter, useSearchParams } from 'next/navigation'
-import { useState, type ReactElement } from 'react'
+import { useCallback, useState, type ReactElement } from 'react'
 import { Boton } from '@/componentes/formularios/Boton'
 import { CerrarDialogo, ContenidoDialogo, Dialogo } from '@/componentes/superposiciones/Dialogo'
 import { idDeParametro, PARAMETRO_TAREA } from '@/componentes/datos/tabla'
 import { GLOSARIO } from '@/dominio/glosario'
 import { TAREA_DEL_PANEL, type FuenteDeTarea } from '@/dominio/fuente-proyecto'
-import { DetalleTarea } from './DetalleTarea'
+import { DetalleTarea, TareaInexistente } from './DetalleTarea'
 import type { AltaDeTareas } from '@/datos/portal'
 
 /**
@@ -60,12 +60,17 @@ export function ModalTarea (
   // abrirla fue un paso de historial y cerrarla es volver atras. `setState` en el render, como en
   // `ModalTicket`: la URL es la fuente y esto solo recuerda como se llego.
   const [apertura, setApertura] = useState({ tarea: tareaAbierta, porNavegacion: false })
+  // `true` cuando la tarea pedida ya no existe: el parametro se limpia, pero el modal sigue abierto
+  // con el aviso de que no esta hasta que la persona lo cierre.
+  const [inexistente, setInexistente] = useState(false)
 
   if (apertura.tarea !== tareaAbierta) {
     setApertura({
       tarea: tareaAbierta,
       porNavegacion: tareaAbierta !== null && (apertura.tarea === null || apertura.porNavegacion)
     })
+
+    if (tareaAbierta !== null && inexistente) setInexistente(false)
   }
 
   /**
@@ -77,6 +82,14 @@ export function ModalTarea (
    * si la URL ya traia la tarea, se reemplaza.
    */
   function cerrar (): void {
+    // Ya sin parametro —se limpio al descubrir que la tarea no existe—: solo queda esconder el aviso.
+    // Volver atras aca sacaria a la persona de la pantalla en la que estaba.
+    if (inexistente) {
+      setInexistente(false)
+
+      return
+    }
+
     if (apertura.porNavegacion) {
       window.history.back()
 
@@ -89,6 +102,27 @@ export function ModalTarea (
 
     window.history.replaceState(null, '', `${window.location.pathname}?${siguientes.toString()}${window.location.hash}`)
   }
+
+  /**
+   * Quita `?tarea=` de la URL sin cerrar el modal, porque la tarea pedida no existe.
+   *
+   * Siempre `replaceState` y nunca `history.back()`: la entrada de historial que trajo a la persona
+   * hasta aca (un enlace viejo, un favorito) puede ser de otra pantalla. Es idempotente —la ficha
+   * puede avisar mas de una vez antes de desmontarse— y no pasa por el servidor.
+   */
+  const alNoExistir = useCallback((): void => {
+    const siguientes = new URLSearchParams(window.location.search)
+
+    setInexistente(true)
+
+    if (!siguientes.has(PARAMETRO_TAREA)) return
+
+    siguientes.delete(PARAMETRO_TAREA)
+
+    const consulta = siguientes.toString()
+
+    window.history.replaceState(null, '', `${window.location.pathname}${consulta === '' ? '' : `?${consulta}`}${window.location.hash}`)
+  }, [])
 
   /**
    * Cierra el detalle de una tarea que ya no existe y vuelve a pedir el listado de atras.
@@ -123,7 +157,7 @@ export function ModalTarea (
   }
 
   return (
-    <Dialogo open={tareaAbierta !== null} onOpenChange={(abierto) => { if (!abierto) cerrar() }}>
+    <Dialogo open={tareaAbierta !== null || inexistente} onOpenChange={(abierto) => { if (!abierto) cerrar() }}>
       <ContenidoDialogo
         ancho="grande"
         titulo={GLOSARIO.proceso.singular}
@@ -148,20 +182,23 @@ export function ModalTarea (
           </CerrarDialogo>
         </div>
 
-        {tareaAbierta !== null && (
-          <DetalleTarea
-            key={tareaAbierta}
-            procesoId={tareaAbierta}
-            fuente={fuente}
-            puedeEditar={puedeEditar}
-            puedeBorrar={puedeBorrar}
-            puedeCrear={puedeCrear}
-            altaDeTareas={altaDeTareas}
-            onBorrada={alBorrar}
-            onDuplicada={alDuplicar}
-            onCambiada={alCambiar}
-          />
-        )}
+        {tareaAbierta !== null
+          ? (
+            <DetalleTarea
+              key={tareaAbierta}
+              procesoId={tareaAbierta}
+              fuente={fuente}
+              puedeEditar={puedeEditar}
+              puedeBorrar={puedeBorrar}
+              puedeCrear={puedeCrear}
+              altaDeTareas={altaDeTareas}
+              onBorrada={alBorrar}
+              onDuplicada={alDuplicar}
+              onCambiada={alCambiar}
+              onNoExiste={alNoExistir}
+            />
+            )
+          : inexistente && <TareaInexistente />}
       </ContenidoDialogo>
     </Dialogo>
   )

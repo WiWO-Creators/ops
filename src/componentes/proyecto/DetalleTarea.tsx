@@ -122,6 +122,12 @@ interface PropsDetalleTarea {
    * que el listado de atras deje de mostrar los datos viejos.
    */
   onCambiada?: () => void
+  /**
+   * Se llama una vez cuando la API dice que la tarea no existe (`404`): se borro, o el enlace era de
+   * una tarea vieja. Quien monta el detalle limpia el `?tarea=` de la URL; la ficha sigue mostrando
+   * el estado vacio, sin aviso de error.
+   */
+  onNoExiste?: () => void
   className?: string
 }
 
@@ -143,6 +149,7 @@ export function DetalleTarea (
     onBorrada,
     onDuplicada,
     onCambiada,
+    onNoExiste,
     className
   }: PropsDetalleTarea
 ): ReactElement {
@@ -222,17 +229,17 @@ export function DetalleTarea (
     return () => { control.abort() }
   }, [fuente, procesoId, intento])
 
+  const noExiste = carga.fase === 'noEncontrada'
+
+  // Avisa a quien monta la ficha para que limpie `?tarea=`; sin esto la URL seguiria apuntando a una
+  // tarea que no esta y recargar volveria a pedirla.
+  useEffect(() => {
+    if (noExiste) onNoExiste?.()
+  }, [noExiste, onNoExiste])
+
   if (carga.fase === 'cargando') return <Cargando mensaje="Cargando la tarea…" className={className} />
 
-  if (carga.fase === 'noEncontrada') {
-    return (
-      <Vacio
-        titulo={`No encontramos esta ${GLOSARIO.proceso.singular.toLowerCase()}`}
-        descripcion="Puede que la hayan borrado o que el enlace apunte a otra cosa."
-        className={className}
-      />
-    )
-  }
+  if (carga.fase === 'noEncontrada') return <TareaInexistente className={className} />
 
   if (carga.fase === 'error') {
     return <ErrorEstado detalle={carga.mensaje} onReintentar={reintentar} className={className} />
@@ -1045,6 +1052,24 @@ function guardarFicha (fuente: FuenteDeTarea, procesoId: number, ficha: Extract<
     const masVieja = fichasGuardadas.keys().next().value
     if (masVieja !== undefined) fichasGuardadas.delete(masVieja)
   }
+}
+
+/**
+ * El estado vacio de una tarea que ya no existe.
+ *
+ * No es un error: abrir un enlace a una tarea borrada es un desenlace normal, y se dice con calma, sin
+ * aviso ni reintento —reintentar no la va a traer de vuelta—.
+ *
+ * @param className clases del contenedor
+ */
+export function TareaInexistente ({ className }: { className?: string }): ReactElement {
+  return (
+    <Vacio
+      titulo={`Esta ${GLOSARIO.proceso.singular.toLowerCase()} ya no existe`}
+      descripcion="Puede que la hayan borrado o que el enlace sea antiguo."
+      className={className}
+    />
+  )
 }
 
 /**

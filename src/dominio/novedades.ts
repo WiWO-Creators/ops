@@ -55,6 +55,20 @@ export const NOVEDADES: Novedad[] = [
   {
     fecha: '2026-10-14',
     tipo: 'mejora',
+    titulo: 'Eliminar un proyecto envía una solicitud si no eres administrador',
+    detalle: 'En el listado y en el menú del proyecto, «Eliminar» abre la solicitud de eliminación con tu motivo; un administrador la resuelve desde la bandeja de solicitudes. Antes el botón respondía con un error de permiso.',
+    commits: []
+  },
+  {
+    fecha: '2026-10-14',
+    tipo: 'arreglo',
+    titulo: 'Menos errores al abrir tareas borradas y después de una actualización',
+    detalle: 'Un enlace a una tarea que ya no existe muestra «Esta tarea ya no existe» en vez de un error. Si Ops se actualiza mientras lo tienes abierto, la página se recarga sola una vez. En el portal, el calendario y las tareas ya no fallan en proyectos sin hitos habilitados.',
+    commits: []
+  },
+  {
+    fecha: '2026-10-14',
+    tipo: 'mejora',
     titulo: 'El cronómetro arranca solo al pasar una tarea a En progreso',
     detalle: 'Si estás asignado a la tarea y tienes tu jornada abierta, el cronómetro parte en cuanto la mueves a «En progreso». Si no puede partir (no estás asignado o no abriste la jornada), la tarea cambia igual y te avisamos por qué no hay cronómetro.',
     commits: []

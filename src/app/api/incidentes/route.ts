@@ -1,6 +1,6 @@
 import { NextResponse, type NextRequest } from 'next/server'
 import { registrarIncidente } from '@/datos/incidentes'
-import { esRuidoDelNavegador } from '@/lib/aviso-de-error'
+import { debeReportarse } from '@/lib/politica-incidentes'
 import { leerSesion } from '@/datos/sesion'
 import type { Sujeto } from '@/datos/sobre-sesion'
 
@@ -51,10 +51,11 @@ export async function POST (peticion: NextRequest): Promise<NextResponse> {
     return NextResponse.json({ incidente: null }, { status: 200 })
   }
 
-  // El panel ya descarta el ruido del navegador antes de llamar, pero la version del panel que corre
-  // en una pestana abierta hace rato puede ser la anterior. El filtro se repite aca para que ningun
-  // cliente viejo llene la tabla con transiciones abortadas.
-  if (esRuidoDelNavegador({ tipo: texto(cuerpo.tipo), mensaje })) {
+  // El panel ya aplica la politica antes de llamar, pero la version del panel que corre en una
+  // pestana abierta hace rato puede ser la anterior. El filtro se repite aca para que ningun cliente
+  // viejo llene la tabla con transiciones abortadas, chunks de un deploy anterior o respuestas
+  // esperadas (403, registro inexistente).
+  if (!debeReportarse({ tipo: texto(cuerpo.tipo), mensaje })) {
     return NextResponse.json({ incidente: null }, { status: 200 })
   }
 

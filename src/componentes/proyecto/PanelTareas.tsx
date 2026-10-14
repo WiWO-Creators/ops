@@ -121,6 +121,14 @@ interface PropsPanelTareas {
    * solo lectura.
    */
   altaDeTareas?: AltaDeTareas | null
+  /**
+   * Si el sujeto puede leer los hitos del Proyecto (por defecto, si).
+   *
+   * Solo el portal lo apaga: alli los hitos son una seccion que se habilita por Proyecto (`tabs`
+   * incluye `milestones`), y pedirlos con la seccion apagada contesta 403 «Esta seccion no esta
+   * habilitada para este proyecto». Con `false` el filtro por Hito simplemente no se ofrece.
+   */
+  conHitos?: boolean
 }
 
 export function PanelTareas (props: PropsPanelTareas): ReactElement {
@@ -153,7 +161,7 @@ type Carga =
       veredictos: ReadonlyMap<number, Exclude<Veredicto, 'dentro'>>
     }
 
-function TareasDelProyecto ({ proyectoId, fuente, capacidades, conIa, camposDeTareas, altaDeTareas }: PropsPanelTareas): ReactElement {
+function TareasDelProyecto ({ proyectoId, fuente, capacidades, conIa, camposDeTareas, altaDeTareas, conHitos = true }: PropsPanelTareas): ReactElement {
   const router = useRouter()
   const params = useSearchParams()
 
@@ -221,7 +229,7 @@ function TareasDelProyecto ({ proyectoId, fuente, capacidades, conIa, camposDeTa
   useEffect(() => {
     const control = new AbortController()
 
-    void cargarPestana(fuente, definicion, params.toString(), enTablero, control.signal)
+    void cargarPestana(fuente, definicion, params.toString(), enTablero, conHitos, control.signal)
       .then((resultado) => { if (!control.signal.aborted) setCarga(resultado) })
 
     return () => { control.abort() }
@@ -470,6 +478,7 @@ function definicionDeTablero (
  * @param definicion la definicion ya acotada al proyecto
  * @param consulta query string sin `?`
  * @param enTablero la presentacion a la vista, que queda anotada en el resultado
+ * @param conHitos si se piden los hitos para el filtro; `false` cuando la seccion esta deshabilitada
  * @param senal aborta las peticiones si el componente se desmonta
  * @returns el estado de carga resuelto
  */
@@ -478,6 +487,7 @@ async function cargarPestana (
   definicion: DefinicionRecurso<ProcesoAmpliado>,
   consulta: string,
   enTablero: boolean,
+  conHitos: boolean,
   senal: AbortSignal
 ): Promise<Carga> {
   try {
@@ -515,9 +525,9 @@ async function cargarPestana (
     // Los hitos no salen de `/lookups`: cuelgan de un Espacio, asi que hay que pedirlos por su ruta.
     // Accesorio como los dos de arriba, pero sin aviso: si no llegan, el motor simplemente no dibuja
     // el filtro por hito, y una tabla sin ese desplegable sigue sirviendo entera.
-    const hitos = await opcional(
-      pedirSobre<Hito[]>(conConsulta(fuente.hitos, `per_page=${TOPE_DE_HITOS}`), senal)
-    )
+    const hitos = conHitos
+      ? await opcional(pedirSobre<Hito[]>(conConsulta(fuente.hitos, `per_page=${TOPE_DE_HITOS}`), senal))
+      : null
 
     return {
       fase: 'listo',

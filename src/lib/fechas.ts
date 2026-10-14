@@ -39,6 +39,16 @@ const ZONA = ZONA_NEGOCIO
 export const LOCALE = 'es-CL'
 
 /**
+ * Nombres cortos de los meses, escritos aca y no pedidos a `Intl`.
+ *
+ * El nombre abreviado de un mes depende de la version de CLDR que traiga cada motor: Node del
+ * servidor y Safari, Firefox o Chrome del navegador no coinciden ("sept" contra "sep"), y la
+ * diferencia basta para que el texto del servidor no sea el del cliente y React descarte el HTML al
+ * hidratar (error #418). `Intl` solo aporta los numeros, que si son iguales en todos.
+ */
+const MESES_CORTOS = ['ene', 'feb', 'mar', 'abr', 'may', 'jun', 'jul', 'ago', 'sept', 'oct', 'nov', 'dic'] as const
+
+/**
  * Arma "24 ago 2026" (o "24 ago 2026 14:03") a partir de las partes de un formato.
  *
  * `Intl` en español intercala literales — "24 de ago. de 2026" — y esa forma larga parte la fecha en
@@ -59,7 +69,7 @@ function compactar (formato: Intl.DateTimeFormat, instante: Date): string {
   )
 
   const dia = partes.get('day') ?? ''
-  const mes = (partes.get('month') ?? '').replace('.', '')
+  const mes = MESES_CORTOS[Number(partes.get('month')) - 1] ?? ''
   const anio = partes.get('year') ?? ''
   const hora = partes.get('hour')
 
@@ -87,7 +97,7 @@ export function formatearFecha (valor: string | null | undefined, conHora = fals
     const [anio, mes, dia] = valor.split('-')
     if (!anio || !mes || !dia) return '—'
     return compactar(
-      new Intl.DateTimeFormat(LOCALE, { day: '2-digit', month: 'short', year: 'numeric' }),
+      new Intl.DateTimeFormat(LOCALE, { day: '2-digit', month: 'numeric', year: 'numeric' }),
       new Date(Number(anio), Number(mes) - 1, Number(dia))
     )
   }
@@ -98,7 +108,7 @@ export function formatearFecha (valor: string | null | undefined, conHora = fals
   return compactar(
     new Intl.DateTimeFormat(LOCALE, {
       day: '2-digit',
-      month: 'short',
+      month: 'numeric',
       year: 'numeric',
       timeZone: ZONA,
       ...(conHora ? { hour: '2-digit', minute: '2-digit', hourCycle: 'h23' } : {})

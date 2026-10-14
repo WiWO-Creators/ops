@@ -449,7 +449,8 @@ export function TarjetaEntrega ({
               <Fecha valor={tarea.due_date} comoVencimiento sinAlerta={!puedeMarcarseVencida(tarea)} className="text-menor" />
             </span>
 
-            {tarea.assignees.length > 0 && <GrupoAvatares personas={tarea.assignees} maximo={3} />}
+            {/* El portal no publica `assignees`: el campo llega ausente y no como lista vacia. */}
+            {(tarea.assignees?.length ?? 0) > 0 && <GrupoAvatares personas={tarea.assignees} maximo={3} />}
           </>
         )}
       </Link>

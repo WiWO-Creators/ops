@@ -16,6 +16,7 @@ import { TablaProyectos } from './TablaProyectos'
 import { PastillasEstado } from './PastillasEstado'
 import { DialogoCopiarProyecto } from './DialogoCopiarProyecto'
 import { DialogoEliminarProyecto } from './DialogoEliminarProyecto'
+import { SolicitarEliminacion } from './SolicitudDeEliminacion'
 import { FormularioProyecto } from './FormularioProyecto'
 import { DialogoDesdePlantilla } from './DialogoDesdePlantilla'
 import { construirConsulta, leerConsulta } from '@/datos/consulta'
@@ -80,6 +81,10 @@ interface PropsVistaEspacios {
    * instalacion todavia no tiene el recurso.
    */
   plantillas: PlantillaEspacio[]
+  /** Staff de quien mira: decide si puede retirar una solicitud de eliminacion que escribio. */
+  miStaffId?: number
+  /** Un administrador puede retirar cualquier solicitud. */
+  esAdmin?: boolean
 }
 
 /**
@@ -100,7 +105,9 @@ export function VistaEspacios ({
   estadisticas,
   errorEstadisticas = null,
   campos,
-  plantillas
+  plantillas,
+  miStaffId,
+  esAdmin = false
 }: PropsVistaEspacios) {
   const router = useRouter()
   const params = useSearchParams()
@@ -108,6 +115,7 @@ export function VistaEspacios ({
 
   const [aCopiar, setACopiar] = useState<Espacio | null>(null)
   const [aEliminar, setAEliminar] = useState<Espacio | null>(null)
+  const [aSolicitar, setASolicitar] = useState<Espacio | null>(null)
   const [aEditar, setAEditar] = useState<Espacio | 'nuevo' | null>(null)
   const [desdePlantilla, setDesdePlantilla] = useState(false)
   // Cambia en cada refresco para remontar la tabla: el motor toma su pagina inicial una sola vez, asi
@@ -144,7 +152,8 @@ export function VistaEspacios ({
     () => ({
       onCopiar: (espacio: Espacio) => { setACopiar(espacio) },
       onEditar: (espacio: Espacio) => { setAEditar(espacio) },
-      onEliminar: (espacio: Espacio) => { setAEliminar(espacio) }
+      onEliminar: (espacio: Espacio) => { setAEliminar(espacio) },
+      onSolicitarEliminacion: (espacio: Espacio) => { setASolicitar(espacio) }
     }),
     []
   )
@@ -248,6 +257,18 @@ export function VistaEspacios ({
         onCerrar={() => { setAEliminar(null) }}
         onEliminado={() => { setAEliminar(null); refrescar() }}
       />
+
+      {aSolicitar !== null && (
+        <SolicitarEliminacion
+          proyectoId={aSolicitar.id}
+          proyectoNombre={aSolicitar.name}
+          solicitud={aSolicitar.deletion_request ?? null}
+          puedeRetirar={esAdmin || (miStaffId !== undefined && aSolicitar.deletion_request?.solicitado_por?.id === miStaffId)}
+          abierto
+          onAbiertoCambia={(abierto) => { if (!abierto) setASolicitar(null) }}
+          onCambio={refrescar}
+        />
+      )}
 
       <DialogoDesdePlantilla
         abierto={desdePlantilla}

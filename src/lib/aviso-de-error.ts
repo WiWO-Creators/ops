@@ -12,6 +12,7 @@
  */
 
 import { conLimite, TIEMPO_ESCRITURA_MS } from '../datos/red.ts'
+import { debeReportarse } from './politica-incidentes.ts'
 
 /** Nombre del evento. Con prefijo propio para no chocar con ningun evento del navegador. */
 export const EVENTO_ERROR = 'ops:error'
@@ -60,10 +61,15 @@ export function avisarError (aviso: AvisoDeError): void {
  * aca es de red: justo el caso en el que no hay forma de guardar nada y el aviso se muestra sin
  * codigo.
  *
+ * No registra lo que la politica descarta (`debeReportarse`): el ruido del navegador y las respuestas
+ * que la pantalla ya explica no son incidentes, y devuelve `null` igual que si no se hubiera podido.
+ *
  * @param reporte que paso
- * @returns el codigo del incidente, o `null` si no se pudo registrar
+ * @returns el codigo del incidente, o `null` si no se pudo o no correspondia registrar
  */
 export async function reportarIncidente (reporte: ReporteDelNavegador): Promise<string | null> {
+  if (!debeReportarse(reporte)) return null
+
   try {
     const respuesta = await fetch('/api/incidentes', {
       method: 'POST',
@@ -113,34 +119,4 @@ export function naceEnLosAvisos (destino: EventTarget | null): boolean {
   return destino instanceof Element && destino.closest(`[${ATRIBUTO_AVISOS}]`) !== null
 }
 
-/**
- * Mensajes de error que el navegador emite sin que nada se haya roto.
- *
- * La View Transitions API aborta la transicion en curso cuando la pantalla cambia antes de que la
- * animacion arranque —dos clics seguidos, una navegacion mientras otra corre— y lo avisa con un
- * `InvalidStateError` que el panel no puede atrapar: la promesa la crea el navegador dentro de la
- * transicion que envuelve la navegacion, no el codigo de la pagina. La pantalla termina dibujada
- * bien y la persona no pierde nada; lo unico que deja es una fila de incidente y un aviso flotante
- * por cada clic apurado, que entierra los errores que si importan.
- *
- * Se compara contra el mensaje y no contra el tipo porque el tipo cambia entre navegadores: Chrome
- * lanza `InvalidStateError` y Safari `AbortError` para el mismo aborto.
- */
-const RUIDO_DEL_NAVEGADOR: readonly RegExp[] = [
-  /transition was aborted/i,
-  /view transition/i
-]
-
-/**
- * `true` si el error es ruido del navegador y no hay que mostrarlo ni registrarlo.
- *
- * Solo se aplica a los errores que llegan por los enganches globales (`error` y
- * `unhandledrejection`). Un error que el panel avisa a proposito siempre se muestra: si alguien
- * escribio el `avisarError()`, es porque una accion de la persona quedo a medias.
- *
- * @param reporte que conto el navegador
- * @returns `true` cuando el mensaje coincide con {@link RUIDO_DEL_NAVEGADOR}
- */
-export function esRuidoDelNavegador (reporte: ReporteDelNavegador): boolean {
-  return RUIDO_DEL_NAVEGADOR.some((patron) => patron.test(reporte.mensaje))
-}
+export { esRuidoDelNavegador } from './politica-incidentes.ts'

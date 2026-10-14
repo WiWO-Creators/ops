@@ -258,6 +258,9 @@ function contenidoDePestania (
             conIa={false}
             camposDeTareas={proyecto.campos_tareas ?? []}
             altaDeTareas={proyecto.alta_de_tareas}
+            // Los hitos son una seccion que se habilita por Proyecto: sin su pestaña, la API contesta
+            // 403 a `/milestones` y el filtro por Hito no tiene de donde salir.
+            conHitos={(proyecto.tabs ?? []).includes('milestones')}
           />
         </div>
       )

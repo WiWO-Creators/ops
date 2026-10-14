@@ -3,6 +3,8 @@
 import { useEffect, useRef } from 'react'
 import { ErrorEstado } from '@/componentes/estado/Estados'
 import { avisarError } from '@/lib/aviso-de-error'
+import { esErrorDeChunk, esRuidoDelNavegador } from '@/lib/politica-incidentes'
+import { recargarPorDespliegue } from '@/lib/recarga-por-despliegue'
 
 interface PropsPantallaCaida {
   /** El error tal como lo entrega el limite de error de Next. */
@@ -38,6 +40,16 @@ export function PantallaCaida ({ error, reset, detalle, className }: PropsPantal
     if (reportado.current) return
 
     reportado.current = true
+
+    // Un chunk que ya no existe (deploy nuevo) o un ruido del navegador no es un incidente: se recarga
+    // una vez para traer la version nueva y, si ya se habia recargado, el cartel queda con su reintento.
+    const causa = { tipo: error.name, mensaje: error.message }
+
+    if (esRuidoDelNavegador(causa)) {
+      if (esErrorDeChunk(causa)) recargarPorDespliegue()
+
+      return
+    }
 
     avisarError({
       mensaje: 'Esta pantalla no se pudo cargar. Ya quedó registrado.',

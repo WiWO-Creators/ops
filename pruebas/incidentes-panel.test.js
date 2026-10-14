@@ -135,9 +135,9 @@ test('una transicion de vista abortada no se muestra ni se registra', () => {
 })
 
 test('un error de verdad no se confunde con ruido del navegador', () => {
+  // `Failed to fetch` ya no es un real cuando es un `TypeError` de red: ver `politica-incidentes.test.js`.
   const reales = [
     "Cannot read properties of undefined (reading 'nombre')",
-    'Failed to fetch',
     'La sesion expiro'
   ]
 

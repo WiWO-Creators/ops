@@ -24,7 +24,7 @@
  * Filtrar filas es trabajo de la API: esto solo decide que se dibuja. Esconder no autoriza.
  */
 import { GLOSARIO } from './glosario.ts'
-import type { AreaPermiso, Yo } from '@/datos/tipos'
+import type { AreaPermiso, Capacidad, Yo } from '@/datos/tipos'
 
 /**
  * True si hay que dibujar la seccion de un area para quien tiene esas capacidades.
@@ -154,4 +154,27 @@ export function etiquetaDeArea (area: string): string {
 /** Nombre legible de una capacidad. Cae a la clave cuando no la conoce. */
 export function etiquetaDeCapacidad (capacidad: string): string {
   return NOMBRE_DE_CAPACIDAD[capacidad] ?? capacidad
+}
+
+/**
+ * Las capacidades sobre Espacios que de verdad puede ejercer quien mira.
+ *
+ * `permissions.projects` trae `delete` para casi todo el equipo, pero la API responde `403` «Sólo un
+ * administrador puede eliminar proyectos» a quien no lo es (`Permisos::esAdmin()`, que es
+ * `is_admin || is_superadmin`): el borrado de un Espacio es un eje de administracion y no una
+ * capacidad de Perfex. Ofrecer el boton era ofrecer una puerta cerrada, y cada clic dejaba un
+ * incidente. Aca se le quita `delete` a quien no es administrador; quien no puede archivar sigue
+ * teniendo "Solicitar eliminación".
+ *
+ * Es cosmetica: la autorizacion sigue siendo la de la API.
+ *
+ * @param yo quien mira, tal como lo devolvio `GET /me`
+ * @returns `permissions.projects`, sin `delete` si no es administrador
+ */
+export function capacidadesDeEspacios (yo: Pick<Yo, 'permissions' | 'is_admin' | 'is_superadmin'>): Capacidad[] {
+  const capacidades = yo.permissions.projects
+
+  if (yo.is_admin || yo.is_superadmin) return capacidades
+
+  return capacidades.filter((capacidad) => capacidad !== 'delete')
 }
