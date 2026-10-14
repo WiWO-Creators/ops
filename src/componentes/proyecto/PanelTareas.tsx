@@ -29,6 +29,7 @@ import { leerScopeEnSilencio, type Veredicto } from '@/datos/scope'
 import { AccionesMasivasTareas } from './AccionesMasivasTareas'
 import { CalendarioTareas } from './CalendarioTareas'
 import { ModalTarea } from './ModalTarea'
+import type { AltaDeTareas } from '@/datos/portal'
 import { FormularioTarea } from './FormularioTarea'
 import { ResumenEstadosTareas } from './ResumenEstadosTareas'
 import { TarjetaTarea } from './TarjetaTarea'
@@ -114,6 +115,12 @@ interface PropsPanelTareas {
    * migracion. En el panel del colaborador no se pasa: el equipo ve todas las columnas siempre.
    */
   camposDeTareas?: readonly string[]
+  /**
+   * Solo en el portal: lo que el contacto puede hacer con las Tareas del Proyecto (`alta_de_tareas`).
+   * Con ello el detalle ofrece editar, cancelar y reabrir. Ausente o `null`, el detalle queda de
+   * solo lectura.
+   */
+  altaDeTareas?: AltaDeTareas | null
 }
 
 export function PanelTareas (props: PropsPanelTareas): ReactElement {
@@ -146,7 +153,7 @@ type Carga =
       veredictos: ReadonlyMap<number, Exclude<Veredicto, 'dentro'>>
     }
 
-function TareasDelProyecto ({ proyectoId, fuente, capacidades, conIa, camposDeTareas }: PropsPanelTareas): ReactElement {
+function TareasDelProyecto ({ proyectoId, fuente, capacidades, conIa, camposDeTareas, altaDeTareas }: PropsPanelTareas): ReactElement {
   const router = useRouter()
   const params = useSearchParams()
 
@@ -372,6 +379,7 @@ function TareasDelProyecto ({ proyectoId, fuente, capacidades, conIa, camposDeTa
         puedeEditar={capacidades.includes('edit')}
         puedeBorrar={capacidades.includes('delete')}
         puedeCrear={capacidades.includes('create')}
+        altaDeTareas={altaDeTareas}
       />
     </div>
   )

@@ -30,6 +30,8 @@ import type { EstadoLookup, Lookups, Proceso } from '@/datos/recursos'
 import type { Sobre } from '@/datos/tipos'
 import { conId, type FuenteDeTarea } from '@/dominio/fuente-proyecto'
 import { Boton } from '@/componentes/formularios/Boton'
+import { EdicionTareaPortal } from '@/componentes/portal/EdicionTareaPortal'
+import type { AltaDeTareas } from '@/datos/portal'
 import { Campo } from '@/componentes/formularios/Campo'
 import { Entrada } from '@/componentes/formularios/Entrada'
 import { escribirEnBff } from '@/componentes/datos/mutaciones'
@@ -43,7 +45,7 @@ import { HiloDeComentarios } from './HiloDeComentarios'
 import {
   Dato, MarcasDeControl, SeccionDeAdjuntos, SeccionDeComentarios, SeccionDeLectura, SIN_DATO
 } from './ficha-de-lectura'
-import { comentarioParaMostrar, estaCerrada, type ProcesoDeFicha } from './tareas'
+import { comentarioParaMostrar, estaCerrada, puedeAtrasarse, type ProcesoDeFicha } from './tareas'
 import { CompartirTarea } from './CompartirTarea'
 import { BotonDuplicarTarea } from './DuplicarTarea'
 import { EstadoDeTarea } from './EstadoDeTarea'
@@ -101,6 +103,12 @@ interface PropsDetalleTarea {
    * es un alta, y la API vuelve a exigir la capacidad.
    */
   puedeCrear?: boolean
+  /**
+   * Solo en el portal: lo que el contacto puede hacer con las Tareas del Proyecto (`alta_de_tareas`).
+   * Con ello la ficha ofrece editar, cancelar y reabrir (`EdicionTareaPortal`); sin ello no hay
+   * ninguna escritura del contacto.
+   */
+  altaDeTareas?: AltaDeTareas | null
   /** Se llama con la tarea ya borrada, para que quien monte el detalle lo cierre y recargue. */
   onBorrada?: () => void
   /** Se llama con la copia ya creada, para que el listado de atras vuelva a pedir sus datos. */
@@ -127,6 +135,7 @@ export function DetalleTarea (
     puedeEditar = false,
     puedeBorrar = false,
     puedeCrear = false,
+    altaDeTareas,
     onBorrada,
     onDuplicada,
     onCambiada,
@@ -337,6 +346,12 @@ export function DetalleTarea (
           )}
         </header>
 
+        {/* Las escrituras del contacto sobre su Tarea: editar, cancelar, reabrir. Solo el portal las
+            tiene (`altaDeTareas`), y nunca junto con `puedeEditar`, que es del equipo. */}
+        {altaDeTareas != null && !puedeEditar && (
+          <EdicionTareaPortal tarea={tarea} alta={altaDeTareas} onCambiada={alCambiar} />
+        )}
+
         {/* La descripcion va inmediatamente debajo de la cabecera y no al final: es lo que cuenta de
             que se trata la Tarea, y leerla despues de los contadores y los enlaces obliga a bajar
             hasta el fondo para entender la ficha que se acaba de abrir. */}
@@ -396,7 +411,7 @@ export function DetalleTarea (
             </Dato>
           )}
           <Dato etiqueta="Inicio"><Fecha valor={tarea.start_date} /></Dato>
-          <Dato etiqueta="Entrega"><Fecha valor={tarea.due_date} comoVencimiento /></Dato>
+          <Dato etiqueta="Entrega"><Fecha valor={tarea.due_date} comoVencimiento sinAlerta={!puedeAtrasarse(tarea.status)} /></Dato>
           {tarea.assignees !== undefined && (
             <Dato etiqueta="Asignados">
               <GrupoEnlacesPersona personas={tarea.assignees} />

@@ -25,6 +25,19 @@ test('agrupa de mas urgente a menos y saltea los tramos vacios', () => {
   assert.deepEqual(grupos.map((g) => g.procesos.map((p) => p.id)), [[2], [3], [4]])
 })
 
+test('Standby y Cancelada no son vencidas ni proximas, aunque tengan plazo', () => {
+  const grupos = agruparPorVencimiento([
+    proceso(1, '2026-08-24', 10), // Standby vencida: pausada
+    proceso(2, '2026-08-25', 10), // Standby de hoy
+    proceso(3, '2026-08-27', 10), // Standby proxima
+    proceso(4, '2026-08-24', 11), // Cancelada vencida: cerrada
+    proceso(5, '2026-08-25', 5),  // Completo
+    proceso(6, '2026-08-24', 4)   // abierta vencida: la unica
+  ], HOY)
+
+  assert.deepEqual(grupos.map((g) => g.procesos.map((p) => p.id)), [[6]])
+})
+
 test('un tramo sin procesos no aparece', () => {
   const grupos = agruparPorVencimiento([proceso(1, '2026-08-25')], HOY)
 

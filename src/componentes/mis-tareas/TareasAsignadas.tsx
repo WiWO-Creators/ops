@@ -15,6 +15,7 @@ import { pedirSobre } from '@/datos/cliente'
 import { construirConsulta, leerConsulta } from '@/datos/consulta'
 import { EVENTO_TAREAS_CAMBIADAS, observarLista, REFRESCO_LISTA_MS } from '@/datos/refresco-lista'
 import { GLOSARIO } from '@/dominio/glosario'
+import { puedeAtrasarse } from '@/componentes/proyecto/tareas'
 import { CON_COMPLETADAS, origenDeTarea, type ClaseDeOrigen } from '@/dominio/mis-tareas'
 import { PROCESOS } from '@/definiciones/procesos'
 import type { Columna, DefinicionRecurso, EstadoConsulta, ResultadoLista } from '@/definiciones/tipos'
@@ -432,7 +433,7 @@ function definicionDeTareasAsignadas ({
       clave: 'due_date',
       encabezado: 'Vence',
       ordenPor: 'due_date',
-      presentar: (p) => <Fecha valor={p.due_date} comoVencimiento />
+      presentar: (p) => <Fecha valor={p.due_date} comoVencimiento sinAlerta={!puedeAtrasarse(p.status)} />
     }
   ]
 

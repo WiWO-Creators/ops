@@ -17,7 +17,7 @@ import { formatearDesviacion, SIN_DATO, textoDeEntrega } from '@/lib/sla'
 import { hoyLocal } from '@/lib/fechas'
 import { cn } from '@/lib/clases'
 import { GLOSARIO } from '@/dominio/glosario'
-import { estaCerrada, type ProcesoDeFicha } from './tareas'
+import { estaCompletada, type ProcesoDeFicha } from './tareas'
 import type { AprobacionProceso, Proceso } from '@/datos/recursos'
 import { useAviso } from '@/componentes/estado/useAviso'
 
@@ -82,7 +82,7 @@ export function hayDatosDeSla (tarea: ProcesoDeFicha): boolean {
  * cerrada por una via que no la puso— es justamente la que hay que poder corregir.
  */
 function hayCierre (tarea: ProcesoDeFicha): boolean {
-  return estaCerrada(tarea.status) || tarea.date_finished !== null
+  return estaCompletada(tarea.status) || tarea.date_finished !== null
 }
 
 export function BloqueSla ({ tarea, puedeEditar, onCambiado }: PropsBloqueSla): ReactElement | null {

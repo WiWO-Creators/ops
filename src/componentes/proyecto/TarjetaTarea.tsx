@@ -9,6 +9,7 @@ import { Fecha } from '@/componentes/presentadores/Fecha'
 import { GLOSARIO } from '@/dominio/glosario'
 import type { OpcionFiltro } from '@/definiciones/tipos'
 import { resolverEstado } from '@/dominio/estados-tarea'
+import { puedeAtrasarse } from './tareas'
 import type { ProcesoDeTarjeta } from './tarjeta-tarea'
 
 export type { ProcesoDeTarjeta } from './tarjeta-tarea'
@@ -138,7 +139,7 @@ export function TarjetaTarea ({ proceso, estados }: PropsTarjeta): ReactElement 
               <span className="sr-only">Vence: </span>
             </>
           )}
-          <Fecha valor={proceso.due_date} comoVencimiento />
+          <Fecha valor={proceso.due_date} comoVencimiento sinAlerta={!puedeAtrasarse(proceso.status)} />
         </span>
       </div>
 

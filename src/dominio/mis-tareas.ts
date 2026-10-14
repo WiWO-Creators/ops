@@ -27,6 +27,7 @@
  */
 import { GLOSARIO } from './glosario.ts'
 import { hoyLocal, sumarDias } from '../lib/fechas.ts'
+import { ESTADO_STANDBY, estaCerrada } from '../componentes/proyecto/tareas.ts'
 import type { Proceso } from '@/datos/recursos'
 
 /** Deja solo las Tareas que cuelgan de un Espacio —Proyectos y Licitaciones—. */
@@ -286,4 +287,25 @@ export function consultaDeVencimiento (filtro: FiltroDeVencimiento, hoy: Date = 
     return `filter[due_date__gte]=${dia}&filter[due_date__lte]=${domingo}`
   }
   return null
+}
+
+/**
+ * El fragmento de `GET /tasks` que deja afuera las tareas en Standby, para los filtros de plazo.
+ *
+ * Una tarea pausada no esta atrasada ni "por vencer" (ver `puedeAtrasarse`), pero `GET /tasks` la
+ * incluye en la lista por defecto porque Standby es un estado abierto. `filter[status]` solo admite
+ * `IN`, asi que se arma con el catalogo: todos los estados abiertos menos Standby, y con las
+ * cerradas tambien si la hoja las muestra. Un estado nuevo del catalogo entra solo.
+ *
+ * @param estados `task_statuses` de `GET /lookups`
+ * @param conCerradas si la hoja suma las completadas y canceladas (`seVenCompletadas`)
+ * @returns el fragmento sin el `&` inicial, o `null` si el catalogo no llego: sin el no se filtra
+ *          en vez de mandar un `filter[status]=` vacio, que el backend rechaza
+ */
+export function consultaSinStandby (estados: ReadonlyArray<{ id: number }>, conCerradas: boolean): string | null {
+  const ids = estados
+    .map((estado) => estado.id)
+    .filter((id) => id !== ESTADO_STANDBY && (conCerradas || !estaCerrada(id)))
+
+  return ids.length === 0 ? null : `filter[status]=${ids.join(',')}`
 }

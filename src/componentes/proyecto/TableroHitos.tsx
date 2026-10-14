@@ -19,7 +19,7 @@ import { AgregarAlHito } from './AgregarAlHito'
 import { BotonDuplicarTarea } from './DuplicarTarea'
 import { MenuEstadoTarea } from './MenuEstadoTarea'
 import { COLUMNA_SIN_CATEGORIZAR, cuerpoMoverHito, ordenarColumnasHitos } from './hitos'
-import { estaCerrada } from './tareas'
+import { estaCerrada, puedeAtrasarse } from './tareas'
 import { segundosAHoraMinuto } from './formatos'
 import type { ColumnaTablero, CuerpoMover, GrupoTablero } from '@/componentes/datos/tablero'
 import type { DefinicionRecurso, OpcionFiltro } from '@/definiciones/tipos'
@@ -358,7 +358,7 @@ function TarjetaDeHito ({
         )}
         <Fecha valor={tarea.start_date} />
         <span aria-hidden="true">→</span>
-        <Fecha valor={tarea.due_date} comoVencimiento />
+        <Fecha valor={tarea.due_date} comoVencimiento sinAlerta={!puedeAtrasarse(tarea.status)} />
       </div>
     </div>
   )

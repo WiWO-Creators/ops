@@ -1,6 +1,6 @@
 import { LOCALE, sumarDias } from '../../lib/fechas.ts'
 import { diasDeVista, esDiaValido, inicioDeSemana } from '../../dominio/calendario.ts'
-import { estaCerrada } from './tareas.ts'
+import { estaCerrada, puedeAtrasarse } from './tareas.ts'
 
 /**
  * Aritmetica del calendario de entregas de un Espacio.
@@ -307,16 +307,26 @@ export function sinFechaDeEntrega<T extends EntregaOrdenable> (tareas: readonly 
 }
 
 /**
- * `true` cuando el Proceso esta completo.
+ * `true` cuando el Proceso esta cerrado: Completo, Facturado o Cancelada.
  *
  * Se pregunta aca y no con `status === 5` suelto para que la rejilla, la agenda y la tarjeta usen la
- * misma constante que el resto de la pestaña.
+ * misma regla que el resto de la pestaña. La Cancelada se dibuja como cerrada (tachada, sin alerta).
  *
  * @param tarea El Proceso.
- * @returns Si su estado es "Completo".
+ * @returns Si su estado la cierra.
  */
 export function estaCompleta (tarea: { status: number }): boolean {
   return estaCerrada(tarea.status)
+}
+
+/**
+ * `true` cuando el plazo del Proceso puede estar incumplido: abierto y fuera de Standby.
+ *
+ * @param tarea El Proceso.
+ * @returns `false` para cerradas y para las pausadas.
+ */
+export function puedeMarcarseVencida (tarea: { status: number }): boolean {
+  return puedeAtrasarse(tarea.status)
 }
 
 /**

@@ -1,8 +1,10 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import {
-  BORRADOR_VACIO_DE_TAREA, LARGO_DESCRIPCION_TAREA, LARGO_NOMBRE_TAREA, SIN_PRIORIDAD, cuerpoDeTarea,
-  cuerpoDeTareaConArchivos, erroresDeBorrador, erroresDeLaApi, falloDeAltaDeTarea, tareaCompleta
+  BORRADOR_VACIO_DE_TAREA, CUERPO_DE_CANCELAR, CUERPO_DE_REABRIR, ESTADO_AL_REABRIR, LARGO_DESCRIPCION_TAREA,
+  LARGO_NOMBRE_TAREA, SIN_PRIORIDAD, borradorDeEdicion, cuerpoDeEdicion, cuerpoDeTarea, cuerpoDeTareaConArchivos,
+  erroresDeBorrador, erroresDeEdicion, erroresDeLaApi, erroresDeLaApiDeEdicion, falloDeAltaDeTarea,
+  falloDeEdicionDeTarea, sePuedeCancelar, sePuedeEditar, sePuedeReabrir, tareaCompleta
 } from '../src/dominio/tareas-del-portal.ts'
 
 const equipo = [
@@ -155,4 +157,112 @@ test('sin archivos el alta sigue siendo JSON; con archivos es multipart con el c
 
 test('los motivos de un archivo rechazado tienen frase propia', () => {
   assert.equal(falloDeAltaDeTarea({ mensaje: 'Archivo malo', estado: 422, detalles: { attachments: ['too_large'] } }).texto, 'Archivo malo')
+})
+
+// -- Edicion, cancelacion y reapertura --------------------------------------------------------
+
+const ficha = {
+  name: 'Revisar la propuesta',
+  description: 'texto viejo',
+  description_html: '<p>texto viejo</p>',
+  due_date: '2027-03-15',
+  priority: 2
+}
+
+test('el borrador de edicion parte de la ficha, con la descripcion en HTML', () => {
+  assert.deepEqual(borradorDeEdicion(ficha), {
+    nombre: 'Revisar la propuesta', descripcion: '<p>texto viejo</p>', vencimiento: '2027-03-15', prioridad: '2'
+  })
+  assert.equal(borradorDeEdicion({ ...ficha, description_html: null }).descripcion, 'texto viejo', 'sin HTML, el texto plano')
+  assert.equal(borradorDeEdicion({ ...ficha, description: null, description_html: null, due_date: null }).vencimiento, '')
+})
+
+test('el cuerpo de edicion lleva solo lo que cambio', () => {
+  const inicial = borradorDeEdicion(ficha)
+
+  assert.deepEqual(cuerpoDeEdicion(inicial, inicial), {}, 'sin cambios no viaja nada')
+  assert.deepEqual(cuerpoDeEdicion({ ...inicial, nombre: '  Otro  ', prioridad: '4' }, inicial), { name: 'Otro', priority: 4 })
+  assert.deepEqual(
+    cuerpoDeEdicion({ ...inicial, descripcion: '<p>nuevo</p>' }, inicial),
+    { description: '<p>nuevo</p>', format: 'html' }
+  )
+})
+
+test('vaciar la descripcion o el vencimiento viaja como null', () => {
+  const inicial = borradorDeEdicion(ficha)
+  const cuerpo = cuerpoDeEdicion({ ...inicial, descripcion: '<p></p>', vencimiento: '' }, inicial)
+
+  assert.deepEqual(cuerpo, { description: null, format: 'html', due_date: null })
+})
+
+test('editar valida el nombre, y el vencimiento solo si cambio', () => {
+  const inicial = borradorDeEdicion(ficha)
+  const hoy = '2026-10-14'
+
+  assert.match(erroresDeEdicion({ ...inicial, nombre: '  ' }, inicial, sinExigir, hoy).name, /nombre/)
+  assert.equal(erroresDeEdicion({ ...inicial, nombre: 'a'.repeat(LARGO_NOMBRE_TAREA + 1) }, inicial, sinExigir, hoy).name?.includes('admite'), true)
+  assert.deepEqual(erroresDeEdicion(inicial, inicial, exigeFecha, hoy), {})
+
+  const vencida = { ...inicial, vencimiento: '2026-01-01' }
+
+  assert.deepEqual(erroresDeEdicion(vencida, vencida, sinExigir, hoy), {}, 'una fecha pasada que no cambio se deja')
+  assert.match(erroresDeEdicion(vencida, inicial, sinExigir, hoy).due_date, /anterior a hoy/)
+  assert.match(erroresDeEdicion({ ...inicial, vencimiento: '31/12' }, inicial, sinExigir, hoy).due_date, /día\/mes\/año/)
+})
+
+test('quitar el vencimiento solo se rechaza si el cliente lo exige', () => {
+  const inicial = borradorDeEdicion(ficha)
+  const sinFecha = { ...inicial, vencimiento: '' }
+
+  assert.match(erroresDeEdicion(sinFecha, inicial, exigeFecha, '2026-10-14').due_date, /exige fecha/)
+  assert.deepEqual(erroresDeEdicion(sinFecha, inicial, sinExigir, '2026-10-14'), {})
+})
+
+test('editar y cancelar solo con la Tarea abierta; reabrir solo con la Cancelada', () => {
+  for (const estado of [1, 2, 4, 10]) {
+    assert.equal(sePuedeEditar(estado), true, `editar ${estado}`)
+    assert.equal(sePuedeCancelar(estado), true, `cancelar ${estado}`)
+    assert.equal(sePuedeReabrir(estado), false, `reabrir ${estado}`)
+  }
+  for (const estado of [5, 9, 11]) {
+    assert.equal(sePuedeEditar(estado), false, `editar ${estado}`)
+    assert.equal(sePuedeCancelar(estado), false, `cancelar ${estado}`)
+  }
+  assert.equal(sePuedeReabrir(11), true)
+  assert.equal(sePuedeReabrir(5), false, 'una completa la reabre el equipo')
+})
+
+test('cancelar manda 11 y reabrir manda 1', () => {
+  assert.deepEqual(CUERPO_DE_CANCELAR, { status: 11 })
+  assert.deepEqual(CUERPO_DE_REABRIR, { status: ESTADO_AL_REABRIR })
+  assert.equal(ESTADO_AL_REABRIR, 1)
+})
+
+test('el 422 de la edicion cae en el campo, y una clave ajena se ignora', () => {
+  const errores = erroresDeLaApiDeEdicion({ due_date: ['anterior_al_inicio'], priority: ['no_valido'], status: ['no_valido'] })
+
+  assert.match(errores.due_date, /anterior a hoy/)
+  assert.equal(errores.priority, 'El valor no es válido.')
+  assert.equal('status' in errores, false)
+})
+
+test('cada rechazo de la edicion se explica segun lo que se intentaba', () => {
+  assert.match(falloDeEdicionDeTarea({ mensaje: 'x', estado: 404 }, 'editar').texto, /Ya no puedes modificar/)
+  assert.match(falloDeEdicionDeTarea({ mensaje: 'x', estado: 403 }, 'editar').texto, /no comparte/)
+
+  const editar409 = falloDeEdicionDeTarea({ mensaje: 'x', estado: 409 }, 'editar')
+  const cancelar409 = falloDeEdicionDeTarea({ mensaje: 'x', estado: 409 }, 'cancelar')
+  const reabrir409 = falloDeEdicionDeTarea({ mensaje: 'x', estado: 409 }, 'reabrir')
+
+  assert.match(editar409.texto, /cambió de estado/)
+  assert.match(cancelar409.texto, /no se puede cancelar/)
+  assert.match(reabrir409.texto, /nada que reabrir/)
+  assert.equal(editar409.recargar && cancelar409.recargar && reabrir409.recargar, true, 'un 409 vuelve a pedir la ficha')
+
+  const con422 = falloDeEdicionDeTarea({ mensaje: 'Hay campos', estado: 422, detalles: { name: ['requerido'] } }, 'editar')
+
+  assert.equal(con422.texto, null, 'con campos, el texto general sobra')
+  assert.match(con422.campos.name, /obligatorio/)
+  assert.equal(falloDeEdicionDeTarea({ mensaje: 'Hay campos', estado: 422, detalles: { otro: ['x'] } }, 'editar').texto, 'Hay campos')
+  assert.equal(falloDeEdicionDeTarea({ mensaje: 'Caído', estado: 500 }, 'editar').texto, 'Caído')
 })

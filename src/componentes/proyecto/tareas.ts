@@ -31,16 +31,72 @@ export const ESTADO_COMPLETO = 5
 export const ESTADO_FACTURADO = 9
 
 /**
- * Si un estado es de tarea cerrada: Completo o Facturado.
+ * "Standby": la tarea sigue abierta pero pausada (estado 10).
+ *
+ * Es abierta —cuenta en las listas de trabajo y en `filter_default`— pero **nunca** atrasada ni
+ * "proxima a vencer": un plazo en pausa no es un plazo que se este incumpliendo.
+ */
+export const ESTADO_STANDBY = 10
+
+/**
+ * "Cancelada": estado final y reabrible (estado 11).
+ *
+ * Cuenta como cerrada —no es abierta ni atrasada— pero NO como completada: no suma a "completadas"
+ * ni al avance, y no lleva `date_finished`. Tampoco es facturable.
+ */
+export const ESTADO_CANCELADA = 11
+
+/**
+ * Si el estado cierra la tarea: Completo, Facturado o Cancelada. Es la negacion de "abierta".
+ * @param estado id de estado de la API
+ * @returns `true` para 5, 9 y 11
+ */
+export function estaCerrada (estado: number): boolean {
+  return estaCompletada(estado) || estado === ESTADO_CANCELADA
+}
+
+/**
+ * Si la tarea se entrego: Completo o Facturado. La Cancelada esta cerrada pero no completada.
  * @param estado id de estado de la API
  * @returns `true` para 5 y 9
  */
-export function estaCerrada (estado: number): boolean {
+export function estaCompletada (estado: number): boolean {
   return estado === ESTADO_COMPLETO || estado === ESTADO_FACTURADO
 }
 
-/** Valor de `filter[status]` que pide las tareas cerradas. */
-export const FILTRO_CERRADAS = `${ESTADO_COMPLETO},${ESTADO_FACTURADO}`
+/**
+ * Si el plazo de una tarea en este estado puede estar incumplido: abierta y no pausada.
+ *
+ * Es la unica regla de "atrasada" del frontend: excluye 5, 9 y 11 (cerradas) y 10 (Standby).
+ * @param estado id de estado de la API
+ * @returns `false` para 5, 9, 10 y 11
+ */
+export function puedeAtrasarse (estado: number): boolean {
+  return !estaCerrada(estado) && estado !== ESTADO_STANDBY
+}
+
+/**
+ * Si se puede pasar una tarea de un estado a otro, para el catalogo que ofrece un menu.
+ *
+ * Cualquier estado entra y sale de Standby y Cancelada (reabrir una Cancelada deja elegir cualquier
+ * estado abierto). Ni Standby ni Cancelada son facturables: desde ellos no se ofrece Facturado, que
+ * la API rechaza con `409`. La API vuelve a decidir: esto solo evita ofrecer lo que fallaria.
+ *
+ * @param origen estado actual de la tarea
+ * @param destino estado que se quiere ofrecer
+ * @returns `false` si el destino es Facturado y el origen es Standby o Cancelada
+ */
+export function puedePasarA (origen: number, destino: number): boolean {
+  if (destino !== ESTADO_FACTURADO) return true
+
+  return origen !== ESTADO_STANDBY && origen !== ESTADO_CANCELADA
+}
+
+/** Valor de `filter[status]` que pide las tareas completadas (Completo y Facturado). */
+export const FILTRO_COMPLETADAS = `${ESTADO_COMPLETO},${ESTADO_FACTURADO}`
+
+/** Valor de `filter[status]` que pide todas las cerradas: las completadas mas las Canceladas. */
+export const FILTRO_CERRADAS = `${FILTRO_COMPLETADAS},${ESTADO_CANCELADA}`
 
 /**
  * Alterna completados y elimina condiciones de estado incompatibles.
@@ -48,18 +104,18 @@ export const FILTRO_CERRADAS = `${ESTADO_COMPLETO},${ESTADO_FACTURADO}`
  * @returns Consulta nueva, conservando búsqueda y filtros ajenos al estado, sin paginación.
  */
 export function alternarCompletados (params: URLSearchParams): URLSearchParams {
-  const activo = params.get('filter[status]') === FILTRO_CERRADAS
+  const activo = params.get('filter[status]') === FILTRO_COMPLETADAS
   const siguientes = new URLSearchParams(params)
   for (const clave of [...siguientes.keys()]) {
     if (/^filter\[(?:status|completed)(?:__[^\]]+)?\]$/.test(clave)) siguientes.delete(clave)
   }
-  if (!activo) siguientes.set('filter[status]', FILTRO_CERRADAS)
+  if (!activo) siguientes.set('filter[status]', FILTRO_COMPLETADAS)
   siguientes.delete('page')
   return siguientes
 }
 
 /**
- * Una tarea vencida que todavia no esta completa.
+ * Una tarea vencida que sigue abierta y no esta en Standby.
  *
  * Es lo que el panel viejo pinta con `row-border-danger`. La comparacion por dia calendario ya vive
  * en `estadoVencimiento`: repetirla aca daria dos reglas que se pueden contradecir.
@@ -69,7 +125,7 @@ export function alternarCompletados (params: URLSearchParams): URLSearchParams {
  * @returns `true` si hay que marcar la fila
  */
 export function estaVencida (proceso: { due_date: string | null, status: number }, hoy: Date = new Date()): boolean {
-  if (estaCerrada(proceso.status)) return false
+  if (!puedeAtrasarse(proceso.status)) return false
 
   return estadoVencimiento(proceso.due_date, hoy) === 'vencido'
 }

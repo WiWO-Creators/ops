@@ -15,6 +15,7 @@ import { resolverEstado } from '@/dominio/estados-tarea'
 import { cn } from '@/lib/clases'
 import { accionDeEstado } from './estado-proceso'
 import { atenderArranque } from './arranque-cronometro'
+import { puedePasarA } from './tareas'
 import type { EstadoLookup, Proceso } from '@/datos/recursos'
 
 /**
@@ -158,7 +159,7 @@ export function MenuEstadoTarea ({
             onValueChange={(valor) => { void elegir(valor) }}
           >
             {catalogo.map((opcion) => (
-              <ItemMenuRadio key={opcion.id} value={String(opcion.id)} disabled={enCurso}>
+              <ItemMenuRadio key={opcion.id} value={String(opcion.id)} disabled={enCurso || !puedePasarA(pintado, opcion.id)}>
                 {opcion.name}
               </ItemMenuRadio>
             ))}

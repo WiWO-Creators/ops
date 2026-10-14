@@ -30,8 +30,17 @@ export const ESTADO_COMPLETA = 5
 /** "Facturada" (estado 9): cerrada igual que la completa. Repetida por la misma razon que `ESTADO_COMPLETA`. */
 export const ESTADO_FACTURADA = 9
 
+/** "Standby" (estado 10): abierta pero pausada, nunca vencida. Repetida por la misma razon. */
+export const ESTADO_STANDBY = 10
+
+/** "Cancelada" (estado 11): cerrada pero no completada, nunca vencida. Repetida por la misma razon. */
+export const ESTADO_CANCELADA = 11
+
 /**
- * Si el estado es de una tarea cerrada (completa o facturada).
+ * Si el estado es de una tarea completada (completa o facturada).
+ *
+ * La Cancelada no entra: esta cerrada pero no entregada, asi que sigue visible con "ocultar
+ * completadas" y no suma al contador de completadas.
  * @param estado id de estado de la API
  * @returns `true` para 5 y 9
  */
@@ -428,10 +437,10 @@ export function filasDeGantt (
  * @param entrega fecha de entrega de la tarea
  * @param estado id de `tbltasks.status`
  * @param hoy dia UTC desde la epoca, o `null` si no se pudo leer la fecha de referencia
- * @returns `true` solo si hay fecha, ya paso y la tarea no esta completa
+ * @returns `true` solo si hay fecha, ya paso y la tarea esta abierta y fuera de Standby
  */
 function estaVencida (entrega: string | null, estado: number, hoy: number | null): boolean {
-  if (hoy === null || estaCompleta(estado)) return false
+  if (hoy === null || estaCompleta(estado) || estado === ESTADO_CANCELADA || estado === ESTADO_STANDBY) return false
 
   const dia = diaDeFecha(entrega)
 

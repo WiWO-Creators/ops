@@ -25,6 +25,11 @@ test('cualquier otro estado va por `reopen` con el destino en el cuerpo', () => 
   })
 })
 
+test('Standby (10) y Cancelada (11) van por `reopen` con el destino en el cuerpo', () => {
+  assert.deepEqual(accionDeEstado(42, 10), { ruta: 'tasks/42/actions/reopen', cuerpo: { status: 10 } })
+  assert.deepEqual(accionDeEstado(42, 11), { ruta: 'tasks/42/actions/reopen', cuerpo: { status: 11 } })
+})
+
 test('un estado que no esta en las constantes del panel viaja igual', () => {
   // "Cambios" (6) lo agrego alguien desde Perfex: el catalogo es un dato, no una lista en el codigo.
   assert.deepEqual(accionDeEstado(7, 6), {

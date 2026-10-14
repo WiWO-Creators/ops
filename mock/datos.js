@@ -30,9 +30,32 @@ export const ESTADOS_PROCESO = [
   { id: 6, name: 'Cambios', color: '#a855f7', order: 5, filter_default: true },
   { id: 7, name: 'En producción', color: '#0d9488', order: 6, filter_default: true },
   { id: 8, name: 'Auditoría', color: '#0ea5e9', order: 7, filter_default: true },
+  // Abierta pero pausada: tiene columna en el tablero y nunca cuenta como atrasada.
+  { id: 10, name: 'Standby', color: '#64748b', order: 8, filter_default: true },
   { id: 5, name: 'Completado', color: '#22c55e', order: 100, filter_default: false },
-  { id: 9, name: 'Facturado', color: '#15803d', order: 101, filter_default: false }
+  { id: 9, name: 'Facturado', color: '#15803d', order: 101, filter_default: false },
+  // Final y reabrible: cerrada pero no completada, ni facturable.
+  { id: 11, name: 'Cancelada', color: '#be123c', order: 102, filter_default: false }
 ]
+
+/** Los estados que recorre el generador de fixtures en orden; Standby y Cancelada se reparten aparte. */
+const ESTADOS_BASE_DE_FIXTURES = ESTADOS_PROCESO.filter((estado) => ![10, 11].includes(estado.id))
+
+/**
+ * El estado de la fila `i` del fixture de Procesos.
+ *
+ * Standby y Cancelada salen de una de cada diecisiete y una de cada diecinueve filas: las suficientes
+ * para que el tablero, los filtros y los contadores los muestren sin mover el reparto del resto.
+ *
+ * @param {number} i indice de la fila
+ * @returns {{ id: number }} el estado del catalogo
+ */
+function estadoDeFixture (i) {
+  if (i % 17 === 16) return ESTADOS_PROCESO.find((estado) => estado.id === 10)
+  if (i % 19 === 17) return ESTADOS_PROCESO.find((estado) => estado.id === 11)
+
+  return ciclo(ESTADOS_BASE_DE_FIXTURES, i)
+}
 
 export const PRIORIDADES = [
   { id: 1, name: 'Baja', color: '#777' },
@@ -867,7 +890,7 @@ const correlativoDePatente = {}
 
 export const PROCESOS = Array.from({ length: 84 }, (_, i) => {
   const espacio = ciclo(ESPACIOS, i)
-  const estado = ciclo(ESTADOS_PROCESO, i)
+  const estado = estadoDeFixture(i)
   const asignados = [ciclo(STAFF, i), ciclo(STAFF, i + 3)]
     .filter((s, pos, todos) => todos.findIndex((o) => o.id === s.id) === pos)
 
@@ -911,7 +934,7 @@ export const PROCESOS = Array.from({ length: 84 }, (_, i) => {
     is_public: false,
     visible_to_client: false,
     recurring: false,
-    kanban_order: Math.floor(i / ESTADOS_PROCESO.length) + 1,
+    kanban_order: Math.floor(i / ESTADOS_BASE_DE_FIXTURES.length) + 1,
     // Quien asigno: el creador en casi todas; una de cada seis la reasigno otra persona, para que la
     // ficha muestre el caso de varios asignadores, y una de cada once vino del portal (`null`).
     assignees: asignados.map((s, pos) => ({
