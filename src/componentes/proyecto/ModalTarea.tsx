@@ -9,6 +9,7 @@ import { idDeParametro, PARAMETRO_TAREA } from '@/componentes/datos/tabla'
 import { GLOSARIO } from '@/dominio/glosario'
 import { TAREA_DEL_PANEL, type FuenteDeTarea } from '@/dominio/fuente-proyecto'
 import { DetalleTarea } from './DetalleTarea'
+import type { AltaDeTareas } from '@/datos/portal'
 
 /**
  * El modal con el detalle de una tarea, atado a `?tarea={id}`.
@@ -30,7 +31,7 @@ import { DetalleTarea } from './DetalleTarea'
  */
 
 export function ModalTarea (
-  { puedeEditar = false, puedeBorrar = false, puedeCrear = false, fuente = TAREA_DEL_PANEL }: {
+  { puedeEditar = false, puedeBorrar = false, puedeCrear = false, fuente = TAREA_DEL_PANEL, altaDeTareas }: {
     puedeEditar?: boolean
     puedeBorrar?: boolean
     /** Habilita "Duplicar…" en la ficha. Viene de la capacidad `create` sobre tareas. */
@@ -43,6 +44,11 @@ export function ModalTarea (
      * de un Proyecto pasa la suya, y el portal la del contacto.
      */
     fuente?: FuenteDeTarea
+    /**
+     * Solo en el portal: lo que el contacto puede hacer con las Tareas del Proyecto (`alta_de_tareas`).
+     * Con ello el detalle ofrece editar, cancelar y reabrir; `null` o ausente lo deja de solo lectura.
+     */
+    altaDeTareas?: AltaDeTareas | null
   } = {}
 ): ReactElement {
   const router = useRouter()
@@ -150,6 +156,7 @@ export function ModalTarea (
             puedeEditar={puedeEditar}
             puedeBorrar={puedeBorrar}
             puedeCrear={puedeCrear}
+            altaDeTareas={altaDeTareas}
             onBorrada={alBorrar}
             onDuplicada={alDuplicar}
             onCambiada={alCambiar}

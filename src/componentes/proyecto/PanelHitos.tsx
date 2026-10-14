@@ -11,6 +11,7 @@ import { AccionesFila } from './AccionesFila'
 import { AltaDeHito } from './AltaDeHito'
 import { AvanceDeHito, VencimientoDeHito } from '@/componentes/presentadores/Hito'
 import { ModalTarea } from './ModalTarea'
+import type { AltaDeTareas } from '@/datos/portal'
 import { PanelRecurso } from './PanelRecurso'
 import { TableroHitos } from './TableroHitos'
 import type { CampoFormulario } from './formulario'
@@ -75,6 +76,12 @@ interface PropsPanelHitos {
    * pestaña sigue funcionando en solo lectura.
    */
   capacidadesTareas?: Capacidad[]
+  /**
+   * Solo en el portal: lo que el contacto puede hacer con las Tareas del Proyecto (`alta_de_tareas`).
+   * Con ello el detalle ofrece editar, cancelar y reabrir. Ausente o `null`, el detalle queda de
+   * solo lectura.
+   */
+  altaDeTareas?: AltaDeTareas | null
 }
 
 export function PanelHitos (props: PropsPanelHitos): ReactElement {
@@ -90,7 +97,8 @@ function HitosDelProyecto ({
   proyecto,
   fuente,
   capacidades,
-  capacidadesTareas = []
+  capacidadesTareas = [],
+  altaDeTareas
 }: PropsPanelHitos): ReactElement {
   const router = useRouter()
   const params = useSearchParams()
@@ -198,6 +206,7 @@ function HitosDelProyecto ({
         puedeEditar={capacidadesTareas.includes('edit')}
         puedeBorrar={capacidadesTareas.includes('delete')}
         puedeCrear={capacidadesTareas.includes('create')}
+        altaDeTareas={altaDeTareas}
       />
 
       {/* El alta del hito y la del hito desde plantilla son la misma: `AltaDeHito` es este mismo

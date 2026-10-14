@@ -32,7 +32,7 @@ import { analizarScope, interpretarScope, scopeRuta } from './scope.js'
 import { supervisionDelEquipo } from './supervision.js'
 import { driveDeEntidadRuta, driveRuta, sesionDirectaRuta } from './drive.js'
 import { escribirAjustesDelOrbePortal, opcionDelOrbePortal, orbePortalRuta } from './orbe-portal.js'
-import { altaDeTareasDelEspacio, crearTareaDelPortal, puedeCrearEnAlgunProyecto } from './tareas-del-portal.js'
+import { altaDeTareasDelEspacio, crearTareaDelPortal, editarTareaDelPortal, puedeCrearEnAlgunProyecto } from './tareas-del-portal.js'
 import {
   ADMINS_DE_CLIENTE, AREAS, ARCHIVOS, CAMPOS_PERSONALIZADOS, CHECKLIST, CLIENTES, COMENTARIOS, CRONOMETROS,
   CLIENTES_CREAN_TAREAS, CLIENTES_SIN_VENCIMIENTO, DEPARTAMENTOS, EMPRESAS_DEL_GRUPO, ENTRADA_DE_CLIENTE, ESPACIOS, ESTADOS_ESPACIO, ESTADOS_PROCESO,
@@ -6751,7 +6751,9 @@ async function resolverRuta (metodo, segmentos, parametros, token, cuerpo, petic
     // La otra escritura enumerada: crear una Tarea en un Proyecto. Si el cliente no la tiene
     // encendida la ruta contesta 404, como cualquier otra que no existe para el contacto.
     const escribeTarea = metodo === 'POST' && resto[0] === 'projects' && resto[2] === 'tasks' && resto.length === 3
-    if (metodo !== 'GET' && !escribeTicket && !escribeTarea) throw new ErrorApi(404, 'not_found', 'Recurso desconocido.')
+    // Y editar, cancelar o reabrir una Tarea ya creada: `PATCH /portal/tasks/{id}`.
+    const editaTarea = metodo === 'PATCH' && resto[0] === 'tasks' && resto.length === 2
+    if (metodo !== 'GET' && !escribeTicket && !escribeTarea && !editaTarea) throw new ErrorApi(404, 'not_found', 'Recurso desconocido.')
 
     const contacto = sesion.resolverContacto(token, 'acceso')
     const [seccion] = resto
@@ -6774,6 +6776,20 @@ async function resolverRuta (metodo, segmentos, parametros, token, cuerpo, petic
           locale: 'es'
         })
       }
+    }
+
+    if (editaTarea) {
+      const { proceso, espacio } = editarTareaDelPortal({
+        contacto,
+        tareaId: Number(resto[1]),
+        proyectos: proyectosConPestanias,
+        datos: await cuerpo(),
+        procesos: PROCESOS,
+        hoy: new Date().toISOString().slice(0, 10)
+      })
+      const compartido = COMPARTIDO_CON_EL_CLIENTE[espacio.id] ?? COMPARTIDO_CON_EL_CLIENTE.defecto
+
+      return { estado: 200, cuerpo: conDatos(presentarFichaPortal(proceso, compartido)) }
     }
 
     if (seccion === 'company') {
@@ -10326,6 +10342,7 @@ function presentarFichaPortal (proceso, compartido) {
     patente: proceso.patente,
     name: proceso.name,
     description: proceso.description ?? null,
+    description_html: proceso.description_html ?? null,
     status: proceso.status,
     priority: proceso.priority,
     start_date: proceso.start_date ?? null,

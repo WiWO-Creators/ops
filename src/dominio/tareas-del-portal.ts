@@ -1,9 +1,11 @@
 import type { AltaDeTareas } from '../datos/portal.ts'
-import { aFechaDelContrato } from '../lib/fechas.ts'
+import { aFechaDelContrato, hoyLocal } from '../lib/fechas.ts'
+import { ESTADO_CANCELADA, estaCerrada } from '../componentes/proyecto/tareas.ts'
 import { GLOSARIO } from './glosario.ts'
+import { htmlVacio } from './texto-rico.ts'
 
 /**
- * Alta de una Tarea desde el portal del cliente.
+ * Alta y edicion de una Tarea desde el portal del cliente.
  *
  * Vive fuera del formulario porque es una decision y no un dibujo: cuando el boton de crear se puede
  * pulsar, que se manda y que se le dice a la persona cuando la API rechaza. La API decide siempre
@@ -34,7 +36,7 @@ export const PRIORIDADES_DE_TAREA: ReadonlyArray<{ id: number, etiqueta: string 
 /** Lo que el formulario tiene en la mano cuando la persona pulsa «Crear». */
 export interface BorradorDeTarea {
   nombre: string
-  /** Texto plano: la API no recibe HTML en el alta del portal. */
+  /** HTML del editor: el alta lo manda con `format: 'html'`. Vacio si no se escribio nada. */
   descripcion: string
   /** `YYYY-MM-DD`; a medio escribir contiene el texto crudo, que no pasa el formato. */
   vencimiento: string
@@ -47,6 +49,8 @@ export interface BorradorDeTarea {
 export interface CuerpoDeTarea {
   name: string
   description?: string
+  /** Presente siempre que viaja `description`: la API la lee como HTML del editor. */
+  format?: 'html'
   due_date?: string
   priority?: number
   assignees?: number[]
@@ -159,7 +163,10 @@ export function cuerpoDeTarea (borrador: BorradorDeTarea, alta: AltaDeTareas): C
   const disponibles = new Set(alta.asignables.map((persona) => persona.id))
   const asignados = borrador.asignados.filter((id) => disponibles.has(id))
 
-  if (descripcion !== '') cuerpo.description = descripcion
+  if (descripcion !== '' && !htmlVacio(descripcion)) {
+    cuerpo.description = descripcion
+    cuerpo.format = 'html'
+  }
   if (vencimiento !== '') cuerpo.due_date = vencimiento
   if (borrador.prioridad !== SIN_PRIORIDAD) cuerpo.priority = Number(borrador.prioridad)
   if (asignados.length > 0) cuerpo.assignees = asignados
@@ -258,4 +265,266 @@ function textoDeTope (segundos: number | null): string {
   const minutos = Math.ceil(segundos / 60)
 
   return `${que} Podrás volver a intentarlo en ${minutos === 1 ? '1 minuto' : `${minutos} minutos`}.`
+}
+
+// =================================================================================================
+// EDICION, CANCELACION Y REAPERTURA
+// =================================================================================================
+
+/**
+ * Edicion de una Tarea ya creada: `PATCH /portal/tasks/{id}`.
+ *
+ * El contacto la tiene cuando el Proyecto publica `alta_de_tareas` (mismo interruptor y permiso que
+ * el alta). Puede cambiar nombre, descripcion, vencimiento y prioridad mientras la Tarea siga
+ * abierta, **cancelarla** y **reabrir** una Cancelada. Cancelar no elimina: es un estado final que
+ * el equipo o el propio cliente pueden revertir, y la Tarea sigue en el listado con su historial.
+ *
+ * La API decide siempre; lo de aca es la cortesia de avisar antes del viaje y de traducir los
+ * rechazos al campo o a la accion que los causo.
+ */
+
+/** El estado al que vuelve una Tarea Cancelada que el contacto reabre: «Por iniciar». */
+export const ESTADO_AL_REABRIR = 1
+
+/** Lo que el formulario de edicion tiene en la mano. Los mismos campos que el alta, sin asignados. */
+export interface BorradorDeEdicion {
+  nombre: string
+  /** HTML del editor. */
+  descripcion: string
+  /** `YYYY-MM-DD`; a medio escribir contiene el texto crudo, que no pasa el formato. */
+  vencimiento: string
+  /** El id de la prioridad, en texto: es lo que entrega el selector. */
+  prioridad: string
+}
+
+/** Cuerpo de `PATCH /portal/tasks/{id}` con campos: solo las claves que cambiaron. */
+export interface CuerpoDeEdicion {
+  name?: string
+  description?: string | null
+  format?: 'html'
+  due_date?: string | null
+  priority?: number
+}
+
+/** Cuerpo de `PATCH /portal/tasks/{id}` que cancela (`11`) o reabre (`1`). */
+export interface CuerpoDeEstado {
+  status: typeof ESTADO_CANCELADA | typeof ESTADO_AL_REABRIR
+}
+
+/** El cuerpo que cancela la Tarea: estado 11, final y reabrible. */
+export const CUERPO_DE_CANCELAR: CuerpoDeEstado = { status: ESTADO_CANCELADA }
+
+/** El cuerpo que reabre una Tarea Cancelada: vuelve a «Por iniciar». */
+export const CUERPO_DE_REABRIR: CuerpoDeEstado = { status: ESTADO_AL_REABRIR }
+
+/** Los campos del formulario de edicion que pueden llevar un error al lado. */
+export type CampoDeEdicion = 'name' | 'description' | 'due_date' | 'priority'
+
+/** Mensaje por campo del formulario de edicion. */
+export type ErroresDeEdicion = Partial<Record<CampoDeEdicion, string>>
+
+/** Lo que el contacto quiere hacer con la Tarea: decide el texto de cada rechazo. */
+export type AccionSobreTarea = 'editar' | 'cancelar' | 'reabrir'
+
+const CAMPOS_DE_EDICION: ReadonlySet<string> = new Set<CampoDeEdicion>(['name', 'description', 'due_date', 'priority'])
+
+/**
+ * Si los campos de una Tarea en este estado se pueden editar: solo mientras sigue abierta.
+ *
+ * @param estado el `status` de la Tarea
+ * @returns `false` para Completo, Facturado y Cancelada: la API contesta `409`
+ */
+export function sePuedeEditar (estado: number): boolean {
+  return !estaCerrada(estado)
+}
+
+/**
+ * Si el contacto puede cancelar la Tarea: la que sigue abierta.
+ *
+ * @param estado el `status` de la Tarea
+ * @returns `false` para una ya cerrada: la API contesta `409`
+ */
+export function sePuedeCancelar (estado: number): boolean {
+  return !estaCerrada(estado)
+}
+
+/**
+ * Si el contacto puede reabrir la Tarea: solo la Cancelada. Una completada la reabre el equipo.
+ *
+ * @param estado el `status` de la Tarea
+ * @returns `true` solo para Cancelada
+ */
+export function sePuedeReabrir (estado: number): boolean {
+  return estado === ESTADO_CANCELADA
+}
+
+/** La Tarea tal como la trae la ficha: lo minimo que el formulario necesita para sembrarse. */
+export interface TareaEditable {
+  name: string
+  description?: string | null
+  description_html?: string | null
+  due_date: string | null
+  priority: number
+}
+
+/**
+ * Siembra el formulario de edicion con lo que la ficha trae.
+ *
+ * @param tarea la ficha de la Tarea
+ * @returns el borrador inicial; la descripcion es el HTML guardado o, sin el, el texto plano
+ */
+export function borradorDeEdicion (tarea: TareaEditable): BorradorDeEdicion {
+  const html = tarea.description_html
+
+  return {
+    nombre: tarea.name,
+    descripcion: typeof html === 'string' && !htmlVacio(html) ? html : (tarea.description ?? ''),
+    vencimiento: tarea.due_date ?? '',
+    prioridad: String(tarea.priority)
+  }
+}
+
+/**
+ * Los errores que se pueden detectar sin viajar al editar.
+ *
+ * Replica a la API: el vencimiento solo se exige si el cliente lo pide y la Tarea tenia uno que se
+ * esta quitando, y una fecha anterior a hoy solo se rechaza si cambio.
+ *
+ * @param actual lo tipeado
+ * @param inicial lo que la ficha traia al abrir el formulario
+ * @param alta la capacidad del Proyecto (`alta_de_tareas`)
+ * @param hoy dia de referencia `YYYY-MM-DD`, inyectable para probar
+ * @returns un mensaje por campo con problema; vacio si se puede enviar
+ */
+export function erroresDeEdicion (
+  actual: BorradorDeEdicion,
+  inicial: BorradorDeEdicion,
+  alta: AltaDeTareas,
+  hoy: string = hoyLocal()
+): ErroresDeEdicion {
+  const errores: ErroresDeEdicion = {}
+  const nombre = actual.nombre.trim()
+  const vencimiento = actual.vencimiento.trim()
+
+  if (nombre === '') errores.name = `Escribe un nombre para la ${TAREA}.`
+  else if (nombre.length > LARGO_NOMBRE_TAREA) errores.name = `El nombre admite hasta ${LARGO_NOMBRE_TAREA} caracteres.`
+
+  if (vencimiento === inicial.vencimiento.trim()) return errores
+
+  if (vencimiento === '') {
+    if (alta.vencimiento_requerido) errores.due_date = MOTIVOS.requerido_por_cliente
+  } else if (!fechaValida(vencimiento)) {
+    errores.due_date = 'Escribe la fecha como día/mes/año, por ejemplo 31/12/2026.'
+  } else if (vencimiento < hoy) {
+    errores.due_date = MOTIVOS.anterior_al_inicio
+  }
+
+  return errores
+}
+
+/**
+ * El cuerpo del `PATCH` con lo que cambio, y nada mas.
+ *
+ * Las claves intactas **no viajan**: la API valida cada clave que recibe (una fecha pasada, por
+ * ejemplo, solo se rechaza si cambio) y un parche con todo reenviaria validaciones que no vienen al
+ * caso. La descripcion viaja como HTML con `format`, y vacia viaja como `null` para limpiarla.
+ *
+ * @param actual lo tipeado
+ * @param inicial lo que la ficha traia al abrir el formulario, con la descripcion ya normalizada
+ *        por el editor (ver `onListo` de `EditorRico`)
+ * @returns el cuerpo; vacio si no hay nada que guardar
+ */
+export function cuerpoDeEdicion (actual: BorradorDeEdicion, inicial: BorradorDeEdicion): CuerpoDeEdicion {
+  const cuerpo: CuerpoDeEdicion = {}
+  const nombre = actual.nombre.trim()
+  const descripcion = actual.descripcion.trim()
+  const vencimiento = actual.vencimiento.trim()
+
+  if (nombre !== inicial.nombre.trim()) cuerpo.name = nombre
+
+  if (descripcion !== inicial.descripcion.trim()) {
+    cuerpo.description = htmlVacio(descripcion) ? null : descripcion
+    cuerpo.format = 'html'
+  }
+
+  if (vencimiento !== inicial.vencimiento.trim()) cuerpo.due_date = vencimiento === '' ? null : vencimiento
+  if (actual.prioridad !== inicial.prioridad) cuerpo.priority = Number(actual.prioridad)
+
+  return cuerpo
+}
+
+/**
+ * Los errores por campo de un `422` de la edicion, ya en palabras.
+ *
+ * @param detalles los `details` del sobre de error
+ * @returns un mensaje por campo del formulario de edicion
+ */
+export function erroresDeLaApiDeEdicion (detalles: Record<string, unknown> | undefined): ErroresDeEdicion {
+  const errores: ErroresDeEdicion = {}
+
+  for (const [campo, motivos] of Object.entries(detalles ?? {})) {
+    if (!CAMPOS_DE_EDICION.has(campo) || !Array.isArray(motivos)) continue
+
+    const primero = motivos.find((motivo): motivo is string => typeof motivo === 'string')
+
+    if (primero !== undefined) errores[campo as CampoDeEdicion] = MOTIVOS[primero] ?? MOTIVOS.no_valido
+  }
+
+  return errores
+}
+
+/** El rechazo de una edicion explicado: un texto general y los campos con error. */
+export interface FalloDeEdicionDeTarea {
+  /** Va junto a las acciones; `null` cuando los errores por campo ya lo dicen todo. */
+  texto: string | null
+  campos: ErroresDeEdicion
+  /** `true` si lo que vio la persona ya no es cierto y la ficha hay que volver a pedirla. */
+  recargar: boolean
+}
+
+/**
+ * Explica un rechazo de `PATCH /portal/tasks/{id}` segun su codigo de estado y lo que se intentaba.
+ *
+ * El `404` no distingue «la funcion se apago» de «la Tarea ya no es tuya», como la API. El `409`
+ * dice que la Tarea cambio de estado mientras la ficha estaba abierta, y se explica por accion.
+ *
+ * @param rechazo lo que devolvio `escribirEnBff`
+ * @param accion lo que la persona intentaba hacer
+ * @returns el texto, los campos con error y si hay que recargar la ficha
+ */
+export function falloDeEdicionDeTarea (rechazo: RechazoDeAltaDeTarea, accion: AccionSobreTarea): FalloDeEdicionDeTarea {
+  const tareas = GLOSARIO.proceso.plural.toLowerCase()
+
+  switch (rechazo.estado) {
+    case 404:
+      return { texto: `Ya no puedes modificar esta ${TAREA}. Recarga la página para ver qué cambió.`, campos: {}, recargar: false }
+    case 403:
+      return { texto: `Este ${PROYECTO} no comparte sus ${tareas} contigo.`, campos: {}, recargar: false }
+    case 409:
+      return { texto: textoDeConflicto(accion), campos: {}, recargar: true }
+    case 422: {
+      const campos = erroresDeLaApiDeEdicion(rechazo.detalles)
+
+      return { texto: Object.keys(campos).length > 0 ? null : rechazo.mensaje, campos, recargar: false }
+    }
+    default:
+      return { texto: rechazo.mensaje, campos: {}, recargar: false }
+  }
+}
+
+/**
+ * La frase de un `409` segun lo que se intentaba.
+ *
+ * @param accion lo que la persona intentaba hacer
+ * @returns el texto para la persona
+ */
+function textoDeConflicto (accion: AccionSobreTarea): string {
+  switch (accion) {
+    case 'cancelar':
+      return `Esta ${TAREA} ya está cerrada, así que no se puede cancelar.`
+    case 'reabrir':
+      return `Esta ${TAREA} ya no está cancelada, así que no hay nada que reabrir.`
+    default:
+      return `Esta ${TAREA} cambió de estado y ya no se puede editar. Se actualizó con lo último.`
+  }
 }

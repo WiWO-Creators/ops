@@ -12,6 +12,7 @@ import { pedirSobre } from '@/datos/cliente'
 import { nombrar } from '@/dominio/glosario'
 import { hoyLocal } from '@/lib/fechas'
 import { ModalTarea } from './ModalTarea'
+import type { AltaDeTareas } from '@/datos/portal'
 import { AgendaEntregas, ColumnasDeDias, RejillaMes } from './RejillaEntregas'
 import { FILTRO_CERRADAS } from './tareas'
 import {
@@ -110,6 +111,12 @@ interface PropsPanelCalendario {
   fuente: FuenteDeProyecto
   /** Capacidades sobre `tasks`, de `permissions` de `/me`. Mandan sobre los botones del detalle. */
   capacidades: Capacidad[]
+  /**
+   * Solo en el portal: lo que el contacto puede hacer con las Tareas del Proyecto (`alta_de_tareas`).
+   * Con ello el detalle ofrece editar, cancelar y reabrir. Ausente o `null`, el detalle queda de
+   * solo lectura.
+   */
+  altaDeTareas?: AltaDeTareas | null
 }
 
 export function PanelCalendario (props: PropsPanelCalendario): ReactElement {
@@ -121,7 +128,7 @@ export function PanelCalendario (props: PropsPanelCalendario): ReactElement {
   )
 }
 
-function CalendarioDelEspacio ({ proyectoId, fuente, capacidades }: PropsPanelCalendario): ReactElement {
+function CalendarioDelEspacio ({ proyectoId, fuente, capacidades, altaDeTareas }: PropsPanelCalendario): ReactElement {
   const router = useRouter()
   const params = useSearchParams()
 
@@ -383,6 +390,7 @@ function CalendarioDelEspacio ({ proyectoId, fuente, capacidades }: PropsPanelCa
         puedeEditar={capacidades.includes('edit')}
         puedeBorrar={capacidades.includes('delete')}
         puedeCrear={capacidades.includes('create')}
+        altaDeTareas={altaDeTareas}
       />
     </section>
   )

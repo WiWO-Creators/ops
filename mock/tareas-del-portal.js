@@ -6,6 +6,11 @@
  * reglas propias, y `servidor.js` solo lo cablea. Lo que necesita de alla —el alta de un Proceso y el
  * presentador del portal— le llega por parametro, porque `servidor.js` es el que arranca el mock.
  *
+ * Tambien la edicion (`PATCH /portal/tasks/{id}`): nombre, descripcion, vencimiento, prioridad, y de
+ * estado solo cancelar (11) o reabrir una Cancelada (1). El mock simula lo basico del contrato; no
+ * replica el 422 `requerido_por_cliente` de un cliente que exige vencimiento por otra via que no sea
+ * `CLIENTES_SIN_VENCIMIENTO`, ni la deduplicacion de la API real.
+ *
  * Lo que se replica de la API real, y por que:
  *   - **El interruptor es por cliente y nace apagado** (`CLIENTES_CREAN_TAREAS`). Apagado, la funcion
  *     no existe para el contacto: 404, igual que un Proyecto ajeno, para no confirmar nada.
@@ -26,6 +31,7 @@
 
 import { CLIENTES_CREAN_TAREAS, CLIENTES_SIN_VENCIMIENTO, PRIORIDADES, PROYECTOS_SIN_EQUIPO_VISIBLE, STAFF } from './datos.js'
 import { ErrorApi } from './consulta.js'
+import { estaAbierta, ESTADO_CANCELADA } from './estados.js'
 
 /** Tareas por contacto y por hora antes del 429, de la misma variable de entorno que la API. */
 export function topePorHora () {
@@ -42,7 +48,13 @@ const MINUTO_MS = 60 * 1000
 const LARGO_NOMBRE = 191
 
 /** Campos que el contacto puede mandar. Todo lo demas es 422. */
-const CAMPOS_ACEPTADOS = new Set(['name', 'description', 'due_date', 'priority', 'assignees'])
+const CAMPOS_ACEPTADOS = new Set(['name', 'description', 'format', 'due_date', 'priority', 'assignees'])
+
+/** Campos que el contacto puede mandar al editar una Tarea ya creada. */
+const CAMPOS_EDITABLES = new Set(['name', 'description', 'format', 'due_date', 'priority', 'status'])
+
+/** El estado al que vuelve una Tarea Cancelada que el contacto reabre: «Por iniciar». */
+const ESTADO_AL_REABRIR = 1
 
 /** Marcas de las Tareas que cada contacto creo, para el tope por hora. */
 const ALTAS = new Map()
@@ -137,6 +149,7 @@ export function validarAlta (datos, alta) {
   else if ([...nombre].length > LARGO_NOMBRE) detalles.name = ['demasiado_largo']
 
   if (entrada.description != null && typeof entrada.description !== 'string') detalles.description = ['no_valido']
+  if (entrada.format != null && !['html', 'text'].includes(entrada.format)) detalles.format = ['no_valido']
 
   const vence = entrada.due_date
   const hayFecha = vence !== undefined && vence !== null && vence !== ''
@@ -171,11 +184,159 @@ export function validarAlta (datos, alta) {
 
   return {
     name: nombre,
-    description: typeof entrada.description === 'string' && entrada.description.trim() !== '' ? entrada.description.trim() : null,
+    description: typeof entrada.description === 'string' && entrada.description.trim() !== ''
+      ? (entrada.format === 'html' ? textoDeHtml(entrada.description) : entrada.description.trim())
+      : null,
+    description_html: entrada.format === 'html' && typeof entrada.description === 'string' && entrada.description.trim() !== ''
+      ? entrada.description.trim()
+      : null,
     due_date: hayFecha ? vence : null,
     priority: prioridad,
     assignees: asignados
   }
+}
+
+/**
+ * Quita las etiquetas de un HTML para guardar el texto plano al lado, como hace la API real.
+ *
+ * @param {string} html
+ * @returns {string}
+ */
+function textoDeHtml (html) {
+  return html.replace(/<\/(p|li|h[1-6])>/gi, '\n').replace(/<br\s*\/?>/gi, '\n').replace(/<[^>]+>/g, '').trim()
+}
+
+/**
+ * Valida el cuerpo de una edicion contra el contrato y la Tarea, sin escribir nada.
+ *
+ * @param {unknown} datos el cuerpo tal como llego
+ * @param {{ vencimiento_requerido: boolean }} alta la capacidad del Proyecto
+ * @param {{ status: number, due_date: string | null }} proceso la Tarea
+ * @param {string} hoy `YYYY-MM-DD`
+ * @returns {object} los cambios normalizados
+ * @throws {ErrorApi} 422 por campo, o 409 si la Tarea esta cerrada
+ */
+export function validarEdicion (datos, alta, proceso, hoy) {
+  const entrada = datos !== null && typeof datos === 'object' && !Array.isArray(datos) ? datos : {}
+  const detalles = {}
+  const claves = Object.keys(entrada)
+
+  for (const clave of claves) {
+    if (!CAMPOS_EDITABLES.has(clave)) detalles[clave] = ['no_editable']
+  }
+
+  if (claves.length === 0) detalles.body = ['requerido']
+
+  const cambios = {}
+
+  if (Object.hasOwn(entrada, 'name')) {
+    const nombre = typeof entrada.name === 'string' ? entrada.name.trim() : ''
+
+    if (nombre === '') detalles.name = ['requerido']
+    else if ([...nombre].length > LARGO_NOMBRE) detalles.name = ['demasiado_largo']
+    else cambios.name = nombre
+  }
+
+  if (Object.hasOwn(entrada, 'description')) {
+    if (entrada.description != null && typeof entrada.description !== 'string') {
+      detalles.description = ['no_valido']
+    } else {
+      const texto = typeof entrada.description === 'string' ? entrada.description.trim() : ''
+      const html = entrada.format === 'html'
+
+      cambios.description = texto === '' ? null : html ? textoDeHtml(texto) : texto
+      cambios.description_html = texto === '' || !html ? null : texto
+    }
+  }
+
+  if (entrada.format != null && !['html', 'text'].includes(entrada.format)) detalles.format = ['no_valido']
+
+  if (Object.hasOwn(entrada, 'due_date')) {
+    const vence = entrada.due_date
+
+    if (vence === null || vence === '') {
+      if (alta.vencimiento_requerido) detalles.due_date = ['requerido_por_cliente']
+      else cambios.due_date = null
+    } else if (typeof vence !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(vence) || Number.isNaN(Date.parse(vence))) {
+      detalles.due_date = ['formato_invalido']
+    } else if (vence !== proceso.due_date && vence < hoy) {
+      detalles.due_date = ['anterior_al_inicio']
+    } else {
+      cambios.due_date = vence
+    }
+  }
+
+  if (Object.hasOwn(entrada, 'priority')) {
+    const prioridad = Number(entrada.priority)
+
+    if (!PRIORIDADES.some((p) => p.id === prioridad)) detalles.priority = ['no_valido']
+    else cambios.priority = prioridad
+  }
+
+  if (Object.hasOwn(entrada, 'status')) {
+    const estado = Number(entrada.status)
+
+    if (![ESTADO_CANCELADA, ESTADO_AL_REABRIR].includes(estado)) detalles.status = ['no_valido']
+    else cambios.status = estado
+  }
+
+  if (Object.keys(detalles).length > 0) {
+    throw new ErrorApi(422, 'validation_failed', 'Hay campos que no se pueden guardar.', detalles)
+  }
+
+  return cambios
+}
+
+/**
+ * Edita, cancela o reabre la Tarea de un Proyecto del contacto: `PATCH /portal/tasks/{id}`.
+ *
+ * @param {object} peticion
+ * @param {object} peticion.contacto el contacto de la sesion
+ * @param {number} peticion.tareaId id de la Tarea
+ * @param {(contacto: object) => { espacio: { id: number }, pestanias: string[] }[]} peticion.proyectos sus Proyectos con las pestañas que comparten
+ * @param {unknown} peticion.datos el cuerpo del PATCH
+ * @param {object[]} peticion.procesos todas las Tareas del mock
+ * @param {string} peticion.hoy `YYYY-MM-DD`
+ * @returns {{ proceso: object, espacio: object }} la Tarea ya editada y su Proyecto
+ * @throws {ErrorApi} 404 (funcion apagada o Tarea ajena), 403 (sin pestaña), 409 o 422
+ */
+export function editarTareaDelPortal ({ contacto, tareaId, proyectos, datos, procesos, hoy }) {
+  if (!clienteCreaTareas(contacto)) throw new ErrorApi(404, 'not_found', 'Recurso desconocido.')
+
+  const proceso = procesos.find((p) => p.id === tareaId && p.rel_type === 'project')
+  const suyo = proceso === undefined ? undefined : proyectos(contacto).find(({ espacio }) => espacio.id === proceso.rel_id)
+
+  if (proceso === undefined || suyo === undefined) throw new ErrorApi(404, 'not_found', 'Recurso desconocido.')
+  if (!suyo.pestanias.includes('tasks')) throw new ErrorApi(403, 'forbidden', 'Este proyecto no comparte "tasks".')
+
+  const alta = altaDeTareasDelEspacio(contacto, suyo.espacio, suyo.pestanias)
+
+  if (alta === null) throw new ErrorApi(404, 'not_found', 'Recurso desconocido.')
+
+  const cambios = validarEdicion(datos, alta, proceso, hoy)
+  const { status: estado, ...campos } = cambios
+
+  if (estado === ESTADO_CANCELADA && !estaAbierta(proceso.status)) {
+    throw new ErrorApi(409, 'conflict', 'Esta tarea ya está cerrada: no se puede cancelar.')
+  }
+
+  if (estado === ESTADO_AL_REABRIR && proceso.status !== ESTADO_CANCELADA) {
+    throw new ErrorApi(409, 'conflict', 'Solo se puede reabrir una tarea cancelada.')
+  }
+
+  const estadoFinal = estado ?? proceso.status
+
+  if (Object.keys(campos).length > 0 && !estaAbierta(estadoFinal)) {
+    throw new ErrorApi(409, 'conflict', 'Esta tarea está cerrada: reábrela antes de editarla.')
+  }
+
+  Object.assign(proceso, campos)
+  if (estado !== undefined) {
+    proceso.status = estado
+    proceso.date_finished = null
+  }
+
+  return { proceso, espacio: suyo.espacio }
 }
 
 /**
@@ -244,6 +405,7 @@ export function crearTareaDelPortal ({ contacto, espacio, pestanias, datos, deps
   // `crearProceso` firma como staff; la Tarea de un contacto no tiene `created_by` ni `assigned_by`
   // de equipo, y es la ficha del equipo la que lee `created_by_contact`.
   proceso.added_from = contacto.id
+  proceso.description_html = normalizada.description_html
   proceso.created_by = null
   proceso.created_by_contact = { id: contacto.id, nombre: contacto.full_name }
   proceso.assignees = proceso.assignees.map((asignado) => ({ ...asignado, assigned_by: null }))

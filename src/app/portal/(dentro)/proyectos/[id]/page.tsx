@@ -257,13 +257,14 @@ function contenidoDePestania (
             capacidades={[]}
             conIa={false}
             camposDeTareas={proyecto.campos_tareas ?? []}
+            altaDeTareas={proyecto.alta_de_tareas}
           />
         </div>
       )
     case 'calendar':
-      return <PanelCalendario proyectoId={proyecto.id} fuente={fuente} capacidades={[]} />
+      return <PanelCalendario proyectoId={proyecto.id} fuente={fuente} capacidades={[]} altaDeTareas={proyecto.alta_de_tareas} />
     case 'milestones':
-      return <PanelHitos proyecto={proyecto} fuente={fuente} capacidades={[]} />
+      return <PanelHitos proyecto={proyecto} fuente={fuente} capacidades={[]} altaDeTareas={proyecto.alta_de_tareas} />
     case 'timesheets':
       return <PanelTiempos proyectoId={proyecto.id} fuente={fuente} capacidades={[]} />
     case 'gantt':

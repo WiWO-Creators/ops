@@ -15,6 +15,12 @@ import { resolverInsignia } from '../componentes/datos/tabla.ts'
  *
  * **El color lo administra Perfex y viaja en el lookup**: no hay mapa de colores en el frontend, y
  * no puede haberlo — los estados se crean y se repintan desde el panel sin tocar este codigo.
+ *
+ * **En el portal el estado se muestra tal cual el catalogo.** El contacto ve «Standby» (10) y
+ * «Cancelada» (11) con su nombre y su color reales, sin traducirlos a otro estado. Para sus contadores
+ * la Cancelada cuenta como cerrada —fuera de «abiertas» y de «esperando tu respuesta», que sigue
+ * siendo solo el estado 2— y el Standby como abierta sin vencimiento: nunca figura como atrasada ni
+ * como proxima a vencer. Esas cuentas las hace la API; el frontend solo pinta lo que llega.
  */
 
 /**

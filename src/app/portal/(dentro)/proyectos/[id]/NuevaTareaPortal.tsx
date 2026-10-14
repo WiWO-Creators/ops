@@ -8,7 +8,8 @@ import { AvisoEnLinea } from '@/componentes/estado/Estados'
 import { useAviso } from '@/componentes/estado/useAviso'
 import { Boton } from '@/componentes/formularios/Boton'
 import { Campo } from '@/componentes/formularios/Campo'
-import { AreaTexto, Entrada } from '@/componentes/formularios/Entrada'
+import { EditorRico } from '@/componentes/formularios/EditorRico'
+import { Entrada } from '@/componentes/formularios/Entrada'
 import { EntradaFecha } from '@/componentes/formularios/EntradaFecha'
 import {
   ContenidoSelector, DisparadorSelector, Opcion, Selector
@@ -36,7 +37,8 @@ import {
  *
  * === LO QUE SE PIDE, Y LO QUE NO ===
  *
- * Nombre, descripcion en texto plano, fecha de vencimiento, prioridad y asignados. El vencimiento es
+ * Nombre, descripcion con formato (el editor rico, igual que `NuevaSolicitud`; viaja como HTML con
+ * `format: 'html'` y la API lo sanea), fecha de vencimiento, prioridad y asignados. El vencimiento es
  * obligatorio solo si el cliente lo exige (`vencimiento_requerido`); los asignados se eligen entre el
  * equipo del Proyecto que la API publica en `asignables`, y sin esa lista no hay selector: el Proyecto
  * no muestra su equipo al cliente y mandar `assignees` seria un `422`. Estado, etiquetas, tarifa y
@@ -64,6 +66,8 @@ export function NuevaTareaPortal ({ proyectoId, alta }: { proyectoId: number, al
   // Segundos que pidio esperar un 429; mientras no es `null` el envio queda bloqueado.
   const [espera, setEspera] = useState<number | null>(null)
   const enviandoAhora = useRef(false)
+  // El editor no es controlado: se remonta con otra `key` para vaciarlo al reiniciar el formulario.
+  const [versionDeDescripcion, setVersionDeDescripcion] = useState(0)
   // Clave del alta en curso: la misma mientras lo escrito no cambie, para que repetir tras una
   // respuesta perdida no cree una segunda Tarea.
   const claveAlta = useRef<{ huella: string, clave: string } | null>(null)
@@ -99,6 +103,7 @@ export function NuevaTareaPortal ({ proyectoId, alta }: { proyectoId: number, al
   /** Deja el formulario como recien abierto. */
   function reiniciar (): void {
     setBorrador(BORRADOR_VACIO_DE_TAREA)
+    setVersionDeDescripcion((n) => n + 1)
     setIntentado(false)
     setRechazos({})
     setFallo(null)
@@ -187,12 +192,15 @@ export function NuevaTareaPortal ({ proyectoId, alta }: { proyectoId: number, al
 
           <Campo etiqueta="Descripción" error={errores.description}>
             {(props) => (
-              <AreaTexto
+              <EditorRico
                 {...props}
-                value={borrador.descripcion}
-                rows={4}
+                key={versionDeDescripcion}
+                etiqueta="Descripción"
+                filasMinimas={4}
+                valorInicial={borrador.descripcion}
+                deshabilitado={enviando}
                 placeholder="Detalles que ayuden al equipo (opcional)"
-                onChange={(evento) => { cambiar({ descripcion: evento.target.value }, ['description']) }}
+                onCambio={(html) => { cambiar({ descripcion: html }, ['description']) }}
               />
             )}
           </Campo>
