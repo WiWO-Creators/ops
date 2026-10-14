@@ -9,8 +9,10 @@ import { Logo } from '@/componentes/estructura/Logo'
 import { Boton, boton } from '@/componentes/formularios/Boton'
 import { Campo } from '@/componentes/formularios/Campo'
 import { Entrada } from '@/componentes/formularios/Entrada'
+import { PasoCodigoPortal, type DesafioDelPortal } from '@/componentes/portal/PasoCodigoPortal'
 import { PanelVidrio } from '@/componentes/superposiciones/PanelVidrio'
 import { destinoDeEntrada } from '@/dominio/portal'
+import { avisoDeCodigoNoEnviado } from '@/dominio/segundo-factor-portal'
 import { conLimite, TIEMPO_ESCRITURA_MS } from '@/datos/red'
 
 interface RespuestaEntrar {
@@ -23,13 +25,21 @@ interface RespuestaEntrar {
    * Viene resuelto del servidor y aun asi pasa por `destinoDeEntrada()` antes de navegar.
    */
   destino?: unknown
+  /** `true` cuando el cliente del contacto exige el codigo por correo: falta el segundo paso. */
+  segundoFactor?: boolean
+  pista?: string
+  venceEn?: number
+  espera?: number
+  reenvios?: number
+  entrega?: string
 }
 
 /**
  * Acceso al portal del cliente.
  *
- * Un solo paso: los contactos no tienen segundo factor en Perfex, asi que no hay pantalla de codigo
- * que espejar. El `portal: true` del cuerpo es lo que hace que `/api/sesion` llame a
+ * Un paso, o dos si el cliente del contacto tiene encendido el segundo factor por correo (se
+ * enciende por cliente desde su ficha y nace apagado): despues de la contraseña, `PasoCodigoPortal`
+ * pide el codigo de 6 digitos. El `portal: true` del cuerpo es lo que hace que `/api/sesion` llame a
  * `/auth/portal/login` y escriba la cookie del contacto en vez de la del equipo.
  *
  * El orbe es el indicador de progreso, igual que en el acceso del panel: quieto hasta que se envia,
@@ -39,6 +49,7 @@ export function FormularioEntrarPortal ({ aviso = null }: { aviso?: string | nul
   const router = useRouter()
   const [error, establecerError] = useState<string | null>(null)
   const [enviando, establecerEnviando] = useState(false)
+  const [desafio, establecerDesafio] = useState<DesafioDelPortal | null>(null)
   const [estadoOrbe, establecerEstadoOrbe] = useState<EstadoOrbe | undefined>(undefined)
   const temporizadorOrbe = useRef<ReturnType<typeof setTimeout> | null>(null)
 
@@ -51,6 +62,19 @@ export function FormularioEntrarPortal ({ aviso = null }: { aviso?: string | nul
 
     if (temporizadorOrbe.current !== null) clearTimeout(temporizadorOrbe.current)
     temporizadorOrbe.current = setTimeout(() => { establecerEstadoOrbe(undefined) }, 1400)
+  }
+
+  /** La sesion quedo abierta, venga de la contraseña sola o del codigo. */
+  function entrar (destino: unknown) {
+    establecerEstadoOrbe('success')
+    router.replace(destinoDeEntrada(destino))
+    router.refresh()
+  }
+
+  /** Regreso al primer paso; con `motivo` cuando la verificacion murio y hay que explicarlo. */
+  function volverALaClave (motivo?: string) {
+    establecerDesafio(null)
+    establecerError(motivo ?? null)
   }
 
   async function enviar (evento: React.FormEvent<HTMLFormElement>): Promise<void> {
@@ -79,9 +103,21 @@ export function FormularioEntrarPortal ({ aviso = null }: { aviso?: string | nul
         return
       }
 
-      establecerEstadoOrbe('success')
-      router.replace(destinoDeEntrada(cuerpo.destino))
-      router.refresh()
+      if (cuerpo.segundoFactor === true) {
+        establecerDesafio({
+          pista: cuerpo.pista ?? '',
+          venceEn: cuerpo.venceEn ?? 300,
+          espera: cuerpo.espera ?? 0,
+          reenvios: cuerpo.reenvios ?? 0,
+          entrega: cuerpo.entrega ?? 'real'
+        })
+        establecerEnviando(false)
+        establecerEstadoOrbe(undefined)
+
+        return
+      }
+
+      entrar(cuerpo.destino)
     } catch {
       establecerError('No se pudo contactar al servidor. Revisa tu conexión.')
       establecerEnviando(false)
@@ -113,79 +149,92 @@ export function FormularioEntrarPortal ({ aviso = null }: { aviso?: string | nul
         </div>
 
         <PanelVidrio className="animate-entrar-abajo w-full max-w-sm p-6 sm:p-8">
-          <header className="mb-6">
-            <h1 className="font-titular text-texto text-2xl font-bold tracking-tight">Portal de clientes</h1>
-            <p className="text-texto-tenue mt-2 text-sm">
-              Entra con el correo con el que trabajamos.
-            </p>
-          </header>
-
-          <form onSubmit={(e) => { void enviar(e) }} className="flex flex-col gap-4">
-            <Campo etiqueta="Correo" requerido>
-              {(props) => (
-                <Entrada
-                  {...props}
-                  name="email"
-                  type="email"
-                  autoComplete="username"
-                  autoFocus
-                  required
-                />
-              )}
-            </Campo>
-
-            <Campo etiqueta="Contraseña" requerido>
-              {(props) => (
-                <Entrada
-                  {...props}
-                  name="password"
-                  type="password"
-                  autoComplete="current-password"
-                  required
-                />
-              )}
-            </Campo>
-
-            {/* Cede ante el error, igual que en `/colab`: dos mensajes a la vez compiten, y el que
-                importa cuando algo acaba de fallar es el error. */}
-            {aviso !== null && error === null && (
-              <p
-                role="status"
-                className="rounded-chico border-texto-aviso/35 bg-superficie-aviso text-texto-aviso border px-3 py-2 text-sm"
-              >
-                {aviso}
-              </p>
-            )}
-
-            {error !== null && (
-              <AvisoEnLinea
-                variante="error"
-                mensaje={error}
-                className="rounded-chico border-relleno-peligro/40 bg-superficie-peligro border px-3 py-2 text-sm"
+          {desafio !== null
+            ? (
+              <PasoCodigoPortal
+                desafio={desafio}
+                alVolver={volverALaClave}
+                alEntrar={entrar}
+                alCambiarOrbe={establecerEstadoOrbe}
               />
-            )}
+              )
+            : (
+              <>
+              <header className="mb-6">
+                <h1 className="font-titular text-texto text-2xl font-bold tracking-tight">Portal de clientes</h1>
+                <p className="text-texto-tenue mt-2 text-sm">
+                  Entra con el correo con el que trabajamos.
+                </p>
+              </header>
 
-            <Boton type="submit" variante="primario" disabled={enviando} className="mt-1 w-full">
-              Entrar
-            </Boton>
-          </form>
+              <form onSubmit={(e) => { void enviar(e) }} className="flex flex-col gap-4">
+                <Campo etiqueta="Correo" requerido>
+                  {(props) => (
+                    <Entrada
+                      {...props}
+                      name="email"
+                      type="email"
+                      autoComplete="username"
+                      autoFocus
+                      required
+                    />
+                  )}
+                </Campo>
 
-          {/*
-            El equipo llega aca por costumbre: la raiz es la puerta del cliente y el enlace que se
-            comparte es este. La salida a `/colab` es un boton secundario bajo un separador: se ve de
-            un vistazo, pero el primario sigue siendo "Entrar", que es la accion del cliente.
-          */}
-          <div className="text-texto-tenue mt-6 flex items-center gap-3 text-xs" aria-hidden="true">
-            <span className="bg-control-borde h-px flex-1" />
-            o
-            <span className="bg-control-borde h-px flex-1" />
-          </div>
-          <Link
-            href="/colab"
-            className={boton({ variante: 'secundario', className: 'mt-4 w-full' })}
-          >
-            ¿Eres del equipo? Ingreso de colaborador
-          </Link>
+                <Campo etiqueta="Contraseña" requerido>
+                  {(props) => (
+                    <Entrada
+                      {...props}
+                      name="password"
+                      type="password"
+                      autoComplete="current-password"
+                      required
+                    />
+                  )}
+                </Campo>
+
+                {/* Cede ante el error, igual que en `/colab`: dos mensajes a la vez compiten, y el que
+                    importa cuando algo acaba de fallar es el error. */}
+                {aviso !== null && error === null && (
+                  <p
+                    role="status"
+                    className="rounded-chico border-texto-aviso/35 bg-superficie-aviso text-texto-aviso border px-3 py-2 text-sm"
+                  >
+                    {aviso}
+                  </p>
+                )}
+
+                {error !== null && (
+                  <AvisoEnLinea
+                    variante="error"
+                    mensaje={error}
+                    className="rounded-chico border-relleno-peligro/40 bg-superficie-peligro border px-3 py-2 text-sm"
+                  />
+                )}
+
+                <Boton type="submit" variante="primario" disabled={enviando} className="mt-1 w-full">
+                  Entrar
+                </Boton>
+              </form>
+
+              {/*
+                El equipo llega aca por costumbre: la raiz es la puerta del cliente y el enlace que se
+                comparte es este. La salida a `/colab` es un boton secundario bajo un separador: se ve de
+                un vistazo, pero el primario sigue siendo "Entrar", que es la accion del cliente.
+              */}
+              <div className="text-texto-tenue mt-6 flex items-center gap-3 text-xs" aria-hidden="true">
+                <span className="bg-control-borde h-px flex-1" />
+                o
+                <span className="bg-control-borde h-px flex-1" />
+              </div>
+              <Link
+                href="/colab"
+                className={boton({ variante: 'secundario', className: 'mt-4 w-full' })}
+              >
+                ¿Eres del equipo? Ingreso de colaborador
+              </Link>
+              </>
+              )}
         </PanelVidrio>
       </div>
     </main>
@@ -194,6 +243,10 @@ export function FormularioEntrarPortal ({ aviso = null }: { aviso?: string | nul
 
 /** Traduce el error de la API a algo accionable. */
 function mensajeDeError (cuerpo: RespuestaEntrar, estado: number): string {
+  // El correo con el codigo no salio: la clave estaba bien, y decir lo contrario seria un bloqueo sin aviso.
+  const sinCodigo = avisoDeCodigoNoEnviado(cuerpo.codigo, cuerpo.mensaje)
+  if (sinCodigo !== null) return sinCodigo
+
   if (cuerpo.codigo === 'rate_limited') {
     return 'Demasiados intentos fallidos. Espera unos minutos antes de volver a probar.'
   }
