@@ -754,6 +754,7 @@ export function EdicionTarea (
                   filasMinimas={5}
                   valorInicial={campos.descripcion}
                   deshabilitado={enCurso}
+                  imagenes={espacioId === null ? undefined : { portal: false, proyectoId: espacioId }}
                   onListo={fijarBaseDeDescripcion}
                   onCambio={(html) => {
                     setCampos((previos) => ({ ...previos, descripcion: html }))

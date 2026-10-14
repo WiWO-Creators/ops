@@ -23,7 +23,7 @@ import {
 function forma (nodos) {
   return nodos.map((nodo) => {
     if (nodo.tipo === 'texto') return JSON.stringify(nodo.texto)
-    const href = nodo.href === undefined ? '' : `[${nodo.href}]`
+    const href = nodo.href === undefined ? (nodo.src === undefined ? '' : `[${nodo.src}]`) : `[${nodo.href}]`
 
     return nodo.hijos.length === 0
       ? `${nodo.etiqueta}${href}`
@@ -184,4 +184,64 @@ test('direccionDeEnlace: completa el esquema y rechaza lo peligroso', () => {
   assert.equal(direccionDeEnlace('javascript:alert(1)'), null)
   assert.equal(direccionDeEnlace('data:text/html,x'), null)
   assert.equal(direccionDeEnlace('   '), null)
+})
+
+// === Imagenes propias ======================================================================
+
+const CODIGO = 'ab12'.repeat(8)
+const SRC = `/api/bff/files/texto-rico/${CODIGO}`
+
+test('una imagen con el src propio sobrevive, con src y alt', () => {
+  const nodos = nodosDeHtml(`<p>Mira <img src="${SRC}" alt="Captura de pantalla"> esto</p>`)
+
+  assert.equal(forma(nodos), `p("Mira " img[${SRC}] " esto")`)
+
+  const imagen = nodos[0].hijos[1]
+
+  assert.equal(imagen.etiqueta, 'img')
+  assert.equal(imagen.alt, 'Captura de pantalla')
+})
+
+test('una imagen con cualquier otro src se descarta entera', () => {
+  for (const src of [
+    'https://atacante/pixel.png',
+    '//atacante/pixel.png',
+    'data:image/png;base64,AAAA',
+    'javascript:alert(1)',
+    '/api/bff/tasks/1/files',
+    `${SRC}?x=1`,
+    `${SRC}/`,
+    '/api/bff/files/texto-rico/abc',
+    `/api/bff/files/texto-rico/${CODIGO.toUpperCase()}`,
+    `https://ops.wiwo.me${SRC}`,
+    ''
+  ]) {
+    assert.equal(forma(nodosDeHtml(`<p>a<img src="${src}">b</p>`)), 'p("ab")', src)
+  }
+
+  assert.equal(forma(nodosDeHtml('<p>a<img>b</p>')), 'p("ab")', 'sin src')
+  assert.equal(forma(nodosDeHtml(`<img srcset="https://x/y 1x" src="https://z/w.png">`)), '', 'srcset y src ajeno')
+})
+
+test('el alt se acota y pierde los caracteres de control', () => {
+  const nodos = nodosDeHtml(`<img src="${SRC}" alt="${'x'.repeat(500)}">`)
+  assert.equal(nodos[0].alt.length, 200)
+
+  const control = nodosDeHtml(`<img src='${SRC}' alt="a&#10;b">`)
+  assert.equal(control[0].alt, 'ab')
+})
+
+test('el src se compara tras resolver las entidades, como lo haria el navegador', () => {
+  // `&#x2f;` es `/`: el navegador veria otro valor que la expresion regular sobre el texto crudo.
+  assert.equal(forma(nodosDeHtml(`<img src="&#x2f;api&#x2f;bff&#x2f;files&#x2f;texto-rico&#x2f;${CODIGO}">`)), `img[${SRC}]`)
+  assert.equal(forma(nodosDeHtml('<img src="&#x2f;&#x2f;atacante&#x2f;x.png">')), '')
+})
+
+test('una imagen propia cuenta como contenido: una captura sola no esta vacia', () => {
+  assert.equal(htmlVacio(`<p><img src="${SRC}"></p>`), false)
+  assert.equal(htmlVacio(`<img src="${SRC}">`), false)
+  assert.equal(htmlVacio('<p><img src="https://atacante/x.png"></p>'), true)
+  assert.equal(htmlVacio('<p></p>'), true)
+  assert.equal(esHtml(`<img src="${SRC}">`), true)
+  assert.equal(textoPlano(`<p>hola <img src="${SRC}"></p>`), 'hola')
 })

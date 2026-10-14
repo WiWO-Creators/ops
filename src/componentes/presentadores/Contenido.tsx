@@ -13,6 +13,12 @@ interface PropsContenido {
   className?: string
   /** Cuantas lineas se ven antes de cortar con puntos suspensivos. Sin esto, se ve todo. */
   recortar?: number
+  /**
+   * Si las imagenes incrustadas se dibujan. Por defecto si. Las apaga quien lo muestra SIN sesion
+   * (el enlace publico de una Tarea): la imagen se pide por el BFF con los permisos de quien mira, y
+   * sin sesion seria un cuadro roto.
+   */
+  imagenes?: boolean
 }
 
 /**
@@ -22,14 +28,24 @@ interface PropsContenido {
  * @param clave posicion entre sus hermanos, que es la clave de React
  * @returns el elemento, o el texto tal cual
  */
-function dibujar (nodo: NodoRico, clave: number): ReactNode {
+function dibujar (nodo: NodoRico, clave: number, conImagenes = true): ReactNode {
   if (nodo.tipo === 'texto') return nodo.texto
 
-  const hijos = nodo.hijos.map(dibujar)
+  const hijos = nodo.hijos.map((hijo, i) => dibujar(hijo, i, conImagenes))
 
   switch (nodo.etiqueta) {
     case 'br':
       return <br key={clave} />
+    case 'img':
+      // `src` ya paso `esSrcDeImagenRica`: es una ruta propia del BFF. Perezosa y sin referrer.
+      // `next/image` optimiza imagenes publicas; esta es privada (pide la sesion por el BFF) y su
+      // origen no es una URL que el optimizador pueda leer, asi que va como `<img>` normal.
+      return conImagenes && nodo.src !== undefined
+        ? (
+          // eslint-disable-next-line @next/next/no-img-element
+          <img key={clave} src={nodo.src} alt={nodo.alt ?? ''} loading="lazy" decoding="async" referrerPolicy="no-referrer" />
+          )
+        : null
     case 'a':
       return <a key={clave} href={nodo.href} target="_blank" rel="noopener noreferrer">{hijos}</a>
     case 'p': return <p key={clave}>{hijos}</p>
@@ -63,13 +79,13 @@ function estiloDeRecorte (lineas: number | undefined): CSSProperties | undefined
  * @param props ver `PropsContenido`
  * @returns el contenido, `vacio` o nada
  */
-export function Contenido ({ html, texto, vacio, className, recortar }: PropsContenido): ReactElement | null {
+export function Contenido ({ html, texto, vacio, className, recortar, imagenes = true }: PropsContenido): ReactElement | null {
   const estilo = estiloDeRecorte(recortar)
 
   if (typeof html === 'string' && !htmlVacio(html)) {
     return (
       <div className={cn('texto-rico', className)} style={estilo}>
-        {nodosDeHtml(html).map(dibujar)}
+        {nodosDeHtml(html).map((nodo, i) => dibujar(nodo, i, imagenes))}
       </div>
     )
   }

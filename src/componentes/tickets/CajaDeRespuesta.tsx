@@ -173,6 +173,10 @@ export function CajaDeRespuesta ({
   }
 
   const vacio = htmlVacio(mensaje)
+  // El contacto sube siempre atado al Espacio del ticket; sin el, la API no tiene contra que medir la
+  // imagen y el editor no la acepta. El equipo puede subir sin Espacio (un ticket sin Proyecto).
+  const portal = fuente.sujeto === 'portal'
+  const destinoDeImagenes = portal && ticket.proyectoId === null ? undefined : { portal, proyectoId: ticket.proyectoId }
 
   return (
     <form
@@ -204,6 +208,7 @@ export function CajaDeRespuesta ({
         aria-describedby={`${idCampo}-atajo`}
         aria-invalid={fallo !== null || undefined}
         autoenfocar
+        imagenes={destinoDeImagenes}
         onCambio={escribir}
         onEnviar={() => { void responder() }}
       />

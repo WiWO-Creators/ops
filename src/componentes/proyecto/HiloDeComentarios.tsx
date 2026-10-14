@@ -54,10 +54,16 @@ interface PropsHiloDeComentarios {
   enfocarAlAbrir?: boolean
   /** Titulo de la seccion. `null` lo quita, cuando quien lo monta ya nombra la conversacion. */
   titulo?: string | null
+  /**
+   * El Espacio de la Tarea. Con el, los comentarios aceptan imagenes pegadas o arrastradas (atadas a
+   * ese Espacio, que es lo que decide quien las ve). Sin el —una Tarea que no cuelga de un Espacio—,
+   * el cuadro no las acepta.
+   */
+  proyectoId?: number | null
 }
 
 export function HiloDeComentarios (
-  { procesoId, onCambiado, enfocarAlAbrir = false, titulo = 'Comentarios' }: PropsHiloDeComentarios
+  { procesoId, onCambiado, enfocarAlAbrir = false, titulo = 'Comentarios', proyectoId = null }: PropsHiloDeComentarios
 ): ReactElement {
   const ruta = `tasks/${encodeURIComponent(String(procesoId))}/comments`
   const { estado, recargar } = useRecurso<ComentarioDeHilo[]>(ruta, 'No se pudieron cargar los comentarios.')
@@ -256,6 +262,7 @@ export function HiloDeComentarios (
                       placeholder="Escribe una respuesta…"
                       accion="Responder"
                       enfocar
+                      proyectoId={proyectoId}
                       onEnviar={async (texto) => await enviar(texto, raiz.id)}
                       onCancelar={() => { setRespondiendoA(null) }}
                     />
@@ -282,6 +289,7 @@ export function HiloDeComentarios (
           placeholder="Escribe un comentario para el equipo…"
           accion="Comentar"
           enfocar={enfocarAlAbrir}
+          proyectoId={proyectoId}
           onEnviar={async (texto) => await enviar(texto, null)}
         />
       )}
@@ -296,6 +304,8 @@ interface PropsCuadroDeComentario {
   /** Rotulo del boton de envio. */
   accion: string
   enfocar?: boolean
+  /** El Espacio de la Tarea; `null` desactiva las imagenes. */
+  proyectoId?: number | null
   /** Manda el HTML. Devuelve el error a mostrar, o `null` si se guardo. */
   onEnviar: (html: string) => Promise<string | null>
   /** Si esta, `Escape` y el boton Cancelar cierran el cuadro. */
@@ -312,7 +322,7 @@ interface PropsCuadroDeComentario {
  * `MAXIMO_COMENTARIO` se mide sobre el texto visible y no sobre el marcado, que la persona no escribio.
  */
 function CuadroDeComentario (
-  { etiqueta, placeholder, accion, enfocar = false, onEnviar, onCancelar }: PropsCuadroDeComentario
+  { etiqueta, placeholder, accion, enfocar = false, proyectoId = null, onEnviar, onCancelar }: PropsCuadroDeComentario
 ): ReactElement {
   const [html, setHtml] = useState('')
   const [version, setVersion] = useState(0)
@@ -362,6 +372,7 @@ function CuadroDeComentario (
         aria-describedby={error !== null ? `${idAyuda} ${idError}` : idAyuda}
         autoenfocar={enfocar || version > 0}
         deshabilitado={enviando}
+        imagenes={proyectoId === null ? undefined : { portal: false, proyectoId }}
         onCambio={setHtml}
         onEnviar={() => { void enviar() }}
       />

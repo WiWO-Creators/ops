@@ -195,3 +195,17 @@ test('database-export pasa para staff y no para el portal', () => {
   assert.equal(rutaPermitida(['database-export'], 'staff'), true)
   assert.equal(rutaPermitida(['database-export'], 'contacto'), false)
 })
+
+test('las imagenes del texto enriquecido: el equipo sube por su prefijo, el contacto por el portal, y se leen por files', () => {
+  const codigo = 'ab12'.repeat(8)
+
+  assert.equal(rutaPermitida(['imagenes-texto'], 'staff'), true)
+  assert.equal(rutaPermitida(['imagenes-texto'], 'contacto'), false)
+  assert.equal(rutaPermitida(['portal', 'imagenes-texto'], 'contacto'), true)
+  assert.equal(rutaPermitida(['portal', 'imagenes-texto'], 'staff'), false)
+
+  // Se leen por la ruta compartida de archivos: lo decide la sesion, no el prefijo.
+  assert.equal(rutaCompartida(['files', 'texto-rico', codigo]), true)
+  assert.equal(rutaPermitida(['files', 'texto-rico', codigo], 'staff'), true)
+  assert.equal(rutaPermitida(['files', 'texto-rico', codigo], 'contacto'), true)
+})

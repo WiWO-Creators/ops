@@ -64,6 +64,7 @@ export function CampoDescripcion ({
             filasMinimas={4}
             valorInicial={descripcion}
             deshabilitado={deshabilitado}
+            imagenes={proyectoId === null ? undefined : { portal: false, proyectoId }}
             onCambio={(html) => {
               setEmitido(html)
               onDescripcion(html)

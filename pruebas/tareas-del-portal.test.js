@@ -1,8 +1,8 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import {
-  BORRADOR_VACIO_DE_TAREA, LARGO_NOMBRE_TAREA, SIN_PRIORIDAD, cuerpoDeTarea, erroresDeBorrador, erroresDeLaApi,
-  falloDeAltaDeTarea, tareaCompleta
+  BORRADOR_VACIO_DE_TAREA, LARGO_DESCRIPCION_TAREA, LARGO_NOMBRE_TAREA, SIN_PRIORIDAD, cuerpoDeTarea,
+  cuerpoDeTareaConArchivos, erroresDeBorrador, erroresDeLaApi, falloDeAltaDeTarea, tareaCompleta
 } from '../src/dominio/tareas-del-portal.ts'
 
 const equipo = [
@@ -43,13 +43,14 @@ test('el cuerpo omite lo vacio: ni descripcion, ni fecha, ni prioridad, ni asign
 
 test('el cuerpo lleva lo elegido con los nombres del contrato', () => {
   const cuerpo = cuerpoDeTarea(
-    borrador({ descripcion: ' Con detalle ', vencimiento: '2026-11-05', prioridad: '3', asignados: [9, 4] }),
+    borrador({ descripcion: '<p>Con detalle</p>', vencimiento: '2026-11-05', prioridad: '3', asignados: [9, 4] }),
     exigeFecha
   )
 
   assert.deepEqual(cuerpo, {
     name: 'Revisar la propuesta',
-    description: 'Con detalle',
+    description: '<p>Con detalle</p>',
+    format: 'html',
     due_date: '2026-11-05',
     priority: 3,
     assignees: [9, 4]
@@ -112,4 +113,46 @@ test('404 y 403 no filtran la causa; cualquier otro usa el mensaje de la API', (
   assert.match(falloDeAltaDeTarea({ estado: 403, mensaje: 'x' }).texto, /no comparte/)
   assert.equal(falloDeAltaDeTarea({ estado: 500, mensaje: 'Se cayó' }).texto, 'Se cayó')
   assert.equal(falloDeAltaDeTarea({ mensaje: 'Sin red' }).texto, 'Sin red')
+})
+
+test('una descripcion que el editor dejo vacia no viaja, y sin ella tampoco el formato', () => {
+  for (const vacia of ['', '<p></p>', '<p>&nbsp;</p>']) {
+    const cuerpo = cuerpoDeTarea(borrador({ descripcion: vacia }), sinExigir)
+
+    assert.equal('description' in cuerpo, false, vacia)
+    assert.equal('format' in cuerpo, false, vacia)
+  }
+})
+
+test('una descripcion que es solo una captura viaja', () => {
+  const imagen = `<p><img src="/api/bff/files/texto-rico/${'ab12'.repeat(8)}" alt="captura"></p>`
+  const cuerpo = cuerpoDeTarea(borrador({ descripcion: imagen }), sinExigir)
+
+  assert.equal(cuerpo.description, imagen)
+  assert.equal(cuerpo.format, 'html')
+})
+
+test('la descripcion no pasa del tope de caracteres visibles', () => {
+  assert.equal(tareaCompleta(borrador({ descripcion: `<p>${'a'.repeat(LARGO_DESCRIPCION_TAREA)}</p>` }), sinExigir), true)
+  assert.match(
+    erroresDeBorrador(borrador({ descripcion: `<p>${'a'.repeat(LARGO_DESCRIPCION_TAREA + 1)}</p>` }), sinExigir).description,
+    /descripción/
+  )
+})
+
+test('sin archivos el alta sigue siendo JSON; con archivos es multipart con el cuerpo en payload', async () => {
+  const cuerpo = cuerpoDeTarea(borrador({ asignados: [9, 4], descripcion: '<p>x</p>' }), exigeFecha)
+
+  assert.equal(cuerpoDeTareaConArchivos(cuerpo, []), cuerpo)
+
+  const archivo = new File(['hola'], 'captura.png', { type: 'image/png' })
+  const formulario = cuerpoDeTareaConArchivos(cuerpo, [archivo, new File(['b'], 'b.pdf', { type: 'application/pdf' })])
+
+  assert.ok(formulario instanceof FormData)
+  assert.deepEqual(JSON.parse(formulario.get('payload')), cuerpo, 'el arreglo de asignados viaja entero')
+  assert.deepEqual(formulario.getAll('attachments[]').map((a) => a.name), ['captura.png', 'b.pdf'])
+})
+
+test('los motivos de un archivo rechazado tienen frase propia', () => {
+  assert.equal(falloDeAltaDeTarea({ mensaje: 'Archivo malo', estado: 422, detalles: { attachments: ['too_large'] } }).texto, 'Archivo malo')
 })

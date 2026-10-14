@@ -95,6 +95,11 @@ const PREFIJOS_PERMITIDOS = [
   // Descarga de adjuntos. No estaba porque hasta ahora la API no tenia esa ruta y toda `url` que
   // emitia era un 404; con el endpoint de descarga ya existe y el panel puede usarla.
   'files',
+  // Subida de una imagen pegada o arrastrada en el editor de texto enriquecido (`POST
+  // /imagenes-texto`). Verlas no necesita entrada propia: se piden por `files/texto-rico/{codigo}`,
+  // que ya esta en la lista compartida. El portal sube por `portal/imagenes-texto`, que entra por
+  // `portal`.
+  'imagenes-texto',
   // Drill-down del arbol de carpetas de Drive (`GET /drive/{folder_id}`). `clients` y `projects` ya
   // cubren `/clients/{id}/drive` y `/projects/{id}/drive`; este prefijo propio es solo para pedir un
   // nivel mas del arbol al expandir una carpeta.
