@@ -83,14 +83,15 @@ function toleranciaPara (largo: number): number {
  * Qué ofrecer para lo que se lleva escrito.
  *
  * - Las ya elegidas no se ofrecen de nuevo.
- * - Con el campo vacío se ofrece el catálogo en orden alfabético, para elegir sin escribir.
+ * - Con el campo vacío se ofrece el catálogo entero en orden alfabético, para elegir sin escribir:
+ *   cortarlo dejaba fuera la mayoría de las etiquetas, y la lista ya tiene scroll.
  * - "Parecida" compara contra el nombre entero y contra su comienzo del mismo largo que lo escrito,
  *   así "licitasi" encuentra "Licitaciones" antes de terminar de escribir.
  *
  * @param catalogo los nombres de las etiquetas existentes (`lookups.tags`)
  * @param texto lo escrito en el campo
  * @param elegidas los nombres que ya están puestos
- * @returns las sugerencias, a lo sumo `MAXIMO_DE_SUGERENCIAS` entre coincidencias y parecidas
+ * @returns las sugerencias; al escribir, a lo sumo `MAXIMO_DE_SUGERENCIAS` entre coincidencias y parecidas
  */
 export function sugerenciasDeEtiqueta (
   catalogo: readonly string[] | null | undefined,
@@ -106,7 +107,7 @@ export function sugerenciasDeEtiqueta (
   if (buscado === '') {
     return {
       exacta: null,
-      coincidencias: [...disponibles].sort((a, b) => a.localeCompare(b, 'es')).slice(0, MAXIMO_DE_SUGERENCIAS),
+      coincidencias: [...disponibles].sort((a, b) => a.localeCompare(b, 'es')),
       parecidas: [],
       nueva: null
     }

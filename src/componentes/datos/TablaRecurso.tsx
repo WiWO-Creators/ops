@@ -295,6 +295,9 @@ export function TablaRecurso<T> ({
   const [error, setError] = useState<CuerpoError | null>(null)
   const [cargando, setCargando] = useState(false)
   const [visibles, setVisibles] = useState(() => clavesVisiblesPorDefecto(definicion.columnas))
+  // Última consulta y revisión pedidas: si solo cambió `refresco`, es un refresco de fondo.
+  // Arranca con la consulta que trajo el servidor, para que el primer refresco tampoco parpadee.
+  const ultimaPedida = useRef<{ consulta: string, revision: number }>({ consulta: consultaDelInicial ?? consulta, revision: 0 })
 
   useEffect(() => {
     // En modo memoria los datos ya estan todos aca: no hay pagina que pedirle a nadie. El efecto de
@@ -310,8 +313,12 @@ export function TablaRecurso<T> ({
     })) return
 
     const control = new AbortController()
+    // Un refresco de fondo (el intervalo, volver a la pestaña) reemplaza las filas sin atenuar la
+    // tabla ni mostrar el orbe: cada 30 s hacía parpadear la tabla, y el modal de tarea abierto encima.
+    const deFondo = ultimaPedida.current.consulta === consulta && ultimaPedida.current.revision === revision
+    ultimaPedida.current = { consulta, revision }
 
-    setCargando(true)
+    if (!deFondo) setCargando(true)
 
     void pedirLista<T>(definicion.ruta, unirConsultas(definicion.consultaFija, consulta), control.signal).then((respuesta) => {
       if (control.signal.aborted) return

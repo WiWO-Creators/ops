@@ -32,7 +32,7 @@ export const HORAS_PERSONA: DefinicionRecurso<RegistroTiempo> = {
       ordenPor: 'start_time',
       presentar: (registro) => formatearFecha(registro.start_time, true)
     },
-    { clave: 'task', encabezado: GLOSARIO.proceso.singular, presentar: (registro) => registro.task.name },
+    { clave: 'task', encabezado: GLOSARIO.proceso.singular, presentar: (registro) => registro.task?.name ?? 'Sin proceso' },
     {
       clave: 'project',
       encabezado: GLOSARIO.espacio.singular,

@@ -66,7 +66,7 @@ interface PropsFormulario {
 function entradaInicial (registro: RegistroEditable | null): EntradaTimesheet {
   return {
     modo: 'fechas',
-    taskId: registro === null ? '' : String(registro.task.id),
+    taskId: registro?.task == null ? '' : String(registro.task.id),
     staffId: registro?.staff === null || registro?.staff === undefined ? '' : String(registro.staff.id),
     inicio: paraCampoLocal(registro?.start_time ?? null),
     fin: paraCampoLocal(registro?.end_time ?? null),
