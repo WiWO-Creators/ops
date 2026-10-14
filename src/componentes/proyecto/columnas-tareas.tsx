@@ -17,7 +17,7 @@ import { procesosDelContacto } from '@/definiciones/portal-proyectos'
 import { filtrosDeCamposPersonalizados } from '@/definiciones/filtros'
 import { AvisoEnLinea } from '@/componentes/estado/Estados'
 import { EstadoDeTarea } from './EstadoDeTarea'
-import { camposDeTabla, valorDeCampo } from './tareas'
+import { camposDeTabla, puedePasarA, valorDeCampo } from './tareas'
 
 /**
  * Las columnas de la pestaña Tareas de un Espacio.
@@ -121,7 +121,7 @@ function EstadoEditable ({ proceso, estados, editable, onCambiado }: PropsEstado
         className="border-control-borde bg-control text-texto rounded-control h-8 border px-2 text-xs"
       >
         {estados.map((estado) => (
-          <option key={estado.valor} value={estado.valor}>{estado.etiqueta}</option>
+          <option key={estado.valor} value={estado.valor} disabled={!puedePasarA(proceso.status, Number(estado.valor))}>{estado.etiqueta}</option>
         ))}
       </select>
       {error !== null && <AvisoEnLinea variante="error" mensaje={error} elemento="span" />}

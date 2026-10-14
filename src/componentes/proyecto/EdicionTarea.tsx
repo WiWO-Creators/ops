@@ -52,7 +52,7 @@ import {
 } from '@/dominio/espacios-destino'
 import { GLOSARIO } from '@/dominio/glosario'
 import { errorDeHorasEstimadas } from '@/dominio/tiempo-estimado'
-import { estaCerrada } from './tareas'
+import { estaCompletada, puedePasarA } from './tareas'
 import { accionDeEstado } from './estado-proceso'
 import { hoyLocal } from '@/lib/fechas'
 import { AsistenteDescripcion } from './AsistenteDescripcion'
@@ -372,7 +372,7 @@ export function EdicionTarea (
     const camposMal = errorDeCamposEdicion(campos, vencimientoRequerido)
     if (camposMal !== null) { setError(camposMal); return }
     const cambioEstado = estado !== estadoGuardado
-    const cambioCierre = estaCerrada(Number(estado)) && cierre !== cierreGuardado
+    const cambioCierre = estaCompletada(Number(estado)) && cierre !== cierreGuardado
     const instante = cambioCierre ? instanteDeCierre(cierre) : null
     if (cambioCierre && cierre !== '' && (instante === null || cierre > hoyLocal() || (campos.inicio !== '' && cierre < campos.inicio))) {
       setError(`La fecha de cierre debe estar entre el inicio de la ${GLOSARIO.proceso.singular.toLowerCase()} y hoy.`)
@@ -431,7 +431,7 @@ export function EdicionTarea (
         return
       }
       setEstadoGuardado(estado)
-      const cierreAutomatico = estaCerrada(Number(estado))
+      const cierreAutomatico = estaCompletada(Number(estado))
         ? fechaDeCierre(resultado.datos?.date_finished) || hoyLocal() : ''
       setCierreGuardado(cierreAutomatico)
       if (!cambioCierre) setCierre(cierreAutomatico)
@@ -535,7 +535,7 @@ export function EdicionTarea (
             <Campo etiqueta="Estado">
               {({ id }) => <Selector value={estado} onValueChange={setEstado}>
                 <DisparadorSelector id={id} />
-                <ContenidoSelector>{listaDe(lookups, 'task_statuses').map((opcion) => <Opcion key={opcion.id} value={String(opcion.id)}>{opcion.name}</Opcion>)}</ContenidoSelector>
+                <ContenidoSelector>{listaDe(lookups, 'task_statuses').map((opcion) => <Opcion key={opcion.id} value={String(opcion.id)} disabled={!puedePasarA(Number(estadoGuardado), opcion.id)}>{opcion.name}</Opcion>)}</ContenidoSelector>
               </Selector>}
             </Campo>
             <Campo etiqueta="Tipo" ayuda={espacioId === null ? `Elige un ${GLOSARIO.espacio.singular.toLowerCase()} para seleccionar el tipo.` : undefined}>
@@ -549,7 +549,7 @@ export function EdicionTarea (
               </Selector>}
             </Campo>
           </div>
-          {estaCerrada(Number(estado)) && <Campo etiqueta="Fecha de cierre" ayuda="Déjala sin cambios para conservar el cierre actual; al completar se usa la fecha de hoy.">
+          {estaCompletada(Number(estado)) && <Campo etiqueta="Fecha de cierre" ayuda="Déjala sin cambios para conservar el cierre actual; al completar se usa la fecha de hoy.">
             {(props) => <Entrada {...props} type="date" min={campos.inicio || undefined} max={hoyLocal()} value={cierre} onChange={(evento) => setCierre(evento.target.value)} />}
           </Campo>}
 

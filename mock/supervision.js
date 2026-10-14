@@ -28,6 +28,7 @@
  */
 
 import { ErrorApi } from './consulta.js'
+import { estaCompletada, puedeAtrasarse } from './estados.js'
 import { CLIENTES, ESPACIOS, PROCESOS, STAFF, SUPERVISORES_DE_CLIENTE, VALORES_CAMPOS } from './datos.js'
 
 const conDatos = (data) => ({ data })
@@ -37,9 +38,6 @@ const ORDEN_ESCALON = { staff: 1, lead: 2, director: 3, gerencia: 4 }
 
 /** Tope de la nota de una revisión y de una devolución. */
 const LARGO_MAXIMO_NOTA = 500
-
-/** El status de una Tarea completada. */
-const ESTADO_COMPLETADA = 5
 
 /** Zona del negocio: la de `datefinished` en la base y la de "hoy". */
 const ZONA = 'America/Santiago'
@@ -229,8 +227,10 @@ function tareasDeLaHoja (fecha, supervisor, arbol) {
 /** Las reglas (a), (b) y (c) del contrato sobre una Tarea del universo. */
 function entraEnLaHoja (tarea, fecha) {
   const vence = typeof tarea.due_date === 'string' ? tarea.due_date : null
-  const completada = tarea.status === ESTADO_COMPLETADA
+  const completada = estaCompletada(tarea.status)
 
+  // Standby y Cancelada no entran: un plazo en pausa o de una tarea descartada no se supervisa.
+  if (!completada && !puedeAtrasarse(tarea.status)) return false
   if (vence === fecha) return true
   if (!completada && vence !== null && vence < fecha) return true
 
@@ -255,7 +255,7 @@ function revisionesDelEquipo (tareaId, fecha, supervisor, arbol) {
 
 /** Una Tarea con la forma del contrato. */
 function tareaDeLaHoja ({ tarea, origen }, fecha, supervisor, arbol) {
-  const completada = tarea.status === ESTADO_COMPLETADA
+  const completada = estaCompletada(tarea.status)
   const revisiones = REVISIONES.get(claveDe(fecha, supervisor.id)) ?? new Map()
   const equipo = arbol.descendencia(supervisor.id)
   const relevantes = personasRelevantesDe(supervisor, equipo)

@@ -41,6 +41,7 @@ import {
   AVISOS_CONTACTO, CONTACTOS, OPCIONES_AREA_EN_TAREAS, PRIORIDADES, PROCESOS, PROCESOS_POR_AREA,
   RESERVAS, ROLES, SALAS, STAFF, VALORES_CAMPOS
 } from './datos.js'
+import { estaAbierta, estaCompletada, ESTADO_CANCELADA, ESTADO_FACTURADO, ESTADO_STANDBY, puedeAtrasarse } from './estados.js'
 
 const PUERTO = Number(process.env.PORT ?? 3001)
 
@@ -228,7 +229,7 @@ function fichaDeStaff (staff) {
           }
     },
     counts: {
-      tareas_abiertas: suyos.filter((p) => p.status !== 5).length,
+      tareas_abiertas: suyos.filter((p) => estaAbierta(p.status)).length,
       espacios: new Set(suyos.map((p) => p.project?.id).filter((id) => id !== undefined)).size,
       // Un contador por estado que la persona efectivamente tiene, igual que la API real. Faltaba, y
       // sin el la ficha reventaba en `ResumenTareasPersona`: el contrato lo declara obligatorio.
@@ -266,8 +267,16 @@ function conCamposPersonalizados (fila, entidad, includes) {
 // Whitelists por recurso
 // ---------------------------------------------------------------------------
 
-/** Estado "Completado" de Perfex. Es el mismo 5 que usa `Escritura\EstadoProceso::COMPLETADO`. */
-const ESTADO_COMPLETADO = 5
+/**
+ * Si el listado de Tareas muestra un estado sin que nadie filtre por estado: los del catalogo con
+ * `filter_default`. Completado, Facturado y Cancelada quedan fuera.
+ *
+ * @param {number} estado id de estado
+ * @returns {boolean}
+ */
+function visiblePorDefecto (estado) {
+  return ESTADOS_PROCESO.find((e) => e.id === estado)?.filter_default ?? true
+}
 
 /**
  * Las areas del equipo de quienes tienen asignada una Tarea.
@@ -338,7 +347,7 @@ const CONSULTA_PROCESOS = {
     task_type_name: campoFiltrable((p) => p.task_type?.name ?? null),
     added_from: campoFiltrable((p) => p.added_from, 'numero'),
     // `completed` no es una columna ni aca ni alla: sale del estado.
-    completed: campoFiltrable((p) => ([ESTADO_COMPLETADO, 9].includes(p.status) ? 1 : 0), 'numero'),
+    completed: campoFiltrable((p) => (estaCompletada(p.status) ? 1 : 0), 'numero'),
     billable: campoFiltrable((p) => Number(p.billable), 'numero'),
     billed: campoFiltrable((p) => Number(p.billed), 'numero'),
     is_public: campoFiltrable((p) => Number(p.is_public), 'numero'),
@@ -369,7 +378,7 @@ const CONSULTA_PROCESOS = {
   // Procesos —`['completed', '-date_added']`— respondia 422 contra el mock. `etapa` tampoco:
   // es `RecursoProcesos::etapaComoOrden()`, con la misma tabla de escalones.
   derivadas: {
-    completed: (p) => ([ESTADO_COMPLETADO, 9].includes(p.status) ? 1 : 0),
+    completed: (p) => (estaCompletada(p.status) ? 1 : 0),
     etapa: (p) => ETAPA_POR_ESTADO[p.status] ?? 5
   },
   // Nombre y patente, como `RecursoProcesos::consulta()`.
@@ -731,7 +740,7 @@ function presentarEspacio (espacio, includes = []) {
     deletion_request: solicitudVivaDe(espacio.id),
     counts: {
       tasks: suyos.length,
-      tasks_open: suyos.filter((p) => p.status !== 5).length,
+      tasks_open: suyos.filter((p) => estaAbierta(p.status)).length,
       milestones: HITOS.filter((h) => h.project_id === espacio.id).length
     }
   }
@@ -3310,14 +3319,14 @@ function regeneracionIa (staffId, bloqueado) {
  */
 function textoDeResumenIa (actual) {
   const hoy = new Date().toISOString().slice(0, 10)
-  const suyos = PROCESOS.filter((p) => p.assignees.some((a) => a.id === actual.id) && p.status !== 5)
-  const vencidos = suyos.filter((p) => p.due_date !== null && p.due_date < hoy)
+  const suyos = PROCESOS.filter((p) => p.assignees.some((a) => a.id === actual.id) && estaAbierta(p.status))
+  const vencidos = suyos.filter((p) => p.due_date !== null && p.due_date < hoy && puedeAtrasarse(p.status))
   return `Tienes ${suyos.length} tareas abiertas asignadas, ${vencidos.length} vencidas. Revisa las tareas seleccionadas a continuación.`
 }
 
 /** Referencias actuales de tareas asignadas para probar los enlaces del resumen. */
 function tareasDeResumenIa (actual) {
-  return PROCESOS.filter((p) => p.assignees.some((a) => a.id === actual.id) && p.status !== 5)
+  return PROCESOS.filter((p) => p.assignees.some((a) => a.id === actual.id) && estaAbierta(p.status))
     .slice(0, 6).map((p) => ({
       id: p.id,
       name: p.name,
@@ -3532,7 +3541,7 @@ async function chatEspacioIaRuta (metodo, id, parametros, actual, cuerpo, petici
   }
 
   const falla = parametros.get('falla') === '1'
-  const abiertas = PROCESOS.filter((p) => p.rel_type === 'project' && p.rel_id === espacio.id && p.status !== 5)
+  const abiertas = PROCESOS.filter((p) => p.rel_type === 'project' && p.rel_id === espacio.id && estaAbierta(p.status))
   const citas = abiertas.slice(0, 2).map((p) => ({ tipo: 'tarea', id: p.id, titulo: p.name }))
   const texto = `En ${espacio.name} quedan ${abiertas.length} tareas abiertas. `
     + `Las que empujan la fecha son ${citas.map((c, i) => `${c.titulo} [${i + 1}]`).join(' y ')}. `
@@ -5223,9 +5232,9 @@ function acotarScore (valor) {
  */
 function senalesDe (procesos, score) {
   const hoy = fechaDeLaFoto()
-  const abiertos = procesos.filter((p) => p.status !== ESTADO_COMPLETADO)
+  const abiertos = procesos.filter((p) => estaAbierta(p.status))
   const medibles = procesos.filter((p) => p.due_date !== null)
-  const incumplidos = medibles.filter((p) => p.due_date < hoy && p.status !== ESTADO_COMPLETADO)
+  const incumplidos = medibles.filter((p) => p.due_date < hoy && puedeAtrasarse(p.status))
   const porVencer = abiertos.filter((p) => p.due_date !== null && p.due_date >= hoy && diasEntre(hoy, p.due_date) <= 7)
   // El fixture no guarda la ultima actividad de un Proceso, asi que el movimiento se reparte de
   // forma estable por id: si no, "estancados" seria siempre el total y la señal no diria nada.
@@ -5769,7 +5778,7 @@ function pantallaDeArea (areaId) {
   const gente = esGlobal ? STAFF : STAFF.filter((s) => s.area_id === area.id || s.id === area.jefe_staffid)
   const hoy = new Date().toISOString().slice(0, 10)
 
-  const abiertas = PROCESOS.filter((p) => p.status !== 5).slice(0, 18)
+  const abiertas = PROCESOS.filter((p) => estaAbierta(p.status)).slice(0, 18)
 
   const corriendo = CRONOMETROS.filter((c) => c.end_time === null).map((c) => {
     const quien = STAFF.find((s) => s.id === c.staff_id) ?? STAFF[0]
@@ -6722,7 +6731,7 @@ async function resolverRuta (metodo, segmentos, parametros, token, cuerpo, petic
         crearTarea: (c, e, datos) => crearTareaDelPortal({
           contacto: c, espacio: e, pestanias: pestaniasDeEspacio(e.id), datos, deps: { crearProceso, procesos: PROCESOS }
         }),
-        tareasVisibles: (id) => PROCESOS.filter((p) => p.rel_type === 'project' && p.rel_id === id && Number(p.visible_to_client) === 1 && p.status !== 5),
+        tareasVisibles: (id) => PROCESOS.filter((p) => p.rel_type === 'project' && p.rel_id === id && Number(p.visible_to_client) === 1 && estaAbierta(p.status)),
         aceptaStream,
         transmitirSSE
       })
@@ -8449,7 +8458,7 @@ async function resolverRuta (metodo, segmentos, parametros, token, cuerpo, petic
       return { estado: 200, cuerpo: conDatos(conCamposPersonalizados(presentarEspacio(espacio, includes), 'projects', includes)) }
     }
     if (subrecurso === 'tasks') {
-      const suyos = PROCESOS.filter((p) => p.project?.id === espacio.id && (parametros.get('filter[status]')?.trim() || p.status !== 5))
+      const suyos = PROCESOS.filter((p) => p.project?.id === espacio.id && (parametros.get('filter[status]')?.trim() || visiblePorDefecto(p.status)))
 
       // El tablero de la pestaña Tareas de un Espacio. Faltaba: el mock devolvia la lista plana y el
       // motor de tablero se quedaba sin columnas, asi que esa vista nunca se pudo ver contra el mock.
@@ -8502,7 +8511,7 @@ async function resolverRuta (metodo, segmentos, parametros, token, cuerpo, petic
           total_logged_seconds: CRONOMETROS.filter((t) => t.task_id === p.id).reduce((total, t) =>
             total + Math.max(0, (Date.parse(t.end_time ?? new Date().toISOString()) - Date.parse(t.start_time)) / 1000), 0)
         }))
-        const visibles = suyas.filter((p) => parametros.get('excluir_completadas') === 'false' || p.status !== 5)
+        const visibles = suyas.filter((p) => parametros.get('excluir_completadas') === 'false' || estaAbierta(p.status))
         const ordenHito = new URLSearchParams(parametros)
         ordenHito.set('sort', 'completed,order,id')
         const { filas, paginacion } = aplicarConsulta(visibles, ordenHito, {
@@ -8512,7 +8521,7 @@ async function resolverRuta (metodo, segmentos, parametros, token, cuerpo, petic
         const tarjetas = filas.map((p) => ({
           ...presentarProcesoEnLista(p),
           current_user_is_assigned: p.assignees.some((a) => a.id === actual.id),
-          vencida: p.status !== 5 && p.due_date !== null && p.due_date < new Date().toISOString().slice(0, 10)
+          vencida: puedeAtrasarse(p.status) && p.due_date !== null && p.due_date < new Date().toISOString().slice(0, 10)
         }))
         return {
           columna: { ...columna, total_logged_seconds: suyas.reduce((total, p) => total + p.total_logged_seconds, 0) },
@@ -8580,7 +8589,7 @@ async function resolverRuta (metodo, segmentos, parametros, token, cuerpo, petic
         return { estado: 200, cuerpo: conDatos(tableroDeProcesos(PROCESOS, parametros, presentarProcesoEnLista)) }
       }
 
-      const { filas, paginacion } = aplicarConsulta(PROCESOS.filter((p) => parametros.get('filter[status]')?.trim() || p.status !== 5), parametros, CONSULTA_PROCESOS)
+      const { filas, paginacion } = aplicarConsulta(PROCESOS.filter((p) => parametros.get('filter[status]')?.trim() || visiblePorDefecto(p.status)), parametros, CONSULTA_PROCESOS)
       return { estado: 200, cuerpo: conDatos(filas.map(presentarProcesoEnLista), { pagination: paginacion }) }
     }
 
@@ -8713,13 +8722,25 @@ async function resolverRuta (metodo, segmentos, parametros, token, cuerpo, petic
         return { estado: 200, cuerpo: conDatos(proceso) }
       }
       if (extra === 'mark-billed') {
+        // Ni Standby ni Cancelada son facturables, como en la API.
+        if ([ESTADO_STANDBY, ESTADO_CANCELADA].includes(proceso.status)) {
+          throw new ErrorApi(409, 'conflict', 'Una tarea en Standby o Cancelada no se puede facturar.')
+        }
         proceso.status = 9
         proceso.date_finished = proceso.date_finished ?? new Date().toISOString().replace(/\.\d{3}Z$/, 'Z')
         return { estado: 200, cuerpo: conDatos(proceso) }
       }
       if (extra === 'reopen') {
-        proceso.status = 4
-        proceso.date_finished = null
+        const destino = Number((await cuerpo()).status ?? 4)
+        if (!ESTADOS_PROCESO.some((e) => e.id === destino)) {
+          throw new ErrorApi(422, 'validation_failed', 'El estado no existe.', { status: ['no_existe'] })
+        }
+        if (destino === ESTADO_FACTURADO && [ESTADO_STANDBY, ESTADO_CANCELADA].includes(proceso.status)) {
+          throw new ErrorApi(409, 'conflict', 'Una tarea en Standby o Cancelada no se puede facturar.')
+        }
+        // Cancelada no lleva fecha de cierre: no se entrego. Cerrar cronometros no se simula.
+        proceso.status = destino
+        proceso.date_finished = estaCompletada(destino) ? proceso.date_finished : null
         return { estado: 200, cuerpo: conDatos(proceso) }
       }
       throw new ErrorApi(404, 'not_found', `Acción desconocida: "${extra}".`)
@@ -8857,7 +8878,7 @@ function presentarEspacioPortal (espacio) {
     progress: espacio.progress,
     counts: {
       tasks: tareas.length,
-      tasks_open: tareas.filter((t) => t.status !== 5).length,
+      tasks_open: tareas.filter((t) => estaAbierta(t.status)).length,
       milestones: HITOS.filter((h) => h.project_id === espacio.id).length
     }
   }
@@ -9111,7 +9132,7 @@ function ganttDeEspacio (espacioId, estados, hitosOcultos = []) {
           name: p.name,
           start: p.start_date,
           end: p.due_date,
-          progress: p.status === 5 ? 100 : 40,
+          progress: estaCompletada(p.status) ? 100 : 40,
           status: p.status,
           color: null,
           dependencies: []
@@ -9380,7 +9401,7 @@ const CONSULTA_ACTIVIDAD = {
  */
 function metricasDeEspacio (espacio) {
   const tareas = PROCESOS.filter((p) => p.rel_type === 'project' && p.rel_id === espacio.id)
-  const completas = tareas.filter((p) => p.status === 5).length
+  const completas = tareas.filter((p) => estaCompletada(p.status)).length
   const total = tareas.length
   const hitos = HITOS.filter((h) => h.project_id === espacio.id)
   const hoy = '2026-09-14'
@@ -9695,7 +9716,7 @@ function resumenDelContacto (contacto) {
     .map((espacio) => espacio.id)
 
   const procesos = PROCESOS.filter((p) => p.rel_type === 'project' && conTareas.includes(p.rel_id))
-  const completos = procesos.filter((p) => p.status === 5).length
+  const completos = procesos.filter((p) => estaCompletada(p.status)).length
   const hitos = HITOS.filter(
     (h) => mios.some((e) => e.id === h.project_id) && !HITOS_OCULTOS_AL_CLIENTE.includes(h.id)
   )
@@ -9868,7 +9889,7 @@ function bloqueadosDelContacto (conTareas, mios) {
   const trabables = PROCESOS.filter(
     (proceso) => proceso.rel_type === 'project'
       && conTareas.includes(proceso.rel_id)
-      && proceso.status !== 5
+      && estaAbierta(proceso.status)
   )
 
   return BLOQUEOS_DEL_PORTAL
@@ -9965,7 +9986,7 @@ function presentarHito (hito, paraContacto) {
     color: hito.color,
     order: hito.milestone_order,
     date_created: hito.datecreated,
-    counts: { tasks: suyas.length, tasks_done: suyas.filter((t) => t.status === 5).length },
+    counts: { tasks: suyas.length, tasks_done: suyas.filter((t) => estaCompletada(t.status)).length },
     total_logged_seconds: 0,
     vencido: hito.due_date !== null && hito.due_date < '2026-09-11'
   }
@@ -10261,7 +10282,7 @@ function tableroDeProcesos (tareas, parametros, presentar, consulta = CONSULTA_P
     .map((clave) => [clave, parametros.get(`filter[${clave}]`)?.trim()])
     .filter(([, valor]) => valor)
   const columnas = ESTADOS_PROCESO
-    .filter((estado) => filtrosEstado.length === 0 ? ![5, 9].includes(estado.id) : filtrosEstado.every(([clave, valor]) =>
+    .filter((estado) => filtrosEstado.length === 0 ? estado.filter_default : filtrosEstado.every(([clave, valor]) =>
       valor.split(',').map(Number).includes(clave.startsWith('completed') ? Number([5, 9].includes(estado.id)) : estado.id)))
     .sort((a, b) => a.order - b.order)
 

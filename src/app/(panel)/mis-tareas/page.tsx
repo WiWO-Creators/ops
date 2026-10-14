@@ -12,7 +12,7 @@ import type { Licitacion } from '@/datos/recursos'
 import type { Yo } from '@/datos/tipos'
 import { GLOSARIO } from '@/dominio/glosario'
 import {
-  consultaDeCreadas, consultaDeVencimiento, ETIQUETAS_DE_VENCIMIENTO, filtroDeVencimiento, seVenCompletadas, seVenCreadas,
+  consultaDeCreadas, consultaDeVencimiento, consultaSinStandby, ETIQUETAS_DE_VENCIMIENTO, filtroDeVencimiento, seVenCompletadas, seVenCreadas,
   SOLO_CON_ESPACIO,
   type FiltroDeVencimiento
 } from '@/dominio/mis-tareas'
@@ -56,7 +56,10 @@ export default async function MisTareasPage (props: PageProps<'/mis-tareas'>) {
   // El filtro de vencimiento acota las DOS listas por igual. "Hoy" se calcula aca, en el servidor,
   // con el mismo reloj con el que el Inicio arma sus tramos: los dos dicen lo mismo de la misma Tarea.
   const filtro = filtroDeVencimiento(params)
-  const porVencimiento = consultaDeVencimiento(filtro)
+  const plazo = consultaDeVencimiento(filtro)
+  // Standby esta pausada: no es ni vencida, ni de hoy, ni de esta semana. Sin filtro de plazo se lista normal.
+  const sinStandby = plazo === null ? null : consultaSinStandby(estados, verCompletadas)
+  const porVencimiento = plazo === null || sinStandby === null ? plazo : `${plazo}&${sinStandby}`
   const vacioFiltrado = vacioDelFiltro(filtro)
 
   return (

@@ -14,6 +14,7 @@ import { BORDE_VENCIMIENTO } from '@/componentes/presentadores/tonos-vencimiento
 import { PARAMETRO_TAREA } from '@/componentes/datos/tabla'
 import { EstadoDeTarea } from '@/componentes/proyecto/EstadoDeTarea'
 import { ModalTarea } from '@/componentes/proyecto/ModalTarea'
+import { puedeAtrasarse } from '@/componentes/proyecto/tareas'
 import {
   agruparPorVencimiento,
   contarAvisos,
@@ -409,7 +410,7 @@ function TarjetaDelDia (
         className={cn(
           'rounded-chico bg-superficie hover:bg-hover flex flex-col gap-1 border-l-2 p-2',
           'transition-colors duration-rapida ease-neo',
-          BORDE_VENCIMIENTO[estadoVencimiento(tarea.due_date)]
+          BORDE_VENCIMIENTO[puedeAtrasarse(tarea.status) ? estadoVencimiento(tarea.due_date) : 'lejano']
         )}
       >
         <span className="text-texto text-xs leading-snug font-medium">{tarea.name}</span>

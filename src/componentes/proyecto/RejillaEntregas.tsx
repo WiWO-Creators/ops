@@ -16,6 +16,7 @@ import {
   diaDeVencimiento,
   esDelMismoMes,
   estaCompleta,
+  puedeMarcarseVencida,
   sinFechaDeEntrega,
   TOPE_CELDA_MES
 } from './calendario-entregas'
@@ -411,7 +412,7 @@ export function TarjetaEntrega ({
   compacta?: boolean
 }): ReactElement {
   const completa = estaCompleta(tarea)
-  const tono = completa ? 'completa' : estadoVencimiento(diaDeVencimiento(tarea))
+  const tono = !puedeMarcarseVencida(tarea) ? (completa ? 'completa' : 'lejano') : estadoVencimiento(diaDeVencimiento(tarea))
   const vencida = tono === 'vencido'
 
   return (
@@ -445,7 +446,7 @@ export function TarjetaEntrega ({
                 </span>
               )}
               {tarea.patente !== null && <span className="tabular-nums">{tarea.patente}</span>}
-              <Fecha valor={tarea.due_date} comoVencimiento className="text-menor" />
+              <Fecha valor={tarea.due_date} comoVencimiento sinAlerta={!puedeMarcarseVencida(tarea)} className="text-menor" />
             </span>
 
             {tarea.assignees.length > 0 && <GrupoAvatares personas={tarea.assignees} maximo={3} />}

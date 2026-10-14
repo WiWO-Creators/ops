@@ -14,6 +14,7 @@ import type { Espacio } from '@/datos/recursos'
 import type { OpcionFiltro } from '@/definiciones/tipos'
 import { GLOSARIO } from '@/dominio/glosario'
 import { hoyLocal } from '@/lib/fechas'
+import { ESTADO_CANCELADA } from './tareas'
 import { useAviso } from '@/componentes/estado/useAviso'
 
 /**
@@ -51,6 +52,9 @@ const MARCADAS_POR_DEFECTO: Record<ClaveDeCopia, boolean> = {
  *
  * `copy_project_task_status` es un id de estado de tarea, no un modo: el panel viejo marca el 1 —"No
  * iniciada"— y con ese valor arranca acá tambien.
+ *
+ * Cancelada no se ofrece entre las opciones: es una decision sobre una tarea que existia, no un punto
+ * de partida. Standby si, porque nace abierta.
  */
 const ESTADO_INICIAL_DE_TAREAS = '1'
 
@@ -209,7 +213,7 @@ function FormularioCopia ({
           <Selector value={estadoTareas} onValueChange={setEstadoTareas}>
             <DisparadorSelector id={props.id} />
             <ContenidoSelector>
-              {estadosDeTarea.map((opcion) => (
+              {estadosDeTarea.filter((opcion) => Number(opcion.valor) !== ESTADO_CANCELADA).map((opcion) => (
                 <Opcion key={opcion.valor} value={opcion.valor}>{opcion.etiqueta}</Opcion>
               ))}
             </ContenidoSelector>

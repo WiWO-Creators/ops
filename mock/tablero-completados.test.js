@@ -48,13 +48,19 @@ test('completed=1 muestra las columnas cerradas: Completado y Facturado', async 
   }
 })
 
-test('sin filtro y completed=0 conservan los seis estados abiertos', async () => {
-  for (const filtros of [{}, { 'filter[completed]': '0' }]) {
-    const { estado, cuerpo } = await tablero(filtros)
-    assert.equal(estado, 200)
-    assert.deepEqual(cuerpo.data.map((grupo) => grupo.columna.id), [1, 4, 2, 6, 7, 8])
-    assert.ok(cuerpo.data.every((grupo) => grupo.tarjetas.every((tarjeta) => ![5, 9].includes(tarjeta.status))))
-  }
+test('sin filtro conserva los siete estados abiertos, con Standby y sin Cancelada', async () => {
+  const { estado, cuerpo } = await tablero({})
+  assert.equal(estado, 200)
+  assert.deepEqual(cuerpo.data.map((grupo) => grupo.columna.id), [1, 4, 2, 6, 7, 8, 10])
+  assert.ok(cuerpo.data.every((grupo) => grupo.tarjetas.every((tarjeta) => ![5, 9, 11].includes(tarjeta.status))))
+  assert.ok(cuerpo.data.find((grupo) => grupo.columna.id === 10).tarjetas.length > 0, 'el fixture trae Standby')
+})
+
+test('completed=0 deja afuera las completadas pero conserva Cancelada, que no esta completada', async () => {
+  const { estado, cuerpo } = await tablero({ 'filter[completed]': '0' })
+  assert.equal(estado, 200)
+  assert.deepEqual(cuerpo.data.map((grupo) => grupo.columna.id), [1, 4, 2, 6, 7, 8, 10, 11])
+  assert.ok(cuerpo.data.every((grupo) => grupo.tarjetas.every((tarjeta) => ![5, 9].includes(tarjeta.status))))
 })
 
 test('filtros contradictorios o estado inexistente devuelven tablero vacío', async () => {

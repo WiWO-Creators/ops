@@ -13,7 +13,13 @@ import {
   accionesMasivasPermitidas,
   camposDeTabla,
   comentarioParaMostrar,
+  estaCerrada,
+  estaCompletada,
   estaVencida,
+  puedeAtrasarse,
+  puedePasarA,
+  FILTRO_CERRADAS,
+  FILTRO_COMPLETADAS,
   valorDeAccionMasiva,
   cuerpoDeAccionMasiva,
   ACCIONES_MASIVAS,
@@ -38,6 +44,49 @@ test('una tarea completa nunca se marca, aunque haya vencido', () => {
 test('sin fecha de vencimiento no hay marca', () => {
   assert.equal(estaVencida({ due_date: null, status: 4 }, HOY), false)
   assert.equal(estaVencida({ due_date: 'no es una fecha', status: 4 }, HOY), false)
+})
+
+test('Standby y Cancelada nunca se marcan vencidas, aunque su plazo haya pasado', () => {
+  assert.equal(estaVencida({ due_date: '2020-01-01', status: 10 }, HOY), false)
+  assert.equal(estaVencida({ due_date: '2020-01-01', status: 11 }, HOY), false)
+  assert.equal(estaVencida({ due_date: '2020-01-01', status: 9 }, HOY), false)
+})
+
+test('abierta, cerrada y completada: la Cancelada cierra pero no completa', () => {
+  const casos = [
+    // estado, cerrada, completada, puede atrasarse
+    [1, false, false, true],
+    [4, false, false, true],
+    [10, false, false, false],
+    [5, true, true, false],
+    [9, true, true, false],
+    [11, true, false, false]
+  ]
+
+  for (const [estado, cerrada, completada, atrasable] of casos) {
+    assert.equal(estaCerrada(estado), cerrada, `cerrada ${estado}`)
+    assert.equal(estaCompletada(estado), completada, `completada ${estado}`)
+    assert.equal(puedeAtrasarse(estado), atrasable, `atrasable ${estado}`)
+  }
+})
+
+test('los filtros distinguen completadas de cerradas', () => {
+  assert.equal(FILTRO_COMPLETADAS, '5,9')
+  assert.equal(FILTRO_CERRADAS, '5,9,11')
+})
+
+test('cualquier estado entra y sale de Standby y Cancelada, pero no se factura desde ellos', () => {
+  for (const origen of [1, 4, 5, 10, 11]) {
+    assert.equal(puedePasarA(origen, 10), true)
+    assert.equal(puedePasarA(origen, 11), true)
+  }
+  for (const destino of [1, 4, 6]) {
+    assert.equal(puedePasarA(10, destino), true, 'sale de Standby')
+    assert.equal(puedePasarA(11, destino), true, 'se reabre una Cancelada')
+  }
+  assert.equal(puedePasarA(10, 9), false)
+  assert.equal(puedePasarA(11, 9), false)
+  assert.equal(puedePasarA(5, 9), true)
 })
 
 const CAMPOS = [

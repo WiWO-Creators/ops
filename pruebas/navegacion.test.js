@@ -13,7 +13,7 @@ import { agruparSecciones, alternarInvertido, estaAbierto, seccionActiva, HREFS_
 import { aplanar, comandosDeNavegacion, detalleConPatente, gruposDeBusqueda, gruposDePaleta, moverActivo, normalizar } from '../src/componentes/paleta/comandos.ts'
 import { estaFijado, hrefDeElemento, priorizarFijados } from '../src/componentes/fijados/fijados.ts'
 import {
-  conFiltroDeVencimiento, consultaDeVencimiento, diasHastaElDomingo, filtroDeVencimiento
+  conFiltroDeVencimiento, consultaDeVencimiento, consultaSinStandby, diasHastaElDomingo, filtroDeVencimiento
 } from '../src/dominio/mis-tareas.ts'
 import { estadoVencimiento, sumarDias, hoyLocal } from '../src/lib/fechas.ts'
 
@@ -213,4 +213,12 @@ test('cada bloque del menu trae su default de apertura', () => {
     { href: '/equipo', etiqueta: 'Equipo', icono: 'equipo', grupo: 'equipo' }
   ])
   assert.deepEqual(bloques.map((bloque) => [bloque.id, bloque.abiertoPorDefecto]), [['operacion', true], ['equipo', false]])
+})
+
+test('los filtros de plazo dejan afuera Standby pero conservan los demas estados abiertos', () => {
+  const catalogo = [1, 4, 2, 10, 5, 9, 11].map((id) => ({ id }))
+
+  assert.equal(consultaSinStandby(catalogo, false), 'filter[status]=1,4,2')
+  assert.equal(consultaSinStandby(catalogo, true), 'filter[status]=1,4,2,5,9,11')
+  assert.equal(consultaSinStandby([], false), null, 'sin catalogo no se manda un filtro vacio')
 })

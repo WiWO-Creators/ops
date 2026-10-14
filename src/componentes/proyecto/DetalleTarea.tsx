@@ -43,7 +43,7 @@ import { HiloDeComentarios } from './HiloDeComentarios'
 import {
   Dato, MarcasDeControl, SeccionDeAdjuntos, SeccionDeComentarios, SeccionDeLectura, SIN_DATO
 } from './ficha-de-lectura'
-import { comentarioParaMostrar, estaCerrada, type ProcesoDeFicha } from './tareas'
+import { comentarioParaMostrar, estaCerrada, puedeAtrasarse, type ProcesoDeFicha } from './tareas'
 import { CompartirTarea } from './CompartirTarea'
 import { BotonDuplicarTarea } from './DuplicarTarea'
 import { EstadoDeTarea } from './EstadoDeTarea'
@@ -396,7 +396,7 @@ export function DetalleTarea (
             </Dato>
           )}
           <Dato etiqueta="Inicio"><Fecha valor={tarea.start_date} /></Dato>
-          <Dato etiqueta="Entrega"><Fecha valor={tarea.due_date} comoVencimiento /></Dato>
+          <Dato etiqueta="Entrega"><Fecha valor={tarea.due_date} comoVencimiento sinAlerta={!puedeAtrasarse(tarea.status)} /></Dato>
           {tarea.assignees !== undefined && (
             <Dato etiqueta="Asignados">
               <GrupoEnlacesPersona personas={tarea.assignees} />
