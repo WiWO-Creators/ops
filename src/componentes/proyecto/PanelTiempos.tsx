@@ -245,6 +245,11 @@ function TiemposDelProyecto ({ proyectoId, fuente, capacidades }: PropsPanelTiem
   /** Detiene el cronometro abierto de una fila. Es el cronometro de la tarea, no un recurso aparte. */
   async function detener (registro: RegistroDeHoras): Promise<void> {
     setAviso(null)
+    // Una sesión de Espacio sin Proceso no tiene cronómetro de tarea que detener.
+    if (registro.task === null) {
+      setAviso('Esta sesión no tiene Proceso: detenla desde el cronómetro de jornada.')
+      return
+    }
 
     const resultado = await escribirEnBff(`tasks/${registro.task.id}/timer`, 'DELETE')
 
@@ -398,16 +403,23 @@ function TiemposDelProyecto ({ proyectoId, fuente, capacidades }: PropsPanelTiem
                     <span className="flex flex-wrap items-center gap-1.5">
                       {/* Conserva el resto de la URL: con `?tarea=12` a secas, abrir una tarea
                           desde acá se llevaba puestos los filtros y la pestaña activa. */}
-                      <Link
-                        href={urlConParametro(new URLSearchParams(params.toString()), 'tarea', String(registro.task.id))}
-                        scroll={false}
-                        className="text-texto hover:text-acento font-medium underline-offset-4 hover:underline"
-                      >
-                        {registro.task.name}
-                      </Link>
-                      {registro.task.billed === true
-                        ? <Insignia tono="exito" tamano="chico">Facturada</Insignia>
-                        : registro.task.billable === true && <Insignia tono="aviso" tamano="chico">No facturada</Insignia>}
+                      {/* Una sesión de Espacio sin Proceso llega con `task: null`. */}
+                      {registro.task === null
+                        ? <span className="text-texto-tenue">Sin proceso</span>
+                        : (
+                          <>
+                            <Link
+                              href={urlConParametro(new URLSearchParams(params.toString()), 'tarea', String(registro.task.id))}
+                              scroll={false}
+                              className="text-texto hover:text-acento font-medium underline-offset-4 hover:underline"
+                            >
+                              {registro.task.name}
+                            </Link>
+                            {registro.task.billed === true
+                              ? <Insignia tono="exito" tamano="chico">Facturada</Insignia>
+                              : registro.task.billable === true && <Insignia tono="aviso" tamano="chico">No facturada</Insignia>}
+                          </>
+                          )}
                     </span>
                   </CeldaTabla>
 

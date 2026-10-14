@@ -89,6 +89,9 @@ export function SelectorEtiquetas ({ catalogo, elegidas, onCambiar, id, idAyuda,
     setTexto('')
     setActiva(0)
     setRecorrida(false)
+    // La lista se cierra al elegir: abierta tapaba los campos de abajo y el botón de guardar. El foco
+    // sigue en el campo, y escribir, las flechas o un clic en la caja la vuelven a abrir.
+    setAbierta(false)
     campo.current?.focus()
   }
 
@@ -172,7 +175,7 @@ export function SelectorEtiquetas ({ catalogo, elegidas, onCambiar, id, idAyuda,
           'outline-offset-2 has-[input:focus-visible]:[outline:3px_solid_var(--foco)] has-[input:focus-visible]:[box-shadow:0_0_0_7px_var(--foco-halo)]',
           invalido && 'border-relleno-peligro'
         )}
-        onClick={() => campo.current?.focus()}
+        onClick={() => { campo.current?.focus(); setAbierta(true) }}
       >
         {elegidas.map((nombre) => {
           const esNueva = !catalogo.some((existente) => esMismaEtiqueta(existente, nombre))

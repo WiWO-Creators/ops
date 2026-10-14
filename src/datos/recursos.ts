@@ -1563,7 +1563,8 @@ export interface ResultadoAccionMasiva {
 export interface RegistroTiempo {
   id: number
   staff: { id: number, full_name: string, profile_image_url: string | null, sigue_asignado: boolean }
-  task: { id: number, name: string, status: number, billable: boolean, billed: boolean }
+  /** `null` en una sesión de Espacio sin Proceso (`task_id = 0`, migración 0260). */
+  task: { id: number, name: string, status: number, billable: boolean, billed: boolean } | null
   tags: Etiqueta[]
   start_time: string
   end_time: string | null
