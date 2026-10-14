@@ -37,7 +37,7 @@ antes de mirar los segmentos, así que no depende de acordarse de no escribir un
 
 | Pantalla | Ruta | Qué muestra |
 |---|---|---|
-| Acceso | `/` | Un solo paso: los contactos no tienen 2FA |
+| Acceso | `/` | Un paso (contraseña) o dos si su cliente enciende el código por correo (ver abajo) |
 | Fijar contraseña | `/clave/{token}` | Pública. Canjea el enlace de acceso y entra en el mismo paso |
 | Verificación | `/portal/verificar` | Para quien no verificó su correo |
 | Inicio | `/portal` | Resumen de proyectos, novedades y accesos |
@@ -47,6 +47,22 @@ antes de mirar los segmentos, así que no depende de acordarse de no escribir un
 | Anuncios | `/portal/anuncios` | Los dirigidos a clientes |
 | Ayuda | `/portal/ayuda` · `/[slug]` | Base de conocimiento pública |
 | Perfil | `/portal/perfil` | Datos del contacto y de la empresa |
+
+### Segundo factor por correo (opcional, por cliente)
+
+Desde la ficha del cliente (`Portal: código por correo`, `GET|PUT /clients/{id}/portal-2fa`, `customers.edit`)
+el equipo puede exigir que sus contactos, después de la contraseña, tecleen un código de 6 dígitos que
+llega a su correo. **Nace apagado**: sin la regla, el acceso es de un solo paso como siempre.
+
+- Vale para el acceso con contraseña **y** para el canje del enlace de acceso (`/clave/{token}`): el enlace
+  fija la contraseña igual, pero la sesión solo sale con el código. «Ver como cliente» no lo pide.
+- Código de 5 minutos de vida, 5 intentos por verificación, reenvíos con espera de 30 s. El navegador nunca
+  ve el token del desafío: vive en la cookie `ops_desafio_portal` (`httpOnly`, 15 minutos).
+- El correo respeta el interruptor general de correo, pero **no** la lista blanca de avisos al cliente.
+  Con el correo apagado la regla no se puede encender, y si se apaga después el acceso responde con un
+  aviso explícito («tu contraseña es correcta, no pudimos enviar el código»), no con «clave incorrecta».
+- Pantalla: `PasoCodigoPortal`; reglas de texto y errores en `dominio/segundo-factor-portal.ts`.
+  El contrato completo y las decisiones están en `modules/api/README.md` de wiwo-board.
 
 ### Cómo obtiene acceso un cliente
 

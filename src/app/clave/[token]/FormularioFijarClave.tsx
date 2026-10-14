@@ -8,6 +8,7 @@ import { Logo } from '@/componentes/estructura/Logo'
 import { Boton } from '@/componentes/formularios/Boton'
 import { Campo } from '@/componentes/formularios/Campo'
 import { Entrada } from '@/componentes/formularios/Entrada'
+import { PasoCodigoPortal, type DesafioDelPortal } from '@/componentes/portal/PasoCodigoPortal'
 import { PanelVidrio } from '@/componentes/superposiciones/PanelVidrio'
 import { destinoDeEntrada } from '@/dominio/portal'
 import { conLimite, TIEMPO_ESCRITURA_MS } from '@/datos/red'
@@ -23,6 +24,13 @@ interface RespuestaCanje {
    * entra por primera vez con su enlace cae donde caeria en cualquier entrada posterior.
    */
   destino?: unknown
+  /** `true` cuando el cliente exige el codigo por correo: la clave quedo fijada, falta el segundo paso. */
+  segundoFactor?: boolean
+  pista?: string
+  venceEn?: number
+  espera?: number
+  reenvios?: number
+  entrega?: string
 }
 
 /** El minimo que exige la API. Se valida acá porque un envio invalido igual quema el enlace. */
@@ -39,11 +47,15 @@ const LARGO_MINIMO = 8
  * mail—, asi que equivocarse al tipear significa quedarse afuera hasta pedir otro enlace.
  *
  * Al canjear, la API deja la sesion abierta, igual que un login: de acá se sale directo al portal.
+ * Si el cliente del contacto exige el segundo factor, la clave queda fijada pero la sesion no: se
+ * pide el codigo que acaba de llegar al correo (`PasoCodigoPortal`). Es lo que impide que quien
+ * intercepte el enlace —que viaja por fuera del sistema— se quede con la cuenta.
  */
 export function FormularioFijarClave ({ token }: { token: string }) {
   const router = useRouter()
   const [error, establecerError] = useState<string | null>(null)
   const [enviando, establecerEnviando] = useState(false)
+  const [desafio, establecerDesafio] = useState<DesafioDelPortal | null>(null)
   const [estadoOrbe, establecerEstadoOrbe] = useState<EstadoOrbe | undefined>(undefined)
   const temporizadorOrbe = useRef<ReturnType<typeof setTimeout> | null>(null)
 
@@ -58,6 +70,21 @@ export function FormularioFijarClave ({ token }: { token: string }) {
 
     if (temporizadorOrbe.current !== null) clearTimeout(temporizadorOrbe.current)
     temporizadorOrbe.current = setTimeout(() => { establecerEstadoOrbe(undefined) }, 1400)
+  }
+
+  /** La sesion quedo abierta, venga del canje o del codigo. */
+  function entrar (destino: unknown) {
+    establecerEstadoOrbe('success')
+    router.replace(destinoDeEntrada(destino))
+    router.refresh()
+  }
+
+  /**
+   * El segundo paso murio (intentos agotados, desafio vencido). El enlace ya se uso y la clave quedo
+   * fijada, asi que el camino es la pantalla de entrar, no esta.
+   */
+  function volverAEntrar () {
+    router.replace('/')
   }
 
   async function enviar (evento: React.FormEvent<HTMLFormElement>): Promise<void> {
@@ -99,9 +126,21 @@ export function FormularioFijarClave ({ token }: { token: string }) {
         return
       }
 
-      establecerEstadoOrbe('success')
-      router.replace(destinoDeEntrada(cuerpo.destino))
-      router.refresh()
+      if (cuerpo.segundoFactor === true) {
+        establecerDesafio({
+          pista: cuerpo.pista ?? '',
+          venceEn: cuerpo.venceEn ?? 300,
+          espera: cuerpo.espera ?? 0,
+          reenvios: cuerpo.reenvios ?? 0,
+          entrega: cuerpo.entrega ?? 'real'
+        })
+        establecerEnviando(false)
+        establecerEstadoOrbe(undefined)
+
+        return
+      }
+
+      entrar(cuerpo.destino)
     } catch {
       señalarError('No pudimos confirmar si tu contraseña quedó guardada. Prueba entrar con ella; si no funciona, vuelve a intentarlo.')
     }
@@ -131,53 +170,66 @@ export function FormularioFijarClave ({ token }: { token: string }) {
         </div>
 
         <PanelVidrio className="animate-entrar-abajo w-full max-w-sm p-6 sm:p-8">
-          <header className="mb-6">
-            <h1 className="font-titular text-texto text-2xl font-bold tracking-tight">Tu contraseña del portal</h1>
-            <p className="text-texto-tenue mt-2 text-sm">
-              Este enlace sirve una sola vez. Al guardar, entras directo al portal.
-            </p>
-          </header>
-
-          <form onSubmit={(e) => { void enviar(e) }} className="flex flex-col gap-4">
-            <Campo etiqueta="Contraseña" ayuda="Mínimo 8 caracteres." requerido>
-              {(props) => (
-                <Entrada
-                  {...props}
-                  name="password"
-                  type="password"
-                  autoComplete="new-password"
-                  minLength={LARGO_MINIMO}
-                  autoFocus
-                  required
-                />
-              )}
-            </Campo>
-
-            <Campo etiqueta="Repítela" requerido>
-              {(props) => (
-                <Entrada
-                  {...props}
-                  name="repetida"
-                  type="password"
-                  autoComplete="new-password"
-                  minLength={LARGO_MINIMO}
-                  required
-                />
-              )}
-            </Campo>
-
-            {error !== null && (
-              <AvisoEnLinea
-                variante="error"
-                mensaje={error}
-                className="rounded-chico border-relleno-peligro/40 bg-superficie-peligro border px-3 py-2 text-sm"
+          {desafio !== null
+            ? (
+              <PasoCodigoPortal
+                desafio={desafio}
+                alVolver={volverAEntrar}
+                alEntrar={entrar}
+                alCambiarOrbe={establecerEstadoOrbe}
               />
-            )}
+              )
+            : (
+              <>
+              <header className="mb-6">
+                <h1 className="font-titular text-texto text-2xl font-bold tracking-tight">Tu contraseña del portal</h1>
+                <p className="text-texto-tenue mt-2 text-sm">
+                  Este enlace sirve una sola vez. Al guardar, entras directo al portal.
+                </p>
+              </header>
 
-            <Boton type="submit" variante="primario" disabled={enviando} className="mt-1 w-full">
-              Guardar y entrar
-            </Boton>
-          </form>
+              <form onSubmit={(e) => { void enviar(e) }} className="flex flex-col gap-4">
+                <Campo etiqueta="Contraseña" ayuda="Mínimo 8 caracteres." requerido>
+                  {(props) => (
+                    <Entrada
+                      {...props}
+                      name="password"
+                      type="password"
+                      autoComplete="new-password"
+                      minLength={LARGO_MINIMO}
+                      autoFocus
+                      required
+                    />
+                  )}
+                </Campo>
+
+                <Campo etiqueta="Repítela" requerido>
+                  {(props) => (
+                    <Entrada
+                      {...props}
+                      name="repetida"
+                      type="password"
+                      autoComplete="new-password"
+                      minLength={LARGO_MINIMO}
+                      required
+                    />
+                  )}
+                </Campo>
+
+                {error !== null && (
+                  <AvisoEnLinea
+                    variante="error"
+                    mensaje={error}
+                    className="rounded-chico border-relleno-peligro/40 bg-superficie-peligro border px-3 py-2 text-sm"
+                  />
+                )}
+
+                <Boton type="submit" variante="primario" disabled={enviando} className="mt-1 w-full">
+                  Guardar y entrar
+                </Boton>
+              </form>
+              </>
+              )}
         </PanelVidrio>
       </div>
     </main>

@@ -265,6 +265,31 @@ export function esDesafio (dato: ParDeTokensConStaff | DesafioSegundoFactor): da
 }
 
 /**
+ * El desafio de segundo factor de un CONTACTO del portal (`/auth/portal/login` y el canje del enlace).
+ *
+ * Distinto del del equipo: el codigo llega por correo, el cliente lo enciende por contacto desde su
+ * ficha y trae lo que la pantalla necesita para guiar el paso (vigencia, espera y reenvios).
+ */
+export interface DesafioPortal {
+  two_factor_required: true
+  challenge_token: string
+  method: 'email'
+  /** El correo con el medio oculto (`j***@dominio.cl`), para decirle donde mirar. */
+  email_hint: string
+  /** Segundos que vive cada codigo. */
+  code_expires_in: number
+  /** Segundos que faltan para poder pedir otro codigo. */
+  resend_in: number
+  resends_left: number
+  /** `real` llega a la persona; `prueba` fue a la casilla de pruebas del sistema. */
+  delivery: 'real' | 'prueba'
+}
+
+export function esDesafioPortal (dato: ParDeTokensConContacto | DesafioPortal): dato is DesafioPortal {
+  return 'two_factor_required' in dato
+}
+
+/**
  * Lo que responde `GET /auth/google`: si la entrada con Google esta prendida y con que aplicacion.
  *
  * El `client_id` viene de la API y no de una variable de entorno del front a proposito: es editable
