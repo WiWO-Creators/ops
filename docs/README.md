@@ -170,6 +170,26 @@ pnpm mock                 # API simulada en :3001  (no necesita instalar nada)
 pnpm test                 # pruebas del mock
 ```
 
+### Chequeo de salud y monitor externo
+
+`GET /api/salud` es público y contesta `200` si el BFF y la API están bien, o `503` si falla cualquiera.
+El BFF comprueba su propia configuración (`API_BASE` y `SESION_CLAVE`) y le pregunta a la API por su
+`GET /api/v1/health`, que a su vez revisa la base, la escritura en `uploads/` y la cola de correo.
+
+```json
+{ "ok": true, "status": "ok", "componentes": { "bff": { "ok": true }, "api": { "ok": true } } }
+```
+
+Con la cabecera `x-salud-token` igual a la variable `WIWO_SALUD_TOKEN` el cuerpo trae además el detalle
+(milisegundos, motivos y lo que reporta la API). Sin la variable configurada nadie lo ve. Tiene que
+ser el mismo valor que `WIWO_SALUD_TOKEN` de la API.
+
+Para apuntar un monitor externo (UptimeRobot, Better Stack, Uptime Kuma…): un chequeo HTTP cada minuto a
+`https://<ops>/api/salud` que espere `200`, y otro a `https://<api>/api/v1/health` si se quiere vigilar la
+API por separado. El aviso por correo (a Óscar Canelo de WOM) se configura dentro del monitor, no en
+este código. Detalle de lo que revisa la API: `modules/api/README.md` de wiwo-board, sección de
+diagnóstico.
+
 El mock no tiene dependencias: sirve el contrato con `node:http` a secas, así que corre en un
 repositorio recién clonado. Para usarlo, `API_BASE=http://localhost:3001/api/v1`. Cuentas de prueba
 y casos límite que cubre, en [contrato-api.md](contrato-api.md#mock).

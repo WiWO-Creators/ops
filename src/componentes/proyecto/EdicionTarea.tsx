@@ -54,6 +54,7 @@ import { GLOSARIO } from '@/dominio/glosario'
 import { errorDeHorasEstimadas } from '@/dominio/tiempo-estimado'
 import { estaCerrada } from './tareas'
 import { accionDeEstado } from './estado-proceso'
+import { atenderArranque } from './arranque-cronometro'
 import { hoyLocal } from '@/lib/fechas'
 import { AsistenteDescripcion } from './AsistenteDescripcion'
 import { useVencimientoRequerido } from './useVencimientoRequerido'
@@ -430,6 +431,7 @@ export function EdicionTarea (
         setError(`No se guardó el estado: ${resultado.mensaje}`)
         return
       }
+      atenderArranque(resultado.meta, aviso)
       setEstadoGuardado(estado)
       const cierreAutomatico = estaCerrada(Number(estado))
         ? fechaDeCierre(resultado.datos?.date_finished) || hoyLocal() : ''

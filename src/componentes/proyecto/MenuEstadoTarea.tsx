@@ -14,6 +14,7 @@ import { useAviso } from '@/componentes/estado/useAviso'
 import { resolverEstado } from '@/dominio/estados-tarea'
 import { cn } from '@/lib/clases'
 import { accionDeEstado } from './estado-proceso'
+import { atenderArranque } from './arranque-cronometro'
 import type { EstadoLookup, Proceso } from '@/datos/recursos'
 
 /**
@@ -115,6 +116,7 @@ export function MenuEstadoTarea ({
       return
     }
 
+    atenderArranque(resultado.meta, avisar)
     onCambiado()
   }
 
