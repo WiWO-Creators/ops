@@ -1,12 +1,14 @@
 'use client'
 
 import { useEffect, useRef, useState, type ReactElement } from 'react'
+import { UsersRound } from 'lucide-react'
 import { AvisoEnLinea } from '@/componentes/estado/Estados'
 import { Boton } from '@/componentes/formularios/Boton'
+import { Insignia } from '@/componentes/presentadores/Insignia'
 import { escribirEnBff } from '@/componentes/datos/mutaciones'
 import { accionResuelta, type AccionIA } from '@/dominio/ia'
 import { esResoluble, estadoDeAccion, segundosParaExpirar } from '@/dominio/ia-chat'
-import { textoDeRestante } from '@/dominio/propuestas'
+import { escalonDeDetalle, HERRAMIENTA_ALTA_EQUIPO, textoDeRestante, type CitaDelTicket, type EscalonDeAlta } from '@/dominio/propuestas'
 
 /**
  * La tarjeta de una escritura que Thinking Orb dejo preparada.
@@ -53,6 +55,15 @@ import { textoDeRestante } from '@/dominio/propuestas'
  * `409` es correcto pero se pinta como un error encima de un exito—. Confiar en ellos para no
  * escribir dos veces seria confiar en el navegador.
  *
+ * === EL ALTA DE UNA PERSONA DEL EQUIPO ===
+ *
+ * `crear_persona_equipo` crea una cuenta que entra a Ops, y se parece demasiado a `crear_contacto`, que
+ * crea a alguien de un cliente. Por eso lleva una insignia fija «EQUIPO, no contacto» y el escalón a la
+ * vista: subirlo (Lead, Director, Gerencia) cambia cuántas filas ve la persona, y es lo único de la
+ * tarjeta que conviene mirar dos veces. El escalón sale de `equipo` (lo calcula el servidor) o, en el
+ * chat, de la línea «Escalón: …» del detalle. La cita del ticket es texto de un tercero: se pinta
+ * como texto plano, rotulada, y nunca como HTML ni enlace.
+ *
  * === LA CUENTA ATRAS ===
  *
  * Se pinta con el reloj del navegador y no decide nada: el servidor recalcula la caducidad al leer
@@ -80,12 +91,16 @@ const ESTADOS: Record<string, { texto: string, clase: string }> = {
  * @param onResuelta se llama con la accion ya resuelta que devolvio el servidor
  */
 export function TarjetaPropuestaIA (
-  { accion, onResuelta, proyectoId, rutaConfirmar }: {
+  { accion, onResuelta, proyectoId, rutaConfirmar, equipo, cita }: {
     accion: AccionIA
     onResuelta: (accion: AccionIA) => void
     proyectoId?: number
     /** Ruta del BFF que recibe la decision. Sin ella, la del equipo segun `proyectoId`. */
     rutaConfirmar?: string
+    /** El escalón de un alta del equipo, si la bandeja ya lo trae. Si no, se lee del detalle. */
+    equipo?: EscalonDeAlta | null
+    /** Lo que decía el ticket de wiwo.center que originó la propuesta. */
+    cita?: CitaDelTicket | null
   }
 ): ReactElement {
   const [ahora, setAhora] = useState(() => Date.now())
@@ -146,10 +161,36 @@ export function TarjetaPropuestaIA (
   }
 
   const estado = ESTADOS[estadoDeAccion(accion, ahora)]
+  const esAltaDeEquipo = accion.herramienta === HERRAMIENTA_ALTA_EQUIPO
+  const escalon = esAltaDeEquipo ? (equipo ?? escalonDeDetalle(accion.detalle)) : null
 
   return (
     <div className="border-linea bg-superficie rounded-tarjeta flex flex-col gap-2 border p-3">
+      {esAltaDeEquipo && (
+        <div className="flex flex-wrap items-center gap-1.5">
+          <Insignia tono="acento">
+            <UsersRound size={12} aria-hidden="true" />
+            EQUIPO, no contacto
+          </Insignia>
+          {escalon !== null && (
+            <Insignia tono={escalon.mayor_que_staff ? 'aviso' : 'neutro'}>
+              Escalón {escalon.escalon_nombre}
+              {escalon.mayor_que_staff && <span className="sr-only"> (más que Staff: cambia cuántas filas ve)</span>}
+            </Insignia>
+          )}
+        </div>
+      )}
+
       <p className="text-texto break-words text-sm font-medium">{accion.resumen}</p>
+
+      {cita != null && (
+        <figure className="border-linea bg-superficie-elevada rounded-control flex flex-col gap-1 border px-3 py-2">
+          <figcaption className="text-texto-sutil text-xs">
+            {cita.ticket === null ? 'Lo que decía el ticket' : `Lo que decía el ticket ${cita.ticket}`} · texto de un tercero, no verificado por Ops
+          </figcaption>
+          <blockquote className="text-texto-tenue break-words whitespace-pre-wrap text-sm">{cita.texto}</blockquote>
+        </figure>
+      )}
 
       {accion.detalle.length > 0 && (
         <ul className="text-texto-tenue flex flex-col gap-0.5 text-xs">
