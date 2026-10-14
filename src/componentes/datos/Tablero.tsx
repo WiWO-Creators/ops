@@ -6,6 +6,7 @@ import { Boton } from '@/componentes/formularios/Boton'
 import { Vacio } from '@/componentes/estado/Estados'
 import { escribirEnBff } from './mutaciones'
 import { mutarEnBff } from './mutar'
+import { atenderArranque } from '@/componentes/proyecto/arranque-cronometro'
 import { conLimite, TIEMPO_LECTURA_MS } from '@/datos/red'
 import { EVENTO_RECURSO_CAMBIADO, EVENTO_TAREAS_CAMBIADAS, observarLista } from '@/datos/refresco-lista'
 import { useAviso } from '@/componentes/estado/useAviso'
@@ -285,6 +286,8 @@ export function Tablero<T extends FilaConId> ({
           return
         }
       }
+
+      if (resultado.ok) atenderArranque(resultado.meta, avisar)
 
       await recargar()
     } finally {

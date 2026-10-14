@@ -53,6 +53,13 @@ export const ROTULO_TIPO: Record<TipoNovedad, string> = {
  */
 export const NOVEDADES: Novedad[] = [
   {
+    fecha: '2026-10-14',
+    tipo: 'mejora',
+    titulo: 'El cronómetro arranca solo al pasar una tarea a En progreso',
+    detalle: 'Si estás asignado a la tarea y tienes tu jornada abierta, el cronómetro parte en cuanto la mueves a «En progreso». Si no puede partir (no estás asignado o no abriste la jornada), la tarea cambia igual y te avisamos por qué no hay cronómetro.',
+    commits: []
+  },
+  {
     fecha: '2026-10-13',
     tipo: 'mejora',
     titulo: 'Thinking Orb: más a mano y con más control',

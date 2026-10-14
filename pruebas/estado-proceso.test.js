@@ -9,7 +9,7 @@
 
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
-import { accionDeEstado } from '../src/componentes/proyecto/estado-proceso.ts'
+import { accionDeEstado, leerArranque } from '../src/componentes/proyecto/estado-proceso.ts'
 
 test('completar va por `mark-complete` y sin cuerpo', () => {
   assert.deepEqual(accionDeEstado(42, 5), {
@@ -40,4 +40,26 @@ test('un id o un estado inutilizable no produce peticion', () => {
   assert.equal(accionDeEstado(1.5, 4), null)
   assert.equal(accionDeEstado(42, Number.NaN), null)
   assert.equal(accionDeEstado(42, 0), null)
+})
+
+test('leerArranque entiende el `meta.timer` de la API', () => {
+  assert.deepEqual(
+    leerArranque({ timer: { started: true, code: 'iniciado', message: null } }),
+    { started: true, code: 'iniciado', message: null }
+  )
+  assert.deepEqual(
+    leerArranque({ timer: { started: false, code: 'sin_jornada', message: 'Abre tu jornada.' } }),
+    { started: false, code: 'sin_jornada', message: 'Abre tu jornada.' }
+  )
+})
+
+test('leerArranque devuelve null cuando no hay arranque que contar o viene mal formado', () => {
+  for (const meta of [undefined, null, {}, 'texto', { timer: null }, { timer: 'x' }, { timer: { started: 'si', code: 'x' } }, { timer: { started: true } }]) {
+    assert.equal(leerArranque(meta), null, JSON.stringify(meta))
+  }
+})
+
+test('leerArranque ignora un mensaje vacio o que no es texto', () => {
+  assert.equal(leerArranque({ timer: { started: false, code: 'x', message: '  ' } }).message, null)
+  assert.equal(leerArranque({ timer: { started: false, code: 'x', message: 5 } }).message, null)
 })

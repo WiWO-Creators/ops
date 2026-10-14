@@ -45,3 +45,36 @@ export function accionDeEstado (tareaId: number, estado: number): AccionDeEstado
 
   return { ruta: `tasks/${id}/actions/reopen`, cuerpo: { status: estado } }
 }
+
+/**
+ * Lo que la API cuenta del cronometro cuando una tarea pasa a "En progreso" (`meta.timer`).
+ *
+ * `code` es uno de `iniciado`, `no_asignado`, `sin_jornada`, `facturada` o `no_disponible`. El cambio
+ * de estado se aplica siempre; esto solo dice si ademas arranco el cronometro de quien lo hizo.
+ */
+export interface ArranqueDeCronometro {
+  started: boolean
+  code: string
+  message: string | null
+}
+
+/**
+ * Lee el bloque `meta.timer` de la respuesta de un cambio de estado.
+ *
+ * @param meta el `meta` del envelope tal como llego, sin garantias
+ * @returns el arranque, o `null` si la respuesta no trae uno valido —la API lo omite cuando el cambio
+ *          no fue a En progreso o la persona ya tenia un cronometro corriendo en la tarea
+ */
+export function leerArranque (meta: unknown): ArranqueDeCronometro | null {
+  if (meta === null || typeof meta !== 'object' || !('timer' in meta)) return null
+
+  const timer = (meta as { timer: unknown }).timer
+
+  if (timer === null || typeof timer !== 'object') return null
+
+  const { started, code, message } = timer as Record<string, unknown>
+
+  if (typeof started !== 'boolean' || typeof code !== 'string') return null
+
+  return { started, code, message: typeof message === 'string' && message.trim() !== '' ? message : null }
+}
