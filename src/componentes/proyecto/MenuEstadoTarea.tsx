@@ -11,11 +11,14 @@ import {
 } from '@/componentes/superposiciones/MenuContextual'
 import { comprobarEntidad, mutarEnBff } from '@/componentes/datos/mutar'
 import { useAviso } from '@/componentes/estado/useAviso'
+import { pedirSobre } from '@/datos/cliente'
 import { resolverEstado } from '@/dominio/estados-tarea'
 import { cn } from '@/lib/clases'
+import { DialogoCompletarConEntrega } from './DialogoCompletarConEntrega'
+import { entregaEsRelevante, rutaDeSeguidoresDeContacto, type SeguidoresDeContacto } from './entrega-final'
 import { accionDeEstado } from './estado-proceso'
 import { atenderArranque } from './arranque-cronometro'
-import { puedePasarA } from './tareas'
+import { ESTADO_COMPLETO, estaCerrada, puedePasarA } from './tareas'
 import type { EstadoLookup, Proceso } from '@/datos/recursos'
 
 /**
@@ -35,6 +38,11 @@ import type { EstadoLookup, Proceso } from '@/datos/recursos'
  *
  * El cambio se pinta en optimista y se revierte si la API lo rechaza, con el motivo a la vista: una
  * tarjeta que se queda mostrando el estado que no se guardo es peor que no tener el control.
+ *
+ * **Completar puede llevar el archivo final al cliente.** Al elegir «Completo» se mira si el correo de
+ * entrega tiene sentido (se manda de verdad, el cliente ve la tarea y alguien la sigue): solo entonces
+ * se ofrece elegir el archivo, en un dialogo o —dentro de la ficha, que ya es un dialogo— en su bloque
+ * en linea (`alElegirCompleto`). Si no, completar sigue siendo un clic, igual que siempre.
  */
 
 interface PropsMenuEstadoTarea {
@@ -47,6 +55,11 @@ interface PropsMenuEstadoTarea {
   catalogo: EstadoLookup[]
   /** Se llama despues de un cambio confirmado, para que quien monta el control refresque su vista. */
   onCambiado: () => void
+  /**
+   * Que hacer cuando completar ofrece enviar el archivo final al cliente. Sin esto se abre un
+   * dialogo; la ficha lo reemplaza por su bloque en linea para no apilar un dialogo sobre otro.
+   */
+  alElegirCompleto?: () => void
 }
 
 export function MenuEstadoTarea ({
@@ -54,7 +67,8 @@ export function MenuEstadoTarea ({
   nombreTarea,
   estado,
   catalogo,
-  onCambiado
+  onCambiado,
+  alElegirCompleto
 }: PropsMenuEstadoTarea): ReactElement | null {
   // Lo que se pinta: arranca en el estado de la API y se adelanta al elegir. Se vuelve a alinear
   // sola cuando la recarga del tablero trae un `status` distinto al del render anterior. React
@@ -64,10 +78,37 @@ export function MenuEstadoTarea ({
   const [pintado, setPintado] = useState(estado)
   const [ultimoDeLaApi, setUltimoDeLaApi] = useState(estado)
   const [enCurso, setEnCurso] = useState(false)
+  const [completando, setCompletando] = useState(false)
 
   if (ultimoDeLaApi !== estado) {
     setUltimoDeLaApi(estado)
     setPintado(estado)
+  }
+
+  /**
+   * Ofrece el archivo final si el correo de entrega tiene sentido para esta tarea.
+   *
+   * Lee quien la sigue y si el correo saldria de verdad. Si la lectura falla, no se ofrece nada y
+   * completar sigue como siempre: un fallo al preguntar no puede impedir completar.
+   *
+   * @returns `true` si se ofrecio (quien completa sera el dialogo o la ficha), `false` si hay que seguir
+   */
+  async function entregaOfrecida (): Promise<boolean> {
+    setEnCurso(true)
+
+    const relevante = await pedirSobre<SeguidoresDeContacto>(
+      rutaDeSeguidoresDeContacto(tareaId, 'panel'),
+      new AbortController().signal
+    ).then((sobre) => entregaEsRelevante(sobre.data)).catch(() => false)
+
+    setEnCurso(false)
+
+    if (!relevante) return false
+
+    if (alElegirCompleto !== undefined) alElegirCompleto()
+    else setCompletando(true)
+
+    return true
   }
 
   /**
@@ -79,6 +120,8 @@ export function MenuEstadoTarea ({
     const destino = Number(valor)
 
     if (destino === pintado || enCurso) return
+
+    if (destino === ESTADO_COMPLETO && !estaCerrada(pintado) && await entregaOfrecida()) return
 
     const accion = accionDeEstado(tareaId, destino)
 
@@ -166,6 +209,16 @@ export function MenuEstadoTarea ({
           </GrupoRadioMenu>
         </ContenidoMenu>
       </MenuContextual>
+
+      {completando && (
+        <DialogoCompletarConEntrega
+          abierto
+          tareaId={tareaId}
+          nombreTarea={nombreTarea}
+          onCerrar={() => setCompletando(false)}
+          onCompletada={() => { setPintado(ESTADO_COMPLETO); onCambiado() }}
+        />
+      )}
     </div>
   )
 }

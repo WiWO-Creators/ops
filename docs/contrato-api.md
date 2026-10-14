@@ -1001,7 +1001,7 @@ Requiere `create` sobre `tasks`; sin él, `403`.
 
 | Endpoint | Efecto |
 |---|---|
-| `POST /tasks/{id}/actions/mark-complete` | `status: 5`, sella `datefinished` y **cierra los cronómetros abiertos** |
+| `POST /tasks/{id}/actions/mark-complete` | `status: 5`, sella `datefinished` y **cierra los cronómetros abiertos**. Cuerpo opcional `{ "delivery_file_id": <id de un adjunto de la tarea> }`: manda el correo «tu tarea terminó» a los seguidores-contacto con ese archivo **adjunto** (ver «Seguidores del cliente y correo de entrega»). Sin él no sale correo |
 | `POST /tasks/{id}/actions/mark-billed` | **Facturado (`status: 9`)**: completa la tarea si hace falta y le pone una marca (`tblapi_tarea_facturada`). En la base sigue en `status = 5`; la API expone `9` calculado. Se trata como Completado en todo (`completed: 1`, reportes, horas). La marca se pierde si la tarea se reabre o se vuelve a completar. El portal del cliente la ve como `5`. `mark-complete` sobre una facturada solo quita la marca |
 | `POST /tasks/{id}/actions/reopen` | Limpia `datefinished`. Sin `status` en el cuerpo, usa la heurística del panel |
 | `POST /tasks/{id}/mover` | `{ "columna": 4, "posicion": 2, "columna_completa": [12, 7, 33] }` — arrastre del tablero. `columna_completa` son los ids de la columna destino tal como los tiene el cliente: sin ellos no hay reordenamiento, y las tarjetas que el cliente no cargó por paginación se empujan al fondo |
@@ -1903,6 +1903,44 @@ devuelve solo los activos. Con `aviso_al_equipo=false` los destinatarios son los
 personas activas al momento del envío más `correos`, sin duplicados; `422` si quedan las dos listas
 vacías. La UI (Configuración del Proyecto) solo muestra el interruptor y el selector de personas;
 `correos` viaja tal como llegó.
+
+**Seguidores del cliente y correo de entrega (migración `1590`).** Los seguidores de Perfex son solo
+staff; los del lado del cliente son **contactos**, en una relación aparte. Al crear una Tarea en un
+Proyecto con cliente (los mismos caminos que los seguidores predeterminados), quedan como seguidores
+todos los contactos **activos** del cliente con acceso al portal. Quitar a uno deja una lápida
+(`following: false`): ni el backfill ni otra siembra lo vuelven a sumar.
+
+```
+GET /tasks/{id}/contact-followers
+// { "contacts": [ { "id": 9101, "full_name": "Ana Pérez", "is_primary": true, "following": true,
+//                   "email": "ana@cliente.cl", "portal_access": true } ],
+//   "can_edit": true,
+//   "delivery": { "max_bytes": 10485760, "mail_enabled": false, "mail_mode": "apagado", "task_visible_to_client": true } }
+PUT /tasks/{id}/contact-followers/{contacto}      // { "following": true | false }  -> misma forma
+GET /portal/tasks/{id}/followers                   // { "contacts": [ {id, full_name, is_primary, following} ], "can_manage_others": false, "self_id": 9102 }
+PUT /portal/tasks/{id}/followers/{contacto}        // { "following": bool }  -> misma forma
+```
+
+Staff: `tasks.edit` sobre una Tarea que pueda escribir (`403`; `404` si no la ve). `contacts` son los
+contactos activos del cliente (con o sin acceso al portal); `422 contact_id: ["invalido"]` si el contacto
+es de otro cliente o está inactivo, y `422 following` si no es booleano. Portal: el contacto tiene que ver
+la Tarea (visible al cliente, Proyecto suyo, pestaña Tareas habilitada; si no, `404`). El contacto
+**primario** cambia a cualquiera de su cliente; uno **simple** solo a sí mismo (`403`) y solo se ve a sí
+mismo en `contacts`. El portal no publica correos. Es la séptima escritura del portal.
+
+`delivery` le dice a la UI de completar qué puede prometer: el tope del adjunto, si el correo saldría de
+verdad (`mail_enabled`: interruptor general no apagado **y** el slug `ops-tarea-entregada` permitido en
+«Avisos por correo»; no sale con la lista en `*`), el modo (`apagado`/`prueba`/`real`) y si el cliente ve
+la Tarea.
+
+**Correo de entrega.** `mark-complete` con `delivery_file_id` envía un correo por seguidor-contacto
+(activo, con correo y con los avisos de tareas encendidos) con el archivo **adjunto**; el correo no lleva
+ningún enlace. `422 delivery_file_id` **antes** de completar (la Tarea no se completa) con
+`no_es_de_la_tarea`, `sin_archivo_local` (externo/Drive o ya no está en disco), `archivo_muy_grande`
+(`WIWO_ENTREGA_MAX_BYTES`, 10 MiB por defecto), `solo_al_completar` (otro estado) o `invalid` (no es un
+id positivo). **Sin `delivery_file_id` la Tarea se completa y no sale correo**: la UI de ops-v2 pregunta
+(ficha y menús de estado); el arrastre del tablero, las acciones masivas y el orbe completan siempre
+sin correo. Se sube un archivo nuevo antes con `POST /tasks/{id}/files` y se pasa su id.
 
 **Seguidores predeterminados (WIW-0496).** `GET|PUT /projects/{id}/default-followers`:
 

@@ -22,8 +22,11 @@ import { ESTADO_COMPLETO, ESTADO_FACTURADO } from './tareas.ts'
 export interface AccionDeEstado {
   /** Ruta del BFF, sin barra inicial. */
   ruta: string
-  /** Cuerpo JSON, o nada: `mark-complete` y `mark-billed` no llevan. */
-  cuerpo: { status: number } | undefined
+  /**
+   * Cuerpo JSON, o nada: `mark-complete` y `mark-billed` no llevan, salvo el adjunto del correo de
+   * entrega (`delivery_file_id`) al completar.
+   */
+  cuerpo: { status: number } | { delivery_file_id: number } | undefined
 }
 
 /**
@@ -31,16 +34,27 @@ export interface AccionDeEstado {
  *
  * @param tareaId id del Proceso
  * @param estado id del estado destino, del catalogo `task_statuses` de `/lookups`
+ * @param archivoEntrega adjunto de la tarea que viaja en el correo «tu tarea termino» a los
+ *        seguidores-contacto. Solo cuenta al completar; con otro estado se ignora —la API lo
+ *        rechazaria—, y un id inutilizable tambien: sin archivo la tarea se completa sin correo
  * @returns la ruta y el cuerpo del `POST`, o `null` si alguno de los dos ids no es utilizable —un
  *          `NaN` que llega desde un `<select>` no tiene que convertirse en una peticion
  */
-export function accionDeEstado (tareaId: number, estado: number): AccionDeEstado | null {
+export function accionDeEstado (tareaId: number, estado: number, archivoEntrega?: number | null): AccionDeEstado | null {
   if (!Number.isSafeInteger(tareaId) || tareaId <= 0) return null
   if (!Number.isSafeInteger(estado) || estado <= 0) return null
 
   const id = encodeURIComponent(String(tareaId))
 
-  if (estado === ESTADO_COMPLETO) return { ruta: `tasks/${id}/actions/mark-complete`, cuerpo: undefined }
+  if (estado === ESTADO_COMPLETO) {
+    const conArchivo = archivoEntrega !== undefined && archivoEntrega !== null
+      && Number.isSafeInteger(archivoEntrega) && archivoEntrega > 0
+
+    return {
+      ruta: `tasks/${id}/actions/mark-complete`,
+      cuerpo: conArchivo ? { delivery_file_id: archivoEntrega } : undefined
+    }
+  }
   if (estado === ESTADO_FACTURADO) return { ruta: `tasks/${id}/actions/mark-billed`, cuerpo: undefined }
 
   return { ruta: `tasks/${id}/actions/reopen`, cuerpo: { status: estado } }
