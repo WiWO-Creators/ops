@@ -1,19 +1,22 @@
 'use client'
 
-import { useEffect, useRef, useState, type KeyboardEvent, type ReactElement } from 'react'
+import { useEffect, useRef, useState, type ChangeEvent, type KeyboardEvent, type ReactElement } from 'react'
 import { EditorContent, useEditor, useEditorState, type Editor } from '@tiptap/react'
 import StarterKit from '@tiptap/starter-kit'
 import Placeholder from '@tiptap/extension-placeholder'
 import {
-  Bold, Heading2, Heading3, Italic, Link2, List, ListOrdered, Quote, Underline as Subrayado,
+  Bold, Heading2, Heading3, ImagePlus, Italic, Link2, List, ListOrdered, Quote, Underline as Subrayado,
   type LucideIcon
 } from 'lucide-react'
+import { atributoAcceptDeImagenes, separarImagenes } from '@/dominio/imagenes-ricas'
 import { direccionDeEnlace, esHtml, htmlVacio, textoAHtml } from '@/dominio/texto-rico'
 import { LOCALE } from '@/lib/fechas'
 import { cn } from '@/lib/clases'
 import { Boton } from './Boton'
 import { CLASES_CONTROL, Entrada } from './Entrada'
 import { ALTO_MINIMO_RICO, EditorRicoMarcador } from './EditorRicoMarcador'
+import { ImagenRica } from './ImagenRica'
+import { subirImagenRica, type DestinoDeImagenes } from './subirImagenRica'
 
 /**
  * Cuerpo del editor de texto enriquecido. Se carga con `next/dynamic` desde `EditorRico`: nadie lo
@@ -23,8 +26,16 @@ import { ALTO_MINIMO_RICO, EditorRicoMarcador } from './EditorRicoMarcador'
  *
  * Lo que las extensiones no conocen, ProseMirror lo descarta **en silencio** al abrir el documento.
  * La lista coincide con la de `dominio/texto-rico.ts` —lo unico que `Contenido` sabe dibujar—:
- * parrafos, titulos 2 y 3, listas, negrita, cursiva, subrayado, tachado, enlaces y citas. Sin codigo,
- * bloque de codigo ni linea horizontal, que ninguna vista pinta.
+ * parrafos, titulos 2 y 3, listas, negrita, cursiva, subrayado, tachado, enlaces, citas e imagenes
+ * propias (`ImagenRica`). Sin codigo, bloque de codigo ni linea horizontal, que ninguna vista pinta.
+ *
+ * === IMAGENES ===
+ *
+ * Con la prop `imagenes`, pegar o arrastrar una imagen la sube a la API (`subirImagenRica`) y la
+ * inserta como `<img>` de linea en el cursor, o donde se suelta; el boton «Imagen» de la barra hace lo
+ * mismo con el selector de archivos, que es la via para quien no arrastra. Sin la prop, el editor no
+ * se hace cargo de las imagenes y la barra no muestra el boton. Si el portapapeles trae texto ademas
+ * de la imagen (Word, Excel), manda el texto: pegar una tabla no debe convertirse en una captura.
  *
  * === POR QUE MONTAR HTML ACA NO ES UN XSS ===
  *
@@ -35,10 +46,10 @@ import { ALTO_MINIMO_RICO, EditorRicoMarcador } from './EditorRicoMarcador'
 
 /** Las herramientas de la barra, en el orden en que se dibujan. */
 export type HerramientaRica =
-  | 'negrita' | 'cursiva' | 'subrayado' | 'h2' | 'h3' | 'vinetas' | 'numerada' | 'cita' | 'enlace'
+  | 'negrita' | 'cursiva' | 'subrayado' | 'h2' | 'h3' | 'vinetas' | 'numerada' | 'cita' | 'enlace' | 'imagen'
 
 const TODAS: readonly HerramientaRica[] = [
-  'negrita', 'cursiva', 'subrayado', 'h2', 'h3', 'vinetas', 'numerada', 'cita', 'enlace'
+  'negrita', 'cursiva', 'subrayado', 'h2', 'h3', 'vinetas', 'numerada', 'cita', 'enlace', 'imagen'
 ]
 
 export interface PropsEditorRico {
@@ -69,6 +80,12 @@ export interface PropsEditorRico {
   herramientas?: readonly HerramientaRica[]
   /** Pone el cursor al final del texto al montar, sin mover el scroll. */
   autoenfocar?: boolean
+  /**
+   * Activa las imagenes incrustadas (pegar, arrastrar y el boton de la barra) y dice a donde se suben.
+   * Se lee al momento de subir, asi que puede cambiar mientras el editor esta montado (el Espacio que
+   * elige el formulario). Sin esta prop, el editor no acepta imagenes.
+   */
+  imagenes?: DestinoDeImagenes
 }
 
 /** Lo que el editor entrega: `''` cuando no hay nada visible, que es lo que las validaciones esperan. */
@@ -98,7 +115,12 @@ interface BotonDeBarra {
  * @param alternarEnlace abre o cierra el cuadro de enlace
  * @returns todos los botones; quien llama filtra por `herramientas`
  */
-function botonesDe (editor: Editor, activos: Record<HerramientaRica, boolean>, alternarEnlace: () => void): BotonDeBarra[] {
+function botonesDe (
+  editor: Editor,
+  activos: Record<HerramientaRica, boolean>,
+  alternarEnlace: () => void,
+  elegirImagen: () => void
+): BotonDeBarra[] {
   const cadena = (): ReturnType<Editor['chain']> => editor.chain().focus()
   const definicion: Array<Omit<BotonDeBarra, 'puesto'>> = [
     { clave: 'negrita', etiqueta: 'Negrita', Icono: Bold, aplicar: () => cadena().toggleBold().run() },
@@ -109,7 +131,8 @@ function botonesDe (editor: Editor, activos: Record<HerramientaRica, boolean>, a
     { clave: 'vinetas', etiqueta: 'Lista con viñetas', Icono: List, aplicar: () => cadena().toggleBulletList().run() },
     { clave: 'numerada', etiqueta: 'Lista numerada', Icono: ListOrdered, aplicar: () => cadena().toggleOrderedList().run() },
     { clave: 'cita', etiqueta: 'Cita', Icono: Quote, aplicar: () => cadena().toggleBlockquote().run() },
-    { clave: 'enlace', etiqueta: 'Enlace', Icono: Link2, aplicar: alternarEnlace }
+    { clave: 'enlace', etiqueta: 'Enlace', Icono: Link2, aplicar: alternarEnlace },
+    { clave: 'imagen', etiqueta: 'Insertar imagen', Icono: ImagePlus, aplicar: elegirImagen }
   ]
 
   return definicion.map((boton) => ({ ...boton, puesto: activos[boton.clave] }))
@@ -128,13 +151,14 @@ function useFormatosActivos (editor: Editor | null): Record<HerramientaRica, boo
       vinetas: actual?.isActive('bulletList') ?? false,
       numerada: actual?.isActive('orderedList') ?? false,
       cita: actual?.isActive('blockquote') ?? false,
-      enlace: actual?.isActive('link') ?? false
+      enlace: actual?.isActive('link') ?? false,
+      imagen: false
     })
   })
 
   return estado ?? {
     negrita: false, cursiva: false, subrayado: false, h2: false, h3: false,
-    vinetas: false, numerada: false, cita: false, enlace: false
+    vinetas: false, numerada: false, cita: false, enlace: false, imagen: false
   }
 }
 
@@ -153,20 +177,29 @@ export function EditorRicoInterno ({
   filasMinimas = 4,
   onEnviar,
   herramientas = TODAS,
-  autoenfocar = false
+  autoenfocar = false,
+  imagenes
 }: PropsEditorRico): ReactElement {
   // Los callbacks viajan por ref: el editor se crea una sola vez y no puede quedarse con los de la
   // primera pasada, que cierran sobre estado viejo.
   const onCambioRef = useRef(onCambio)
   const onEnviarRef = useRef(onEnviar)
   const onListoRef = useRef(onListo)
+  const imagenesRef = useRef(imagenes)
+  // Estado y no ref: la barra lo lee al dibujarse y un ref no puede leerse en el render.
+  const [selectorDeImagen, setSelectorDeImagen] = useState<HTMLInputElement | null>(null)
+  const subirImagenesRef = useRef<(archivos: File[], posicion?: number) => Promise<void>>(async () => {})
   const [caracteres, setCaracteres] = useState(0)
   const [enlaceAbierto, setEnlaceAbierto] = useState(false)
+  // Imagenes que estan subiendo y el ultimo motivo por el que una no entro.
+  const [subiendo, setSubiendo] = useState(0)
+  const [falloDeImagen, setFalloDeImagen] = useState<string | null>(null)
 
   useEffect(() => {
     onCambioRef.current = onCambio
     onEnviarRef.current = onEnviar
     onListoRef.current = onListo
+    imagenesRef.current = imagenes
   })
 
   const excedido = maxCaracteres !== undefined && caracteres > maxCaracteres
@@ -202,7 +235,8 @@ export function EditorRicoInterno ({
           protocols: ['http', 'https', 'mailto']
         }
       }),
-      Placeholder.configure({ placeholder })
+      Placeholder.configure({ placeholder }),
+      ImagenRica
     ],
     content: valorInicial === null || valorInicial === ''
       ? ''
@@ -218,6 +252,30 @@ export function EditorRicoInterno ({
         }
 
         return false
+      },
+      // Una captura pegada o una imagen soltada se sube y se inserta; todo lo demas sigue su camino.
+      handlePaste: (_vista, evento) => {
+        const portapapeles = evento.clipboardData
+        const texto = (portapapeles?.getData('text/plain') ?? '').trim()
+        const { imagenes: archivos } = separarImagenes(Array.from(portapapeles?.files ?? []))
+
+        if (imagenesRef.current === undefined || archivos.length === 0 || texto !== '') return false
+
+        evento.preventDefault()
+        void subirImagenesRef.current(archivos)
+
+        return true
+      },
+      handleDrop: (vista, evento, _rebanada, movido) => {
+        const { imagenes: archivos } = separarImagenes(Array.from(evento.dataTransfer?.files ?? []))
+
+        if (movido || imagenesRef.current === undefined || archivos.length === 0) return false
+
+        evento.preventDefault()
+        const posicion = vista.posAtCoords({ left: evento.clientX, top: evento.clientY })?.pos
+        void subirImagenesRef.current(archivos, posicion)
+
+        return true
       }
     },
     onCreate: ({ editor: actual }) => {
@@ -230,6 +288,60 @@ export function EditorRicoInterno ({
       onCambioRef.current(htmlDeEditor(actual))
     }
   })
+
+  // Sube las imagenes y las inserta en el cursor, o en `posicion` si se soltaron ahi. Vive en un
+  // efecto y se publica por ref porque el editor se crea una sola vez y sus manejadores de pegado y
+  // arrastre no ven nada que cambie despues.
+  useEffect(() => {
+    if (editor === null) return
+
+    subirImagenesRef.current = async (archivos, posicion) => {
+      const destino = imagenesRef.current
+
+      if (destino === undefined || !editor.isEditable) return
+
+      setFalloDeImagen(null)
+      let donde = posicion
+
+      for (const archivo of archivos) {
+        setSubiendo((n) => n + 1)
+        const resultado = await subirImagenRica(archivo, destino)
+        setSubiendo((n) => n - 1)
+
+        if (editor.isDestroyed) return
+        if (!resultado.ok) {
+          setFalloDeImagen(resultado.mensaje)
+          continue
+        }
+
+        const nodo = { type: 'imagenRica', attrs: { src: resultado.src, alt: resultado.alt } }
+
+        if (donde === undefined) {
+          editor.chain().focus().insertContent(nodo).run()
+        } else {
+          donde = Math.min(donde, editor.state.doc.content.size)
+          editor.chain().focus().insertContentAt(donde, nodo).run()
+          donde += 1
+        }
+      }
+    }
+  }, [editor])
+
+  /** El selector de archivos del boton de la barra: lo que no es imagen se explica, no se ignora. */
+  function alElegirImagenes (evento: ChangeEvent<HTMLInputElement>): void {
+    const elegidos = Array.from(evento.target.files ?? [])
+
+    // Se limpia para que elegir la misma imagen otra vez dispare el cambio.
+    evento.target.value = ''
+    if (elegidos.length === 0) return
+
+    const { imagenes: validas, otros } = separarImagenes(elegidos)
+
+    if (otros.length > 0) {
+      setFalloDeImagen(`${otros.map((archivo) => `«${archivo.name}»`).join(', ')}: solo se pueden insertar imágenes PNG, JPG, GIF o WebP.`)
+    }
+    if (validas.length > 0) void subirImagenesRef.current(validas)
+  }
 
   // Los atributos del `contenteditable` se fijan al crear: lo que cambia despues (el error que
   // aparece, el campo que se bloquea mientras se envia) se reaplica a mano.
@@ -259,8 +371,8 @@ export function EditorRicoInterno ({
 
   if (editor === null) return <EditorRicoMarcador etiqueta={etiqueta} />
 
-  const visibles = botonesDe(editor, activos, () => { setEnlaceAbierto(!enlaceAbierto) })
-    .filter((boton) => herramientas.includes(boton.clave))
+  const visibles = botonesDe(editor, activos, () => { setEnlaceAbierto(!enlaceAbierto) }, () => { selectorDeImagen?.click() })
+    .filter((boton) => herramientas.includes(boton.clave) && (boton.clave !== 'imagen' || imagenes !== undefined))
 
   return (
     <div className="flex flex-col gap-1.5">
@@ -285,6 +397,31 @@ export function EditorRicoInterno ({
       </div>
 
       <EditorContent editor={editor} />
+
+      {imagenes !== undefined && (
+        <>
+          <input
+            ref={setSelectorDeImagen}
+            type="file"
+            multiple
+            hidden
+            accept={atributoAcceptDeImagenes()}
+            aria-label="Elegir imágenes para insertar"
+            onChange={alElegirImagenes}
+          />
+          <p className="sr-only" role="status" aria-live="polite">
+            {subiendo > 0 ? 'Subiendo imagen…' : ''}
+          </p>
+          {subiendo > 0 && (
+            <p className="text-texto-tenue text-xs" aria-hidden="true">
+              {subiendo === 1 ? 'Subiendo imagen…' : `Subiendo ${subiendo} imágenes…`}
+            </p>
+          )}
+          {falloDeImagen !== null && (
+            <p role="alert" className="text-texto-peligro text-xs">{falloDeImagen}</p>
+          )}
+        </>
+      )}
 
       {maxCaracteres !== undefined && (
         <p

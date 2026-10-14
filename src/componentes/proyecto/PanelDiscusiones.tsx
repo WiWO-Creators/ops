@@ -248,6 +248,7 @@ export function PanelDiscusiones ({ proyectoId, fuente, capacidadesTareas }: Pro
                   <HiloDeComentarios
                     key={abierta}
                     procesoId={abierta}
+                    proyectoId={proyectoId}
                     titulo={null}
                     enfocarAlAbrir={elegidaAMano}
                     onCambiado={recargar}

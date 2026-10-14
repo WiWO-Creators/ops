@@ -290,6 +290,7 @@ export function NuevaSolicitud ({ prioridades, espacios, entradaId = null, conta
                   valorInicial={mensaje}
                   maxCaracteres={LARGO_MENSAJE_TICKET}
                   placeholder="Cuéntanos qué pasa, desde cuándo y qué esperabas que ocurriera."
+                  imagenes={{ portal: true, proyectoId: Number(espacio) > 0 ? Number(espacio) : null }}
                   onCambio={setMensaje}
                   onEnviar={() => { void crear() }}
                 />

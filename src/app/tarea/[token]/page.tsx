@@ -99,6 +99,8 @@ export default async function FichaPublicaDeTarea (props: PageProps<'/tarea/[tok
           <Contenido
             html={tarea.description_html}
             texto={tarea.description}
+            // Sin sesion no hay quien pida la imagen al BFF: se omite en vez de dejar un cuadro roto.
+            imagenes={false}
             className="text-texto-tenue max-w-prose text-sm"
             vacio={<p className="text-texto-sutil text-sm">Sin descripción.</p>}
           />

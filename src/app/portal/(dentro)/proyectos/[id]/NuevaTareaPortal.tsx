@@ -8,19 +8,21 @@ import { AvisoEnLinea } from '@/componentes/estado/Estados'
 import { useAviso } from '@/componentes/estado/useAviso'
 import { Boton } from '@/componentes/formularios/Boton'
 import { Campo } from '@/componentes/formularios/Campo'
-import { AreaTexto, Entrada } from '@/componentes/formularios/Entrada'
+import { EditorRico } from '@/componentes/formularios/EditorRico'
+import { Entrada } from '@/componentes/formularios/Entrada'
 import { EntradaFecha } from '@/componentes/formularios/EntradaFecha'
 import {
   ContenidoSelector, DisparadorSelector, Opcion, Selector
 } from '@/componentes/formularios/Selector'
 import { SelectorBuscableMultiple } from '@/componentes/formularios/SelectorBuscableMultiple'
 import { ContenidoDialogo, Dialogo, DisparadorDialogo } from '@/componentes/superposiciones/Dialogo'
+import { ArchivosParaAdjuntar } from '@/componentes/tickets/ArchivosParaAdjuntar'
 import { claveDeIdempotencia } from '@/datos/red'
 import type { AltaDeTareas, TareaPortal } from '@/datos/portal'
 import { GLOSARIO } from '@/dominio/glosario'
 import {
-  BORRADOR_VACIO_DE_TAREA, LARGO_NOMBRE_TAREA, PRIORIDADES_DE_TAREA, SIN_PRIORIDAD, cuerpoDeTarea,
-  erroresDeBorrador, falloDeAltaDeTarea, tareaCompleta, type ErroresDeTarea
+  BORRADOR_VACIO_DE_TAREA, LARGO_DESCRIPCION_TAREA, LARGO_NOMBRE_TAREA, PRIORIDADES_DE_TAREA, SIN_PRIORIDAD,
+  cuerpoDeTarea, cuerpoDeTareaConArchivos, erroresDeBorrador, falloDeAltaDeTarea, tareaCompleta, type ErroresDeTarea
 } from '@/dominio/tareas-del-portal'
 
 /**
@@ -36,7 +38,11 @@ import {
  *
  * === LO QUE SE PIDE, Y LO QUE NO ===
  *
- * Nombre, descripcion en texto plano, fecha de vencimiento, prioridad y asignados. El vencimiento es
+ * Nombre, descripcion con formato (el editor de texto enriquecido, con imagenes pegadas o arrastradas
+ * que se suben aparte por `portal/imagenes-texto` y quedan atadas al {espacio}), archivos adjuntos,
+ * fecha de vencimiento, prioridad y asignados. Los archivos viajan **con** la Tarea
+ * (`multipart/form-data`; sin archivos es JSON) y quedan en el estado del componente: cerrar el
+ * dialogo no los pierde, un `F5` si. El vencimiento es
  * obligatorio solo si el cliente lo exige (`vencimiento_requerido`); los asignados se eligen entre el
  * equipo del Proyecto que la API publica en `asignables`, y sin esa lista no hay selector: el Proyecto
  * no muestra su equipo al cliente y mandar `assignees` seria un `422`. Estado, etiquetas, tarifa y
@@ -57,6 +63,9 @@ export function NuevaTareaPortal ({ proyectoId, alta }: { proyectoId: number, al
   const [abierto, setAbierto] = useState(false)
   const [enviando, setEnviando] = useState(false)
   const [borrador, setBorrador] = useState(BORRADOR_VACIO_DE_TAREA)
+  const [archivos, setArchivos] = useState<File[]>([])
+  // Cambia al reiniciar: el editor no es controlado y remontarlo es la forma de vaciarlo.
+  const [versionDeDescripcion, setVersionDeDescripcion] = useState(0)
   // Los errores previos al viaje solo se muestran despues del primer intento de crear.
   const [intentado, setIntentado] = useState(false)
   const [rechazos, setRechazos] = useState<ErroresDeTarea>({})
@@ -99,6 +108,8 @@ export function NuevaTareaPortal ({ proyectoId, alta }: { proyectoId: number, al
   /** Deja el formulario como recien abierto. */
   function reiniciar (): void {
     setBorrador(BORRADOR_VACIO_DE_TAREA)
+    setArchivos([])
+    setVersionDeDescripcion((version) => version + 1)
     setIntentado(false)
     setRechazos({})
     setFallo(null)
@@ -122,14 +133,14 @@ export function NuevaTareaPortal ({ proyectoId, alta }: { proyectoId: number, al
     setRechazos({})
 
     const cuerpo = cuerpoDeTarea(borrador, alta)
-    const huella = JSON.stringify(cuerpo)
+    const huella = JSON.stringify([cuerpo, archivos.map((archivo) => [archivo.name, archivo.size])])
 
     if (claveAlta.current?.huella !== huella) claveAlta.current = { huella, clave: claveDeIdempotencia() }
 
     const resultado = await escribirEnBff<TareaPortal>(
       `portal/projects/${proyectoId}/tasks`,
       'POST',
-      cuerpo,
+      cuerpoDeTareaConArchivos(cuerpo, archivos),
       { idempotencia: claveAlta.current.clave }
     )
 
@@ -187,15 +198,22 @@ export function NuevaTareaPortal ({ proyectoId, alta }: { proyectoId: number, al
 
           <Campo etiqueta="Descripción" error={errores.description}>
             {(props) => (
-              <AreaTexto
+              <EditorRico
                 {...props}
-                value={borrador.descripcion}
-                rows={4}
-                placeholder="Detalles que ayuden al equipo (opcional)"
-                onChange={(evento) => { cambiar({ descripcion: evento.target.value }, ['description']) }}
+                key={versionDeDescripcion}
+                etiqueta="Descripción"
+                filasMinimas={4}
+                valorInicial={borrador.descripcion}
+                maxCaracteres={LARGO_DESCRIPCION_TAREA}
+                placeholder="Detalles que ayuden al equipo (opcional). Puedes pegar o arrastrar imágenes aquí."
+                deshabilitado={enviando}
+                imagenes={{ portal: true, proyectoId }}
+                onCambio={(html) => { cambiar({ descripcion: html }, ['description']) }}
               />
             )}
           </Campo>
+
+          <ArchivosParaAdjuntar archivos={archivos} onCambiar={setArchivos} deshabilitado={enviando} />
 
           <div className="grid gap-3 sm:grid-cols-2">
             <Campo

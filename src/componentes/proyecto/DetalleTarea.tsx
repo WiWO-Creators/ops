@@ -498,7 +498,7 @@ export function DetalleTarea (
         {/* El equipo conversa en la Tarea y lo mismo se lee en las Discusiones del Proyecto. El
             cliente lee el hilo que le llega adentro de la ficha, si el Proyecto se lo comparte. */}
         {subrecursos !== null
-          ? <HiloDeComentarios procesoId={procesoId} onCambiado={onCambiada} />
+          ? <HiloDeComentarios procesoId={procesoId} proyectoId={tarea.project?.id ?? null} onCambiado={onCambiada} />
           : <Comentarios comentarios={tarea.comments} />}
 
         {subrecursos !== null && (

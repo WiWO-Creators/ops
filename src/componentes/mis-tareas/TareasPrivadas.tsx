@@ -196,6 +196,7 @@ function DialogoTareaPrivada ({ personaId }: { personaId: number }) {
               <EditorRico
                 {...props}
                 key={versionDescripcion}
+                imagenes={{ portal: false, proyectoId: null }}
                 etiqueta="Descripción"
                 valorInicial={descripcion}
                 onCambio={setDescripcion}

@@ -1,6 +1,8 @@
 import type { AltaDeTareas } from '../datos/portal.ts'
 import { aFechaDelContrato } from '../lib/fechas.ts'
 import { GLOSARIO } from './glosario.ts'
+import { CAMPO_DE_ADJUNTOS_DE_TICKET } from './ticket-adjuntos.ts'
+import { htmlVacio, textoPlano } from './texto-rico.ts'
 
 /**
  * Alta de una Tarea desde el portal del cliente.
@@ -11,6 +13,9 @@ import { GLOSARIO } from './glosario.ts'
  * del viaje y de traducir el `422` al campo que lo causo, para que el cliente corrija sin releer
  * todo el formulario.
  */
+
+/** Tope de `description` en caracteres visibles (`TareaDelPortal::LARGO_MAXIMO_DESCRIPCION`). */
+export const LARGO_DESCRIPCION_TAREA = 20000
 
 /** Tope de `name` en el contrato de la API. Se corta antes para no ganarse un `422` evitable. */
 export const LARGO_NOMBRE_TAREA = 191
@@ -34,7 +39,10 @@ export const PRIORIDADES_DE_TAREA: ReadonlyArray<{ id: number, etiqueta: string 
 /** Lo que el formulario tiene en la mano cuando la persona pulsa «Crear». */
 export interface BorradorDeTarea {
   nombre: string
-  /** Texto plano: la API no recibe HTML en el alta del portal. */
+  /**
+   * HTML del editor de texto enriquecido (con las imagenes propias que subio), o cadena vacia si no
+   * hay nada visible. Viaja con `format: "html"`.
+   */
   descripcion: string
   /** `YYYY-MM-DD`; a medio escribir contiene el texto crudo, que no pasa el formato. */
   vencimiento: string
@@ -47,6 +55,8 @@ export interface BorradorDeTarea {
 export interface CuerpoDeTarea {
   name: string
   description?: string
+  /** `html` cuando `description` viene del editor. Sin descripcion no viaja. */
+  format?: 'html'
   due_date?: string
   priority?: number
   assignees?: number[]
@@ -82,7 +92,14 @@ const MOTIVOS: Record<string, string> = {
   demasiado_largo: 'Es demasiado largo.',
   length: 'Es demasiado largo.',
   debe_ser_lista: 'El valor no es válido.',
-  no_existe: 'El valor no es válido.'
+  no_existe: 'El valor no es válido.',
+  invalid: 'El valor no es válido o es demasiado largo.',
+  too_large: 'Es demasiado grande.',
+  max_files: 'Hay demasiados archivos.',
+  extension_not_allowed: 'Ese tipo de archivo no está permitido.',
+  content_mismatch: 'El contenido del archivo no corresponde a su extensión.',
+  empty: 'El archivo está vacío.',
+  upload_failed: 'No se pudo subir el archivo.'
 }
 
 /** Campos del formulario que entienden el `details` de la API. */
@@ -115,6 +132,10 @@ export function erroresDeBorrador (borrador: BorradorDeTarea, alta: AltaDeTareas
   const errores: ErroresDeTarea = {}
   const nombre = borrador.nombre.trim()
   const vencimiento = borrador.vencimiento.trim()
+
+  if (textoPlano(borrador.descripcion).length > LARGO_DESCRIPCION_TAREA) {
+    errores.description = `La descripción admite hasta ${LARGO_DESCRIPCION_TAREA.toLocaleString('es-CL')} caracteres.`
+  }
 
   if (nombre === '') errores.name = `Escribe un nombre para la ${TAREA}.`
   else if (nombre.length > LARGO_NOMBRE_TAREA) errores.name = `El nombre admite hasta ${LARGO_NOMBRE_TAREA} caracteres.`
@@ -154,17 +175,43 @@ export function tareaCompleta (borrador: BorradorDeTarea, alta: AltaDeTareas): b
  */
 export function cuerpoDeTarea (borrador: BorradorDeTarea, alta: AltaDeTareas): CuerpoDeTarea {
   const cuerpo: CuerpoDeTarea = { name: borrador.nombre.trim() }
-  const descripcion = borrador.descripcion.trim()
   const vencimiento = borrador.vencimiento.trim()
   const disponibles = new Set(alta.asignables.map((persona) => persona.id))
   const asignados = borrador.asignados.filter((id) => disponibles.has(id))
 
-  if (descripcion !== '') cuerpo.description = descripcion
+  if (!htmlVacio(borrador.descripcion)) {
+    cuerpo.description = borrador.descripcion
+    cuerpo.format = 'html'
+  }
   if (vencimiento !== '') cuerpo.due_date = vencimiento
   if (borrador.prioridad !== SIN_PRIORIDAD) cuerpo.priority = Number(borrador.prioridad)
   if (asignados.length > 0) cuerpo.assignees = asignados
 
   return cuerpo
+}
+
+/**
+ * El cuerpo del alta con sus archivos, si los hay.
+ *
+ * Sin archivos devuelve el cuerpo tal cual y viaja como JSON. Con archivos arma el
+ * `multipart/form-data` que lee la API: el cuerpo ENTERO serializado en el campo `payload` —lleva un
+ * arreglo, `assignees`, que un formulario aplanaria a texto— y los archivos en `attachments[]`. El
+ * navegador pone el `content-type` con su boundary.
+ *
+ * @param cuerpo lo que devolvio {@link cuerpoDeTarea}
+ * @param archivos lo que se eligio; `[]` para no mandar nada
+ * @returns el mismo `cuerpo`, o un `FormData` si hay archivos
+ */
+export function cuerpoDeTareaConArchivos (cuerpo: CuerpoDeTarea, archivos: readonly File[]): CuerpoDeTarea | FormData {
+  if (archivos.length === 0) return cuerpo
+
+  const formulario = new FormData()
+
+  formulario.append('payload', JSON.stringify(cuerpo))
+
+  for (const archivo of archivos) formulario.append(CAMPO_DE_ADJUNTOS_DE_TICKET, archivo, archivo.name)
+
+  return formulario
 }
 
 /**

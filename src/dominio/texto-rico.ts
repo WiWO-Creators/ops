@@ -11,17 +11,20 @@
  * devuelve un arbol de datos; `Contenido` lo convierte en elementos de React, que escapan el texto
  * por construccion. Lo que la lista blanca no conoce se desenvuelve (queda su texto, se pierde la
  * etiqueta) y `<script>`/`<style>` se borran enteros. De los atributos solo sobrevive `href`, y solo
- * con `http`, `https` o `mailto`.
+ * con `http`, `https` o `mailto`; y, en una `img`, `src` y `alt`, donde el `src` tiene que ser la ruta
+ * propia de las imagenes del texto enriquecido (`imagenes-ricas.ts`): una imagen con otro `src` se
+ * descarta entera, que es la misma regla del saneador de la API.
  *
  * Esto es defensa en profundidad: quien sanea de verdad es la API, que tambien limpia las filas viejas.
  */
 
 import { decodificarEntidades } from '../componentes/proyecto/formatos.ts'
+import { esSrcDeImagenRica, MAXIMO_DE_ALT } from './imagenes-ricas.ts'
 
 /** Las etiquetas que sobreviven. `b` e `i` se normalizan a `strong` y `em`. */
 export type EtiquetaRica =
   | 'p' | 'br' | 'h2' | 'h3' | 'ul' | 'ol' | 'li'
-  | 'strong' | 'em' | 'u' | 's' | 'a' | 'blockquote'
+  | 'strong' | 'em' | 'u' | 's' | 'a' | 'blockquote' | 'img'
 
 /** Un fragmento de texto, ya con las entidades resueltas. */
 export interface NodoTexto {
@@ -29,11 +32,16 @@ export interface NodoTexto {
   texto: string
 }
 
-/** Un elemento de la lista blanca. `href` solo existe en `a` y ya paso `hrefSeguro`. */
+/**
+ * Un elemento de la lista blanca. `href` solo existe en `a` y ya paso `hrefSeguro`; `src` y `alt` solo
+ * en `img`, y el `src` ya paso `esSrcDeImagenRica`.
+ */
 export interface NodoElemento {
   tipo: 'elemento'
   etiqueta: EtiquetaRica
   href?: string
+  src?: string
+  alt?: string
   hijos: NodoRico[]
 }
 
@@ -61,7 +69,8 @@ const NORMALIZADAS: Readonly<Record<string, EtiquetaRica>> = {
   u: 'u',
   s: 's',
   a: 'a',
-  blockquote: 'blockquote'
+  blockquote: 'blockquote',
+  img: 'img'
 }
 
 /** Etiquetas cuyo contenido no es texto de nadie: se borran con todo lo que traen adentro. */
@@ -77,9 +86,13 @@ const ETIQUETA = /<(\/?)([a-zA-Z][a-zA-Z0-9-]*)((?:"[^"]*"|'[^']*'|[^>"'])*)>/y
 
 const HREF = /(?:^|\s)href\s*=\s*(?:"([^"]*)"|'([^']*)'|([^\s"'>]+))/i
 
+const SRC = /(?:^|\s)src\s*=\s*(?:"([^"]*)"|'([^']*)'|([^\s"'>]+))/i
+
+const ALT = /(?:^|\s)alt\s*=\s*(?:"([^"]*)"|'([^']*)'|([^\s"'>]+))/i
+
 const SOLO_ESPACIOS = /^[\s​-‍⁠﻿]*$/
 
-const ETIQUETA_PERMITIDA = /<\/?(?:p|br|h2|h3|ul|ol|li|strong|b|em|i|u|s|a|blockquote)\b[^>]*>/i
+const ETIQUETA_PERMITIDA = /<\/?(?:p|br|h2|h3|ul|ol|li|strong|b|em|i|u|s|a|blockquote|img)\b[^>]*>/i
 
 /**
  * Si el texto no dice nada: vacio o solo espacio en blanco de cualquier clase.
@@ -284,6 +297,38 @@ function limpiarBlancos (hijos: NodoRico[]): NodoRico[] {
 }
 
 /**
+ * Valor de un atributo ya con las entidades resueltas.
+ *
+ * @param patron la expresion que captura el valor en uno de sus tres grupos
+ * @param atributos el texto entre el nombre de la etiqueta y el `>`
+ * @returns el valor, o `null` si el atributo no esta
+ */
+function valorDeAtributo (patron: RegExp, atributos: string): string | null {
+  const coincidencia = patron.exec(atributos)
+  if (coincidencia === null) return null
+
+  return decodificarEntidades(coincidencia[1] ?? coincidencia[2] ?? coincidencia[3] ?? '')
+}
+
+/**
+ * El nodo de una `img`, o `null` si su `src` no es una imagen propia.
+ *
+ * Sin comparar contra nada mas que el patron exacto: ni `data:`, ni un dominio externo, ni otra ruta
+ * del BFF. El `alt` se acota al largo que acepta la API y pierde los caracteres de control.
+ *
+ * @param atributos el texto entre `img` y `>`
+ * @returns el nodo, o `null` para descartar la imagen
+ */
+function nodoDeImagen (atributos: string): NodoElemento | null {
+  const src = valorDeAtributo(SRC, atributos)
+  if (!esSrcDeImagenRica(src)) return null
+
+  const alt = (valorDeAtributo(ALT, atributos) ?? '').replace(/[\u0000-\u001F\u007F]/g, '').slice(0, MAXIMO_DE_ALT)
+
+  return { tipo: 'elemento', etiqueta: 'img', src, alt, hijos: [] }
+}
+
+/**
  * Lee el HTML y devuelve solo lo que la lista blanca permite, como un arbol de datos.
  *
  * Nunca lanza: lo que no se entiende se trata como texto. Un `<` suelto es un `<`; una etiqueta sin
@@ -350,6 +395,12 @@ export function nodosDeHtml (html: string | null | undefined): NodoRico[] {
 
     if (etiqueta === 'br') {
       contenedor().push({ tipo: 'elemento', etiqueta: 'br', hijos: [] })
+      continue
+    }
+
+    if (etiqueta === 'img') {
+      const imagen = nodoDeImagen(atributos ?? '')
+      if (imagen !== null) contenedor().push(imagen)
       continue
     }
 
@@ -468,11 +519,22 @@ export function textoPlano (html: string | null | undefined): string {
 }
 
 /**
- * Si el HTML no dice nada: `<p></p>`, `&nbsp;` y los caracteres invisibles cuentan como vacio.
+ * Si el HTML no dice nada: `<p></p>`, `&nbsp;` y los caracteres invisibles cuentan como vacio. Una
+ * imagen propia SI es contenido: un mensaje que es solo una captura no esta en blanco.
  *
  * @param html el marcado del editor
  * @returns `true` cuando no hay texto visible
  */
 export function htmlVacio (html: string | null | undefined): boolean {
-  return esSoloEspacios(textoPlano(html))
+  return esSoloEspacios(textoPlano(html)) && !contieneImagen(nodosDeHtml(html))
+}
+
+/**
+ * Si hay al menos una imagen propia entre los nodos, a cualquier profundidad.
+ *
+ * @param nodos el arbol que devuelve `nodosDeHtml`
+ * @returns `true` si algun nodo es una `img`
+ */
+function contieneImagen (nodos: readonly NodoRico[]): boolean {
+  return nodos.some((nodo) => nodo.tipo === 'elemento' && (nodo.etiqueta === 'img' || contieneImagen(nodo.hijos)))
 }
