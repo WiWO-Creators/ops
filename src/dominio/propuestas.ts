@@ -12,6 +12,25 @@ export type EstadoDePropuesta = 'pendiente' | 'ejecutando' | 'ejecutada' | 'rech
 
 const ESTADOS: readonly EstadoDePropuesta[] = ['pendiente', 'ejecutando', 'ejecutada', 'rechazada', 'fallida', 'expirada']
 
+/** El `origin.system` de las propuestas que nacen de un ticket de wiwo.center. */
+export const SISTEMA_WIWO_CENTER = 'wiwo_center'
+
+/** La herramienta que da de alta a una persona del EQUIPO (no a un contacto de un cliente). */
+export const HERRAMIENTA_ALTA_EQUIPO = 'crear_persona_equipo'
+
+/**
+ * El escalón que repartiría un alta del equipo. Lo calcula el servidor desde lo congelado al proponer:
+ * subirlo cambia cuántas filas ve la persona, así que la tarjeta lo destaca cuando es más que `staff`.
+ */
+export interface EscalonDeAlta {
+  escalon: string
+  escalon_nombre: string
+  mayor_que_staff: boolean
+}
+
+/** Qué propuestas ver según su origen: todas, o solo las que llegan de tickets de wiwo.center. */
+export type FiltroDeOrigen = 'todas' | 'wiwo_center'
+
 /** Una fila de `GET /ia/propuestas`. */
 export interface PropuestaExterna {
   id: number
@@ -33,6 +52,8 @@ export interface PropuestaExterna {
   visible_to_client: boolean
   /** Lo que el sistema dijo de dónde sacó la propuesta: nunca verificado por Ops. */
   provenance: Procedencia | null
+  /** Solo en `crear_persona_equipo`: el escalón que se repartiría. */
+  equipo: EscalonDeAlta | null
 }
 
 /**
@@ -97,6 +118,69 @@ export function leerProcedencia (valor: unknown): Procedencia | null {
 }
 
 /**
+ * Lee el escalón de un alta del equipo, o `null` si la fila no lo trae (otra herramienta, o un board anterior).
+ *
+ * @param valor `equipo` de la fila
+ */
+export function leerEscalonDeAlta (valor: unknown): EscalonDeAlta | null {
+  if (!esObjeto(valor) || typeof valor.escalon !== 'string' || typeof valor.escalon_nombre !== 'string') return null
+
+  return { escalon: valor.escalon, escalon_nombre: valor.escalon_nombre, mayor_que_staff: valor.mayor_que_staff === true }
+}
+
+/**
+ * El escalón de un alta del equipo leído de las líneas de detalle que escribió el servidor
+ * («Escalón: Director»). Es el camino del chat de Thinking Orb, donde la tarjeta no trae `equipo`.
+ *
+ * @param detalle las líneas del detalle
+ */
+export function escalonDeDetalle (detalle: readonly string[]): EscalonDeAlta | null {
+  const linea = detalle.find((l) => l.startsWith('Escalón: '))
+
+  if (linea === undefined) return null
+
+  const nombre = linea.slice('Escalón: '.length).trim()
+
+  return nombre === '' ? null : { escalon: nombre.toLowerCase(), escalon_nombre: nombre, mayor_que_staff: nombre.toLowerCase() !== 'staff' }
+}
+
+/** `true` si la propuesta nace de un ticket de wiwo.center. */
+export function esDeWiwoCenter (propuesta: Pick<PropuestaExterna, 'origin'>): boolean {
+  return propuesta.origin.system === SISTEMA_WIWO_CENTER
+}
+
+/** El texto de un ticket que Ops muestra como cita: nunca verificado, siempre texto plano. */
+export interface CitaDelTicket {
+  ticket: string | null
+  texto: string
+}
+
+/**
+ * La cita del ticket de una propuesta de wiwo.center (`provenance.data.cita` y `.ticket`), o `null`.
+ *
+ * @param propuesta la fila de la bandeja
+ */
+export function citaDelTicket (propuesta: Pick<PropuestaExterna, 'origin' | 'provenance'>): CitaDelTicket | null {
+  if (!esDeWiwoCenter(propuesta) || propuesta.provenance === null) return null
+
+  const texto = propuesta.provenance.data.cita
+
+  if (texto === undefined || texto.trim() === '') return null
+
+  return { ticket: propuesta.provenance.data.ticket ?? null, texto }
+}
+
+/**
+ * Filtra las propuestas por origen.
+ *
+ * @param propuestas la lista
+ * @param origen `todas` o `wiwo_center`
+ */
+export function filtrarPorOrigen (propuestas: readonly PropuestaExterna[], origen: FiltroDeOrigen): PropuestaExterna[] {
+  return origen === 'todas' ? [...propuestas] : propuestas.filter(esDeWiwoCenter)
+}
+
+/**
  * Lee el listado de propuestas, descartando las filas que no tienen la forma del contrato.
  *
  * @param valor el `data` de la respuesta
@@ -136,7 +220,8 @@ export function leerPropuestas (valor: unknown): PropuestaExterna[] {
       args_hash: typeof fila.args_hash === 'string' && fila.args_hash !== '' ? fila.args_hash : null,
       url_ops: urlHttps(fila.url_ops),
       visible_to_client: fila.visible_to_client === true,
-      provenance: leerProcedencia(fila.provenance)
+      provenance: leerProcedencia(fila.provenance),
+      equipo: leerEscalonDeAlta(fila.equipo)
     })
   }
 

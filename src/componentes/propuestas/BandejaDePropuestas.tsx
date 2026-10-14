@@ -7,10 +7,11 @@ import { AvisoEnLinea, Vacio } from '@/componentes/estado/Estados'
 import { CAJA_DE_AVISO } from '@/componentes/estado/cajaDeAviso'
 import { TarjetaPropuestaIA } from '@/componentes/ia/TarjetaPropuestaIA'
 import { Fecha } from '@/componentes/presentadores/Fecha'
-import { aAccionIA, type Procedencia, type PropuestaExterna } from '@/dominio/propuestas'
+import { aAccionIA, citaDelTicket, esDeWiwoCenter, type Procedencia, type PropuestaExterna } from '@/dominio/propuestas'
 import { cn } from '@/lib/clases'
 import type { AccionIA } from '@/dominio/ia'
 import type { FiltroDePropuestas } from '@/datos/propuestas'
+import type { FiltroDeOrigen } from '@/dominio/propuestas'
 
 /**
  * La bandeja: una tarjeta por propuesta, con el sistema de origen a la vista.
@@ -24,11 +25,13 @@ import type { FiltroDePropuestas } from '@/datos/propuestas'
  *
  * @param inicial las propuestas ya cargadas en el servidor
  * @param filtro qué filtro las trajo, para el texto de «vacío»
+ * @param origen si se está viendo solo lo que llega de tickets de wiwo.center, para el texto de «vacío»
  * @param resaltarId la propuesta a la que apunta un enlace profundo (`/propuestas/{id}`), si hay una
  */
-export function BandejaDePropuestas ({ inicial, filtro, resaltarId }: {
+export function BandejaDePropuestas ({ inicial, filtro, origen = 'todas', resaltarId }: {
   inicial: PropuestaExterna[]
   filtro: FiltroDePropuestas
+  origen?: FiltroDeOrigen
   resaltarId?: number
 }): ReactElement {
   const [resueltas, setResueltas] = useState<Record<number, AccionIA>>({})
@@ -39,6 +42,15 @@ export function BandejaDePropuestas ({ inicial, filtro, resaltarId }: {
   }, [resaltarId])
 
   if (inicial.length === 0) {
+    if (origen === 'wiwo_center') {
+      return (
+        <Vacio
+          titulo={filtro === 'pendiente' ? 'No hay altas de wiwo.center por responder' : 'Aún no hay altas de wiwo.center'}
+          descripcion="Cuando un ticket de wiwo.center pida crear una cuenta, lo verás aquí. Cualquier superadministrador puede aprobarlo."
+        />
+      )
+    }
+
     return (
       <Vacio
         titulo={filtro === 'pendiente' ? 'No tienes propuestas por responder' : 'Aún no hay propuestas'}
@@ -78,11 +90,15 @@ export function BandejaDePropuestas ({ inicial, filtro, resaltarId }: {
             />
           )}
 
-          {propuesta.provenance !== null && <ProcedenciaDeclarada procedencia={propuesta.provenance} sistema={propuesta.origin.name} />}
+          {propuesta.provenance !== null && !esDeWiwoCenter(propuesta) && (
+            <ProcedenciaDeclarada procedencia={propuesta.provenance} sistema={propuesta.origin.name} />
+          )}
 
           <TarjetaPropuestaIA
             accion={resueltas[propuesta.id] ?? aAccionIA(propuesta)}
             onResuelta={(accion) => { setResueltas((previas) => ({ ...previas, [propuesta.id]: accion })) }}
+            equipo={propuesta.equipo}
+            cita={citaDelTicket(propuesta)}
           />
 
           <div className="flex flex-wrap items-center gap-x-4 gap-y-2">

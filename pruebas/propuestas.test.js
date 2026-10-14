@@ -4,7 +4,10 @@
  */
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
-import { aAccionIA, contarPendientes, leerProcedencia, leerPropuestas, leerVinculos, textoDeRestante, urlHttps } from '../src/dominio/propuestas.ts'
+import {
+  aAccionIA, citaDelTicket, contarPendientes, escalonDeDetalle, filtrarPorOrigen, leerProcedencia, leerPropuestas, leerVinculos,
+  textoDeRestante, urlHttps
+} from '../src/dominio/propuestas.ts'
 
 const buena = {
   id: 4, tool: 'crear_tarea', summary: 'Crear «Revisar métricas»', detail: ['Proyecto: Nestlé'], assumptions: [],
@@ -113,4 +116,39 @@ test('la procedencia con marcas HTML queda como texto, sin interpretar', () => {
   const leida = leerProcedencia({ data: { nota: '<img src=x onerror=alert(1)>' } })
 
   assert.equal(leida.data.nota, '<img src=x onerror=alert(1)>')
+})
+
+const deCenter = {
+  ...buena, id: 9, tool: 'crear_persona_equipo', origin: { system: 'wiwo_center', name: 'wiwo_center' },
+  provenance: { trusted: true, data: { ticket: 'WIW-120', cita: 'Alta de Ana <b>Pérez</b>' } },
+  equipo: { escalon: 'director', escalon_nombre: 'Director', mayor_que_staff: true }
+}
+
+test('un alta del equipo trae su escalón y una fila sin él queda en null', () => {
+  const [alta, otra] = leerPropuestas([deCenter, buena])
+
+  assert.deepEqual(alta.equipo, { escalon: 'director', escalon_nombre: 'Director', mayor_que_staff: true })
+  assert.equal(otra.equipo, null)
+  assert.equal(leerPropuestas([{ ...deCenter, equipo: { escalon: 5 } }])[0].equipo, null)
+})
+
+test('la cita del ticket solo existe para wiwo.center, sale como texto y nunca como confiable', () => {
+  const [alta, otra] = leerPropuestas([deCenter, { ...buena, provenance: { trusted: true, data: { cita: 'x' } } }])
+
+  assert.deepEqual(citaDelTicket(alta), { ticket: 'WIW-120', texto: 'Alta de Ana <b>Pérez</b>' })
+  assert.equal(alta.provenance.trusted, false)
+  assert.equal(citaDelTicket(otra), null)
+})
+
+test('el escalón también se lee del detalle que escribió el servidor (chat de Thinking Orb)', () => {
+  assert.deepEqual(escalonDeDetalle(['Correo: a@b.cl', 'Escalón: Director']), { escalon: 'director', escalon_nombre: 'Director', mayor_que_staff: true })
+  assert.equal(escalonDeDetalle(['Escalón: Staff'])?.mayor_que_staff, false)
+  assert.equal(escalonDeDetalle(['Correo: a@b.cl']), null)
+})
+
+test('el filtro de origen deja solo lo que llega de wiwo.center', () => {
+  const lista = leerPropuestas([buena, deCenter])
+
+  assert.deepEqual(filtrarPorOrigen(lista, 'wiwo_center').map((p) => p.id), [9])
+  assert.deepEqual(filtrarPorOrigen(lista, 'todas').map((p) => p.id), [4, 9])
 })

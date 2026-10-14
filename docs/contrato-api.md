@@ -7943,7 +7943,8 @@ nuevo) y `POST …/webhook/prueba`. El `GET` no trae el secreto: trae `url`, `se
 
 ### Propuestas de otros sistemas (`GET /ia/propuestas`)
 
-Las de **quien pregunta**; nunca las de otra persona. `?estado=pendiente` (por defecto: las que siguen
+Las de **quien pregunta**; nunca las de otra persona (salvo las altas de wiwo.center, que ve todo superadministrador:
+ver más abajo). `?estado=pendiente` (por defecto: las que siguen
 esperando y no vencieron) o `?estado=todas` (las recientes, resueltas o no). Sin paginar.
 
 ```json
@@ -7984,6 +7985,29 @@ Campos que ops-v2 trata con cuidado:
   muestra.
 - **`url_ops`**: enlace profundo a la propuesta en Ops (`/propuestas/{id}`); ausente si el board no conoce su URL
   pública. ops-v2 lo ofrece como «Copiar enlace a esta propuesta».
+
+### Altas del equipo que piden los tickets de wiwo.center
+
+Una propuesta con `origin.system = "wiwo_center"` y `tool = "crear_persona_equipo"` es el alta de una persona del
+**EQUIPO** (cuenta de Ops), no de un contacto de cliente. Se distingue de las demás en tres cosas:
+
+- **Quién la ve y la decide.** `GET /ia/propuestas` devuelve estas propuestas a **cualquier superadministrador**,
+  las haya dejado quien las haya dejado; una persona que no lo es no las ve. Confirmar o rechazar sigue siendo
+  `POST /ia/acciones/{id}`: quien decide la toma a su nombre (se ejecuta con SUS permisos y es el
+  `approved_by_email` que vuelve a wiwo.center). Nunca se decide fuera de Ops: la decisión remota las rechaza
+  con `403`.
+- **`equipo`** (solo en `crear_persona_equipo`): `{ "escalon": "director", "escalon_nombre": "Director",
+  "mayor_que_staff": true }`. Lo calcula el servidor desde lo congelado al proponer. Desde un ticket el escalón
+  siempre nace en `staff`; uno mayor lo pone un superadministrador al proponer desde el chat. ops-v2 lo destaca
+  cuando `mayor_que_staff` es `true`. Ausente (board anterior) se lee del detalle («Escalón: …»).
+- **`provenance.data`** trae `ticket` (código) y `cita` (primeros 300 caracteres del texto del ticket). Es texto de
+  un tercero: se pinta como cita rotulada «Lo que decía el ticket … · texto de un tercero, no verificado por
+  Ops», en texto plano.
+
+La bandeja `/propuestas` tiene un segundo control, **«De dónde vienen»**: `?origen=wiwo_center` deja solo estas
+altas (lo resuelve ops-v2 sobre la lista ya cargada, sin parámetro nuevo en la API). La tarjeta lleva la
+insignia fija «EQUIPO, no contacto». El board encola el resultado hacia wiwo.center por su cuenta
+(`Center\SalidaCenter`); ops-v2 no llama a wiwo.center.
 
 **Enlace profundo.** `/propuestas/{id}` (ruta de ops-v2, no de la API) abre la bandeja completa con esa propuesta
 resaltada y a la vista. Como `GET /ia/propuestas` solo trae las propias, un id ajeno, viejo o inexistente muestra
