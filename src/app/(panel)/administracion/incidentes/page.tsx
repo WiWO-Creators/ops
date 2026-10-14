@@ -109,6 +109,14 @@ export default async function IncidentesPage (props: PageProps<'/administracion/
       <TituloModulo
         titulo="Incidentes"
         descripcion="Cada error que le cortó el trabajo a alguien, con el código que esa persona vio en pantalla. Abre uno para ver el detalle técnico y la traza."
+        acciones={
+          <Link
+            href="/administracion/incidentes/exportar"
+            className="text-acento text-sm font-semibold underline underline-offset-4"
+          >
+            Exportar para copiar
+          </Link>
+        }
       />
 
       {incidentes.length === 0
