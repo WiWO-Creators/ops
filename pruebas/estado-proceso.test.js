@@ -41,3 +41,30 @@ test('un id o un estado inutilizable no produce peticion', () => {
   assert.equal(accionDeEstado(42, Number.NaN), null)
   assert.equal(accionDeEstado(42, 0), null)
 })
+
+test('completar con archivo final lleva `delivery_file_id` en el cuerpo', () => {
+  assert.deepEqual(accionDeEstado(42, 5, 388), {
+    ruta: 'tasks/42/actions/mark-complete',
+    cuerpo: { delivery_file_id: 388 }
+  })
+})
+
+test('sin archivo, o con un id inutilizable, completar sigue sin cuerpo', () => {
+  for (const archivo of [undefined, null, 0, -1, 1.5, Number.NaN]) {
+    assert.deepEqual(accionDeEstado(42, 5, archivo), {
+      ruta: 'tasks/42/actions/mark-complete',
+      cuerpo: undefined
+    })
+  }
+})
+
+test('el archivo final solo viaja al completar: con otro estado se ignora', () => {
+  assert.deepEqual(accionDeEstado(42, 4, 388), {
+    ruta: 'tasks/42/actions/reopen',
+    cuerpo: { status: 4 }
+  })
+  assert.deepEqual(accionDeEstado(42, 9, 388), {
+    ruta: 'tasks/42/actions/mark-billed',
+    cuerpo: undefined
+  })
+})

@@ -3,7 +3,7 @@
 import { Repeat2 } from 'lucide-react'
 import Link from 'next/link'
 import { useSearchParams } from 'next/navigation'
-import { useCallback, useEffect, useState, type ReactElement } from 'react'
+import { useCallback, useEffect, useRef, useState, type ReactElement } from 'react'
 import { PARAMETRO_TAREA, urlConParametro } from '@/componentes/datos/tabla'
 import { ArbolDrive } from '@/componentes/archivos/ArbolDrive'
 import { useUbicacionTarea } from '@/componentes/auditoria/accion'
@@ -43,11 +43,13 @@ import { HiloDeComentarios } from './HiloDeComentarios'
 import {
   Dato, MarcasDeControl, SeccionDeAdjuntos, SeccionDeComentarios, SeccionDeLectura, SIN_DATO
 } from './ficha-de-lectura'
-import { comentarioParaMostrar, estaCerrada, type ProcesoDeFicha } from './tareas'
+import { comentarioParaMostrar, ESTADO_COMPLETO, estaCerrada, type ProcesoDeFicha } from './tareas'
 import { CompartirTarea } from './CompartirTarea'
 import { BotonDuplicarTarea } from './DuplicarTarea'
 import { EstadoDeTarea } from './EstadoDeTarea'
 import { MenuEstadoTarea } from './MenuEstadoTarea'
+import { EntregaFinal, resolverArchivoDeEntrega } from './EntregaFinal'
+import { SeguidoresDeLaTarea } from './SeguidoresDeLaTarea'
 import { MenuHitoTarea } from './MenuHitoTarea'
 import { Cronometros } from './Cronometros'
 import { EdicionTarea } from './EdicionTarea'
@@ -55,6 +57,8 @@ import { ListaChecklist } from './ListaChecklist'
 import { ListaIteraciones } from './ListaIteraciones'
 import { ResumenDeRecurrencia } from '@/componentes/recurrencia/ResumenDeRecurrencia'
 import { PanelAdjuntos } from './PanelArchivos'
+import { avisoDeEntrega, errorDeEleccion, etiquetaDeCompletar, SIN_ENTREGA, type EleccionDeEntrega, type InfoDeEntrega } from './entrega-final'
+import { accionDeEstado } from './estado-proceso'
 import { mensajeDeLectura, pedirRespuesta } from '@/datos/cliente'
 import { segundosAHoraMinuto } from './formatos'
 import { useAviso } from '@/componentes/estado/useAviso'
@@ -142,6 +146,9 @@ export function DetalleTarea (
   const [confirmandoBorrado, setConfirmandoBorrado] = useState(false)
   const [borrando, setBorrando] = useState(false)
   const [errorBorrado, setErrorBorrado] = useState<string | null>(null)
+  // El bloque del archivo final al completar. Lo abre quien completa desde el menu de estado cuando el
+  // correo de entrega tiene sentido: la ficha ya es un dialogo y no se apila otro encima.
+  const [entregaAbierta, setEntregaAbierta] = useState(false)
   const aviso = useAviso()
 
   /**
@@ -259,6 +266,7 @@ export function DetalleTarea (
                     estado={tarea.status}
                     catalogo={listaDe(lookups, 'task_statuses')}
                     onCambiado={alCambiar}
+                    alElegirCompleto={() => setEntregaAbierta(true)}
                   />
                 )
               : <EstadoDeTarea status={tarea.status} catalogo={listaDe(lookups, 'task_statuses')} />}
@@ -318,7 +326,12 @@ export function DetalleTarea (
           {/* Completar vive en la ficha porque es donde se mira la tarea para decidir que ya esta.
               El listado ya tiene su propia accion; esta ademas deja elegir con que fecha cierra. */}
           {puedeEditar && !estaCerrada(tarea.status) && (
-            <CompletarTarea tarea={tarea} onCompletada={alCambiar} />
+            <CompletarTarea
+              tarea={tarea}
+              onCompletada={alCambiar}
+              entregaAbierta={entregaAbierta}
+              onEntregaAbierta={setEntregaAbierta}
+            />
           )}
 
           {/* Confirmacion en la misma ficha y no en otro dialogo: este detalle YA vive dentro de un
@@ -431,6 +444,14 @@ export function DetalleTarea (
             </Dato>
           ))}
         </dl>
+
+        {/* Quien sigue la Tarea, el equipo y los contactos del cliente juntos. En el panel los
+            seguidores del equipo vienen en la ficha; el portal no los manda y esa mitad no se dibuja. */}
+        <SeguidoresDeLaTarea
+          tareaId={tarea.id}
+          equipo={'followers' in tarea ? (tarea as Proceso).followers : undefined}
+          sujeto={subrecursos === null ? 'portal' : 'panel'}
+        />
 
         {/* La regla, de lectura, justo bajo los datos: es lo que explica por que esta Tarea tiene
             copias. Solo existe si el contrato mando `recurring` (el panel, via `GET /tasks/{id}`);
@@ -634,7 +655,8 @@ function Comentarios (
 }
 
 /**
- * Marca la Tarea como completada, eligiendo con que fecha cierra.
+ * Marca la Tarea como completada, eligiendo con que fecha cierra y, si hace falta, que archivo final
+ * recibe el cliente.
  *
  * El caso normal —se termino hoy— es **un solo clic**: la fecha ya viene en hoy y, si no se toca,
  * solo sale el `mark-complete` de siempre, que sella el cierre con la hora de ahora. El campo esta
@@ -642,18 +664,43 @@ function Comentarios (
  * jueves quedaba cerrada el jueves. Elegir otra fecha agrega un segundo paso explicito,
  * `PATCH /tasks/{id}` con `completed_at`, que es lo unico que el contrato acepta.
  *
+ * **El archivo final es opcional y esta plegado.** Si la tarea es visible para el cliente se ofrece
+ * «Enviar el archivo final al cliente»: elegir un adjunto de la tarea o subir uno nuevo hace que, al
+ * completar, los seguidores-contacto reciban el correo con el archivo adjunto. Sin elegir nada la
+ * tarea se completa y no sale correo, que es lo que pasa en el clic de siempre.
+ *
  * Los dos pasos se muestran como uno solo, pero no son atomicos: si el `mark-complete` funciono y el
  * parche no, la tarea **queda completada**. Por eso el fallo lo dice con esas palabras y el boton
  * pasa a reintentar solo la fecha, en vez de volver a completar algo ya completado.
  */
 function CompletarTarea (
-  { tarea, onCompletada }: { tarea: ProcesoDeFicha, onCompletada: () => void }
+  { tarea, onCompletada, entregaAbierta, onEntregaAbierta }: {
+    tarea: ProcesoDeFicha
+    onCompletada: () => void
+    entregaAbierta: boolean
+    onEntregaAbierta: (abierta: boolean) => void
+  }
 ): ReactElement {
   const aviso = useAviso()
+  const raiz = useRef<HTMLDivElement>(null)
   const [fecha, setFecha] = useState(() => hoyLocal())
   const [yaCompletada, setYaCompletada] = useState(false)
   const [guardando, setGuardando] = useState(false)
   const [fallo, setFallo] = useState<string | null>(null)
+  const [eleccion, setEleccion] = useState<EleccionDeEntrega>(SIN_ENTREGA)
+  const [info, setInfo] = useState<InfoDeEntrega | undefined>(undefined)
+
+  // Una tarea oculta al cliente no manda este correo: no se ofrece. Sin la clave (otro contrato) se
+  // asume visible y es la API la que decide.
+  const visibleAlCliente = (tarea as Partial<Proceso>).visible_to_client !== false
+  const conEntrega = entregaAbierta && visibleAlCliente && !yaCompletada
+  const eleccionEfectiva = conEntrega ? eleccion : SIN_ENTREGA
+  const eleccionInvalida = errorDeEleccion(eleccionEfectiva, info?.max_bytes) !== null
+
+  // Cuando la abre el menu de estado, el bloque queda a la vista en vez de aparecer fuera de pantalla.
+  useEffect(() => {
+    if (entregaAbierta) raiz.current?.scrollIntoView({ block: 'nearest' })
+  }, [entregaAbierta])
 
   /** Completa y, si la fecha no es hoy, la corrige. Nunca lanza: el error se lee bajo el campo. */
   async function completar (): Promise<void> {
@@ -661,7 +708,23 @@ function CompletarTarea (
     setFallo(null)
 
     if (!yaCompletada) {
-      const cierre = await escribirEnBff<Proceso>(`tasks/${tarea.id}/actions/mark-complete`, 'POST')
+      const archivo = await resolverArchivoDeEntrega(tarea.id, eleccionEfectiva)
+
+      if (!archivo.ok) {
+        setGuardando(false)
+        setFallo(archivo.mensaje)
+        return
+      }
+
+      // Ya esta subido: si completar falla, el reintento usa este adjunto en vez de subir otro.
+      if (eleccionEfectiva.modo === 'nuevo' && archivo.datos !== null) {
+        setEleccion({ modo: 'existente', archivoId: archivo.datos })
+      }
+
+      const accion = accionDeEstado(tarea.id, ESTADO_COMPLETO, archivo.datos)
+      const cierre = await escribirEnBff<Proceso>(
+        accion?.ruta ?? `tasks/${tarea.id}/actions/mark-complete`, 'POST', accion?.cuerpo
+      )
 
       if (!cierre.ok) {
         setGuardando(false)
@@ -670,6 +733,9 @@ function CompletarTarea (
       }
 
       setYaCompletada(true)
+
+      const envio = avisoDeEntrega(info, archivo.datos !== null)
+      if (envio !== null) aviso.exito(envio)
     }
 
     // Hoy ya es lo que sello `mark-complete`: un parche identico solo agregaria una peticion y una
@@ -703,7 +769,31 @@ function CompletarTarea (
   }
 
   return (
-    <div className="border-linea flex flex-wrap items-end gap-2 border-t pt-2">
+    <div ref={raiz} className="border-linea flex flex-wrap items-end gap-2 border-t pt-2">
+      {visibleAlCliente && !yaCompletada && (
+        <div className="flex basis-full flex-col gap-2">
+          <Boton
+            variante="sutil"
+            tamano="chico"
+            className="self-start"
+            aria-expanded={entregaAbierta}
+            disabled={guardando}
+            onClick={() => onEntregaAbierta(!entregaAbierta)}
+          >
+            {entregaAbierta ? 'No enviar archivo final' : 'Enviar el archivo final al cliente…'}
+          </Boton>
+          {entregaAbierta && (
+            <EntregaFinal
+              tareaId={tarea.id}
+              eleccion={eleccion}
+              onEleccion={setEleccion}
+              onInfo={setInfo}
+              deshabilitado={guardando}
+            />
+          )}
+        </div>
+      )}
+
       <Campo
         etiqueta="Fecha de completado"
         error={fallo ?? undefined}
@@ -725,9 +815,12 @@ function CompletarTarea (
         variante="secundario"
         tamano="chico"
         cargando={guardando}
+        disabled={eleccionInvalida}
         onClick={() => { void completar() }}
       >
-        {yaCompletada ? 'Guardar la fecha' : 'Marcar completada'}
+        {yaCompletada
+          ? 'Guardar la fecha'
+          : eleccionEfectiva.modo === 'ninguno' ? 'Marcar completada' : etiquetaDeCompletar(eleccionEfectiva)}
       </Boton>
     </div>
   )

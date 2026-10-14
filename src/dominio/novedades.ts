@@ -53,6 +53,13 @@ export const ROTULO_TIPO: Record<TipoNovedad, string> = {
  */
 export const NOVEDADES: Novedad[] = [
   {
+    fecha: '2026-10-14',
+    tipo: 'nuevo',
+    titulo: 'Los contactos del cliente siguen las tareas',
+    detalle: 'En la ficha de una tarea, «Seguidores» muestra al equipo y a los contactos del cliente. Al crear una tarea en un proyecto con cliente, todos sus contactos con acceso al portal quedan como seguidores; con el interruptor de cada uno puedes quitarlos o volver a sumarlos tarea por tarea. En el portal, cada contacto decide si sigue una tarea (el contacto principal también puede cambiar a los demás).',
+    commits: []
+  },
+  {
     fecha: '2026-10-13',
     tipo: 'mejora',
     titulo: 'Thinking Orb: más a mano y con más control',
