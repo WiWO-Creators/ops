@@ -1,6 +1,6 @@
 import { NextResponse, type NextRequest } from 'next/server'
 import { llamarApi } from '@/datos/api'
-import { tiempoDeApiMs } from '@/datos/config'
+import { tiempoDeApiIaMs, tiempoDeApiMs } from '@/datos/config'
 import { ErrorApi, incidenteDe, recorteDelCuerpo } from '@/datos/errores'
 import { registrarIncidente } from '@/datos/incidentes'
 import { cabecerasDeOrigen } from '@/datos/origen'
@@ -8,6 +8,7 @@ import {
   cabecerasDeSalida, elegirSujeto, esRutaDeDescarga, interpretarCuerpoJson, llamarConRefresco, type CuerpoLeido
 } from '@/datos/proxy-bff'
 import { rutaPermitida } from '@/datos/rutas'
+import { esRespuestaEsperada } from '@/lib/politica-incidentes'
 import { borrarSesion, guardarSesion, leerSesion } from '@/datos/sesion'
 import { refrescar } from '@/datos/refresco'
 import type { Sesion, Sujeto } from '@/datos/sobre-sesion'
@@ -101,7 +102,9 @@ async function reenviar (peticion: NextRequest, ctx: RouteContext<'/api/bff/[...
 
   // Las descargas, los flujos SSE y las subidas son largos por naturaleza: un limite corto los cortaria.
   const sinLimite = descarga || cabeceras.accept === 'text/event-stream' || cuerpo instanceof FormData
-  const senal = sinLimite ? undefined : AbortSignal.timeout(tiempoDeApiMs())
+  // Las rutas de IA esperan a un modelo y tienen su propio techo, mas largo: ver `tiempoDeApiIaMs`.
+  const espera = ruta[0] === 'ia' ? tiempoDeApiIaMs() : tiempoDeApiMs()
+  const senal = sinLimite ? undefined : AbortSignal.timeout(espera)
 
   let llamada: Awaited<ReturnType<typeof llamarConRefresco>>
 
@@ -229,6 +232,13 @@ async function conIncidente (
 
   const crudo = await respuesta.text()
   const sobre = sobreDeError(crudo)
+
+  // `403` y `404` de un registro que ya no existe: la pantalla los explica. El `404` se decide por el
+  // mensaje, por eso esta despues de leer el cuerpo y no junto a `esEsperado`.
+  // Solo si es el envelope de la API: un `403` en HTML lo arma el proxy, no la API, y eso si se registra.
+  if (sobre !== null && esRespuestaEsperada(respuesta.status, sobre.error.message)) {
+    return new NextResponse(crudo, { status: respuesta.status, headers: cabeceras })
+  }
 
   // La API ya lo guardo: su `details.incidente` es el del incidente con la traza real del servidor,
   // que vale mas que uno nuevo hecho desde aca.

@@ -3,7 +3,9 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { AlertTriangle, CheckCircle2, Info, X } from 'lucide-react'
 import { CodigoCopiable } from '@/componentes/presentadores/CodigoCopiable'
-import { ATRIBUTO_AVISOS, EVENTO_ERROR, esRuidoDelNavegador, reportarIncidente, type AvisoDeError } from '@/lib/aviso-de-error'
+import { ATRIBUTO_AVISOS, EVENTO_ERROR, reportarIncidente, type AvisoDeError, type ReporteDelNavegador } from '@/lib/aviso-de-error'
+import { esErrorDeChunk, esRuidoDelNavegador } from '@/lib/politica-incidentes'
+import { recargarPorDespliegue } from '@/lib/recarga-por-despliegue'
 import { duracionPorNivel, EVENTO_AVISO, type AvisoEmitido, type NivelAviso, agregarACola, agregarDesalojableACola, quitarDeCola } from '@/lib/avisos'
 import { NOMBRE_SOPORTE, URL_SOPORTE } from '@/lib/soporte'
 
@@ -53,7 +55,7 @@ type AvisoEnPila = AvisoIncidente | AvisoToast
  * los errores que nadie atrapo —un `undefined` al pintar una lista, una promesa que nadie espero— y
  * son justamente los que antes no dejaban ningun rastro. Un error de carga de un recurso (una imagen
  * que no esta) no cuenta: llega como el mismo evento pero no corta lo que la persona estaba haciendo.
- * El ruido del navegador tampoco —ver `esRuidoDelNavegador()` en `lib/aviso-de-error.ts`—: hay
+ * El ruido del navegador tampoco —ver `lib/politica-incidentes.ts`—: hay
  * errores que el navegador emite sin que se rompa nada y que solo tapan a los que si importan.
  *
  * === POR QUE LOS AVISOS COMUNES VIVEN EN LA MISMA PILA ===
@@ -195,7 +197,7 @@ export function AvisosDeError () {
         traza: trazaDelError(evento.error)
       }
 
-      if (esRuidoDelNavegador(reporte)) return
+      if (descartarRuido(reporte)) return
 
       agregarIncidente({ mensaje: 'Algo falló en esta pantalla. Ya quedó registrado.', reporte })
     }
@@ -208,7 +210,7 @@ export function AvisosDeError () {
         traza: trazaDelError(evento.reason)
       }
 
-      if (esRuidoDelNavegador(reporte)) return
+      if (descartarRuido(reporte)) return
 
       agregarIncidente({ mensaje: 'Una acción quedó a medias por un error. Ya quedó registrado.', reporte })
     }
@@ -343,6 +345,23 @@ function Aviso ({ aviso, onCerrar }: { aviso: AvisoEnPila, onCerrar: (id: number
 }
 
 /** Clase del error, para agrupar incidentes parecidos. Lo que no sea un `Error` se anota como tal. */
+/**
+ * Decide si un error global no se muestra ni se registra, y recarga si era un deploy nuevo.
+ *
+ * Un `ChunkLoadError` es la pestana con el codigo de la version anterior: se recarga una sola vez
+ * (`recargarPorDespliegue`) para que la vista no quede rota, y no se avisa de nada.
+ *
+ * @param reporte lo que conto el navegador
+ * @returns `true` si el error es ruido y hay que ignorarlo
+ */
+function descartarRuido (reporte: ReporteDelNavegador): boolean {
+  if (!esRuidoDelNavegador(reporte)) return false
+
+  if (esErrorDeChunk(reporte)) recargarPorDespliegue()
+
+  return true
+}
+
 function nombreDelError (causa: unknown): string {
   return causa instanceof Error ? causa.name : 'ValorLanzado'
 }

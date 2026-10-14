@@ -165,3 +165,10 @@ test('la mascara pone las barras sola y no deja entrar nada que no sea un digito
 test('la mascara corta en ocho digitos: no hay fecha mas larga', () => {
   assert.equal(enmascararFechaLocal('311220269999'), '31/12/2026')
 })
+
+test('los meses salen de una tabla propia: el texto no depende de la version de CLDR del motor', () => {
+  // "sept" contra "sep" cambia entre Node, Chrome, Safari y Firefox, y esa diferencia rompe la hidratacion.
+  assert.equal(formatearFecha('2026-09-05'), '05 sept 2026')
+  assert.equal(formatearFecha('2026-01-05'), '05 ene 2026')
+  assert.equal(formatearFecha('2026-09-05T15:03:00Z', true), '05 sept 2026 11:03')
+})

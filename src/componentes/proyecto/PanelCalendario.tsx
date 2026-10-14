@@ -9,6 +9,7 @@ import { Segmentado, type OpcionSegmentada } from '@/componentes/formularios/Seg
 import { Cargando, ErrorEstado, Vacio } from '@/componentes/estado/Estados'
 import { PARAMETRO_TAREA } from '@/componentes/datos/tabla'
 import { pedirSobre } from '@/datos/cliente'
+import { listaDe } from '@/datos/catalogos'
 import { nombrar } from '@/dominio/glosario'
 import { hoyLocal } from '@/lib/fechas'
 import { ModalTarea } from './ModalTarea'
@@ -163,7 +164,7 @@ function CalendarioDelEspacio ({ proyectoId, fuente, capacidades, altaDeTareas }
         error: null,
         datos: {
           tareas: unir(abiertos.data, completos.data),
-          estados: lookups.data.task_statuses,
+          estados: listaDe(lookups.data, 'task_statuses'),
           truncado: abiertos.data.length >= TOPE_DE_PROCESOS || completos.data.length >= TOPE_DE_PROCESOS
         }
       })
@@ -444,7 +445,10 @@ function etiquetaDePeriodo (vista: VistaEntregas): string {
 function unir (abiertos: Proceso[], completos: Proceso[]): Proceso[] {
   const porId = new Map<number, Proceso>()
 
-  for (const tarea of [...abiertos, ...completos]) porId.set(tarea.id, tarea)
+  // El portal no publica `assignees` (`FormasDelPortal::PROCESOS`): la tarea llega sin el campo y no
+  // con una lista vacia. Se normaliza aca, en el origen, para que ninguna vista del calendario —ni
+  // la rejilla, ni la agenda, ni el detalle— tenga que preguntar de que sujeto viene la tarea.
+  for (const tarea of [...abiertos, ...completos]) porId.set(tarea.id, { ...tarea, assignees: tarea.assignees ?? [] })
 
   return [...porId.values()]
 }

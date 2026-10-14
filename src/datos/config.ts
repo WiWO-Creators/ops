@@ -91,3 +91,17 @@ export function tiempoDeApiMs (): number {
 
   return Number.isInteger(configurado) && configurado > 0 ? configurado : 25_000
 }
+
+/**
+ * Espera maxima del BFF a la API en una peticion de la capa de IA (`ia/*`), en milisegundos.
+ *
+ * Aparte de `tiempoDeApiMs` porque esas rutas esperan a un modelo: `IA\Cliente` usa hasta 45 s por
+ * intento y reintenta una vez, o sea hasta ~91 s de respuesta valida. Con el limite corriente de 25 s
+ * el BFF cortaba con un 504 una redaccion que la API todavia iba a entregar. `API_TIEMPO_IA_MS` lo
+ * cambia sin tocar codigo.
+ */
+export function tiempoDeApiIaMs (): number {
+  const configurado = Number(process.env.API_TIEMPO_IA_MS)
+
+  return Number.isInteger(configurado) && configurado > 0 ? configurado : 95_000
+}

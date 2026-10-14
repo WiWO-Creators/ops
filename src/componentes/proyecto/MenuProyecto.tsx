@@ -120,14 +120,14 @@ export function MenuProyecto ({
   const solicitud = proyecto.deletion_request ?? null
 
   /**
-   * Pedir la eliminacion es para quien NO puede archivar: quien tiene `edit` archiva y no pide
-   * nada. Con el Proyecto ya archivado tampoco se ofrece — el backend contesta 409 y no hay nada
-   * que pedir.
+   * Pedir la eliminacion es para quien NO puede borrar: solo un administrador elimina, y el resto
+   * —tenga o no `edit`— lo pide a la bandeja de solicitudes. Con el Proyecto ya archivado no se
+   * ofrece: el backend contesta 409 y no hay nada que pedir.
    *
    * Si ya hay una solicitud viva el item sigue estando, pero abre el dialogo en modo lectura: es
    * donde quien la escribio relee su motivo y la retira si se equivoco.
    */
-  const puedePedirEliminacion = !puedeEditar && !archivado
+  const puedePedirEliminacion = !puedeBorrar && !archivado
 
   /**
    * Archiva o desarchiva el proyecto.

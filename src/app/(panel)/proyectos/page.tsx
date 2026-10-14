@@ -20,6 +20,7 @@ import type {
 } from '@/datos/recursos'
 import type { OpcionFiltro } from '@/definiciones/tipos'
 import { ESPACIOS, espaciosConCampos, filtrosDeEntradaDeEspacios } from '@/definiciones/espacios'
+import { capacidadesDeEspacios } from '@/dominio/permisos'
 import { cn } from '@/lib/clases'
 
 export const metadata = { title: 'Proyectos · WiWO Ops' }
@@ -156,13 +157,15 @@ export default async function EspaciosPage (props: PageProps<'/proyectos'>) {
       <Suspense fallback={<Cargando alto="min-h-36" mensaje={`Cargando ${ESPACIOS.titulo.plural.toLowerCase()}…`} />}>
         <VistaEspacios
           inicial={{ filas: lista.data, paginacion: lista.meta?.pagination }}
-          capacidades={yo.data.permissions.projects}
+          capacidades={capacidadesDeEspacios(yo.data)}
           opcionesDeFiltro={opcionesDeFiltro}
           vistaInicial={vista}
           estadisticas={estadisticas.datos}
           errorEstadisticas={estadisticas.error}
           campos={campos.data}
           plantillas={plantillas.datos ?? []}
+          miStaffId={yo.data.id}
+          esAdmin={yo.data.is_admin || yo.data.is_superadmin}
         />
       </Suspense>
     </section>
