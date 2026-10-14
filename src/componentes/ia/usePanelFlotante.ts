@@ -105,6 +105,8 @@ export function usePanelFlotante (panel: RefObject<HTMLDivElement | null>, ruta:
   // Atajo global. `PaletaDeComandos` usa Cmd/Ctrl+K; este usa J.
   useEffect(() => {
     const alTeclear = (evento: KeyboardEvent): void => {
+      // El autocompletado de Chrome emite keydown sin `key` aunque el tipo diga string.
+      if (typeof evento.key !== 'string') return
       if (evento.key.toLowerCase() !== TECLA_ATAJO_PANEL || !(evento.metaKey || evento.ctrlKey) || evento.altKey || evento.shiftKey) return
       if (hayOtroDialogo(panel.current)) return
       evento.preventDefault()
