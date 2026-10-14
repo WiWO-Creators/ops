@@ -405,6 +405,8 @@ function useAtajoDeTeclado (setAbierta: React.Dispatch<React.SetStateAction<bool
     }
 
     function alTeclear (evento: KeyboardEvent): void {
+      // El autocompletado de Chrome emite keydown sin `key` aunque el tipo diga string.
+      if (typeof evento.key !== 'string') return
       if (evento.key.toLowerCase() !== 'k' || !(evento.metaKey || evento.ctrlKey) || evento.altKey || evento.shiftKey) return
       if (hayOtroDialogo()) return
       evento.preventDefault()
