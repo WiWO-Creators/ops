@@ -32,6 +32,7 @@ import {
 import { useBorradorAlta } from './alta/useBorradorAlta'
 import { useCatalogosAlta, type CargaDelAlta } from './alta/useCatalogosAlta'
 import { useEnvioAlta } from './alta/useEnvioAlta'
+import { useSugerenciasAlta } from './alta/useSugerenciasAlta'
 import { useSugerenciasIa } from './alta/useSugerenciasIa'
 import { useTiposYHitos } from './alta/useTiposYHitos'
 import { textoAHtml } from '@/dominio/texto-rico'
@@ -157,6 +158,19 @@ export function AltaRapidaProceso ({
     onOcupado
   })
 
+  const sugerencias = useSugerenciasAlta({
+    activo: abierto && creadaId === null,
+    destino,
+    borrador,
+    actualizar,
+    personas: carga.personas,
+    tipos: tiposYHitos.tipos,
+    hitos: tiposYHitos.hitos,
+    prioridades: catalogos.prioridades,
+    nombresDelCatalogo: carga.nombresDelCatalogo,
+    fusion: ia.fusion
+  })
+
   /** Deja el hito y el tipo sin elegir, con su catálogo vacío. */
   function olvidarHitoYTipo (): void {
     cambiarVarios({ hito: NINGUNO, tipo: NINGUNO })
@@ -230,6 +244,7 @@ export function AltaRapidaProceso ({
     envio.reiniciar()
     carga.reiniciarCarga()
     ia.reiniciar()
+    sugerencias.reiniciar()
   }
 
   /** Cambia la descripción; el reclamo de "falta la descripcion" deja de tener sentido en cuanto algo la llena. */
@@ -304,7 +319,12 @@ export function AltaRapidaProceso ({
       return
     }
 
-    await envio.enviar({ ...comun, ...cuerpoDeUnDestino(borrador) })
+    // El parte de lo aceptado e ignorado viaja solo en el alta de un Espacio: con varios no hay
+    // sugerencias. Sin nada que registrar (la función apagada, un Espacio sin historial) el cuerpo
+    // es el de siempre.
+    const parte = sugerencias.parte()
+
+    await envio.enviar({ ...comun, ...cuerpoDeUnDestino(borrador), ...(parte === null ? {} : { sugerencias: parte }) })
   }
 
   /** Manda el alta del modo activo. */
@@ -366,6 +386,7 @@ export function AltaRapidaProceso ({
           hitos={tiposYHitos.hitos}
           avisoTipos={tiposYHitos.avisoTipos}
           conFallo={parcial?.pendientes ?? []}
+          sugerencias={sugerencias}
         />
 
         <CamposDePlanificacion
@@ -376,6 +397,7 @@ export function AltaRapidaProceso ({
           nombresDelCatalogo={carga.nombresDelCatalogo}
           tipos={tiposYHitos.tipos}
           avisoTipos={tiposYHitos.avisoTipos}
+          sugerencias={sugerencias}
         />
 
         <CampoDescripcion
@@ -392,7 +414,7 @@ export function AltaRapidaProceso ({
           deshabilitado={enCurso}
         />
 
-        <CamposDeFacturacion borrador={borrador} cambiar={cambiar} />
+        <CamposDeFacturacion borrador={borrador} cambiar={cambiar} sugerencias={sugerencias} />
       </fieldset>
       <CamposPersonalizados definiciones={definiciones} valores={borrador.personalizados} errores={envio.erroresCampos}
         onCambiar={(valores) => { cambiar('personalizados', valores); envio.olvidarErroresCampos() }} deshabilitado={enCurso || cargando || errorCarga !== null} />
