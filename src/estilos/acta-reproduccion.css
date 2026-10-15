@@ -1,0 +1,129 @@
+/*
+ * La edición del Orbe reproducida sobre el Meeting Paper.
+ *
+ * Es la hoja del visor (`presentadores/ContenidoHtml.tsx`, `ESTILO_DOCUMENTO`) escrita otra vez para
+ * un contenedor normal del panel: el visor es un iframe y la animación no puede vivir adentro. Las
+ * medidas de los dos lados tienen que moverse juntas, o al apagarse la capa el texto saltaría de
+ * lugar: mismo cuerpo de 16px con interlineado 1.75, mismos márgenes de título, de párrafo y de
+ * lista, mismo ancho de 46rem con 2.5rem y 2rem de relleno.
+ *
+ * === LA ESPECIFICIDAD TAMBIEN SE COPIA ===
+ *
+ * Las reglas de texto cuelgan de `:where(.acta-reproduccion)`, que no suma especificidad: valen lo
+ * mismo que `p { ... }` dentro del iframe. Con una clase por delante, `p` le ganaría a `.marca-pie`
+ * (que también es un `p`) y a la hoja de cada marca, y el pie del documento perdería su margen.
+ *
+ * El documento es claro SIEMPRE, también con la interfaz en oscuro, por la misma razón que el visor:
+ * es una hoja de papel. Los colores de marca los pone `.acta-marca`, que viene después (va en un
+ * `<style>` dentro de la capa) y gana a igual especificidad, igual que en el iframe.
+ *
+ * Lo que anima el JavaScript (`proyecto/acta/escenaDeReproduccion.ts`) es solo `transform`,
+ * `opacity` y el texto; acá no hay ni una transición.
+ */
+
+.acta-reproduccion {
+  position: absolute;
+  inset: 0;
+  overflow-y: auto;
+  background: #fff;
+  color: #374151;
+  font-family: 'Plus Jakarta Sans', ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif;
+  font-size: 16px;
+  line-height: 1.75;
+  overflow-wrap: anywhere;
+  -webkit-text-size-adjust: 100%;
+}
+
+/* `content-box` como el `body` del iframe: con el `border-box` del panel el texto saldría 4rem más
+   angosto y cortaría las líneas en otro lado. */
+.acta-reproduccion__cuerpo {
+  box-sizing: content-box;
+  margin: 0 auto;
+  padding: 2.5rem 2rem;
+  max-width: 46rem;
+}
+
+:where(.acta-reproduccion) :is(h1, h2, h3) {
+  color: #111827;
+  font-weight: 700;
+}
+
+:where(.acta-reproduccion) h1 { font-size: 2rem; line-height: 1.2; margin: 0 0 1.25rem; font-weight: 800; letter-spacing: -0.02em; }
+:where(.acta-reproduccion) h2 { font-size: 1.4rem; line-height: 1.35; margin: 2.25rem 0 0.9rem; letter-spacing: -0.01em; }
+:where(.acta-reproduccion) h3 { font-size: 1.1rem; line-height: 1.5; margin: 1.75rem 0 0.5rem; }
+
+:where(.acta-reproduccion) p { margin: 0 0 1.1rem; }
+
+:where(.acta-reproduccion) :is(ul, ol) { margin: 0 0 1.25rem; padding-left: 1.5rem; }
+:where(.acta-reproduccion) ul { list-style: disc; }
+:where(.acta-reproduccion) ol { list-style: decimal; }
+:where(.acta-reproduccion) li { margin: 0.35rem 0; padding-left: 0.25rem; }
+:where(.acta-reproduccion) ul li::marker { color: #9ca3af; }
+:where(.acta-reproduccion) ol li::marker { color: #6b7280; font-weight: 600; }
+
+:where(.acta-reproduccion) hr { margin: 2rem 0; border: 0; border-top: 1px solid #e5e7eb; }
+
+:where(.acta-reproduccion) blockquote {
+  margin: 1.5rem 0;
+  padding-left: 1rem;
+  border-left: 3px solid #e5e7eb;
+  color: #4b5563;
+  font-style: italic;
+}
+
+/* Lo que el Orbe va a borrar, marcado como una selección de texto. */
+.acta-reproduccion .acta-palabra--marcada {
+  background: color-mix(in srgb, var(--wiwo-blue, #4242ff) 24%, transparent);
+  border-radius: 2px;
+}
+
+/*
+ * El cursor del colaborador: una barra y su etiqueta, en el azul del orbe.
+ *
+ * Es un nodo en línea de ancho cero que vive dentro del texto: acompaña lo que se escribe sin medir
+ * nada y no empuja ni una letra. La etiqueta flota encima y no toma clics.
+ */
+.acta-cursor {
+  --cursor-color: var(--wiwo-blue, #4242ff);
+  position: relative;
+  display: inline-block;
+  width: 0;
+  height: 1em;
+  vertical-align: text-bottom;
+  pointer-events: none;
+}
+
+.acta-cursor__barra {
+  position: absolute;
+  top: -0.2em;
+  left: -1px;
+  width: 2px;
+  height: 1.35em;
+  border-radius: 1px;
+  background: var(--cursor-color);
+}
+
+.acta-cursor__etiqueta {
+  position: absolute;
+  bottom: calc(100% + 0.2em);
+  left: -1px;
+  z-index: 2;
+  padding: 3px 7px;
+  border-radius: 5px 5px 5px 0;
+  background: var(--cursor-color);
+  color: #fff;
+  font-family: 'Plus Jakarta Sans', ui-sans-serif, system-ui, sans-serif;
+  font-size: 11px;
+  font-style: normal;
+  font-weight: 600;
+  letter-spacing: 0;
+  line-height: 1;
+  white-space: nowrap;
+}
+
+/* Cerca del borde derecho la etiqueta se abre hacia la izquierda para no salirse de la hoja. */
+.acta-cursor--izquierda .acta-cursor__etiqueta {
+  right: -1px;
+  left: auto;
+  border-radius: 5px 5px 0 5px;
+}
