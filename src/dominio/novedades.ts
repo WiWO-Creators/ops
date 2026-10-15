@@ -53,6 +53,13 @@ export const ROTULO_TIPO: Record<TipoNovedad, string> = {
  */
 export const NOVEDADES: Novedad[] = [
   {
+    fecha: '2026-10-15',
+    tipo: 'mejora',
+    titulo: 'El Thinking Orb ayuda a ordenar y corregir el Meeting Paper abierto',
+    detalle: 'Con un Meeting Paper abierto, pídele al Thinking Orb que agregue, quite, mueva o renombre secciones, o que reescriba una parte; cada cambio se confirma antes de aplicarse y la pantalla se actualiza sola. Si estás editando y alguien cambia el documento, te avisa en vez de pisarlo.',
+    commits: []
+  },
+  {
     fecha: '2026-10-14',
     tipo: 'mejora',
     titulo: 'Eliminar un proyecto envía una solicitud si no eres administrador',

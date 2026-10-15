@@ -16,6 +16,7 @@ import {
   REINTENTOS_SEGUIMIENTO,
   type Ejecucion
 } from '@/dominio/ia-ejecucion'
+import { avisarEscrituraDeOrbe, pudoEscribir } from '@/dominio/orbe-escritura'
 import type { ConfiguracionConAgente } from '@/dominio/orbe-sujeto'
 
 /** Operaciones sobre la conversación del agente. */
@@ -116,6 +117,15 @@ export function useEjecucionesAgente ({ configuracion, proyectoId, intervalo, um
   const editando = estaEditando(ultima)
   const firma = ultima === undefined ? '' : firmaDeEjecucion(ultima)
 
+  /**
+   * Lo que sigue a una ejecución completada: refresca lo del servidor de Next y, si el plan pudo
+   * escribir, avisa a la ventana para que las pantallas con carga propia (el acta abierta) revaliden.
+   */
+  const alCompletarse = useCallback((ejecucion: Ejecucion): void => {
+    router.refresh()
+    if (pudoEscribir(ejecucion)) avisarEscrituraDeOrbe(contextoRef.current.actaId)
+  }, [router])
+
   useEffect(() => {
     ultimaRef.current = ultima
   }, [ultima])
@@ -186,7 +196,7 @@ export function useEjecucionesAgente ({ configuracion, proyectoId, intervalo, um
           sinCambios = 0
           ultimaRef.current = ejecucion
           setHistorial(actual => actualizarEjecucion(actual, ejecucion))
-          if (ejecucion.estado === 'completada') router.refresh()
+          if (ejecucion.estado === 'completada') alCompletarse(ejecucion)
         }
         if (estaTrabajando(ejecucion)) programar(intervaloSeguimiento(intervalo, sinCambios))
       } catch (fallo: unknown) {
@@ -200,7 +210,7 @@ export function useEjecucionesAgente ({ configuracion, proyectoId, intervalo, um
     programar(volviendo.current ? 0 : intervalo)
     volviendo.current = false
     return () => { clearTimeout(temporizador); abortador.abort() }
-  }, [agente, ultimaId, trabajando, error, enviando, visible, intervalo, proyectoId, router])
+  }, [agente, ultimaId, trabajando, error, enviando, visible, intervalo, proyectoId, alCompletarse])
 
   // «Parece detenida»: si la huella del snapshot no cambia en el umbral. Volver a la pestaña
   // reinicia la cuenta: lo que pasó con la pestaña oculta no se sondeó.
@@ -250,7 +260,7 @@ export function useEjecucionesAgente ({ configuracion, proyectoId, intervalo, um
       if (!montado.current) return
       setHistorial(actual => actualizarEjecucion(actual, ejecucion))
       if (respuesta) alLimpiarTexto()
-      if (ejecucion.estado === 'completada') router.refresh()
+      if (ejecucion.estado === 'completada') alCompletarse(ejecucion)
     } catch (fallo: unknown) {
       if (montado.current) setError(`${fallo instanceof Error ? fallo.message : 'No se recibió el resultado.'} Reintenta antes de repetir la operación.`)
     } finally {
