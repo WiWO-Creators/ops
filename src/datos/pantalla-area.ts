@@ -250,6 +250,11 @@ export interface MetaDePantalla {
    * respuesta incompleta, y un `?escena=` en la URL manda sobre las dos.
    */
   scene_seconds: number
+  /**
+   * Si esta pantalla puede escuchar el bus de «Ops en vivo» (`wiwo_en_vivo_pantallas` y el maestro).
+   * Ausente en una API anterior: se trata como apagado.
+   */
+  en_vivo?: boolean
 }
 
 /** La respuesta entera. */
