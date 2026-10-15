@@ -111,6 +111,17 @@
   text-underline-offset: 2px;
 }
 
+/*
+ * El fragmento con un hilo de comentarios (`lib/en-vivo/marca-comentario.ts`). Solo se pinta aquí,
+ * mientras se corrige: el visor, el PDF y el portal muestran el texto limpio, porque el comentario es
+ * una conversación del equipo y no parte del documento que se entrega. Además del fondo lleva un
+ * subrayado punteado, para que no dependa solo del color. Con dos hilos encimados el fondo se suma.
+ */
+.acta-editor span[data-hilo] {
+  background: rgb(250 204 21 / 0.28);
+  border-bottom: 2px dotted #b45309;
+}
+
 /* El marcador de posición de TipTap, que se pinta sobre el primer párrafo vacío. */
 .acta-editor p.is-editor-empty:first-child::before {
   content: attr(data-placeholder);

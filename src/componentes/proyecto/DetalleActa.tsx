@@ -11,6 +11,7 @@ import { GLOSARIO } from '@/dominio/glosario'
 import { AccionesDelActa } from './acta/AccionesDelActa'
 import { AdjuntosDelActa } from './acta/AdjuntosDelActa'
 import { CabeceraDelActa } from './acta/CabeceraDelActa'
+import { ComentariosDelActa } from './acta/ComentariosDelActa'
 import { ConfirmacionDelActa } from './acta/ConfirmacionDelActa'
 import { DialogoDeRenombre } from './acta/DialogoDeRenombre'
 import { HistorialDelActa } from './acta/HistorialDelActa'
@@ -18,9 +19,11 @@ import { OriginalDelActa } from './acta/OriginalDelActa'
 import { ReproduccionDelActa } from './acta/ReproduccionDelActa'
 import { TareasPropuestas } from './acta/TareasPropuestas'
 import { useReproduccionDelActa } from './acta/useReproduccionDelActa'
+import { useComentariosEnElActa } from './acta/useComentariosEnElActa'
 import { useEdicionDelActa } from './acta/useEdicionDelActa'
 import { useEscriturasDelActa } from './acta/useEscriturasDelActa'
 import { useExportacionDelActa } from './acta/useExportacionDelActa'
+import { useHilosDelActa } from './acta/useHilosDelActa'
 import { useIdiomaDelActa } from './acta/useIdiomaDelActa'
 import type { Acta } from '@/datos/recursos'
 import { EVENTO_ABRIR_ORBE } from '@/dominio/pantalla'
@@ -127,6 +130,14 @@ import type { Yo } from '@/datos/tipos'
  * siempre: varias personas escriben a la vez y el servicio guarda solo, así que no hay Guardar ni
  * Descartar sino «Cerrar edición». Si la conexión no abre o no vuelve, se sigue con el editor de
  * siempre con lo último que se vio. Con la opción apagada, nada de esto existe.
+ *
+ * === COMENTARIOS EN LINEA ===
+ *
+ * Con `useConfigEnVivo().comentarios` encendido, una persona que puede corregir y el acta original,
+ * aparece «Comentarios» (`ComentariosDelActa`, un panel lateral de hilos) y los dos editores ofrecen
+ * «Comentar» sobre una selección. Funciona igual en la edición conjunta y en la de siempre: el hilo
+ * vive en el board y se ata al texto por una marca (`span[data-hilo]`) que es parte del propio
+ * contenido del acta. Sin la opción, no se pide ni se dibuja nada.
  */
 
 const EditorDeActa = dynamic(
@@ -168,8 +179,11 @@ interface PropsDetalle {
   destacarTareas?: boolean
   /** Quien mira es superadmin: ve el original de la reunión. La API lo vuelve a exigir con un 403. */
   esSuperadmin?: boolean
-  /** Quien mira: sin esto no hay edición conjunta, porque su cursor necesita nombre y color. */
-  yo?: Pick<Yo, 'id' | 'full_name' | 'profile_image_url'>
+  /**
+   * Quien mira: sin esto no hay edición conjunta, porque su cursor necesita nombre y color.
+   * `is_admin` (si viene) decide si el panel de comentarios ofrece borrar los ajenos.
+   */
+  yo?: Pick<Yo, 'id' | 'full_name' | 'profile_image_url'> & Partial<Pick<Yo, 'is_admin'>>
   /** Vuelve a pedir el acta en silencio (ver `useRecurso.revalidar`): el Orbe u otra persona la cambió. */
   onRevalidar: () => void
   onCambiada: (acta: Acta) => void
@@ -272,6 +286,11 @@ export function DetalleActa ({
   /** «Corregir» abre la edición conjunta: solo el original (las traducciones siguen el flujo de siempre). */
   const corrigeEnConjunto = enVivo.actas && puedeEditar && traduccionActiva === null && yo !== undefined
   const reproduccion = useReproduccionDelActa({ actaId: acta.id, html: cuerpo, vista: idioma, editando: corrigiendo })
+  /** Los comentarios en línea cuelgan del texto original: una traducción es otro documento. */
+  const conComentarios = enVivo.comentarios && puedeEditar && traduccionActiva === null
+  const hilos = useHilosDelActa({ ruta, actaId: acta.id, activo: conComentarios })
+  const comentarios = useComentariosEnElActa(conComentarios)
+  const hilosSinResolver = hilos.fase === 'listo' ? hilos.hilos.filter((hilo) => !hilo.resolved).length : null
 
   // La revalidación pendiente tras cerrar la edición no sobrevive a la pantalla.
   useEffect(() => () => {
@@ -390,6 +409,7 @@ export function DetalleActa ({
           puedeBorrar={puedeBorrar && !conjunta}
           puedeVerHistorial={puedeEditar && traduccionActiva === null && !corrigiendo}
           onHistorial={() => { setVerHistorial(true) }}
+          comentarios={conComentarios ? { abiertos: hilosSinResolver, onAbrir: comentarios.abrir } : undefined}
           puedePreguntar={conIa}
           onPreguntar={() => { window.dispatchEvent(new CustomEvent(EVENTO_ABRIR_ORBE, { detail: { actaId: acta.id } })) }}
           onDescartar={descartar}
@@ -435,6 +455,7 @@ export function DetalleActa ({
           onGuardado={onRevalidar}
           onCerrar={cerrarConjunta}
           onSinConexion={seguirSinConexion}
+          comentarios={comentarios.paraElEditor}
         />
       )}
 
@@ -455,6 +476,7 @@ export function DetalleActa ({
             actaId={acta.id}
             onReescrituraIa={edicion.marcarIa}
             onCambio={edicion.cambiar}
+            comentarios={comentarios.paraElEditor}
           />
           )
         : (
@@ -518,6 +540,17 @@ export function DetalleActa ({
         onCambioAjeno={onRevalidar}
         onCerrar={() => { setVerHistorial(false) }}
       />
+
+      {conComentarios && (
+        <ComentariosDelActa
+          ruta={ruta}
+          hilos={hilos}
+          estado={comentarios}
+          html={cuerpo}
+          esAdmin={yo?.is_admin === true}
+          marcaSinGuardar={edicion.editando}
+        />
+      )}
 
       {renombrando && (
         <DialogoDeRenombre

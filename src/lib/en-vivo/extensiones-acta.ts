@@ -1,5 +1,6 @@
 import StarterKit from '@tiptap/starter-kit'
 import type { Extensions } from '@tiptap/core'
+import { MarcaComentario } from './marca-comentario.ts'
 
 /**
  * El esquema del Meeting Paper en edición conjunta.
@@ -12,6 +13,10 @@ import type { Extensions } from '@tiptap/core'
  * - `undoRedo: false` (salvo `conHistorial`): con Yjs el deshacer lo da la propia colaboración; dos
  *   pilas de historial se pisarían.
  * - `link`: `javascript:` sobrevive a cualquier parseo de HTML, así que se limitan los protocolos.
+ *
+ * - `MarcaComentario`: el fragmento comentado (`span[data-hilo]`, fase 10). Es parte del esquema
+ *   siempre, con los comentarios encendidos o no: un acta que ya trae la marca no debe perderla al
+ *   editarse con la opción apagada, y un acta sin marca no cambia de forma alguna.
  *
  * Sin `Placeholder`: es solo presentación y no cambia el esquema.
  *
@@ -27,6 +32,7 @@ export function extensionesDeActa ({ conHistorial = false }: { conHistorial?: bo
         protocols: ['http', 'https', 'mailto']
       },
       ...(conHistorial ? {} : { undoRedo: false as const })
-    })
+    }),
+    MarcaComentario
   ]
 }

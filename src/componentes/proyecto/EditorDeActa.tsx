@@ -1,21 +1,24 @@
 'use client'
 
-import { useEffect, useState, type ReactElement } from 'react'
+import { useEffect, useRef, useState, type ReactElement } from 'react'
 import type { Extensions } from '@tiptap/core'
-import { EditorContent, useEditor, type Editor } from '@tiptap/react'
+import { EditorContent, useEditor, useEditorState, type Editor } from '@tiptap/react'
 import { BubbleMenu } from '@tiptap/react/menus'
 import Placeholder from '@tiptap/extension-placeholder'
 import Collaboration from '@tiptap/extension-collaboration'
 import CollaborationCaret from '@tiptap/extension-collaboration-caret'
 import type { HocuspocusProvider } from '@hocuspocus/provider'
 import type { Doc } from 'yjs'
-import { Bold, Expand, GraduationCap, Handshake, Heading2, Heading3, Italic, List, ListCollapse, Quote, Shrink, Sparkles } from 'lucide-react'
+import { Bold, Expand, GraduationCap, Handshake, Heading2, Heading3, Italic, List, ListCollapse, MessageSquarePlus, Quote, Shrink, Sparkles } from 'lucide-react'
 import { DOMSerializer } from '@tiptap/pm/model'
 import { AvisoEnLinea } from '@/componentes/estado/Estados'
 import { Boton } from '@/componentes/formularios/Boton'
 import { escribirEnBff } from '@/componentes/datos/mutaciones'
 import { cn } from '@/lib/clases'
 import { extensionesDeActa } from '@/lib/en-vivo/extensiones-acta'
+import { textoDeComentario } from '@/lib/en-vivo/marca-comentario'
+import { esAnclaValida, nuevaAncla } from '@/dominio/comentarios-acta'
+import type { ComentariosDelEditor } from './acta/comentariosDelEditor'
 import { cursorDeColaborador, seleccionDeColaborador } from './acta/cursoresDelActa'
 import '@/estilos/acta.css'
 import type { LucideIcon } from 'lucide-react'
@@ -58,6 +61,14 @@ import {
  * Con `colaboracion` el documento es el de Yjs: no se pasa `content`, no hay Placeholder y se suman
  * los cursores de las demás personas. El caret del asistente (`Thinking Orb`) se dibuja con el azul
  * de su marca, no con el color que publica el servicio. Ver `acta/cursoresDelActa.ts`.
+ *
+ * === COMENTARIOS EN LINEA ===
+ *
+ * Con `comentarios` la barra (y el menú sobre la selección) ofrece «Comentar»: marca el fragmento
+ * con la marca `comentario` (`lib/en-vivo/marca-comentario.ts`, parte del esquema compartido) y le
+ * avisa al panel, que abre el hilo. La marca es texto del acta como cualquier otro: en edición
+ * conjunta viaja por Yjs, y en la de siempre se guarda con «Guardar». Ctrl+clic sobre un fragmento
+ * marcado abre su hilo; el clic a secas sigue siendo escribir. Sin `comentarios`, nada de esto existe.
  *
  * === POR QUE MONTAR HTML ACA NO ES UN XSS ===
  *
@@ -140,6 +151,29 @@ interface PropsEditor {
   actaId: number
   /** Avisa que un cambio de la IA se aplicó, para rotular el historial como `ia` al guardar. */
   onReescrituraIa?: () => void
+  /**
+   * Los comentarios en línea (fase 10): con ellos el editor ofrece «Comentar» y le entrega al panel
+   * sus operaciones. Sin ellos —apagados o sin permiso— no hay nada de comentarios.
+   */
+  comentarios?: ComentariosDelEditor
+}
+
+/** Caracteres de la cita que se le muestra al panel; el resto se corta, el hilo se ata por la ancla. */
+const CITA_MAXIMA = 280
+
+/**
+ * La ancla del fragmento comentado bajo un clic con Ctrl (o Cmd).
+ *
+ * @param evento el clic sobre el editor
+ * @returns la ancla del `span[data-hilo]` más cercano, o `null` si no fue Ctrl+clic o no hay marca
+ */
+function anclaDelClic (evento: MouseEvent): string | null {
+  if (!evento.ctrlKey && !evento.metaKey) return null
+
+  const objetivo = evento.target instanceof Element ? evento.target : null
+  const ancla = objetivo?.closest('span[data-hilo]')?.getAttribute('data-hilo')
+
+  return esAnclaValida(ancla) ? ancla : null
 }
 
 /**
@@ -167,13 +201,16 @@ function extensionesDelEditor (colaboracion: ColaboracionDelEditor | undefined):
   ]
 }
 
-export function EditorDeActa ({ htmlInicial = '', colaboracion, onCambio, proyectoId, conIa = true, marca = null, actaId, onReescrituraIa }: PropsEditor): ReactElement {
+export function EditorDeActa ({ htmlInicial = '', colaboracion, onCambio, proyectoId, conIa = true, marca = null, actaId, onReescrituraIa, comentarios }: PropsEditor): ReactElement {
   const [reescribiendo, setReescribiendo] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [propuesta, setPropuesta] = useState<Propuesta | null>(null)
   const [instruccion, setInstruccion] = useState('')
   const [pidiendoAlActa, setPidiendoAlActa] = useState(false)
   const conjunto = colaboracion !== undefined
+  // El clic lo lee un manejador creado una sola vez con el editor: por la referencia ve siempre al
+  // panel de ahora, aunque este haya cambiado de identidad.
+  const comentariosActuales = useRef(comentarios)
 
   const editor = useEditor({
     immediatelyRender: false,
@@ -184,11 +221,35 @@ export function EditorDeActa ({ htmlInicial = '', colaboracion, onCambio, proyec
       attributes: {
         class: `acta-editor acta-marca ${claseDeMarca(marca)} rounded-chico border-linea min-h-[24rem]`
           + ' border px-8 py-10 focus:outline-none'
+      },
+      handleClick: (_vista, _posicion, evento) => {
+        const ancla = anclaDelClic(evento)
+
+        if (ancla === null) return false
+
+        comentariosActuales.current?.onElegir(ancla)
+
+        return true
       }
     },
     onUpdate: ({ editor: actual }) => { onCambio(actual.getHTML()) }
     // Cada documento Yjs necesita su editor: el de una sesión que se reconectó ya no sirve.
   }, [colaboracion?.ydoc])
+
+  useEffect(() => { comentariosActuales.current = comentarios }, [comentarios])
+
+  // Le entrega al panel lo que puede hacer sobre el texto, y se lo retira al desmontarse o cambiar
+  // de editor (una reconexión crea otro): el panel no debe tocar un editor que ya no existe.
+  useEffect(() => {
+    if (editor === null || comentarios === undefined) return
+
+    comentarios.onControl({
+      quitar: (ancla) => { editor.commands.quitarComentario(ancla) },
+      cita: (ancla) => textoDeComentario(editor, ancla)
+    })
+
+    return () => { comentarios.onControl(null) }
+  }, [editor, comentarios])
 
   // El contenido cambia cuando termina una generación nueva sobre el mismo editor montado. En
   // edición conjunta no se toca: pisaría lo que escriben las demás personas.
@@ -309,6 +370,23 @@ export function EditorDeActa ({ htmlInicial = '', colaboracion, onCambio, proyec
     void pedir(actual, pedido, alActa ? { from: 0, to: actual.state.doc.content.size } : undefined)
   }
 
+  /**
+   * Marca la selección con una ancla nueva y le avisa al panel, que abre el hilo para el primer
+   * comentario. Sin selección no hace nada: no hay fragmento al que atar el hilo.
+   */
+  function comentar (actual: Editor): void {
+    if (comentarios === undefined || actual.state.selection.empty) return
+
+    const { from, to } = actual.state.selection
+    const cita = actual.state.doc.textBetween(from, to, ' ').replace(/\s+/g, ' ').trim().slice(0, CITA_MAXIMA)
+    const ancla = nuevaAncla()
+
+    if (actual.chain().focus().ponerComentario(ancla).run()) comentarios.onComentar(ancla, cita)
+  }
+
+  /** «Comentar» no se ofrece mientras una propuesta de la IA espera: el editor está bloqueado. */
+  const puedeComentar = comentarios !== undefined && propuesta === null && !reescribiendo
+
   return (
     <div className="flex flex-col gap-2">
       {/* Las mismas reglas que inyecta el visor en su iframe, servidas acá desde el mismo módulo:
@@ -316,13 +394,26 @@ export function EditorDeActa ({ htmlInicial = '', colaboracion, onCambio, proyec
           porque acá sí resuelven las rutas relativas; el iframe es el que necesita el absoluto. */}
       <style>{cssDeMarcas('')}</style>
 
-      <BarraDeFormato editor={editor} />
+      <BarraDeFormato editor={editor} onComentar={puedeComentar ? () => { comentar(editor) } : undefined} />
 
       {conIa && (
         <p className="text-texto-tenue flex items-center gap-1.5 text-xs">
           <Sparkles size={12} strokeWidth={2} aria-hidden="true" className="shrink-0" />
           Selecciona un fragmento para reescribirlo con IA.
         </p>
+      )}
+
+      {/* Sin IA el menú sobre la selección existe solo por «Comentar». Con IA, «Comentar» va dentro del
+          menú de la IA: dos menús sobre la misma selección se taparían. */}
+      {!conIa && puedeComentar && (
+        <BubbleMenu editor={editor} shouldShow={({ from, to }) => from !== to}>
+          <div className="border-linea bg-superficie-flotante rounded-control shadow-1 flex items-center gap-1 border p-1">
+            <Boton variante="sutil" tamano="chico" onClick={() => { comentar(editor) }}>
+              <MessageSquarePlus size={14} strokeWidth={2} aria-hidden="true" className="shrink-0" />
+              Comentar
+            </Boton>
+          </div>
+        </BubbleMenu>
       )}
 
       {conIa && (
@@ -332,6 +423,12 @@ export function EditorDeActa ({ htmlInicial = '', colaboracion, onCambio, proyec
           shouldShow={({ from, to }) => from !== to}
         >
           <div className="border-linea bg-superficie-flotante rounded-control shadow-1 flex items-center gap-1 border p-1">
+            {puedeComentar && (
+              <Boton variante="sutil" tamano="chico" onClick={() => { comentar(editor) }}>
+                <MessageSquarePlus size={14} strokeWidth={2} aria-hidden="true" className="shrink-0" />
+                Comentar
+              </Boton>
+            )}
             {ACCIONES_DE_REESCRITURA.map((accion) => {
               const Icono = ICONOS[accion.clave]
 
@@ -433,7 +530,10 @@ export function EditorDeActa ({ htmlInicial = '', colaboracion, onCambio, proyec
  * niveles de título son el mismo nodo `heading`, así que con el nombre a secas se encendían los dos
  * botones a la vez y la barra mentía sobre lo que estaba aplicado.
  */
-function BarraDeFormato ({ editor }: { editor: Editor }): ReactElement {
+function BarraDeFormato ({ editor, onComentar }: { editor: Editor, onComentar?: () => void }): ReactElement {
+  // Suscripción propia: el editor no vuelve a dibujar la barra por cada cambio de selección, y
+  // «Comentar» tiene que prenderse en cuanto hay un fragmento elegido.
+  const sinSeleccion = useEditorState({ editor, selector: ({ editor: actual }) => actual.state.selection.empty })
   const botones: Array<{ etiqueta: string, Icono: LucideIcon, puesto: boolean, aplicar: () => void }> = [
     {
       etiqueta: 'Título',
@@ -498,6 +598,24 @@ function BarraDeFormato ({ editor }: { editor: Editor }): ReactElement {
           <span className="hidden sm:inline">{boton.etiqueta}</span>
         </button>
       ))}
+
+      {onComentar !== undefined && (
+        <button
+          type="button"
+          onClick={onComentar}
+          // Sin selección no hay fragmento al que atar el hilo; el motivo va en el nombre para que
+          // quien no sabe por qué está apagado lo lea con el puntero encima o con el lector.
+          disabled={sinSeleccion}
+          aria-label="Comentar el fragmento seleccionado"
+          title={sinSeleccion
+            ? 'Selecciona un fragmento para comentarlo. Ctrl+clic en uno comentado abre su hilo.'
+            : 'Comentar el fragmento seleccionado'}
+          className="rounded-control ease-neo text-texto-tenue hover:bg-hover hover:text-texto inline-flex h-8 items-center gap-1.5 px-2 text-xs font-semibold transition-colors duration-rapida disabled:cursor-not-allowed disabled:opacity-60 sm:px-2.5"
+        >
+          <MessageSquarePlus size={16} strokeWidth={2} aria-hidden="true" className="shrink-0" />
+          <span className="hidden sm:inline">Comentar</span>
+        </button>
+      )}
     </div>
   )
 }

@@ -22,6 +22,7 @@ import {
 } from './recurrentes.js'
 import { contarCopias, limpiarCopias, listarCopias, marcarEditada, sembrarCopias, usoDe } from './copias-recurrentes.js'
 import { avisosRuta } from './avisos.js'
+import { comentariosDelActaRuta, opcionesDeComentarios } from './comentarios-acta.js'
 import { fusionRuta } from './fusion.js'
 import { integracionesRuta, propuestasRuta } from './mcp-externo.js'
 import { actividadDeCliente, actividadDeContacto, registrarActividad } from './actividad-portal.js'
@@ -7721,7 +7722,8 @@ async function resolverRuta (metodo, segmentos, parametros, token, cuerpo, petic
           ...opcionDelOrbePortal(),
           ...opcionesDeJornada(),
           ...opcionesDeModo(),
-          ...opcionesDeEnVivo()
+          ...opcionesDeEnVivo(),
+          ...opcionesDeComentarios()
         }
       })
     }
@@ -8184,6 +8186,11 @@ async function resolverRuta (metodo, segmentos, parametros, token, cuerpo, petic
 
     const acta = suyas.find((a) => a.id === actaId)
     if (acta === undefined) throw new ErrorApi(404, 'not_found', 'No existe ese Meeting Paper.')
+
+    // Los comentarios en línea (fase 10): el módulo valida y guarda los hilos, esto solo lo enruta.
+    if (resto[3] === 'comentarios') {
+      return await comentariosDelActaRuta(metodo, resto.slice(4), acta.id, actual, cuerpo, autorDeRevision)
+    }
 
     if (resto[3] === 'tareas' && resto.length === 4 && metodo === 'GET') {
       return { estado: 200, cuerpo: conDatos(listarPropuestasDelActa(acta.id)) }

@@ -10,6 +10,7 @@ import { Insignia } from '@/componentes/presentadores/Insignia'
 import { colorDeColaborador, textoDeGuardado } from '@/dominio/acta-colaborativa'
 import { ASISTENTE, GLOSARIO } from '@/dominio/glosario'
 import { EditorDeActa } from '../EditorDeActa'
+import type { ComentariosDelEditor } from './comentariosDelEditor'
 import { useActaColaborativa } from './useActaColaborativa'
 import { useEditoresDelActa } from './useEditoresDelActa'
 
@@ -36,6 +37,11 @@ interface PropsEdicionConjunta {
    * edición de siempre. Trae lo último que se vio en el editor y la última revisión guardada, si hubo.
    */
   onSinConexion: (html: string | null, revision: string | null) => void
+  /**
+   * Los comentarios en línea, si están activos: el editor ofrece «Comentar». La marca de cada hilo
+   * viaja por el documento compartido como cualquier otro texto.
+   */
+  comentarios?: ComentariosDelEditor
 }
 
 /**
@@ -69,7 +75,7 @@ async function esperarEnvio (provider: HocuspocusProvider | null, topeMs: number
  * @param props el acta, quién edita y qué hacer al guardar, cerrar o perder la conexión
  * @returns la edición conjunta, o el estado de la conexión mientras no está lista
  */
-export function EdicionConjuntaDelActa ({ actaId, proyectoId, marca, conIa, yo, onGuardado, onCerrar, onSinConexion }: PropsEdicionConjunta): ReactElement {
+export function EdicionConjuntaDelActa ({ actaId, proyectoId, marca, conIa, yo, onGuardado, onCerrar, onSinConexion, comentarios }: PropsEdicionConjunta): ReactElement {
   const aviso = useAviso()
   const sesion = useActaColaborativa(actaId, proyectoId, true)
   const editores = useEditoresDelActa(sesion.provider, yo.id)
@@ -174,6 +180,7 @@ export function EdicionConjuntaDelActa ({ actaId, proyectoId, marca, conIa, yo, 
         conIa={conIa}
         marca={marca}
         actaId={actaId}
+        comentarios={comentarios}
         onCambio={(html) => { ultimoHtml.current = html }}
       />
     </div>
