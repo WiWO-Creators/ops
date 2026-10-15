@@ -4,8 +4,10 @@ import { cache } from 'react'
 
 import { pedir } from './servidor.ts'
 import { ErrorApi } from './errores.ts'
+import { urlDeEnVivo } from './config.ts'
 import { motivoDeIa } from '../dominio/ajustes.ts'
 import type { EstadoIa } from '../dominio/ajustes.ts'
+import { CONFIG_EN_VIVO_APAGADA, configDeEnVivo, type ConfigEnVivo } from '../dominio/en-vivo.ts'
 import type { Ajustes } from './recursos.ts'
 
 /**
@@ -60,6 +62,23 @@ export const estadoIa = cache(async (): Promise<EstadoIa> => {
         ? `${error.codigo} (HTTP ${error.estado}): ${error.message}`
         : error instanceof Error ? error.message : String(error)
     }
+  }
+})
+
+/**
+ * Los interruptores de «Ops en vivo»: el maestro `wiwo_en_vivo` mas uno por funcion, y la URL del servicio.
+ *
+ * `activo` exige el maestro y `NEXT_PUBLIC_EN_VIVO_URL`; ninguna funcion se enciende sin `activo`.
+ * Un fallo de `/settings` da todo apagado, por la misma razon que `estadoIa`: es una comodidad, y
+ * una pantalla no puede caerse porque no se pudo leer un interruptor. `cache()` de React, por peticion.
+ */
+export type { ConfigEnVivo }
+
+export const estadoEnVivo = cache(async (): Promise<ConfigEnVivo> => {
+  try {
+    return configDeEnVivo(await leerAjustes(), urlDeEnVivo())
+  } catch {
+    return CONFIG_EN_VIVO_APAGADA
   }
 })
 

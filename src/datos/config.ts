@@ -93,6 +93,29 @@ export function tiempoDeApiMs (): number {
 }
 
 /**
+ * URL publica del servicio de «Ops en vivo» para el navegador (`NEXT_PUBLIC_EN_VIVO_URL`), o `''`.
+ *
+ * Se lee con una clave en variable y no como `process.env.NEXT_PUBLIC_…`: Next reemplaza esa forma
+ * literal por su valor al construir, y entonces cambiar la URL pediría un build nuevo. Así se lee
+ * en cada arranque del servidor, que es lo que se espera de una opción que se enciende después.
+ */
+export function urlDeEnVivo (): string {
+  const nombre = 'NEXT_PUBLIC_EN_VIVO_URL'
+
+  return (process.env[nombre] ?? '').trim()
+}
+
+/**
+ * Secreto con el que se firman los boletos de «Ops en vivo» (`EN_VIVO_BOLETO_SECRETO`), o `null` si
+ * falta o es demasiado corto. Solo lo ven el servidor de Next y el servicio.
+ */
+export function secretoDeBoletoEnVivo (): string | null {
+  const valor = process.env.EN_VIVO_BOLETO_SECRETO ?? ''
+
+  return valor.length >= 32 ? valor : null
+}
+
+/**
  * Espera maxima del BFF a la API en una peticion de la capa de IA (`ia/*`), en milisegundos.
  *
  * Aparte de `tiempoDeApiMs` porque esas rutas esperan a un modelo: `IA\Cliente` usa hasta 45 s por

@@ -32,6 +32,8 @@ jobs:
             : "${OPS_TIMER_CUTOFF_HOUR:?Falta variable OPS_TIMER_CUTOFF_HOUR (HH:MM)}"
             : "${OPS_CRON_BASE_URL:?Falta variable OPS_CRON_BASE_URL}"
             test -d /run/systemd/system || { echo "Cron requiere systemd para reiniciar tras reboot" >&2; exit 1; }
+            # El servicio ops-en-vivo ejecuta TypeScript con Node nativo, sin compilar: pide Node >= 22.18.
+            node -e "if (!process.features.typescript) process.exit(1)" || { echo "ops-en-vivo requiere Node >= 22.18 (soporte nativo de TypeScript) en el servidor" >&2; exit 1; }
             node --input-type=module <<'NODE'
             const env = process.env;
             if (env.OPS_CRON_SECRET.length < 32 || !/^(?:[01]\d|2[0-3]):[0-5]\d$/.test(env.OPS_TIMER_CUTOFF_HOUR)) {
@@ -142,6 +144,9 @@ jobs:
             const workers = JSON.parse(result.stdout).filter(worker => worker.name === 'ops-cron');
             if (workers.length !== 1 || workers[0].pm2_env.status !== 'online') throw new Error('ops-cron no tiene exactamente una instancia online.');
             console.log(JSON.stringify({ proceso: 'ops-cron', estado: 'online', instancias: workers.length }));
+            const enVivo = JSON.parse(result.stdout).filter(worker => worker.name === 'ops-en-vivo');
+            if (enVivo.length !== 1 || enVivo[0].pm2_env.status !== 'online') throw new Error('ops-en-vivo no tiene exactamente una instancia online.');
+            console.log(JSON.stringify({ proceso: 'ops-en-vivo', estado: 'online', instancias: enVivo.length }));
             const states = new Set(['iniciado', 'completed', 'skipped', 'failed', 'fallido', 'pendiente', 'horario_perdido', 'listo', 'configuracion_verificada', 'inicio_fallido']);
             const jobs = new Set(['rutinas', 'jornadas', 'papelera', 'cortar_cronometros']);
             const logfile = workers[0].pm2_env.pm_out_log_path;

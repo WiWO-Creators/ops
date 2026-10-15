@@ -9,7 +9,7 @@ import { puedeFusionar } from '@/dominio/fusion'
 import { puedeVerFocals, puedeVerMiArea, puedeVerSeccion } from '@/dominio/permisos'
 import { puedeVerSupervision } from '@/dominio/supervision'
 import { intervaloDeLatido } from '@/datos/auditoria'
-import { iaHabilitada } from '@/datos/ajustes'
+import { estadoEnVivo, iaHabilitada } from '@/datos/ajustes'
 import { intervaloDeLive, type EstadoDeJornada } from '@/datos/live'
 import { intervaloDeVersion, versionDelServidor } from '@/datos/version'
 import type { ConteoDeAvisos } from '@/datos/avisos'
@@ -30,6 +30,7 @@ import { Logo } from '@/componentes/estructura/Logo'
 import { MenuUsuario } from '@/componentes/estructura/MenuUsuario'
 import { ProveedorEnlaces } from '@/componentes/presentadores/ProveedorEnlaces'
 import { ProveedorFusion } from '@/componentes/fusion/ProveedorFusion'
+import { ProveedorEnVivo } from '@/componentes/en-vivo/ProveedorEnVivo'
 import { ScrollSuave } from '@/componentes/estructura/ScrollSuave'
 import { IndicadorDeRed } from '@/componentes/estado/IndicadorDeRed'
 import { LlamadaEnCurso } from '@/componentes/teletrabajo/LlamadaEnCurso'
@@ -61,7 +62,7 @@ export default async function PanelLayout ({ children }: { children: React.React
   // entero, que es lo que pasaria con `pedir()` el dia que la API conteste 403 o 500 en uno de ellos.
   // Resolverlos aca —y no al montar en el navegador— es lo que evita que el contador y el globo
   // aparezcan en blanco y salten a su valor un segundo despues, en cada navegacion.
-  const [jornada, avisos, conIa, fijados] = await Promise.all([
+  const [jornada, avisos, conIa, fijados, enVivo] = await Promise.all([
     pedirOpcional<EstadoDeJornada>('/me/jornada'),
     pedirOpcional<ConteoDeAvisos>('/notifications/count'),
     // Con la capa de IA apagada el orbe no existe, en vez de existir y fallar: la API responde 404 a
@@ -70,7 +71,9 @@ export default async function PanelLayout ({ children }: { children: React.React
     // Los fijados del menu, por la misma regla: resueltos aca no aparecen un segundo despues
     // empujando los bloques de abajo. Si la API no los tiene (todavia sin la migracion 0900), el
     // menu se dibuja sin la seccion y nada mas.
-    pedirOpcional<Fijado[]>('/me/fijados')
+    pedirOpcional<Fijado[]>('/me/fijados'),
+    // Los interruptores de «Ops en vivo»: apagados por defecto, y un fallo de `/settings` los deja apagados.
+    estadoEnVivo()
   ])
   // La cookie de la sesion real es la unica señal de que esto es una suplantacion. `/me` no puede
   // decirlo: la API emite la sesion prestada igual que un login normal, a proposito.
@@ -92,6 +95,7 @@ export default async function PanelLayout ({ children }: { children: React.React
     // pasarle `capacidades` a mano.
     <ProveedorEnlaces permisos={yo.permissions}>
     <ProveedorFusion puede={puedeFusionar(yo)}>
+    <ProveedorEnVivo config={enVivo}>
       <Suspense fallback={null}><IndicadorDeRed /></Suspense>
     <div className="flex h-dvh flex-col overflow-hidden">
       {suplantando && <BarraSuplantacion nombre={yo.full_name} />}
@@ -207,6 +211,7 @@ export default async function PanelLayout ({ children }: { children: React.React
         </div>
       </div>
     </div>
+    </ProveedorEnVivo>
     </ProveedorFusion>
     </ProveedorEnlaces>
   )
