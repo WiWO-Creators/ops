@@ -1,7 +1,7 @@
 'use client'
 
 import type { ReactElement } from 'react'
-import { Download, MessageCircleQuestion } from 'lucide-react'
+import { Download, History, MessageCircleQuestion } from 'lucide-react'
 import { Boton } from '@/componentes/formularios/Boton'
 import {
   ContenidoMenu,
@@ -18,7 +18,7 @@ interface PropsAcciones {
   puedeEditar: boolean
   puedeRenombrar: boolean
   puedeBorrar: boolean
-  /** Ofrece "Historial de versiones": cualquiera que pueda corregir el acta. */
+  /** Ofrece «Historial»: cualquiera que pueda corregir el acta. */
   puedeVerHistorial: boolean
   onHistorial: () => void
   /** Ofrece "Preguntar": abre el chat con este acta como contexto. Solo el equipo con IA activa. */
@@ -87,6 +87,12 @@ export function AccionesDelActa ({
                 <ItemMenu onSelect={onImprimir}>Imprimir</ItemMenu>
               </ContenidoMenu>
             </MenuContextual>
+            {puedeVerHistorial && (
+              <Boton variante="secundario" tamano="chico" onClick={onHistorial}>
+                <History size={14} strokeWidth={2} aria-hidden="true" className="shrink-0" />
+                Historial
+              </Boton>
+            )}
             {puedePreguntar && (
               <Boton variante="secundario" tamano="chico" onClick={onPreguntar}>
                 <MessageCircleQuestion size={14} strokeWidth={2} aria-hidden="true" className="shrink-0" />
@@ -103,7 +109,7 @@ export function AccionesDelActa ({
 
       {/* El `⋯` se dibuja solo si tiene algo dentro: un menú que se abre vacío promete acciones
           que este sujeto no tiene. */}
-      {(puedeRenombrar || puedeBorrar || puedeVerHistorial) && (
+      {(puedeRenombrar || puedeBorrar) && (
         <MenuContextual>
           <DisparadorMenu asChild>
             <Boton variante="sutil" tamano="chico" soloIcono aria-label="Más acciones del Meeting Paper">
@@ -113,9 +119,6 @@ export function AccionesDelActa ({
           <ContenidoMenu align="end">
             {puedeRenombrar && (
               <ItemMenu onSelect={onRenombrar}>Renombrar</ItemMenu>
-            )}
-            {puedeVerHistorial && (
-              <ItemMenu onSelect={onHistorial}>Historial de versiones</ItemMenu>
             )}
             {puedeBorrar && (
               <ItemMenu peligroso onSelect={onEliminar}>Eliminar</ItemMenu>

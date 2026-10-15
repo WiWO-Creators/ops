@@ -55,6 +55,13 @@ export const NOVEDADES: Novedad[] = [
   {
     fecha: '2026-10-15',
     tipo: 'nuevo',
+    titulo: 'Mira qué cambió en un Meeting Paper y quién lo hizo',
+    detalle: 'El botón «Historial» del Meeting Paper abre la lista de cambios: separa lo que hizo el Thinking Orb y la IA de lo que hicieron las personas, y muestra con colores qué texto se borró y cuál se agregó. Si lo necesitas, «Restaurar esta versión» vuelve a como estaba antes de ese cambio.',
+    commits: []
+  },
+  {
+    fecha: '2026-10-15',
+    tipo: 'nuevo',
     titulo: 'Mira al Thinking Orb reescribir el Meeting Paper',
     detalle: 'Cuando el Thinking Orb termina de editar el Meeting Paper que tienes abierto, un cursor con su nombre recorre los cambios: borra lo viejo y escribe lo nuevo. Puedes saltarlo con «Saltar» o Escape.',
     commits: []
@@ -64,7 +71,7 @@ export const NOVEDADES: Novedad[] = [
     tipo: 'arreglo',
     titulo: 'El Thinking Orb aplica varios cambios seguidos al mismo Meeting Paper',
     detalle: 'Los planes con varias ediciones sobre un mismo Meeting Paper ya no fallan al confirmarlos. Si se lo pides, el Thinking Orb lee la transcripción de la reunión antes de reescribir.',
-    commits: ['wiwo-board@d9312b2']
+    commits: ['board@d9312b2']
   },
   {
     fecha: '2026-10-15',

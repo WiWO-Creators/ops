@@ -2927,6 +2927,17 @@ function presentarActa (acta, { conContenido }) {
   }
 }
 
+/** Quien hizo un cambio del historial de un acta, con la forma de la API: `staff_id`, nombre y foto. */
+function autorDeRevision (staffId) {
+  const persona = STAFF.find((s) => s.id === staffId) ?? null
+
+  return {
+    staff_id: staffId ?? null,
+    staff_name: persona?.full_name ?? null,
+    staff_image: persona?.profile_image_url ?? null
+  }
+}
+
 /** El HTML que "genera" el modelo, con la estructura real del Meeting Paper. */
 function actaGenerada (espacio) {
   return `<h1>Meeting Paper - Avance de ${espacio.name}</h1>`
@@ -3164,12 +3175,29 @@ const FUERA_DEL_PORTAL_ACTA = ['source', 'staff_id', 'updated_by']
  * hay que poder verlo al lado del que si los tiene.
  */
 function sembrarActas () {
+  /** Tres cambios sobre el Kickoff, de tres orígenes, para poder ver la lista y el diff sin editar nada. */
+  function sembrarHistorialDelKickoff (acta) {
+    const actual = acta.content
+    const antesDelOrbe = actual
+      .replace(' y se fijó la fecha de entrega.', '.')
+      .replace('<p><strong>Acción:</strong> Definir el proveedor.</p>', '')
+    const antesDeLaIa = antesDelOrbe.replace('Sigue pendiente la elección del alojamiento.', 'Hay que elegir hosting.')
+    const antesDeLaPersona = antesDeLaIa.replace(/<h3>Proveedor de hosting<\/h3>.*?<h2>Próximos Pasos:<\/h2>/s, '<h2>Próximos Pasos:</h2>')
+    const hace = (horas) => new Date(Date.now() - horas * 3_600_000).toISOString()
+
+    acta.revisiones = [
+      { id: 1, origin: 'manual', staff_id: 2, content: antesDeLaPersona, summary: 'Temas Discutidos y Acuerdos', date_added: hace(72) },
+      { id: 2, origin: 'ia', staff_id: 1, content: antesDeLaIa, summary: 'Temas Discutidos y Acuerdos', date_added: hace(26) },
+      { id: 3, origin: 'orb', staff_id: 1, content: antesDelOrbe, summary: 'Temas Discutidos y Acuerdos', date_added: hace(2) }
+    ]
+  }
+
   const espacio = ESPACIOS.find((e) => e.id === 1)
   const autora = STAFF.find((s) => s.id === 1) ?? STAFF[0]
 
   if (espacio === undefined || autora === undefined) return
 
-  guardarActa(
+  const kickoff = guardarActa(
     espacio,
     autora,
     {
@@ -3188,6 +3216,8 @@ function sembrarActas () {
       { name: 'pizarra.png', size: 412_000, type: 'image/png' }
     ]
   )
+
+  sembrarHistorialDelKickoff(kickoff)
 
   guardarActa(
     espacio,
@@ -8053,17 +8083,57 @@ async function resolverRuta (metodo, segmentos, parametros, token, cuerpo, petic
       }
     }
 
-    // El historial de versiones: lista, una versión y restaurar.
+    // El historial de versiones: lista (de la más nueva a la más vieja, con la creación al final), el
+    // cambio con su antes y después, y restaurar. Cada revisión guarda el contenido ANTERIOR al cambio.
     if (resto[3] === 'revisiones') {
       acta.revisiones ??= []
       if (resto.length === 4 && metodo === 'GET') {
-        return { estado: 200, cuerpo: conDatos(acta.revisiones.map(({ content, ...resumen }) => ({ ...resumen, preview: content.replace(/<[^>]+>/g, ' ').trim().slice(0, 140) })).reverse()) }
+        const cambios = acta.revisiones.map((r) => ({
+          id: r.id,
+          kind: 'change',
+          origin: r.origin,
+          ...autorDeRevision(r.staff_id),
+          summary: r.summary ?? null,
+          preview: r.content.replace(/<[^>]+>/g, ' ').trim().slice(0, 140),
+          date_added: r.date_added
+        })).reverse()
+        const creada = {
+          id: 0,
+          kind: 'created',
+          origin: acta.source === 'manual' ? 'manual' : 'ia',
+          ...autorDeRevision(acta.staff_id),
+          summary: null,
+          preview: null,
+          date_added: acta.date_added
+        }
+
+        return { estado: 200, cuerpo: conDatos([...cambios, creada]) }
       }
       const revision = acta.revisiones.find((r) => r.id === Number(resto[4]))
       if (revision === undefined) throw new ErrorApi(404, 'not_found', 'No existe esa versión del Meeting Paper.')
       if (resto.length === 5 && metodo === 'GET') return { estado: 200, cuerpo: conDatos(revision) }
+      if (resto[5] === 'cambio' && resto.length === 6 && metodo === 'GET') {
+        const siguiente = acta.revisiones.find((r) => r.id > revision.id)
+
+        return {
+          estado: 200,
+          cuerpo: conDatos({
+            id: revision.id,
+            origin: revision.origin,
+            ...autorDeRevision(revision.staff_id),
+            date_added: revision.date_added,
+            summary: revision.summary ?? null,
+            before: revision.content,
+            after: siguiente === undefined ? (acta.content ?? '') : siguiente.content
+          })
+        }
+      }
       if (resto[5] === 'restaurar' && metodo === 'POST') {
-        acta.revisiones.push({ id: acta.revisiones.length + 1, origin: 'restauracion', staff_id: actual.id, content: acta.content ?? '', date_added: new Date().toISOString() })
+        const datos = await cuerpo()
+        if (datos.revision !== undefined && datos.revision !== acta.date_updated) {
+          throw new ErrorApi(409, 'conflict', 'El Meeting Paper cambió mientras mirabas el historial. Recarga para ver la última versión.')
+        }
+        acta.revisiones.push({ id: Math.max(0, ...acta.revisiones.map((r) => r.id)) + 1, origin: 'restauracion', staff_id: actual.id, content: acta.content ?? '', date_added: new Date().toISOString() })
         acta.content = revision.content
         acta.date_updated = new Date().toISOString().replace(/\.\d{3}Z$/, 'Z')
 

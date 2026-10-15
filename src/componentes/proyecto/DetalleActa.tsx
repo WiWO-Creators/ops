@@ -434,16 +434,18 @@ export function DetalleActa ({
 
       <AdjuntosDelActa acta={acta} />
 
-      {/* Montado solo mientras está abierto: cerrarlo desmonta el borrador, así que cancelar o
-          pulsar `Escape` descarta lo tecleado sin una línea que lo limpie. */}
-      {verHistorial && (
-        <HistorialDelActa
-          ruta={ruta}
-          revision={acta.date_updated}
-          onRestaurada={onCambiada}
-          onCerrar={() => { setVerHistorial(false) }}
-        />
-      )}
+      {/* Su contenido solo existe con el panel abierto: reabrirlo vuelve a pedir la lista y arranca
+          sin filtro ni cambio elegido. Restaurar se oculta con el editor abierto, donde además el
+          botón «Historial» ni se dibuja: restaurar pisaría lo que se está escribiendo. */}
+      <HistorialDelActa
+        abierto={verHistorial}
+        ruta={ruta}
+        revision={acta.date_updated}
+        puedeRestaurar={puedeEditar && !edicion.editando}
+        onRestaurada={(restaurada) => { onCambiada(restaurada); onRevalidar() }}
+        onCambioAjeno={onRevalidar}
+        onCerrar={() => { setVerHistorial(false) }}
+      />
 
       {renombrando && (
         <DialogoDeRenombre
