@@ -29,9 +29,13 @@ export function leerConfiguracion (env = process.env) {
   // base (migración `0460`), no de estas expresiones: el trabajo corre igual y no escribe a nadie.
   const recordatorioJornada = env.OPS_CRON_RECORDATORIO_JORNADA_SCHEDULE || '0 10 * * *'
   const recordatorioTareas = env.OPS_CRON_RECORDATORIO_TAREAS_SCHEDULE || '0 15 * * *'
-  if (![frecuencia, jornadas, papelera, resumen, recordatorioJornada, recordatorioTareas].every((expresion) => cron.validate(expresion))) throw new Error('OPS_CRON_*_SCHEDULE contiene una expresión cron inválida.')
+  // Las alertas del equipo (cronómetro largo, jornada sin cronómetro, tareas vencidas sin medir). El
+  // trabajo corre siempre; que avise o no lo decide el interruptor `wiwo_en_vivo_alertas` del board,
+  // apagado de fábrica, y sus umbrales viven allá. Aquí solo vive la frecuencia.
+  const alertasEquipo = env.OPS_CRON_ALERTAS_EQUIPO_SCHEDULE || '*/15 * * * *'
+  if (![frecuencia, jornadas, papelera, resumen, recordatorioJornada, recordatorioTareas, alertasEquipo].every((expresion) => cron.validate(expresion))) throw new Error('OPS_CRON_*_SCHEDULE contiene una expresión cron inválida.')
   const [horas, minutos] = hora.split(':').map(Number)
-  return { base: base.href.replace(/\/$/, '') + '/', secret, hora, timeout, frecuencia, jornadas, papelera, resumen, recordatorioJornada, recordatorioTareas, zona: 'America/Santiago', corte: `${minutos} ${horas} * * *` }
+  return { base: base.href.replace(/\/$/, '') + '/', secret, hora, timeout, frecuencia, jornadas, papelera, resumen, recordatorioJornada, recordatorioTareas, alertasEquipo, zona: 'America/Santiago', corte: `${minutos} ${horas} * * *` }
 }
 
 /** Escribe registros estructurados para PM2 sin incluir secretos ni cuerpos de respuestas. */
@@ -77,7 +81,7 @@ export function crearProgramador (config, { fetchImpl = fetch, cronImpl = cron, 
 
   /** Ejecuta un trabajo con exclusión local y registra su resultado, incluso si falla la red. */
   async function ejecutar (trabajo) {
-    if (!['rutinas', 'jornadas', 'papelera', 'cortar_cronometros', 'resumen_equipo', 'recordatorio_jornada', 'recordatorio_tareas'].includes(trabajo)) throw new Error('Trabajo desconocido.')
+    if (!['rutinas', 'jornadas', 'papelera', 'cortar_cronometros', 'resumen_equipo', 'recordatorio_jornada', 'recordatorio_tareas', 'alertas_equipo'].includes(trabajo)) throw new Error('Trabajo desconocido.')
     if (detenido || pendientes.has(trabajo)) return { status: 'skipped', reason: 'local_overlap_or_stopped' }
     const inicio = Date.now()
     const promesa = (async () => {
@@ -126,6 +130,9 @@ export function crearProgramador (config, { fetchImpl = fetch, cronImpl = cron, 
       // las 10:00 le llegaría a las 16:00 a media empresa, cuando ya lleva seis horas trabajando.
       ['recordatorio-sin-jornada', config.recordatorioJornada, () => ejecutar('recordatorio_jornada')],
       ['recordatorio-sin-tareas', config.recordatorioTareas, () => ejecutar('recordatorio_tareas')],
+      // Sin recuperación al arranque: es un barrido del momento y el backend deduplica por día, así
+      // que reiniciar el proceso no tiene nada que recuperar.
+      ['alertas-del-equipo', config.alertasEquipo, () => ejecutar('alertas_equipo')],
       ['corte-diario', config.corte, () => ejecutar('cortar_cronometros')]
     ]) {
       const tarea = cronImpl.schedule(expresion, accion, { name: nombre, timezone: config.zona, noOverlap: true })

@@ -4857,7 +4857,17 @@ const CLAVES_DE_AJUSTES_DEL_MOCK = new Set([
  * Solo el maestro: las salas por defecto no necesitan que el mock valide nada más.
  */
 function opcionesDeEnVivo () {
-  return { wiwo_en_vivo: { group: 'en_vivo', type: 'bool', value: process.env.MOCK_EN_VIVO === '1' ? '1' : '0' } }
+  const encendido = process.env.MOCK_EN_VIVO === '1' ? '1' : '0'
+
+  return {
+    wiwo_en_vivo: { group: 'en_vivo', type: 'bool', value: encendido },
+    // Las tarjetas del equipo: con el maestro encendido, `MOCK_EN_VIVO_EQUIPO=0` las deja apagadas.
+    wiwo_en_vivo_equipo: {
+      group: 'en_vivo',
+      type: 'bool',
+      value: encendido === '1' && process.env.MOCK_EN_VIVO_EQUIPO !== '0' ? '1' : '0'
+    }
+  }
 }
 
 /** El grupo `apariencia` de `GET /settings`, con la forma de `RecursoAjustes::presentar()`. */
@@ -4983,6 +4993,96 @@ function estadoDelDia (staffId) {
     over_journey: segundos > 8 * 3600,
     timer: presentarMedidor(jornada.timer),
     closing: cierreProgramado(jornada)
+  }
+}
+
+/** Cuantas personas trae el tablero del mock: las primeras activas, las suficientes para ver los cuatro estados. */
+const PERSONAS_DEL_TABLERO = 8
+
+/** Pantallas que el mock reparte entre las personas del tablero: una es de una seccion que el panel no conoce. */
+const RUTAS_DE_PRESENCIA = ['/tareas/12', '/proyectos/3', '/inicio', '/cosa-rara/1', '/clientes']
+
+/**
+ * Una jornada de relleno para quien no abrio ninguna de verdad.
+ *
+ * Solo el mock lo hace: la API real devuelve la fila de cada persona con lo que tenga. Sirve para
+ * que el tablero tenga en que mirarse sin tener que abrir ocho sesiones.
+ */
+function jornadaDeRelleno (indice) {
+  const abierta = new Date(Date.now() - (2 + indice) * 3600_000).toISOString().replace(/\.\d{3}Z$/, 'Z')
+
+  return { id: 9000 + indice, started_at: abierta, seconds: segundosDesde(abierta), client: null }
+}
+
+/** El medidor de relleno de una persona: una Tarea de un Espacio, con el Cliente del Espacio. */
+function medidorDeRelleno (indice) {
+  const procesos = PROCESOS.filter((p) => p.rel_type === 'project')
+  const proceso = procesos[(indice * 5) % procesos.length]
+  const espacio = ESPACIOS.find((e) => e.id === proceso.rel_id)
+  const cliente = CLIENTES.find((c) => c.id === espacio?.clientid) ?? null
+  const inicio = new Date(Date.now() - (10 + indice * 7) * 60_000).toISOString().replace(/\.\d{3}Z$/, 'Z')
+
+  return {
+    id: 9500 + indice,
+    project: espacio ? { id: espacio.id, name: espacio.name } : null,
+    task: { id: proceso.id, name: proceso.name, status: proceso.status },
+    start_time: inicio,
+    seconds: segundosDesde(inicio),
+    client: cliente === null ? null : { id: cliente.id, name: cliente.name }
+  }
+}
+
+/**
+ * `GET /live`: el tablero del equipo con la forma que manda el board con el equipo en vivo.
+ *
+ * Las sesiones reales del mock mandan; a quien no abrio nada se le reparte un estado de relleno
+ * (con medidor, solo jornada o nada) para que las tarjetas muestren los casos. La presencia lleva
+ * `route` y `phrase` cruda, igual que el board: «en /cosa-rara/1» es la que la tarjeta no debe mostrar.
+ */
+function tableroDeLive () {
+  return STAFF.filter((p) => p.active).slice(0, PERSONAS_DEL_TABLERO).map((persona, indice) => {
+    const real = JORNADAS.get(persona.id)
+    const jornada = real ? presentarJornada(real) : (indice % 3 !== 2 ? jornadaDeRelleno(indice) : null)
+    const medidor = real ? presentarMedidor(real.timer) : (jornada !== null && indice % 3 === 0 ? medidorDeRelleno(indice) : null)
+    const ruta = RUTAS_DE_PRESENCIA[indice % RUTAS_DE_PRESENCIA.length]
+
+    return {
+      staff: {
+        id: persona.id,
+        name: persona.full_name,
+        avatar: persona.profile_image_url,
+        cargo: indice % 2 === 0 ? 'Diseñadora' : null,
+        area: AREAS.find((a) => a.id === persona.area_id)?.name ?? null
+      },
+      jornada: jornada === null ? null : { id: jornada.id, started_at: jornada.started_at, seconds: jornada.seconds },
+      medidor,
+      presencia: { last_seen: ahoraIso(), seconds_ago: indice * 25, route: ruta, phrase: `en ${ruta}` },
+      seconds_today: medidor === null ? 0 : medidor.seconds
+    }
+  })
+}
+
+/**
+ * `GET /live/personas/{id}/resumen`: el resumen de la jornada de otra persona.
+ *
+ * 404 si no tiene jornada abierta (real o de relleno), como la API; `id` 999 simula una persona fuera
+ * del alcance, que responde igual.
+ */
+function resumenDePersona (id) {
+  const fila = tableroDeLive().find((f) => f.staff.id === id)
+
+  if (!fila || fila.jornada === null) throw new ErrorApi(404, 'not_found', 'Esa persona no tiene una jornada abierta.')
+
+  const medidor = fila.medidor
+  const medidos = medidor === null ? 0 : medidor.seconds
+
+  return {
+    jornada: { id: fila.jornada.id, started_at: fila.jornada.started_at, seconds: fila.jornada.seconds, client: null },
+    measured_seconds: medidos,
+    uncovered_seconds: Math.max(0, fila.jornada.seconds - medidos),
+    items: medidor === null
+      ? []
+      : [{ project: medidor.project, task: medidor.task === null ? null : { id: medidor.task.id, name: medidor.task.name }, seconds: medidor.seconds, corriendo: true }]
   }
 }
 
@@ -7463,6 +7563,14 @@ async function resolverRuta (metodo, segmentos, parametros, token, cuerpo, petic
     }
 
     throw new ErrorApi(404, 'not_found', 'Recurso desconocido.')
+  }
+
+  // `GET /live` y `GET /live/personas/{id}/resumen`: el tablero del equipo y el resumen por persona.
+  if (recurso === 'live' && metodo === 'GET' && resto.length === 0) {
+    return { estado: 200, cuerpo: { data: tableroDeLive(), meta: { scope: actual.is_admin ? 'all' : 'self' } } }
+  }
+  if (recurso === 'live' && metodo === 'GET' && resto[0] === 'personas' && resto[2] === 'resumen') {
+    return { estado: 200, cuerpo: conDatos(resumenDePersona(Number(resto[1]))) }
   }
 
   // `DELETE /live/timers/{id}`: detener desde la cabecera, sin saber sobre que se estaba midiendo.

@@ -1,7 +1,7 @@
 import 'server-only'
 
 import { AccessToken, RoomServiceClient } from 'livekit-server-sdk'
-import { esNombreDeSalaValido, imagenDeMetadata } from '@/dominio/teletrabajo'
+import { esNombreDeSalaValido, imagenDeMetadata, salaParaElEquipo, staffDeIdentidad } from '@/dominio/teletrabajo'
 
 /**
  * Firma de tokens de entrada a LiveKit.
@@ -124,6 +124,60 @@ export async function quienEstaEn (sala: string): Promise<QuienEsta[] | null> {
     // Una sala a la que nadie entro todavia no existe en LiveKit y la consulta falla. Es el caso
     // normal, no un fallo: se responde igual que si el servidor no contestara y la antesala no
     // muestra a nadie.
+    return null
+  }
+}
+
+/** Cuánto vale una lectura de «quién está en qué sala»: lo que tarda un tablero en pedirla de nuevo. */
+const VIGENCIA_DE_PERSONAS_EN_SALAS_MS = 15_000
+
+/** La última lectura de `personasEnSalas`, para que cada pestaña abierta no sea una consulta a LiveKit. */
+let ultimasPersonasEnSalas: { leidoEn: number, personas: Map<number, string> } | null = null
+
+/**
+ * Quién del equipo está dentro de una sala de Teletrabajo ahora mismo.
+ *
+ * Es lo que le falta al tablero del equipo para distinguir a quien está en una reunión de quien solo
+ * tiene la jornada abierta. Una consulta a LiveKit por sala activa, con la identidad
+ * `staff-{id}-{sufijo}` como única fuente: no se guarda nada y no se pide nada a la API.
+ *
+ * La respuesta se guarda 15 s. A la sala solo se le pone nombre si es común; una sala de Espacio
+ * sale como `'privada'` (ver `salaParaElEquipo`). Una persona con dos pestañas en salas distintas
+ * queda en la última que LiveKit lista.
+ *
+ * @returns mapa de id de persona a sala, o `null` si LiveKit no respondió (distinto de «nadie hay»)
+ */
+export async function personasEnSalas (): Promise<Map<number, string> | null> {
+  const ahora = Date.now()
+
+  if (ultimasPersonasEnSalas !== null && ahora - ultimasPersonasEnSalas.leidoEn < VIGENCIA_DE_PERSONAS_EN_SALAS_MS) {
+    return ultimasPersonasEnSalas.personas
+  }
+
+  try {
+    const cliente = administracion()
+    const salas = await cliente.listRooms()
+    const participantes = await Promise.all(salas.map(async (sala) => ({
+      sala: salaParaElEquipo(sala.name),
+      dentro: await cliente.listParticipants(sala.name)
+    })))
+    const personas = new Map<number, string>()
+
+    for (const { sala, dentro } of participantes) {
+      if (sala === null) continue
+
+      for (const participante of dentro) {
+        const id = staffDeIdentidad(participante.identity)
+        if (id !== null) personas.set(id, sala)
+      }
+    }
+
+    ultimasPersonasEnSalas = { leidoEn: ahora, personas }
+
+    return personas
+  } catch {
+    // Igual que `ocupacionDeSalas`: un servidor de video caído no tumba el tablero, y un mapa vacío
+    // diría «nadie está en reunión», que en ese momento no se puede afirmar.
     return null
   }
 }

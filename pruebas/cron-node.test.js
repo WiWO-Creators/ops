@@ -23,7 +23,8 @@ test('configuración explícita: HTTPS, secreto, horas AM/PM y cron válido', ()
     { OPS_CRON_POLL_SCHEDULE: 'ayer' }, { OPS_CRON_REQUEST_TIMEOUT_MS: 'NaN' },
     { OPS_CRON_RESUMEN_SCHEDULE: 'a las ocho' },
     { OPS_CRON_RECORDATORIO_JORNADA_SCHEDULE: 'a las diez' },
-    { OPS_CRON_RECORDATORIO_TAREAS_SCHEDULE: 'después de almuerzo' }
+    { OPS_CRON_RECORDATORIO_TAREAS_SCHEDULE: 'después de almuerzo' },
+    { OPS_CRON_ALERTAS_EQUIPO_SCHEDULE: 'cada rato' }
   ]) assert.throws(() => leerConfiguracion({ ...entorno, ...cambio }))
   // El resumen del equipo tiene su propia hora y no la hereda del corte de cronómetros.
   assert.equal(leerConfiguracion(entorno).resumen, '0 20 * * *')
@@ -32,6 +33,9 @@ test('configuración explícita: HTTPS, secreto, horas AM/PM y cron válido', ()
   assert.equal(leerConfiguracion(entorno).recordatorioJornada, '0 10 * * *')
   assert.equal(leerConfiguracion(entorno).recordatorioTareas, '0 15 * * *')
   assert.equal(leerConfiguracion({ ...entorno, OPS_CRON_RECORDATORIO_JORNADA_SCHEDULE: '0 10 * * 1-5' }).recordatorioJornada, '0 10 * * 1-5')
+  // Las alertas del equipo corren cada 15 minutos salvo que se diga otra cosa.
+  assert.equal(leerConfiguracion(entorno).alertasEquipo, '*/15 * * * *')
+  assert.equal(leerConfiguracion({ ...entorno, OPS_CRON_ALERTAS_EQUIPO_SCHEDULE: '*/30 * * * *' }).alertasEquipo, '*/30 * * * *')
 })
 
 test('preflight no ejecuta trabajos y rechaza autenticación u hora incompatible', async () => {
@@ -67,10 +71,11 @@ test('horarios Santiago, recuperación al iniciar, no solapamiento y cierre orde
   } })
   await programador.iniciar()
   await new Promise((resolve) => setImmediate(resolve))
-  assert.deepEqual(agendas.map((a) => a.expresion), ['*/5 * * * *', '*/15 * * * *', '0 3 * * *', '0 20 * * *', '0 10 * * *', '0 15 * * *', '30 19 * * *'])
+  assert.deepEqual(agendas.map((a) => a.expresion), ['*/5 * * * *', '*/15 * * * *', '0 3 * * *', '0 20 * * *', '0 10 * * *', '0 15 * * *', '*/15 * * * *', '30 19 * * *'])
   assert.ok(!llamadas.includes('/api/cron/resumen_equipo'), 'El resumen es de una hora fija: no se recupera al arrancar')
   assert.ok(!llamadas.includes('/api/cron/recordatorio_jornada') && !llamadas.includes('/api/cron/recordatorio_tareas'),
     'Los recordatorios son de hora fija: reiniciar el proceso no los dispara fuera de hora')
+  assert.ok(!llamadas.includes('/api/cron/alertas_equipo'), 'Las alertas son un barrido del momento: no se recuperan al arrancar')
   assert.ok(agendas.every((a) => a.opciones.timezone === 'America/Santiago' && a.opciones.noOverlap))
   assert.ok(llamadas.includes('/api/cron/cortar_cronometros'), 'Recupera cortes al reiniciar')
   assert.ok(llamadas.includes('/api/cron/jornadas') && llamadas.includes('/api/cron/papelera'), 'Recupera los antiguos trabajos CLI')

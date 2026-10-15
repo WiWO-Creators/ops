@@ -1,35 +1,17 @@
 'use client'
 
-import { useCallback, useEffect, useRef, useState } from 'react'
-import { ChevronRight, Users } from 'lucide-react'
+import { Users } from 'lucide-react'
 import { Vacio } from '@/componentes/estado/Estados'
-import { EnlacePersona } from '@/componentes/presentadores/EnlacePersona'
-import type { AlcanceDeLive } from '@/dominio/live'
 import type { FilaDeLive } from '@/datos/live'
-import { conLimite, esTiempoAgotado, TIEMPO_LECTURA_MS } from '@/datos/red'
-import { estaConectadoEnVivo } from '@/datos/en-vivo'
-import { sondeoSinApilar } from '@/datos/sondeo'
 import type { Yo } from '@/datos/tipos'
-import { debeSondear } from '@/dominio/en-vivo'
-import { escucharMedidor } from './medidor'
 import { cn } from '@/lib/clases'
 import { repartirTablero } from './presentacion'
 import { FilaEnVivo } from './FilaEnVivo'
+import { SinJornada } from './SinJornada'
+import { TITULO_POR_ALCANCE } from './titulos'
+import { useTableroEnVivo } from './useTableroEnVivo'
+import type { AlcanceDeLive } from '@/dominio/live'
 import type { OpcionFiltro } from '@/definiciones/tipos'
-
-/**
- * El titulo del tablero segun hasta donde ve quien mira.
- *
- * `subordinados` es la rama del organigrama —la gente que depende de esta persona, directa o por
- * debajo—, `area` es la regla vieja del cargo Director. Las filas son las mismas que la API ya
- * filtro; esto solo las nombra.
- */
-const TITULO_POR_ALCANCE: Record<AlcanceDeLive, string> = {
-  todo: 'El equipo, ahora',
-  subordinados: 'Mi gente, ahora',
-  area: 'Mi área, ahora',
-  propio: 'Mi jornada, ahora'
-}
 
 interface PropsPanelEquipo {
   inicial: FilaDeLive[]
@@ -89,87 +71,10 @@ export function PanelEquipo ({
   operador,
   estados = []
 }: PropsPanelEquipo) {
-  const [filas, setFilas] = useState(inicial)
-  const [transcurrido, setTranscurrido] = useState(0)
-  const [error, setError] = useState<string | null>(errorInicial)
-
-  /** Cuando se leyeron las filas. Los contadores cuentan desde aca, no desde `start_time`. */
-  const leidoEn = useRef(0)
-
-  // `Date.now()` no se puede leer durante el render —regla de pureza de React— y tampoco haria falta:
-  // el contador arranca en cero para no romper la hidratacion, asi que la marca se sella al montar,
-  // que es justo cuando empieza a correr.
-  useEffect(() => { leidoEn.current = Date.now() }, [])
-
-  const refrescar = useCallback(async (senal: AbortSignal): Promise<void> => {
-    const respuesta = await fetch('/api/bff/live', { signal: conLimite(senal, TIEMPO_LECTURA_MS) })
-
-    if (!respuesta.ok) throw new Error('La API no respondió a la consulta del tablero.')
-
-    const sobre = await respuesta.json() as { data: FilaDeLive[] }
-
-    leidoEn.current = Date.now()
-    setFilas(sobre.data)
-    setTranscurrido(0)
-    setError(null)
-  }, [])
-
-  useEffect(() => {
-    const control = new AbortController()
-    let ultimaConsulta = 0
-
-    const consultar = sondeoSinApilar(async () => {
-      ultimaConsulta = Date.now()
-
-      try {
-        await refrescar(control.signal)
-      } catch (fallo) {
-        if (control.signal.aborted) return
-
-        setError(
-          esTiempoAgotado(fallo)
-            ? 'El tablero tardó en responder. Se vuelve a intentar solo.'
-            : fallo instanceof Error ? fallo.message : 'No se pudo actualizar el tablero.'
-        )
-      }
-    })
-
-    // Con la pestaña oculta no se pregunta: nadie esta mirando, y el tablero se pone al dia solo
-    // en cuanto vuelve al frente. El tic periodico no se apila sobre una consulta en camino.
-    const tic = (): void => { if (!document.hidden) consultar(false) }
-    const ticPeriodico = (): void => { if (!document.hidden) consultar(true) }
-    // Con el bus de «en vivo» conectado el intervalo es solo respaldo: los cambios llegan por
-    // `escucharMedidor` (el puente lo avisa en cada evento de jornada o cronómetro).
-    const ticDelIntervalo = (): void => {
-      if (estaConectadoEnVivo() && !debeSondear(ultimaConsulta, segundos * 1000, true, Date.now())) return
-      ticPeriodico()
-    }
-
-    const dejarDeEscuchar = escucharMedidor(tic)
-    const intervalo = globalThis.setInterval(ticDelIntervalo, segundos * 1000)
-    document.addEventListener('visibilitychange', ticPeriodico)
-
-    return () => {
-      dejarDeEscuchar()
-      globalThis.clearInterval(intervalo)
-      document.removeEventListener('visibilitychange', ticPeriodico)
-      control.abort()
-    }
-  }, [refrescar, segundos])
-
-  const hayMedidores = filas.some((fila) => fila.medidor !== null || fila.jornada !== null)
-
-  // El tic de un segundo es uno solo y solo existe mientras haya algo corriendo: cincuenta filas con
-  // su propio intervalo repintarian el tablero entero cincuenta veces por segundo.
-  useEffect(() => {
-    if (!hayMedidores) return
-
-    const id = globalThis.setInterval(() => {
-      setTranscurrido((Date.now() - leidoEn.current) / 1000)
-    }, 1000)
-
-    return () => { globalThis.clearInterval(id) }
-  }, [hayMedidores])
+  // El sondeo, los avisos del bus y el contador de segundos viven en `useTableroEnVivo`, que
+  // comparten la lista y las tarjetas: dos formas de repreguntar lo mismo terminarian dando
+  // numeros distintos sobre el mismo tablero.
+  const { filas, transcurrido, error } = useTableroEnVivo({ inicial, errorInicial, segundos })
 
   const { activos, enReposo } = repartirTablero(filas)
   const midiendo = filas.filter((fila) => fila.medidor !== null).length
@@ -226,47 +131,5 @@ export function PanelEquipo ({
 
       {enReposo.length > 0 && <SinJornada filas={enReposo} />}
     </section>
-  )
-}
-
-/**
- * Quien todavia no abrio su jornada, plegado.
- *
- * `<details>` nativo y no un `useState`: es exactamente lo que el elemento hace, lo hace con su
- * propia accesibilidad —`aria-expanded`, teclado, buscar en la pagina lo abre solo— y no repinta el
- * tablero al abrirlo. Empieza cerrado porque son la mayoria de las filas y ninguna contesta la
- * pregunta de la pantalla.
- *
- * Sin contador de tiempo: no hay ninguno que contar, y por eso tampoco se monta `FilaEnVivo`, que
- * existe para colgar la jerarquia de un medidor que aca no existe.
- */
-function SinJornada ({ filas }: { filas: FilaDeLive[] }) {
-  return (
-    <details className="border-linea bg-superficie-hundida rounded-tarjeta group border">
-      <summary className="text-texto-tenue hover:text-texto flex cursor-pointer list-none items-center gap-2 px-3 py-2.5 text-sm font-medium">
-        <ChevronRight
-          size={14}
-          strokeWidth={2}
-          aria-hidden="true"
-          className="ease-neo shrink-0 transition-transform duration-rapida group-open:rotate-90"
-        />
-        Sin jornada abierta
-        <span className="text-texto-sutil tabular-nums">({filas.length})</span>
-      </summary>
-
-      <ul className="flex flex-wrap gap-x-4 gap-y-2 px-3 pb-3 pt-1">
-        {filas.map((fila) => (
-          <li key={fila.staff.id} className="flex min-w-0 items-center gap-2">
-            <EnlacePersona
-              id={fila.staff.id}
-              nombre={fila.staff.name}
-              imagen={fila.staff.avatar}
-              tamano="chico"
-              className="text-texto-tenue text-sm"
-            />
-          </li>
-        ))}
-      </ul>
-    </details>
   )
 }
