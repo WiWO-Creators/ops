@@ -46,7 +46,8 @@ export function TablaSolicitudes ({
   opcionesDeFiltro,
   espacios
 }: DatosDeTablaDelPortal<TicketPortal> & { espacios?: Referencia[] }) {
-  const refresco = useRefrescoDeTickets()
+  // `puente`: en el portal el bus no trae ids, asi que la lista escucha sus avisos de ticket de frente.
+  const refresco = useRefrescoDeTickets(true, true)
 
   // Se memoiza porque `TablaRecurso` la usa como dependencia de sus efectos: una definicion nueva en
   // cada render volveria a pedir la pagina en bucle.

@@ -4,6 +4,7 @@ import { SelectorTema } from '@/componentes/estructura/SelectorTema'
 import { Avatar } from '@/componentes/presentadores/Avatar'
 import { Logo } from '@/componentes/estructura/Logo'
 import { ProveedorEnlaces } from '@/componentes/presentadores/ProveedorEnlaces'
+import { urlDeEnVivo } from '@/datos/config'
 import { pedirOpcional, proyectoUnicoDelPortal, yoDelPortal } from '@/datos/servidor'
 import { navegacionDelPortal } from '@/dominio/portal'
 import { leerCapacidadesOrbe, leerPuedeProponerTareas } from '@/dominio/orbe-capacidades'
@@ -51,7 +52,9 @@ export default async function PortalLayout ({ children }: { children: React.Reac
     // sea la capacidad. Ver `ProveedorEnlaces`.
     <ProveedorEnlaces permisos={{}} esPortal>
     <Suspense fallback={null}><IndicadorDeRed /></Suspense>
-    <RefrescoDelPortal />
+    {/* Solo con `en_vivo` de `/portal/me` (global y fila del cliente) y URL del servicio: sin ellos el
+        portal sondea exactamente como antes. */}
+    <RefrescoDelPortal urlEnVivo={yo.en_vivo === true ? urlDeEnVivo() : ''} />
     {/* Primero, para que sus efectos corran antes que los de la pagina. `useSearchParams` pide
         `Suspense`. Con `rastreo` ausente o apagado no registra nada. */}
     <Suspense fallback={null}>
