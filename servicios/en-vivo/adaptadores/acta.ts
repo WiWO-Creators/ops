@@ -132,6 +132,7 @@ export function crearAdaptadorDeActa (board: ClienteBoard): AdaptadorDeDocumento
         ultimoHtml: yDocAHtml(ydoc),
         autores: new Set(),
         ultimoEditor: null,
+        origen: ORIGEN_COLABORATIVO,
         pendiente: false,
         reintentos: 0,
         temporizadorDeReintento: null
@@ -162,6 +163,7 @@ export function crearAdaptadorDeActa (board: ClienteBoard): AdaptadorDeDocumento
     estado.ultimoHtml = yDocAHtml(documento)
     estado.autores.clear()
     estado.ultimoEditor = null
+    estado.origen = ORIGEN_COLABORATIVO
     documento.broadcastStateless(JSON.stringify({ t: 'recargado', motivo }))
 
     return 'recargado'
@@ -188,6 +190,7 @@ export function crearAdaptadorDeActa (board: ClienteBoard): AdaptadorDeDocumento
       // Se editó y se volvió atrás: nadie cambió nada, nadie figura como autor.
       estado.autores.clear()
       estado.ultimoEditor = null
+      estado.origen = ORIGEN_COLABORATIVO
 
       return 'sin_cambios'
     }
@@ -199,7 +202,7 @@ export function crearAdaptadorDeActa (board: ClienteBoard): AdaptadorDeDocumento
       autores,
       content: html,
       revision: estado.revision,
-      origen: ORIGEN_COLABORATIVO
+      origen: estado.origen
     })
 
     if (http === 200) {
@@ -216,6 +219,7 @@ export function crearAdaptadorDeActa (board: ClienteBoard): AdaptadorDeDocumento
       // Solo se descuentan los que iban en este guardado: otros pueden haber editado mientras tanto.
       for (const autor of autores) estado.autores.delete(autor)
       if (estado.autores.size === 0) estado.ultimoEditor = null
+      estado.origen = ORIGEN_COLABORATIVO
 
       return 'guardado'
     }

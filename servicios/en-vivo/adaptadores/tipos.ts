@@ -1,6 +1,9 @@
 import type { Doc } from 'yjs'
 import type { Document } from '@hocuspocus/server'
 
+/** Etiqueta del historial del board: edición conjunta entre personas, o reescritura del Thinking Orb. */
+export type OrigenDeGuardado = 'colaborativo' | 'orb'
+
 /**
  * Lo que el servicio recuerda de cada documento abierto, aparte del propio documento Yjs.
  *
@@ -16,6 +19,8 @@ export interface EstadoDeDocumento {
   /** Personas que editaron desde el último guardado. */
   autores: Set<number>
   ultimoEditor: number | null
+  /** Con qué origen rotula el board el próximo guardado; el orbe lo pone en `orb` y todo guardado lo repone. */
+  origen: OrigenDeGuardado
   /** El último intento de guardar falló por un motivo transitorio y los cambios siguen sin guardar. */
   pendiente: boolean
   reintentos: number

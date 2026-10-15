@@ -12,6 +12,7 @@ import {
 import type { Bus } from './bus.ts'
 import type { ConfiguracionDelServicio } from './configuracion.ts'
 import type { ServicioDeDocumentos } from './documentos.ts'
+import { aplicarComoOrbe, leerPedidoDeAplicar } from './orbe.ts'
 import { registrar } from './registro.ts'
 
 /**
@@ -28,6 +29,9 @@ export interface ContextoInterno {
   documentos: ServicioDeDocumentos
   nonces: AlmacenDeNonces
 }
+
+/** Tope del cuerpo de `aplicar`: un acta entera en HTML (el lector de reproducción acepta hasta 400 KB). */
+const MAXIMO_BYTES_ACTA = 1_048_576
 
 class CuerpoDemasiadoGrande extends Error {}
 
@@ -90,11 +94,46 @@ async function aplicarLote (cuerpo: Buffer, contexto: ContextoInterno): Promise<
   return lote.eventos.length
 }
 
+/** Lo que el board puede pedir: un lote de eventos o aplicar el HTML del orbe a un acta abierta. */
+type Destino = { tipo: 'eventos' } | { tipo: 'aplicar', actaId: number }
+
+const RUTA_DE_APLICAR = /^interno\/actas\/([1-9]\d{0,9})\/aplicar$/
+
+function destinoDe (canonica: string): Destino | null {
+  if (canonica === 'interno/eventos') return { tipo: 'eventos' }
+
+  const aplicar = RUTA_DE_APLICAR.exec(canonica)
+
+  return aplicar === null ? null : { tipo: 'aplicar', actaId: Number(aplicar[1]) }
+}
+
+/**
+ * Atiende `interno/actas/{id}/aplicar`: el Thinking Orb escribe en un acta abierta en edición conjunta.
+ *
+ * 202 `{aplicada:true}` apenas el cambio queda en marcha (se aplica y guarda de forma asíncrona);
+ * 404 `{abierta:false}` si el acta no está abierta con conexiones, es de otro Espacio o su HTML no
+ * se pudo convertir: en esos casos el board sigue su camino de siempre; 422 si el cuerpo es inválido.
+ */
+function aplicarActa (res: ServerResponse, cuerpo: Buffer, actaId: number, contexto: ContextoInterno): void {
+  const pedido = leerPedidoDeAplicar(cuerpo.toString('utf8'))
+
+  if (pedido === null) return responder(res, 422, { error: { code: 'pedido_invalido' } })
+
+  const resultado = aplicarComoOrbe(contexto.documentos, actaId, pedido)
+
+  if (resultado.estado !== 'aplicando') return responder(res, 404, { abierta: false })
+
+  // El board no espera a que el orbe termine de escribir.
+  resultado.terminada.catch(() => undefined)
+  responder(res, 202, { aplicada: true })
+}
+
 /**
  * Atiende una petición `POST` interna.
  *
- * Responde 202 `{aceptados}` al lote de eventos; 401 si la firma no cuadra o el nonce se repite;
- * 413 si el cuerpo pasa de 64 KB; 422 si el lote es inválido; 404 si la ruta no existe.
+ * `interno/eventos`: 202 `{aceptados}` al lote; 422 si el lote es inválido. `interno/actas/{id}/aplicar`:
+ * ver {@link aplicarActa}. En ambas, 401 si la firma no cuadra o el nonce se repite; 413 si el cuerpo
+ * pasa del tope (64 KB el lote, 1 MB el acta); 404 si la ruta no existe.
  *
  * @param req la petición
  * @param res la respuesta
@@ -108,13 +147,14 @@ export async function manejarInterno (
   contexto: ContextoInterno
 ): Promise<void> {
   const canonica = rutaCanonica(ruta)
+  const destino = req.method === 'POST' ? destinoDe(canonica) : null
 
-  if (req.method !== 'POST' || canonica !== 'interno/eventos') return responder(res, 404, { error: 'no_encontrado' })
+  if (destino === null) return responder(res, 404, { error: 'no_encontrado' })
 
   let cuerpo: Buffer
 
   try {
-    cuerpo = await leerCuerpoCrudo(req, MAXIMO_BYTES_LOTE)
+    cuerpo = await leerCuerpoCrudo(req, destino.tipo === 'aplicar' ? MAXIMO_BYTES_ACTA : MAXIMO_BYTES_LOTE)
   } catch (error) {
     return error instanceof CuerpoDemasiadoGrande
       ? responder(res, 413, { error: 'cuerpo_demasiado_grande' })
@@ -134,6 +174,8 @@ export async function manejarInterno (
 
     return responder(res, 401, { error: { code: 'firma_invalida' } })
   }
+
+  if (destino.tipo === 'aplicar') return aplicarActa(res, cuerpo, destino.actaId, contexto)
 
   const aceptados = await aplicarLote(cuerpo, contexto)
 

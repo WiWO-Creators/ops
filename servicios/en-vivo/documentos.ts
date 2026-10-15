@@ -39,12 +39,22 @@ const ESPERA_MAXIMA_DE_REINTENTO_MS = 30_000
 /** Tiempo que Hocuspocus espera señal de un socket antes de darlo por muerto (el pong cuenta). */
 const TIEMPO_SIN_SENAL_MS = 90_000
 
+/** Un documento abierto por alguien, con lo que el servicio recuerda de él. */
+export interface DocumentoAbierto {
+  documento: Document
+  estado: EstadoDeDocumento
+}
+
 export interface ServicioDeDocumentos {
   hocuspocus: Hocuspocus<ContextoDeDocumento>
   /** Adapta un socket de `ws` a Hocuspocus. */
   conectar: (ws: WebSocket, req: IncomingMessage) => void
   /** `true` si el documento está cargado en memoria. */
   estaCargado: (nombre: string) => boolean
+  /** El documento y su estado si está cargado y tiene al menos una conexión; si no, `null`. */
+  abierto: (nombre: string) => DocumentoAbierto | null
+  /** Guarda ya, sin esperar el debounce; resuelve cuando el guardado terminó (o falló y quedó agendado). */
+  guardarYa: (documento: Document) => Promise<void>
   /** Documentos cargados ahora. */
   contar: () => number
   /** Si el board cambió el documento por fuera, lo recarga para los conectados. */
@@ -247,9 +257,31 @@ export function crearHocuspocus (config: ConfiguracionDelServicio, board: Client
     }
   }
 
+  function abierto (nombre: string): DocumentoAbierto | null {
+    const documento = hocuspocus.documents.get(nombre)
+    const estado = estados.get(nombre)
+
+    if (documento === undefined || estado === undefined || documento.getConnectionsCount() === 0) return null
+
+    return { documento, estado }
+  }
+
+  async function guardarYa (documento: Document): Promise<void> {
+    await hocuspocus.storeDocumentHooks(documento, {
+      instance: hocuspocus,
+      clientsCount: documento.getConnectionsCount(),
+      document: documento,
+      lastContext: {},
+      lastTransactionOrigin: 'orbe',
+      documentName: documento.name
+    } as onStoreDocumentPayload<ContextoDeDocumento>, true)
+  }
+
   return {
     hocuspocus,
     conectar,
+    abierto,
+    guardarYa,
     estaCargado: (nombre) => hocuspocus.documents.has(nombre),
     contar: () => hocuspocus.getDocumentsCount(),
     sincronizar,

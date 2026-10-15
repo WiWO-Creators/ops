@@ -9,6 +9,9 @@ export const UMBRAL_DETENIDA_SEGUNDOS = 180
 /** Intervalo máximo del seguimiento cuando la ejecución trabaja sin cambios. */
 export const INTERVALO_SEGUIMIENTO_MAXIMO_MS = 5000
 
+/** Con el socket de «Ops en vivo» conectado, el seguimiento pasa a ser solo respaldo de los avisos de `ejecucion`. */
+export const RESPALDO_SEGUIMIENTO_EN_VIVO_MS = 15_000
+
 /** Cuánto crece el intervalo del seguimiento por cada consulta sin cambios. */
 const FACTOR_BACKOFF_SEGUIMIENTO = 1.5
 
@@ -133,6 +136,21 @@ export function mismaInstantanea (a: Ejecucion | undefined, b: Ejecucion): boole
 export function intervaloSeguimiento (base: number, sinCambios: number): number {
   if (base >= INTERVALO_SEGUIMIENTO_MAXIMO_MS) return base
   return Math.min(INTERVALO_SEGUIMIENTO_MAXIMO_MS, Math.round(base * FACTOR_BACKOFF_SEGUIMIENTO ** Math.max(0, sinCambios)))
+}
+
+/**
+ * Espera hasta la siguiente consulta del seguimiento, según haya o no socket de «Ops en vivo».
+ *
+ * Conectado, el bus avisa de cada cambio de la ejecución y el sondeo queda como respaldo cada 15 s;
+ * sin conexión rige el intervalo creciente de siempre.
+ *
+ * @param base Intervalo base que dicta el servidor, en ms.
+ * @param sinCambios Consultas seguidas sin cambios (0 tras un cambio).
+ * @param conectado Si el socket del bus está conectado ahora.
+ * @returns Espera en ms.
+ */
+export function esperaDeSeguimiento (base: number, sinCambios: number, conectado: boolean): number {
+  return conectado ? RESPALDO_SEGUIMIENTO_EN_VIVO_MS : intervaloSeguimiento(base, sinCambios)
 }
 
 /** Espera antes de reintentar tras un fallo de seguimiento. @param fallos Fallos seguidos, desde 1. @returns Espera en ms, exponencial y acotada al máximo del seguimiento. */

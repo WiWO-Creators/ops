@@ -3,14 +3,15 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { escribirEnBff } from '@/componentes/datos/mutaciones'
+import { useConectadoEnVivo, useEnVivo } from '@/componentes/en-vivo/useEnVivo'
 import { pedirSobre } from '@/datos/cliente'
 import {
   actualizarEjecucion,
+  esperaDeSeguimiento,
   esperaReintentoSeguimiento,
   estaEditando,
   estaTrabajando,
   firmaDeEjecucion,
-  intervaloSeguimiento,
   leerEjecucion,
   mismaInstantanea,
   REINTENTOS_SEGUIMIENTO,
@@ -86,8 +87,9 @@ function pestanaVisible (): boolean {
  *
  * El seguimiento no repinta si el snapshot no cambió, crece de `intervalo` a 5 s mientras la
  * ejecución trabaja sin novedades, se pausa con la pestaña oculta y reintenta con espera creciente
- * antes de mostrar un error. Las operaciones viajan con clave de idempotencia estable: repetir la
- * misma no duplica el efecto.
+ * antes de mostrar un error. Con el bus de «Ops en vivo» conectado, un aviso `ejecucion` de la que
+ * se sigue dispara la consulta al instante y el sondeo baja a respaldo cada 15 s. Las operaciones
+ * viajan con clave de idempotencia estable: repetir la misma no duplica el efecto.
  *
  * @param opciones Alcance, intervalos y callback para vaciar el compositor.
  * @returns Estado y acciones para la vista.
@@ -108,6 +110,9 @@ export function useEjecucionesAgente ({ configuracion, proyectoId, intervalo, um
   const montado = useRef(true)
   const ultimaRef = useRef<Ejecucion | undefined>(undefined)
   const volviendo = useRef(false)
+  const conectado = useConectadoEnVivo()
+  const conectadoRef = useRef(conectado)
+  const consultarYa = useRef<(() => void) | null>(null)
   const contextoRef = useRef(contexto)
   const router = useRouter()
 
@@ -133,6 +138,10 @@ export function useEjecucionesAgente ({ configuracion, proyectoId, intervalo, um
   useEffect(() => {
     contextoRef.current = contexto
   }, [contexto])
+
+  useEffect(() => {
+    conectadoRef.current = conectado
+  }, [conectado])
 
   useEffect(() => {
     montado.current = true
@@ -179,12 +188,17 @@ export function useEjecucionesAgente ({ configuracion, proyectoId, intervalo, um
     let temporizador: ReturnType<typeof setTimeout> | undefined
     let sinCambios = 0
     let fallos = 0
+    let consultando = false
+    let avisoPendiente = false
 
+    // Si llega un aviso durante una consulta, la siguiente va de inmediato en vez de esperar.
     const programar = (espera: number): void => {
-      temporizador = setTimeout(() => { void consultar() }, espera)
+      temporizador = setTimeout(() => { void consultar() }, avisoPendiente ? 0 : espera)
     }
 
     const consultar = async (): Promise<void> => {
+      consultando = true
+      avisoPendiente = false
       try {
         const sobre = await pedirSobre<unknown>(agente.rutaEjecucion(ultimaId, proyectoId), abortador.signal)
         const ejecucion = leerEjecucion(sobre.data)
@@ -198,19 +212,40 @@ export function useEjecucionesAgente ({ configuracion, proyectoId, intervalo, um
           setHistorial(actual => actualizarEjecucion(actual, ejecucion))
           if (ejecucion.estado === 'completada') alCompletarse(ejecucion)
         }
-        if (estaTrabajando(ejecucion)) programar(intervaloSeguimiento(intervalo, sinCambios))
+        if (estaTrabajando(ejecucion)) programar(esperaDeSeguimiento(intervalo, sinCambios, conectadoRef.current))
       } catch (fallo: unknown) {
         if (abortador.signal.aborted) return
         fallos += 1
         if (fallos > REINTENTOS_SEGUIMIENTO) setError(fallo instanceof Error ? fallo.message : MENSAJE_SEGUIMIENTO)
         else programar(esperaReintentoSeguimiento(fallos))
+      } finally {
+        consultando = false
       }
+    }
+
+    consultarYa.current = () => {
+      if (consultando) {
+        avisoPendiente = true
+        return
+      }
+      clearTimeout(temporizador)
+      void consultar()
     }
 
     programar(volviendo.current ? 0 : intervalo)
     volviendo.current = false
-    return () => { clearTimeout(temporizador); abortador.abort() }
+    return () => {
+      consultarYa.current = null
+      clearTimeout(temporizador)
+      abortador.abort()
+    }
   }, [agente, ultimaId, trabajando, error, enviando, visible, intervalo, proyectoId, alCompletarse])
+
+  // El bus avisa de cada cambio de una ejecución del dueño: se consulta la que se sigue sin esperar el sondeo.
+  useEnVivo(['ejecucion'], (cambio) => {
+    // El id de la ejecución es entero en el bus y texto en la lectura.
+    if (cambio.id !== null && String(cambio.id) === ultimaId) consultarYa.current?.()
+  })
 
   // «Parece detenida»: si la huella del snapshot no cambia en el umbral. Volver a la pestaña
   // reinicia la cuenta: lo que pasó con la pestaña oculta no se sondeó.

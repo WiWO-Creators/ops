@@ -13,6 +13,7 @@ import {
   estaEditando,
   estaPendiente,
   firmaDeEjecucion,
+  esperaDeSeguimiento,
   intervaloSeguimiento,
   leerEjecucion,
   mismaInstantanea,
@@ -98,6 +99,11 @@ test('el seguimiento crece de 1,5 s a 5 s sin cambios y respeta una base mayor',
   assert.deepEqual(esperas, [1500, 2250, 3375, 5000, 5000, 5000])
   assert.equal(intervaloSeguimiento(8000, 3), 8000)
   assert.equal(intervaloSeguimiento(1500, -2), 1500)
+})
+
+test('con el bus conectado el seguimiento es respaldo cada 15 s; sin él rige el intervalo creciente', () => {
+  assert.deepEqual([0, 3, 10].map(n => esperaDeSeguimiento(1500, n, true)), [15_000, 15_000, 15_000])
+  assert.deepEqual([0, 1, 3].map(n => esperaDeSeguimiento(1500, n, false)), [1500, 2250, 5000])
 })
 
 test('la espera entre reintentos es exponencial y acotada', () => {
