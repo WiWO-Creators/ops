@@ -1,11 +1,11 @@
 'use client'
 
-import { useMemo, useState, type ComponentType } from 'react'
+import { useMemo, useState, type ComponentType, type ReactElement } from 'react'
 import { X } from 'lucide-react'
 import { Avatar } from '@/componentes/presentadores/Avatar'
 import { ChevronSelector, CLASES_DISPARADOR } from '@/componentes/formularios/Selector'
 import {
-  BuscadorMenu, ContenidoMenu, DisparadorMenu, ItemMenuMarcable, MenuContextual, SinResultadosMenu
+  BuscadorMenu, ContenidoMenu, DisparadorMenu, ItemMenuMarcable, MenuContextual, SeparadorMenu, SinResultadosMenu
 } from '@/componentes/superposiciones/MenuContextual'
 import { filtrarPorPalabras } from '@/dominio/busqueda'
 import { cn } from '@/lib/clases'
@@ -42,6 +42,12 @@ interface PropsSelectorBuscableMultiple {
   chipsVisibles?: number
   /** Ids que se pintan en rojo entre los chips: los que fallaron en el ultimo intento. */
   conFallo?: readonly number[]
+  /**
+   * Ids que se ofrecen primero, en una sección «Sugeridos» arriba de la lista. Solo mientras no se
+   * escribe una búsqueda: al buscar vuelve la lista plana, que es lo que se espera de un buscador.
+   * Sin esta prop, o sin ninguno que exista en `opciones`, el menú es el de siempre.
+   */
+  sugeridos?: readonly number[]
   id?: string
   disabled?: boolean
 }
@@ -61,7 +67,7 @@ interface PropsSelectorBuscableMultiple {
  */
 export function SelectorBuscableMultiple ({
   opciones, elegidos, onCambiar, icono: Icono, resumen, placeholder, sinResultados,
-  etiquetaSacar = (nombre) => `Sacar ${nombre}`, chipsVisibles, conFallo = [], id, disabled = false
+  etiquetaSacar = (nombre) => `Sacar ${nombre}`, chipsVisibles, conFallo = [], sugeridos = [], id, disabled = false
 }: PropsSelectorBuscableMultiple) {
   const [busqueda, setBusqueda] = useState('')
 
@@ -69,6 +75,16 @@ export function SelectorBuscableMultiple ({
     () => filtrarPorPalabras(opciones, busqueda, (opcion) => [opcion.patente, opcion.nombre]),
     [opciones, busqueda]
   )
+  // En el orden en que el servidor los puso (el más habitual primero), no en el del catálogo.
+  const sugeridasArriba = useMemo(
+    () => busqueda.trim() !== ''
+      ? []
+      : sugeridos.flatMap((sugerido) => opciones.filter((opcion) => opcion.id === sugerido)),
+    [opciones, sugeridos, busqueda]
+  )
+  const restoDeLaLista = sugeridasArriba.length === 0
+    ? visibles
+    : visibles.filter((opcion) => !sugeridasArriba.includes(opcion))
   const elegidosEnOrden = useMemo(
     () => elegidos
       .map((elegido) => opciones.find((opcion) => opcion.id === elegido))
@@ -84,6 +100,25 @@ export function SelectorBuscableMultiple ({
       elegidos.includes(opcionId)
         ? elegidos.filter((elegido) => elegido !== opcionId)
         : [...elegidos, opcionId]
+    )
+  }
+
+  /** Una fila marcable del menú. */
+  function filaDeOpcion (opcion: OpcionBuscable): ReactElement {
+    return (
+      <ItemMenuMarcable
+        key={opcion.id}
+        checked={elegidos.includes(opcion.id)}
+        onCheckedChange={() => { alternar(opcion.id) }}
+      >
+        <span className="flex min-w-0 items-center gap-2">
+          {opcion.imagen !== undefined && <Avatar nombre={opcion.nombre} imagen={opcion.imagen} tamano="chico" />}
+          {opcion.patente != null && opcion.patente !== '' && (
+            <span className="text-texto-sutil shrink-0 font-mono text-xs">{opcion.patente}</span>
+          )}
+          <span className="truncate">{opcion.nombre}</span>
+        </span>
+      </ItemMenuMarcable>
     )
   }
 
@@ -114,21 +149,14 @@ export function SelectorBuscableMultiple ({
           <div className="max-h-64 overflow-y-auto">
             {visibles.length === 0
               ? <SinResultadosMenu>{sinResultados}</SinResultadosMenu>
-              : visibles.map((opcion) => (
-                <ItemMenuMarcable
-                  key={opcion.id}
-                  checked={elegidos.includes(opcion.id)}
-                  onCheckedChange={() => { alternar(opcion.id) }}
-                >
-                  <span className="flex min-w-0 items-center gap-2">
-                    {opcion.imagen !== undefined && <Avatar nombre={opcion.nombre} imagen={opcion.imagen} tamano="chico" />}
-                    {opcion.patente != null && opcion.patente !== '' && (
-                      <span className="text-texto-sutil shrink-0 font-mono text-xs">{opcion.patente}</span>
-                    )}
-                    <span className="truncate">{opcion.nombre}</span>
-                  </span>
-                </ItemMenuMarcable>
-                ))}
+              : (
+                <>
+                  {sugeridasArriba.length > 0 && <p className="text-texto-tenue px-2 pb-1 pt-1.5 text-xs font-semibold">Sugeridos</p>}
+                  {sugeridasArriba.map(filaDeOpcion)}
+                  {sugeridasArriba.length > 0 && restoDeLaLista.length > 0 && <SeparadorMenu />}
+                  {restoDeLaLista.map(filaDeOpcion)}
+                </>
+                )}
           </div>
         </ContenidoMenu>
       </MenuContextual>

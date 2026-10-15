@@ -201,6 +201,11 @@ export const ETIQUETAS_DE_AJUSTES: Record<string, { etiqueta: string, ayuda?: st
     ayuda: 'Techo contra la deriva: pasados estos días el análisis se arma de cero en vez de actualizarse por incrementos.'
   },
 
+  wiwo_sugerencias_tarea: {
+    etiqueta: `Sugerir campos al crear ${nombrar('proceso', 2).toLowerCase()}`,
+    ayuda: `Al crear una ${nombrar('proceso').toLowerCase()}, ofrece como botón «+» quién suele participar, el tipo, la prioridad, las etiquetas y el plazo habituales del ${nombrar('espacio').toLowerCase()}, calculados con las ${nombrar('proceso', 2).toLowerCase()} de los últimos 90 días que cada persona puede ver. Nada se aplica solo. Apagado de fábrica.`
+  },
+
   // --- apariencia ---
   wiwo_modo_especial: {
     etiqueta: 'Modo especial',

@@ -785,7 +785,9 @@ function crearProceso (entrada, autor) {
     'name', 'description', 'start_date', 'due_date', 'priority', 'billable', 'estimated_hours',
     'milestone', 'task_type', 'rel_type', 'rel_id', 'assignees', 'followers', 'tags', 'status',
     'hourly_rate', 'is_public', 'visible_to_client', 'recurring', 'repeat_every', 'recurring_type',
-    'cycles', 'recurring_until', 'skip_weekdays', 'completed_at'
+    'cycles', 'recurring_until', 'skip_weekdays', 'completed_at',
+    // El parte de sugerencias aceptadas e ignoradas: la API real lo registra; el mock lo ignora.
+    'sugerencias'
   ])
   for (const clave of Object.keys(entrada)) {
     if (!aceptados.has(clave)) detalles[clave] = ['no_editable']
@@ -8496,6 +8498,29 @@ async function resolverRuta (metodo, segmentos, parametros, token, cuerpo, petic
       return { estado: 200, cuerpo: conDatos({
         aprobacion_requerida_por_defecto: false,
         task_types: TIPOS_PROCESO.filter((tipo) => tipo.project_id === espacio.id)
+      }) }
+    }
+    if (subrecurso === 'task-suggestions') {
+      // Apagada de fabrica, como `wiwo_sugerencias_tarea` en la API real: 404. `MOCK_SUGERENCIAS=1`
+      // la enciende con sugerencias armadas desde los datos del Espacio, para ver los chips en el
+      // navegador. El calculo de verdad vive en la API.
+      if (process.env.MOCK_SUGERENCIAS !== '1') throw new ErrorApi(404, 'not_found', 'No encontrado.')
+      const tipo = TIPOS_PROCESO.find((t) => t.project_id === espacio.id)
+      const hito = HITOS.find((h) => h.project_id === espacio.id)
+      const gente = STAFF.slice(1, 4).map((s, i) => ({ id: s.id, nombre: s.full_name, puntaje: 0.7 - i * 0.2, apoyo: 20 - i * 6 }))
+      const manana = new Date(Date.now() + 5 * 86_400_000).toISOString().slice(0, 10)
+
+      return { estado: 200, cuerpo: conDatos({
+        base: { tareas: 24, desde: '2026-07-17' },
+        asignados: gente.slice(0, 2),
+        seguidores: gente.slice(2),
+        etiquetas: [{ nombre: ETIQUETAS[0].name, puntaje: 0.6, apoyo: 14 }, { nombre: 'revision-final', puntaje: 0.3, apoyo: 7 }],
+        tipo: tipo === undefined ? null : { id: tipo.id, nombre: tipo.name, puntaje: 0.6, apoyo: 14 },
+        prioridad: { id: 3, nombre: 'Alta', puntaje: 0.7, apoyo: 17 },
+        hito: hito === undefined ? null : { id: hito.id, nombre: hito.name, puntaje: 0.5, apoyo: 12 },
+        facturable: { valor: false, puntaje: 0.8, apoyo: 19 },
+        plazo: { dias: 5, fecha: manana, fuente: 'historial', apoyo: 11 },
+        horas_estimadas: { valor: 3.5, apoyo: 15 }
       }) }
     }
     if (subrecurso === 'milestones') {

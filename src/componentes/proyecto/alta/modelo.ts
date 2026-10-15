@@ -4,6 +4,8 @@ import { cuerpoDeFin, errorDeDiasExcluidos, errorDeFin } from '@/dominio/recurre
 import type { AltaRapida, CatalogosAlta } from '@/dominio/alta-rapida'
 import type { CampoDeTarea, TareaFusionada } from '@/dominio/ia-tarea'
 import { errorDeDescripcion } from '@/dominio/descripcion-tarea'
+import { agregarEtiqueta } from '@/dominio/etiquetas'
+import type { ChipSugerido } from '@/dominio/sugerencias-tarea'
 import { esRelacionDeEspacio, relTypeDeRelacion, type RelacionTarea } from '@/dominio/espacios-destino'
 import { GLOSARIO } from '@/dominio/glosario'
 import { errorDeHorasEstimadas, horasDeTexto } from '@/dominio/tiempo-estimado'
@@ -176,6 +178,42 @@ export function borradorInicial (contexto: ContextoDelBorrador): BorradorAlta {
     fin: FIN_INICIAL,
     diasExcluidos: [],
     personalizados: contexto.personalizados
+  }
+}
+
+/**
+ * Pasa a un campo del borrador el valor de un chip sugerido que la persona aceptó.
+ *
+ * Suma a las listas (asignados, seguidores, etiquetas) sin repetir y pone el valor en los campos de un
+ * solo valor. Un chip sin el dato que necesita —un id que no vino— deja el borrador como estaba.
+ *
+ * @param borrador el borrador actual
+ * @param chip el chip aceptado
+ * @param nombresDelCatalogo etiquetas existentes, para que una sugerida se guarde con su nombre canónico
+ * @returns el borrador con el valor aplicado
+ */
+export function aplicarChip (borrador: BorradorAlta, chip: ChipSugerido, nombresDelCatalogo: readonly string[]): BorradorAlta {
+  const id = chip.id
+
+  switch (chip.campo) {
+    case 'asignados':
+      return id === null || borrador.asignados.includes(id) ? borrador : { ...borrador, asignados: [...borrador.asignados, id] }
+    case 'seguidores':
+      return id === null || borrador.seguidores.includes(id) ? borrador : { ...borrador, seguidores: [...borrador.seguidores, id] }
+    case 'etiquetas':
+      return { ...borrador, etiquetasEscritas: agregarEtiqueta(borrador.etiquetasEscritas, chip.valor, nombresDelCatalogo) }
+    case 'tipo':
+      return id === null ? borrador : { ...borrador, tipo: String(id) }
+    case 'prioridad':
+      return id === null ? borrador : { ...borrador, prioridad: String(id) }
+    case 'hito':
+      return id === null ? borrador : { ...borrador, hito: String(id) }
+    case 'plazo':
+      return { ...borrador, vencimiento: chip.valor }
+    case 'horas_estimadas':
+      return { ...borrador, horasEstimadas: chip.valor }
+    case 'facturable':
+      return { ...borrador, facturable: chip.valor === 'true' }
   }
 }
 

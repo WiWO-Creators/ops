@@ -9,6 +9,8 @@ interface PropsSelectorPersonas {
   personas: StaffReferencia[]
   elegidas: number[]
   onCambiar: (ids: number[]) => void
+  /** Ids de quienes se ofrecen primero, en una sección «Sugeridos». Sin ella, el menú es el de siempre. */
+  sugeridas?: number[]
   id?: string
 }
 
@@ -18,7 +20,7 @@ interface PropsSelectorPersonas {
  * Es `SelectorBuscableMultiple` con avatar: la instalación tiene más de 180 personas, y quien revisa
  * una reserva ajena necesita ver quiénes son sin abrir el menú.
  */
-export function SelectorPersonas ({ personas, elegidas, onCambiar, id }: PropsSelectorPersonas) {
+export function SelectorPersonas ({ personas, elegidas, onCambiar, sugeridas, id }: PropsSelectorPersonas) {
   const opciones = useMemo(
     () => personas.map((persona) => ({ id: persona.id, nombre: persona.full_name, imagen: persona.profile_image_url })),
     [personas]
@@ -30,6 +32,7 @@ export function SelectorPersonas ({ personas, elegidas, onCambiar, id }: PropsSe
       opciones={opciones}
       elegidos={elegidas}
       onCambiar={onCambiar}
+      {...(sugeridas === undefined ? {} : { sugeridos: sugeridas })}
       icono={UserPlus}
       resumen={(lista) => lista.length === 0
         ? 'Agregar personas'

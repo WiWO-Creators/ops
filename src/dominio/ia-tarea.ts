@@ -1,5 +1,5 @@
 import type { AltaRapida, CatalogosAlta } from './alta-rapida.ts'
-import type { CamposTarea } from './ia.ts'
+import type { CamposTarea, SugeridosPorHabito } from './ia.ts'
 
 /**
  * Fusion del parser local con lo que interpreto el modelo, para el alta de tarea.
@@ -62,6 +62,11 @@ export interface TareaFusionada {
   priority: number | null
   assignees: number[]
   tags: string[]
+  /**
+   * Lo que sugiere el hábito del Espacio, ya validado contra los catalogos. **No se aplica nunca**:
+   * el formulario lo ofrece como chips junto a los demas sugeridos.
+   */
+  sugeridos: SugeridosPorHabito
   /** Campos cuyo valor final salio del modelo. El formulario los marca distinto en la vista previa. */
   deIa: CampoDeTarea[]
   /** Todo lo que nadie pudo resolver: del parser, del modelo, y lo descartado por no estar en catalogo. */
@@ -123,6 +128,60 @@ function comoNumero (valor: unknown): number | null {
   return typeof valor === 'number' && Number.isFinite(valor) ? valor : null
 }
 
+/** Los sugeridos de un servidor que no manda ninguno. */
+function sinSugeridos (): SugeridosPorHabito {
+  return { asignados: [], seguidores: [], etiquetas: [], tipo: null, prioridad: null, hito: null }
+}
+
+/**
+ * Lee la clave opcional `sugeridos` de `POST /ia/tareas/interpretar`.
+ *
+ * Como el resto de la lectura, lo que no encaja cae a vacio en vez de lanzar: un hábito mal
+ * formado no puede tumbar la interpretacion completa.
+ *
+ * @param valor lo que llego bajo `sugeridos`, sea lo que sea
+ * @returns los sugeridos normalizados; todo vacio si no hay objeto
+ */
+function leerSugeridos (valor: unknown): SugeridosPorHabito {
+  if (typeof valor !== 'object' || valor === null || Array.isArray(valor)) return sinSugeridos()
+
+  const crudo = valor as Record<string, unknown>
+  const lista = (campo: unknown): unknown[] => Array.isArray(campo) ? campo : []
+  const ids = (campo: unknown): number[] => [...new Set(lista(campo).map(comoNumero).filter((id) => id !== null))]
+
+  return {
+    asignados: ids(crudo.asignados),
+    seguidores: ids(crudo.seguidores),
+    etiquetas: lista(crudo.etiquetas).map(comoTexto).filter((nombre) => nombre !== null),
+    tipo: comoNumero(crudo.tipo),
+    prioridad: comoNumero(crudo.prioridad),
+    hito: comoNumero(crudo.hito)
+  }
+}
+
+/**
+ * Deja de los sugeridos solo lo que la interfaz sabe nombrar.
+ *
+ * Personas, prioridades y etiquetas se validan contra los catalogos, igual que lo que devuelve el
+ * modelo. El tipo y el hito son por Espacio y no hay catalogo aca: los filtra quien los ofrece.
+ *
+ * @param sugeridos los sugeridos tal como los leyo `leerSugeridos()`
+ * @param catalogos los catalogos conocidos
+ * @returns los sugeridos que se pueden ofrecer
+ */
+function validarSugeridos (sugeridos: SugeridosPorHabito, catalogos: CatalogosTarea): SugeridosPorHabito {
+  const conocida = (id: number): boolean => catalogos.personas.some((persona) => persona.id === id)
+
+  return {
+    asignados: sugeridos.asignados.filter(conocida),
+    seguidores: sugeridos.seguidores.filter(conocida),
+    etiquetas: resolverEtiquetas(sugeridos.etiquetas, catalogos.etiquetas).validas,
+    tipo: sugeridos.tipo,
+    prioridad: sugeridos.prioridad !== null && catalogos.prioridades.some((p) => p.id === sugeridos.prioridad) ? sugeridos.prioridad : null,
+    hito: sugeridos.hito
+  }
+}
+
 /**
  * Lee la respuesta de `POST /ia/tareas/interpretar` como `CamposTarea`.
  *
@@ -170,7 +229,10 @@ export function leerCamposTarea (valor: unknown): CamposTarea | null {
     milestone: comoNumero(crudo.milestone),
     assignees: lista(crudo.assignees).map(comoNumero).filter((id) => id !== null),
     tags: lista(crudo.tags).map(comoTexto).filter((etiqueta) => etiqueta !== null),
-    no_resuelto: lista(crudo.no_resuelto).map(comoTexto).filter((texto) => texto !== null)
+    no_resuelto: lista(crudo.no_resuelto).map(comoTexto).filter((texto) => texto !== null),
+    // Cuelga del `data`, junto a `campos`; se acepta tambien dentro de `campos` por la misma razon
+    // que la forma plana.
+    sugeridos: leerSugeridos(sobre.sugeridos ?? crudo.sugeridos)
   }
 }
 
@@ -195,6 +257,7 @@ export function fusionarInterpretacion (
     priority: local.priority,
     assignees: [...local.assignees],
     tags: [],
+    sugeridos: sinSugeridos(),
     deIa: [],
     noResuelto: [...local.sinResolver]
   }
@@ -204,6 +267,7 @@ export function fusionarInterpretacion (
   if (ia === null) return fusion
 
   fusion.noResuelto.push(...ia.no_resuelto)
+  fusion.sugeridos = validarSugeridos(ia.sugeridos ?? sinSugeridos(), catalogos)
 
   aplicarTextos(fusion, ia)
   aplicarFechas(fusion, ia)
