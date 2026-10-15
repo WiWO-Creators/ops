@@ -30,9 +30,25 @@ test('emitir y verificar devuelve el payload con 120 s de vida', () => {
   assert.equal(exp, AHORA + TTL_DE_BOLETO_SEGUNDOS)
   assert.equal(TTL_DE_BOLETO_SEGUNDOS, 120)
   assert.deepEqual({ ...payload, jti: undefined }, {
-    v: 1, suj: 'staff', id: 7, salas: ['staff:7', 'equipo', 'espacio:3'], doc: 'acta:12', esp: 3, exp, jti: undefined
+    v: 1, suj: 'staff', id: 7, salas: ['staff:7', 'equipo', 'espacio:3'], doc: 'acta:12', esp: 3, esc: true, exp, jti: undefined
   })
   assert.match(payload.jti, /^[0-9a-f]{16}$/)
+})
+
+test('la escritura viaja en el boleto: por defecto sí, y `escritura: false` lo deja en solo lectura', () => {
+  const sinDecir = emitirBoleto({ suj: 'staff', id: 7, salas: ['equipo'], doc: 'tarea:5' }, SECRETO, AHORA).boleto
+  const soloLectura = emitirBoleto({ suj: 'staff', id: 7, salas: ['equipo'], doc: 'tarea:5', escritura: false }, SECRETO, AHORA).boleto
+  const conEscritura = emitirBoleto({ suj: 'staff', id: 7, salas: ['equipo'], doc: 'tarea:5', escritura: true }, SECRETO, AHORA).boleto
+
+  assert.equal(verificarBoleto(sinDecir, SECRETO, AHORA).esc, true)
+  assert.equal(verificarBoleto(conEscritura, SECRETO, AHORA).esc, true)
+  assert.equal(verificarBoleto(soloLectura, SECRETO, AHORA).esc, false)
+})
+
+test('un boleto anterior, sin el campo de escritura, sigue valiendo y cuenta como con escritura', () => {
+  assert.equal(verificarBoleto(fabricar(BASE), SECRETO, AHORA).esc, true)
+  assert.equal(verificarBoleto(fabricar({ ...BASE, esc: false }), SECRETO, AHORA).esc, false)
+  assert.equal(verificarBoleto(fabricar({ ...BASE, esc: 'no' }), SECRETO, AHORA), null, 'un valor que no es booleano no vale')
 })
 
 test('un boleto vencido no vale, ni en el segundo exacto del vencimiento', () => {

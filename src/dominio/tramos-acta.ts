@@ -11,6 +11,10 @@ import { LIMITES_REPRODUCCION } from './diff-acta.ts'
  * pero conservando su HTML en vez de solo su texto: `bloquesDeActa` descarta marcas y bloques vacíos,
  * y sin ellos no se puede reconstruir qué insertar ni en qué posición del árbol.
  *
+ * El servicio no aplica el HTML del orbe contra el documento vivo (pisaría lo que alguien escribió y aún
+ * no se guardó) sino a 3 bandas: `ubicarTramosEnVivo` traduce el cambio base → orbe a operaciones sobre
+ * los bloques vivos.
+ *
  * Todo es puro: solo texto, sin DOM ni Yjs, para probarse con `node:test`. Espera HTML ya
  * normalizado por el esquema del acta (el servicio pasa los dos lados por `generateHTML`), donde
  * cada bloque de primer nivel es un único elemento.
@@ -219,4 +223,153 @@ function demasiadoLargo (htmlActual: string, htmlNuevo: string): boolean {
   const tope = LIMITES_REPRODUCCION.maxCaracteresHtml
 
   return htmlActual.length > tope || htmlNuevo.length > tope
+}
+
+/**
+ * Dónde se inserta el HTML de un tramo en el documento vivo, en índices de sus bloques de primer nivel
+ * al momento de planear: `inicio`/`fin` del documento, o `antes`/`despues` del bloque `vivo`.
+ */
+export type AnclaDeTramo =
+  | { tipo: 'inicio' }
+  | { tipo: 'fin' }
+  | { tipo: 'antes' | 'despues', vivo: number }
+
+/** Un tramo del orbe ya ubicado en el documento vivo. */
+export interface TramoUbicado {
+  /** El HTML de los bloques que entran. */
+  html: string
+  /** Cuántos bloques de primer nivel trae `html`. */
+  insertados: number
+  /**
+   * Los bloques vivos que se borran: los que el orbe cambió y siguen idénticos a la base, es decir,
+   * que nadie tocó desde que el board guardó.
+   */
+  borrarVivos: number[]
+  /** Cuántos bloques que el orbe cambió ya no coinciden con la base (los editó una persona) y se conservan. */
+  conservados: number
+  /** Dónde entra `html`. */
+  ancla: AnclaDeTramo
+}
+
+/**
+ * Empareja los bloques de la base con los del documento vivo cuando son idénticos, respetando el orden.
+ *
+ * @returns por cada bloque de la base, el índice del bloque vivo idéntico, o -1 si ya no está (lo editó
+ * o lo borró una persona). Si la tabla de comparación pasa del tope solo se emparejan prefijo y sufijo.
+ */
+function alinearBloques (base: readonly string[], vivos: readonly string[]): number[] {
+  const alineados: number[] = new Array<number>(base.length).fill(-1)
+  const prefijo = prefijoComun(base, vivos)
+  const sufijo = sufijoComun(base, vivos, Math.min(base.length, vivos.length) - prefijo)
+  const mediosBase = base.slice(prefijo, base.length - sufijo)
+  const mediosVivos = vivos.slice(prefijo, vivos.length - sufijo)
+
+  for (let i = 0; i < prefijo; i++) alineados[i] = i
+  for (let i = 1; i <= sufijo; i++) alineados[base.length - i] = vivos.length - i
+
+  if ((mediosBase.length + 1) * (mediosVivos.length + 1) > LIMITES_REPRODUCCION.maxCeldasLcs) return alineados
+
+  for (const [i, j] of parejasComunes(mediosBase, mediosVivos)) alineados[prefijo + i] = prefijo + j
+
+  return alineados
+}
+
+/** El índice de base más cercano a `desde` (hacia `paso`, +1 o -1) que sea estable, o -1 si no hay. */
+function vecinoEstable (estables: readonly boolean[], desde: number, paso: 1 | -1): number {
+  for (let i = desde; i >= 0 && i < estables.length; i += paso) {
+    if (estables[i] === true) return i
+  }
+
+  return -1
+}
+
+/** Lo que hace falta saber de la base y del documento vivo para ubicar cada tramo. */
+interface ContextoDeUbicacion {
+  /** Por bloque de la base, su bloque vivo idéntico o -1. */
+  alineados: readonly number[]
+  /** Bloques de la base que el orbe no toca y siguen idénticos en el documento vivo: sirven de ancla. */
+  estables: readonly boolean[]
+  totalVivos: number
+}
+
+/**
+ * Elige dónde entra el HTML de un tramo.
+ *
+ * - Solo inserción: justo después del bloque anterior, si sigue idéntico; si no (lo editó una persona),
+ *   tras lo que ella dejó, es decir, antes del siguiente bloque estable.
+ * - Reemplazo donde nadie tocó nada: en el mismo lugar de lo que se borra.
+ * - Reemplazo donde una persona editó algún bloque: sus bloques se conservan y lo del orbe va a
+ *   continuación, antes del siguiente bloque estable.
+ */
+function anclaDeTramo (desdeBase: number, borrar: number, borrarVivos: readonly number[], contexto: ContextoDeUbicacion): AnclaDeTramo {
+  const { alineados, estables, totalVivos } = contexto
+  const derecho = vecinoEstable(estables, desdeBase + borrar, 1)
+  const alDerecho: AnclaDeTramo = derecho === -1 ? { tipo: 'fin' } : { tipo: 'antes', vivo: alineados[derecho] ?? 0 }
+
+  if (borrar === 0) {
+    if (desdeBase === 0) return { tipo: 'inicio' }
+
+    return estables[desdeBase - 1] === true ? { tipo: 'despues', vivo: alineados[desdeBase - 1] ?? 0 } : alDerecho
+  }
+
+  if (borrarVivos.length < borrar) return alDerecho
+
+  const siguiente = Math.max(...borrarVivos) + 1
+
+  return siguiente < totalVivos ? { tipo: 'antes', vivo: siguiente } : { tipo: 'fin' }
+}
+
+/**
+ * Ubica en el documento vivo los cambios que el orbe hizo entre `htmlBase` y `htmlNuevo` (3 bandas).
+ *
+ * El orbe calculó su HTML sobre la base que el board tenía guardada; mientras tanto el documento vivo
+ * puede traer texto de personas que aún no se guardó. Por eso el cambio del orbe (base → nuevo) se
+ * traduce a operaciones sobre los bloques vivos: solo se borra un bloque si sigue idéntico a la base.
+ * Si una persona lo editó, su texto se conserva y lo del orbe entra a continuación; nunca se pisa
+ * texto ajeno. Los bloques que el orbe no tocó quedan intactos.
+ *
+ * Los tres HTML deben venir normalizados por el esquema del acta. Si el documento vivo ya es idéntico
+ * al nuevo, no hay nada que hacer.
+ *
+ * @param htmlBase el acta que el board guardó y sobre la que el orbe trabajó
+ * @param htmlVivo el acta como está ahora en el documento colaborativo (vacío si no se puede mapear a sus bloques)
+ * @param htmlNuevo el acta que propone el orbe
+ * @returns los tramos en orden, con índices de bloques del documento vivo; `[]` si no hay nada que aplicar
+ */
+export function ubicarTramosEnVivo (htmlBase: string, htmlVivo: string, htmlNuevo: string): TramoUbicado[] {
+  const tramos = tramosDeReemplazo(htmlBase, htmlNuevo)
+
+  if (tramos.length === 0 || htmlVivo === htmlNuevo) return []
+
+  const base = bloquesComoHtml(htmlBase)
+  const vivos = bloquesComoHtml(htmlVivo)
+  const alineados = alinearBloques(base, vivos)
+  const tocados = new Set<number>()
+  const desdeBase: number[] = []
+  let desfase = 0
+
+  // `desde` de cada tramo cuenta los anteriores ya aplicados: restar lo que movieron da su lugar en la base.
+  for (const tramo of tramos) {
+    const inicio = tramo.desde - desfase
+
+    desdeBase.push(inicio)
+    for (let i = 0; i < tramo.borrar; i++) tocados.add(inicio + i)
+    desfase += tramo.insertados - tramo.borrar
+  }
+
+  const estables = base.map((_, i) => (alineados[i] ?? -1) >= 0 && !tocados.has(i))
+  const contexto: ContextoDeUbicacion = { alineados, estables, totalVivos: vivos.length }
+
+  return tramos.map((tramo, orden) => {
+    const inicio = desdeBase[orden] ?? 0
+    const borrarVivos = Array.from({ length: tramo.borrar }, (_, i) => alineados[inicio + i] ?? -1).filter((vivo) => vivo >= 0)
+
+    return {
+      html: tramo.html,
+      insertados: tramo.insertados,
+      borrarVivos,
+      conservados: tramo.borrar - borrarVivos.length,
+      ancla: anclaDeTramo(inicio, tramo.borrar, borrarVivos, contexto)
+    }
+  })
 }

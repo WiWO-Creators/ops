@@ -29,6 +29,8 @@ import { registrar } from './registro.ts'
 export interface ContextoDeDocumento {
   staffId: number
   espacioId: number | null
+  /** `false` si el boleto dice que la persona puede leer pero no editar: su conexión es de solo lectura. */
+  escritura: boolean
 }
 
 /** Reintentos de un guardado que falló por un motivo transitorio, antes de soltar el documento. */
@@ -99,13 +101,27 @@ export function crearHocuspocus (config: ConfiguracionDelServicio, board: Client
     // El documento ya abierto sabe de qué Espacio es: un boleto de otro Espacio no entra.
     if (estado !== undefined && boleto.esp !== estado.espacioId) throw new Error('boleto_invalido')
 
-    return { staffId: boleto.id, espacioId: boleto.esp }
+    return { staffId: boleto.id, espacioId: boleto.esp, escritura: boleto.esc }
   }
 
-  async function onAuthenticate ({ token, documentName }: onAuthenticatePayload): Promise<ContextoDeDocumento> {
+  /**
+   * Autentica una conexión con su boleto y fija si puede escribir.
+   *
+   * Sin `escritura` en el boleto, o si el board ya negó guardar como esa persona en este documento
+   * (`vetados`), la conexión queda en solo lectura: Hocuspocus descarta sus actualizaciones del
+   * documento (los cursores y la presencia siguen funcionando).
+   *
+   * @throws Error `documento_desconocido` o `boleto_invalido` si el nombre o el boleto no valen
+   */
+  async function onAuthenticate ({ token, documentName, connectionConfig }: onAuthenticatePayload): Promise<ContextoDeDocumento> {
     reconocer(documentName, board)
 
-    return exigirBoleto(token, documentName, estados.get(documentName))
+    const estado = estados.get(documentName)
+    const contexto = exigirBoleto(token, documentName, estado)
+
+    if (!contexto.escritura || estado?.vetados.has(contexto.staffId) === true) connectionConfig.readOnly = true
+
+    return contexto
   }
 
   async function onLoadDocument ({ documentName, context }: onLoadDocumentPayload<ContextoDeDocumento>) {
@@ -125,6 +141,8 @@ export function crearHocuspocus (config: ConfiguracionDelServicio, board: Client
     const staffId = (context as Partial<ContextoDeDocumento> | undefined)?.staffId
 
     if (estado === undefined || typeof staffId !== 'number') return
+    // Defensa en profundidad: una conexión de solo lectura no debería llegar aquí, pero nunca figura como autora.
+    if ((context as Partial<ContextoDeDocumento>).escritura === false || estado.vetados.has(staffId)) return
 
     estado.autores.add(staffId)
     estado.ultimoEditor = staffId

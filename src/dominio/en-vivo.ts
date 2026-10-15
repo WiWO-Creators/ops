@@ -390,6 +390,37 @@ export function rutaDeAvalDelDocumento (documento: string, espacioId: number | n
 }
 
 /**
+ * Si una clase de documento necesita saber los permisos de la persona (`GET /me`) para decidir si
+ * puede escribir. Hoy solo la descripción de la tarea: la API de los permisos no expone ninguna
+ * marca de «puede editar» en el recurso.
+ *
+ * @param clase la clase del documento
+ */
+export function exigePermisosParaEscribir (clase: ClaseDeDocumento): boolean {
+  return clase === 'tarea'
+}
+
+/**
+ * Si la persona puede escribir en un documento, con el mismo criterio con que la interfaz ofrece «editar».
+ *
+ * - `tarea`: tiene `edit` en `permissions.tasks` de `GET /me` (lo que el board revalida al guardar como
+ *   `tasks.edit`). Sin permisos legibles se niega: ante la duda, solo lectura.
+ * - `acta` y `ticket-borrador`: quien puede leerlos puede escribir; la pantalla los ofrece a todo el
+ *   equipo y el board decide al guardar (si niega, el servicio descarta a esa persona sin cerrar la sesión).
+ *
+ * @param clase la clase del documento
+ * @param permisos `data.permissions` de `GET /me`; solo se mira para la tarea
+ * @returns `true` si puede escribir
+ */
+export function puedeEscribirDocumento (clase: ClaseDeDocumento, permisos: unknown): boolean {
+  if (!exigePermisosParaEscribir(clase)) return true
+
+  const tareas = esObjeto(permisos) ? permisos.tasks : undefined
+
+  return Array.isArray(tareas) && tareas.includes('edit')
+}
+
+/**
  * Lee y valida el cuerpo de `POST /api/en-vivo/boleto`.
  *
  * El acta exige `espacio_id`; la tarea y el borrador de ticket no cuelgan de un Espacio, así que

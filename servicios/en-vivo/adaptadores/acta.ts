@@ -11,7 +11,7 @@ import type { Doc } from 'yjs'
 import { extensionesDeActa } from '../../../src/lib/en-vivo/extensiones-acta.ts'
 import type { ClienteBoard } from '../cliente-board.ts'
 import { registrar } from '../registro.ts'
-import { desenvolver, esperaTransitoria } from './comun.ts'
+import { descartarEditorSinPermiso, desenvolver, esperaTransitoria } from './comun.ts'
 import {
   ErrorDeAdaptador,
   type AdaptadorDeDocumento,
@@ -26,6 +26,10 @@ import {
  * El board guarda HTML; Yjs guarda un árbol. Se convierte en los dos sentidos con el esquema de
  * `extensionesDeActa()`, el mismo del editor del navegador. El campo Yjs es `default`, el que
  * usa la extensión de colaboración de TipTap.
+ *
+ * La revisión (`date_updated` del GET y del PUT) es un texto opaco que el board arma como
+ * `<ISO>~<huella>`: el servicio solo la guarda, la compara por igualdad y la devuelve tal cual; no la
+ * interpreta como fecha.
  */
 
 /** Nombre del fragmento Yjs donde vive el texto. */
@@ -116,6 +120,7 @@ export function crearAdaptadorDeActa (board: ClienteBoard): AdaptadorDeDocumento
         ultimoHtml: yDocAHtml(ydoc),
         autores: new Set(),
         ultimoEditor: null,
+        vetados: new Set(),
         origen: ORIGEN_COLABORATIVO,
         pendiente: false,
         reintentos: 0,
@@ -167,6 +172,19 @@ export function crearAdaptadorDeActa (board: ClienteBoard): AdaptadorDeDocumento
     return await recargar(documento, estado, 'externo')
   }
 
+  /**
+   * El board negó guardar como el último editor (403/404): se lo descarta y se reintenta con otra persona
+   * que haya escrito; si no queda ninguna, se recarga lo del board. Solo si el propio acta ya no está
+   * disponible (la lectura da 403/404) el resultado es `sin_acceso` y se cierra para todos.
+   */
+  async function alNegarseElGuardado (documento: Document, estado: EstadoDeDocumento): Promise<ResultadoDeGuardado> {
+    if (descartarEditorSinPermiso(documento, estado, `acta:${estado.id}`)) return await guardar(documento, estado)
+
+    const recarga = await recargar(documento, estado, 'sin_permiso')
+
+    return recarga === 'recargado' ? 'recargado' : recarga === 'sin_acceso' ? 'sin_acceso' : 'reintentar'
+  }
+
   async function guardar (documento: Document, estado: EstadoDeDocumento): Promise<ResultadoDeGuardado> {
     const html = yDocAHtml(documento)
 
@@ -214,7 +232,7 @@ export function crearAdaptadorDeActa (board: ClienteBoard): AdaptadorDeDocumento
       return recarga === 'recargado' ? 'recargado' : recarga === 'sin_acceso' ? 'sin_acceso' : 'reintentar'
     }
 
-    if (http === 403 || http === 404) return 'sin_acceso'
+    if (http === 403 || http === 404) return await alNegarseElGuardado(documento, estado)
     if (esperaTransitoria(http)) return 'reintentar'
 
     registrar({ evento: 'guardado_rechazado', documento: `acta:${estado.id}`, estado: http })

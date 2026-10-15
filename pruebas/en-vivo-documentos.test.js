@@ -89,6 +89,10 @@ test('dos personas convergen y el board recibe UN guardado con los dos autores',
   assert.deepEqual(textos(ana.ydoc), ['Título', 'Inicial'])
   assert.deepEqual(textos(beto.ydoc), ['Título', 'Inicial'])
 
+  const revisionInicial = board.estado.revision
+
+  assert.match(revisionInicial, /^\d{4}-\d{2}-\d{2}T[\d:]+Z~[0-9a-f]{16}$/, 'la revisión del acta es un texto opaco «<ISO>~huella»')
+
   agregarParrafo(ana.ydoc, 'Línea de Ana')
   agregarParrafo(beto.ydoc, 'Línea de Beto')
 
@@ -101,7 +105,7 @@ test('dos personas convergen y el board recibe UN guardado con los dos autores',
 
   assert.equal(put.origen, 'colaborativo')
   assert.equal(put.espacio_id, 3)
-  assert.equal(put.revision, 'r1')
+  assert.equal(put.revision, revisionInicial)
   assert.deepEqual([...put.autores].sort(), [11, 22])
   assert.ok([11, 22].includes(put.staff_id))
   assert.ok(put.content.includes('Línea de Ana') && put.content.includes('Línea de Beto'))
@@ -156,16 +160,82 @@ test('un evento «acta» del board con una revisión nueva recarga a los conecta
   await esperarHasta(() => textos(ana.ydoc).join('|') === 'Editada fuera')
 })
 
-test('si el board niega el acta al guardar, se avisa «sin_acceso» y se cierra', async () => {
+test('si el board niega a quien guardaba (403), se lo descarta y se guarda como otro editor sin cerrar a nadie', async () => {
+  const { board, servicio } = await montar()
+  const ana = conectar(servicio, { staffId: 11 })
+  const beto = conectar(servicio, { staffId: 22 })
+
+  await esperarHasta(() => ana.sincronizado && beto.sincronizado)
+  board.estado.denegarA.add(22)
+
+  agregarParrafo(ana.ydoc, 'Línea de Ana')
+  await esperar(100)
+  agregarParrafo(beto.ydoc, 'Línea de Beto')
+
+  await esperarHasta(() => board.estado.puts.length === 1, 6000, 'el guardado como Ana')
+
+  const [put] = board.estado.puts
+
+  assert.equal(put.staff_id, 11)
+  assert.deepEqual(put.autores, [11], 'Beto ya no figura como autor')
+  assert.equal(ana.statelesss.some((m) => m.t === 'sin_acceso') || beto.statelesss.some((m) => m.t === 'sin_acceso'), false)
+  assert.equal(ana.fallo || beto.fallo, false)
+
+  // Beto quedó en solo lectura: lo que escriba después no entra al documento ni cuenta como autoría.
+  agregarParrafo(beto.ydoc, 'Beto sigue escribiendo')
+  await esperar(600)
+  assert.equal(textos(ana.ydoc).includes('Beto sigue escribiendo'), false)
+  assert.equal(board.estado.puts.length, 1)
+})
+
+test('si el único editor es negado (403) se recarga lo del board; solo si el acta ya no existe se cierra', async () => {
   const { board, servicio } = await montar()
   const ana = conectar(servicio, { staffId: 11 })
 
   await esperarHasta(() => ana.sincronizado)
-  board.estado.estadoPut = 403
+  board.estado.denegarA.add(11)
   agregarParrafo(ana.ydoc, 'No debería guardarse')
 
-  await esperarHasta(() => ana.statelesss.some((m) => m.t === 'sin_acceso'), 4000, 'el aviso de sin acceso')
+  await esperarHasta(() => ana.statelesss.some((m) => m.t === 'recargado'), 4000, 'la recarga')
+  assert.deepEqual(ana.statelesss.find((m) => m.t === 'recargado'), { t: 'recargado', motivo: 'sin_permiso' })
+  assert.equal(ana.statelesss.some((m) => m.t === 'sin_acceso'), false)
+  await esperarHasta(() => textos(ana.ydoc).join('|') === 'Inicial')
   assert.equal(board.estado.puts.length, 0)
+
+  // Ya sin permiso para guardar y con el acta fuera de alcance: ahí sí, sin acceso.
+  const otra = await montar()
+  const beto = conectar(otra.servicio, { staffId: 22 })
+
+  await esperarHasta(() => beto.sincronizado)
+  otra.board.estado.estadoPut = 403
+  otra.board.estado.estadoGet = 404
+  agregarParrafo(beto.ydoc, 'No debería guardarse')
+  await esperarHasta(() => beto.statelesss.some((m) => m.t === 'sin_acceso'), 4000, 'el aviso de sin acceso')
+  assert.equal(otra.board.estado.puts.length, 0)
+})
+
+test('un boleto sin escritura abre el acta en solo lectura: no escribe, no figura como autor y no provoca 403', async () => {
+  const { board, servicio } = await montar({ content: '<p>Inicial</p>' })
+  const lector = conectar(servicio, {
+    staffId: 33,
+    boleto: boletoDe({ suj: 'staff', id: 33, salas: [], doc: 'acta:12', esp: 3, escritura: false })
+  })
+  const ana = conectar(servicio, { staffId: 11 })
+
+  await esperarHasta(() => lector.sincronizado && ana.sincronizado)
+  board.estado.denegarA.add(33)
+
+  agregarParrafo(lector.ydoc, 'Lo que el lector intenta escribir')
+  await esperar(700)
+  assert.deepEqual(textos(ana.ydoc), ['Inicial'])
+  assert.equal(board.estado.puts.length, 0)
+
+  agregarParrafo(ana.ydoc, 'Línea de Ana')
+  await esperarHasta(() => board.estado.puts.length === 1, 4000, 'el guardado de Ana')
+  assert.deepEqual(board.estado.puts[0].autores, [11])
+  assert.equal(board.estado.puts[0].staff_id, 11)
+  assert.equal(ana.statelesss.some((m) => m.t === 'sin_acceso') || lector.statelesss.some((m) => m.t === 'sin_acceso'), false)
+  await esperarHasta(() => textos(lector.ydoc).includes('Línea de Ana'), 3000, 'que el lector vea lo de Ana')
 })
 
 test('si el board falla (5xx) el guardado se reintenta y no se pierde', async () => {
@@ -238,8 +308,8 @@ test('el servicio firma sus llamadas al board', async () => {
 })
 
 /** Lo que el board manda al servicio para que el orbe escriba en un acta abierta. */
-async function aplicarComoBoard (servicio, { id = 12, html, crudo = null, staffId = 22, espacioId = 3, secreto = SECRETO } = {}) {
-  const cuerpo = crudo ?? JSON.stringify({ html, staff_id: staffId, espacio_id: espacioId })
+async function aplicarComoBoard (servicio, { id = 12, html, base = '<p>Inicial</p>', revision = null, crudo = null, staffId = 22, espacioId = 3, secreto = SECRETO } = {}) {
+  const cuerpo = crudo ?? JSON.stringify({ html, base, revision, staff_id: staffId, espacio_id: espacioId })
   const respuesta = await fetch(`${servicio.urlBase}/interno/actas/${id}/aplicar`, {
     method: 'POST',
     headers: { 'content-type': 'application/json', ...firmar(secreto, 'POST', `interno/actas/${id}/aplicar`, cuerpo) },
@@ -294,8 +364,11 @@ test('aplicar exige firma, cuerpo válido y el Espacio del acta abierta', async 
   await esperarHasta(() => ana.sincronizado)
 
   assert.equal((await aplicarComoBoard(servicio, { html: '<p>x</p>', secreto: 'otro-secreto-que-no-es-el-del-servicio-123' })).estado, 401)
-  assert.equal((await aplicarComoBoard(servicio, { crudo: '{"html":5,"staff_id":22,"espacio_id":3}' })).estado, 422)
-  assert.equal((await aplicarComoBoard(servicio, { crudo: '{"html":"<p>x</p>","staff_id":0,"espacio_id":3}' })).estado, 422)
+  assert.equal((await aplicarComoBoard(servicio, { crudo: '{"html":5,"base":"<p>Inicial</p>","staff_id":22,"espacio_id":3}' })).estado, 422)
+  assert.equal((await aplicarComoBoard(servicio, { crudo: '{"html":"<p>x</p>","base":"<p>Inicial</p>","staff_id":0,"espacio_id":3}' })).estado, 422)
+  assert.equal((await aplicarComoBoard(servicio, { crudo: '{"html":"<p>x</p>","staff_id":22,"espacio_id":3}' })).estado, 422, 'sin base no hay 3 bandas')
+  assert.equal((await aplicarComoBoard(servicio, { crudo: '{"html":"<p>x</p>","base":7,"staff_id":22,"espacio_id":3}' })).estado, 422)
+  assert.equal((await aplicarComoBoard(servicio, { crudo: '{"html":"<p>x</p>","base":"","revision":5,"staff_id":22,"espacio_id":3}' })).estado, 422)
   assert.equal((await aplicarComoBoard(servicio, { crudo: 'no es json {' })).estado, 422)
   assert.equal((await aplicarComoBoard(servicio, { html: '<p>x</p>', espacioId: 4 })).estado, 404)
 
@@ -312,8 +385,11 @@ test('el orbe escribe por tramos con su cursor, y el guardado sale con origen or
   await esperarHasta(() => ana.sincronizado && beto.sincronizado)
 
   const orbe = observarOrbe(ana)
+  const revisionInicial = board.estado.revision
   const respuesta = await aplicarComoBoard(servicio, {
     html: '<h1>Acta</h1><p>Uno corregido</p><p>Dos</p><p>Tres</p>',
+    base: '<h1>Acta</h1><p>Uno</p><p>Dos</p>',
+    revision: revisionInicial,
     staffId: 33
   })
 
@@ -328,7 +404,7 @@ test('el orbe escribe por tramos con su cursor, y el guardado sale con origen or
   assert.equal(put.staff_id, 33)
   assert.deepEqual(put.autores, [33])
   assert.equal(put.espacio_id, 3)
-  assert.equal(put.revision, 'r1')
+  assert.equal(put.revision, revisionInicial)
   assert.ok(put.content.includes('Uno corregido') && put.content.includes('Tres'))
 
   // Las dos personas ven el texto final, y el orbe apareció con su cursor y se fue.
@@ -356,7 +432,11 @@ test('si alguien agrega un párrafo mientras escribe el orbe, el reemplazo cae e
 
   const orbe = observarOrbe(ana)
 
-  await aplicarComoBoard(servicio, { html: '<h1>Acta</h1><p>Uno</p><p>Dos revisado</p><p>Tres</p>', staffId: 33 })
+  await aplicarComoBoard(servicio, {
+    html: '<h1>Acta</h1><p>Uno</p><p>Dos revisado</p><p>Tres</p>',
+    base: '<h1>Acta</h1><p>Uno</p><p>Dos</p>',
+    staffId: 33
+  })
   await esperarHasta(() => orbe.vistos.length > 0, 3000, 'que aparezca el orbe')
 
   // Beto abre un párrafo arriba del todo mientras el orbe trabaja.
@@ -386,4 +466,87 @@ test('un acta ya igual a lo que manda el orbe se acepta pero no guarda nada', as
   assert.equal((await aplicarComoBoard(servicio, { html: '<p>Inicial</p>' })).estado, 202)
   await esperar(500)
   assert.equal(board.estado.puts.length, 0)
+})
+
+/** Agrega texto al final del bloque `indice`, como lo hace quien escribe en ese párrafo. */
+function anexarTexto (ydoc, indice, texto) {
+  const contenido = ydoc.getXmlFragment('default').get(indice).get(0)
+
+  contenido.insert(contenido.length, texto)
+}
+
+const ACTA_BASE = '<h1>Acta</h1><p>Uno</p><p>Dos</p><p>Tres</p>'
+
+/** Monta el acta con dos personas conectadas y el guardado automático lejos, para que sus cambios queden «sin guardar». */
+async function montarConDosPersonas () {
+  const montaje = await montar({ content: ACTA_BASE }, { EN_VIVO_DEBOUNCE_MS: '8000', EN_VIVO_MAX_DEBOUNCE_MS: '9000' })
+  const ana = conectar(montaje.servicio, { staffId: 11 })
+  const beto = conectar(montaje.servicio, { staffId: 22 })
+
+  await esperarHasta(() => ana.sincronizado && beto.sincronizado)
+
+  return { ...montaje, ana, beto }
+}
+
+test('3 bandas: una edición humana sin guardar en el bloque que el orbe también cambia conserva los dos textos', async () => {
+  const { board, servicio, ana, beto } = await montarConDosPersonas()
+
+  anexarTexto(ana.ydoc, 1, ' de Ana')
+  await esperarHasta(() => textos(beto.ydoc)[1] === 'Uno de Ana', 3000, 'que la edición de Ana llegue al servicio')
+
+  const respuesta = await aplicarComoBoard(servicio, {
+    html: '<h1>Acta</h1><p>Uno del orbe</p><p>Dos</p><p>Tres</p>',
+    base: ACTA_BASE,
+    revision: board.estado.revision,
+    staffId: 33
+  })
+
+  assert.equal(respuesta.estado, 202)
+  await esperarHasta(() => board.estado.puts.length === 1, 10_000, 'el guardado del orbe')
+
+  const esperado = ['Acta', 'Uno de Ana', 'Uno del orbe', 'Dos', 'Tres']
+
+  assert.deepEqual(textos(ana.ydoc), esperado)
+  assert.deepEqual(textos(beto.ydoc), esperado)
+  assert.ok(board.estado.puts[0].content.includes('Uno de Ana') && board.estado.puts[0].content.includes('Uno del orbe'))
+  assert.equal(board.estado.puts[0].origen, 'orb')
+  assert.deepEqual([...board.estado.puts[0].autores].sort(), [11, 33], 'Ana figura como autora de lo suyo y 33 de lo del orbe')
+})
+
+test('3 bandas: los bloques que el orbe no toca quedan intactos aunque una persona los haya editado', async () => {
+  const { board, servicio, ana, beto } = await montarConDosPersonas()
+
+  anexarTexto(ana.ydoc, 1, ' de Ana')
+  anexarTexto(beto.ydoc, 3, ' de Beto')
+  await esperarHasta(() => textos(ana.ydoc)[3] === 'Tres de Beto' && textos(beto.ydoc)[1] === 'Uno de Ana', 3000, 'que lleguen las dos ediciones')
+
+  await aplicarComoBoard(servicio, {
+    html: '<h1>Acta</h1><p>Uno</p><p>Dos revisado</p><p>Tres</p>',
+    base: ACTA_BASE,
+    staffId: 33
+  })
+  await esperarHasta(() => board.estado.puts.length === 1, 10_000, 'el guardado del orbe')
+
+  assert.deepEqual(textos(ana.ydoc), ['Acta', 'Uno de Ana', 'Dos revisado', 'Tres de Beto'])
+  assert.deepEqual(textos(beto.ydoc), textos(ana.ydoc))
+})
+
+test('3 bandas: lo escrito sin guardar al final del acta sobrevive cuando el orbe también agrega', async () => {
+  const { board, servicio, ana, beto } = await montarConDosPersonas()
+
+  agregarParrafo(ana.ydoc, 'Cierre de Ana')
+  await esperarHasta(() => textos(beto.ydoc).length === 5, 3000, 'que llegue el párrafo de Ana')
+
+  await aplicarComoBoard(servicio, {
+    html: `${ACTA_BASE}<p>Cierre del orbe</p>`,
+    base: ACTA_BASE,
+    staffId: 33
+  })
+  await esperarHasta(() => board.estado.puts.length === 1, 10_000, 'el guardado del orbe')
+
+  const final = textos(ana.ydoc)
+
+  assert.equal(final.length, 6)
+  assert.ok(final.includes('Cierre de Ana') && final.includes('Cierre del orbe'))
+  assert.deepEqual(textos(beto.ydoc), final)
 })

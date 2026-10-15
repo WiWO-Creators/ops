@@ -23,6 +23,11 @@ export interface EstadoDeDocumento {
   /** Personas que editaron desde el último guardado. */
   autores: Set<number>
   ultimoEditor: number | null
+  /**
+   * Personas a las que el board negó guardar en este documento (403/404 al escribir como ellas). Dejan
+   * de figurar como autoras y sus conexiones pasan a solo lectura; el documento sigue abierto para el resto.
+   */
+  vetados: Set<number>
   /** Con qué origen rotula el board el próximo guardado; el orbe lo pone en `orb` y todo guardado lo repone. */
   origen: OrigenDeGuardado
   /** El último intento de guardar falló por un motivo transitorio y los cambios siguen sin guardar. */

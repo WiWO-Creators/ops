@@ -14,12 +14,14 @@ import {
   debeSondear,
   esSalaValida,
   eventosDeVentanaPara,
+  exigePermisosParaEscribir,
   funcionDeDocumento,
   leerLoteDeEventos,
   leerMensajeDelCliente,
   leerMensajeDelServidor,
   leerNombreDeDocumento,
   leerPedidoDeBoleto,
+  puedeEscribirDocumento,
   rutaDeAvalDelDocumento,
   salaCorrespondeAlSujeto,
   salasPermitidasPorDefecto,
@@ -168,6 +170,22 @@ test('documentos colaborativos: nombre, interruptor y ruta que avala el permiso'
   assert.equal(rutaDeAvalDelDocumento('tarea:500', 3), '/tasks/500')
   assert.equal(rutaDeAvalDelDocumento('ticket-borrador:40', null), '/tickets/40')
   assert.equal(rutaDeAvalDelDocumento('otro:1', 3), null)
+})
+
+test('quién puede escribir en un documento: la tarea pide `tasks.edit`; el acta y el borrador, a quien los lee', () => {
+  assert.equal(exigePermisosParaEscribir('tarea'), true)
+  assert.equal(exigePermisosParaEscribir('acta'), false)
+  assert.equal(exigePermisosParaEscribir('ticket-borrador'), false)
+
+  assert.equal(puedeEscribirDocumento('tarea', { tasks: ['view', 'create', 'edit'] }), true)
+  assert.equal(puedeEscribirDocumento('tarea', { tasks: ['view'] }), false)
+  // Sin permisos legibles se niega: ante la duda, solo lectura.
+  for (const raro of [undefined, null, {}, { tasks: 'edit' }, { tasks: null }, 'edit', []]) {
+    assert.equal(puedeEscribirDocumento('tarea', raro), false)
+  }
+
+  assert.equal(puedeEscribirDocumento('acta', null), true)
+  assert.equal(puedeEscribirDocumento('ticket-borrador', undefined), true)
 })
 
 test('eventos de ventana por tipo de cambio', () => {

@@ -8,7 +8,7 @@ import {
 import type { Document } from '@hocuspocus/server'
 
 import { LIMITES_REPRODUCCION, TIEMPOS_REPRODUCCION } from '../../src/dominio/diff-acta.ts'
-import { bloquesComoHtml, tramosDeReemplazo, type TramoDeReemplazo } from '../../src/dominio/tramos-acta.ts'
+import { bloquesComoHtml, ubicarTramosEnVivo, type AnclaDeTramo, type TramoUbicado } from '../../src/dominio/tramos-acta.ts'
 import { htmlAYDoc, yDocAHtml } from './adaptadores/acta.ts'
 import type { ServicioDeDocumentos } from './documentos.ts'
 import { registrar } from './registro.ts'
@@ -17,10 +17,15 @@ import { registrar } from './registro.ts'
  * El Thinking Orb escribe en el Meeting Paper que alguien tiene abierto en edición conjunta.
  *
  * Si el documento está abierto, el board no guarda el HTML que calculó el orbe: lo manda aquí
- * (`POST interno/actas/{id}/aplicar`) y el servicio lo aplica al documento Yjs por tramos, con un
- * cursor propio visible para quienes editan, como un colaborador más. Al terminar guarda de
- * inmediato con origen `orb` y la persona que lo pidió como autora, de modo que el historial
- * distingue lo del orbe de lo escrito a mano.
+ * (`POST interno/actas/{id}/aplicar`, con `{html, base, revision, staff_id, espacio_id}`) y el
+ * servicio lo aplica al documento Yjs por tramos, con un cursor propio visible para quienes editan,
+ * como un colaborador más. Al terminar guarda de inmediato con origen `orb` y la persona que lo pidió
+ * como autora, de modo que el historial distingue lo del orbe de lo escrito a mano.
+ *
+ * Se aplica a 3 bandas: `base` es el acta que el board tenía guardada cuando el orbe trabajó, `html`
+ * lo que el orbe propone y el documento vivo lo que hay ahora, con texto de personas aún sin guardar.
+ * Del cambio base → html solo se reemplazan los bloques que siguen idénticos a la base; si una persona
+ * editó uno, se conserva su texto y lo del orbe entra a continuación. Nunca se pisa texto ajeno.
  *
  * El cursor viaja por el awareness del propio documento de Hocuspocus: `Document` difunde a todas
  * las conexiones los cambios de su estado local (`awareness.on('update')` en Document.ts), así que
@@ -44,7 +49,12 @@ type HijoDelFragmento = ReturnType<XmlFragment['toArray']>[number]
 
 /** Lo que el board manda a `interno/actas/{id}/aplicar`. */
 export interface PedidoDeAplicar {
+  /** El acta que propone el orbe. */
   html: string
+  /** El acta guardada en el board sobre la que el orbe calculó `html` (puede ser vacía). */
+  base: string
+  /** La revisión opaca de `base` (`<ISO>~<huella>`); solo se compara por igualdad, para el registro. */
+  revision: string | null
   staffId: number
   espacioId: number
 }
@@ -68,7 +78,8 @@ function esEnteroPositivo (valor: unknown): valor is number {
  * Lee el cuerpo de `aplicar`.
  *
  * @param texto el cuerpo crudo
- * @returns el pedido, o `null` si no es JSON, falta algún campo o alguno tiene el tipo equivocado
+ * @returns el pedido, o `null` si no es JSON, falta algún campo (`base` es obligatorio) o alguno tiene
+ * el tipo equivocado
  */
 export function leerPedidoDeAplicar (texto: string): PedidoDeAplicar | null {
   let dato: unknown
@@ -81,11 +92,13 @@ export function leerPedidoDeAplicar (texto: string): PedidoDeAplicar | null {
 
   if (typeof dato !== 'object' || dato === null || Array.isArray(dato)) return null
 
-  const { html, staff_id: staffId, espacio_id: espacioId } = dato as Record<string, unknown>
+  const { html, base, revision = null, staff_id: staffId, espacio_id: espacioId } = dato as Record<string, unknown>
 
-  if (typeof html !== 'string' || !esEnteroPositivo(staffId) || !esEnteroPositivo(espacioId)) return null
+  if (typeof html !== 'string' || typeof base !== 'string') return null
+  if (revision !== null && typeof revision !== 'string') return null
+  if (!esEnteroPositivo(staffId) || !esEnteroPositivo(espacioId)) return null
 
-  return { html, staffId, espacioId }
+  return { html, base, revision, staffId, espacioId }
 }
 
 const esperarReal = async (ms: number): Promise<void> => {
@@ -126,15 +139,36 @@ function mostrarCursor (documento: Document, anchor: unknown, head: unknown): vo
 }
 
 /**
+ * El índice, en el fragmento tal como está ahora, donde entra el HTML de un tramo.
+ *
+ * El ancla se resuelve por identidad del bloque (no por posición): si una persona agrega o quita un
+ * párrafo mientras el orbe escribe, la inserción cae junto a su bloque. Si el bloque ancla ya no
+ * existe, el HTML entra al final.
+ *
+ * @param modelo los hijos del fragmento al planear; los índices del ancla apuntan a él
+ */
+function indiceDeEntrada (fragmento: XmlFragment, modelo: readonly HijoDelFragmento[], ancla: AnclaDeTramo): number {
+  if (ancla.tipo === 'inicio') return 0
+  if (ancla.tipo === 'fin') return fragmento.length
+
+  const vivo = indiceVivo(fragmento, modelo[ancla.vivo])
+
+  if (vivo < 0) return fragmento.length
+
+  return ancla.tipo === 'antes' ? vivo : vivo + 1
+}
+
+/**
  * Aplica los tramos al documento, uno por uno, con el cursor del orbe a la vista.
  *
- * Los bloques que se borran y el bloque previo al que se inserta se localizan por identidad y no por
- * posición: si alguien agrega o quita un párrafo mientras el orbe escribe, el reemplazo cae donde
- * debe y no sobre otro bloque.
+ * Los tramos traen índices de bloques del documento tal como estaba al planear (`modelo`); los bloques
+ * que se borran y el bloque ancla se localizan por identidad Yjs y no por posición, de modo que los
+ * cambios de otras personas mientras el orbe escribe no desplazan el reemplazo hacia otro bloque. Solo se
+ * borran bloques que siguen idénticos a la base; el resto del documento no se toca.
  *
  * @returns cuántos tramos se aplicaron
  */
-async function reproducir (documento: Document, tramos: TramoDeReemplazo[], esperar: (ms: number) => Promise<void>): Promise<number> {
+async function reproducir (documento: Document, tramos: TramoUbicado[], esperar: (ms: number) => Promise<void>): Promise<number> {
   const fragmento = documento.getXmlFragment(CAMPO)
   const modelo: HijoDelFragmento[] = fragmento.toArray()
   const pausa = async (ms: number, animada: boolean): Promise<void> => {
@@ -143,8 +177,7 @@ async function reproducir (documento: Document, tramos: TramoDeReemplazo[], espe
 
   if (tramos.length === 0) return 0
 
-  const primerBloque = modelo[tramos[0]?.desde ?? 0]
-  const inicio = posicionEn(fragmento, primerBloque === undefined ? fragmento.length : Math.max(0, indiceVivo(fragmento, primerBloque)))
+  const inicio = posicionEn(fragmento, indiceDeEntrada(fragmento, modelo, tramos[0]?.ancla ?? { tipo: 'fin' }))
 
   mostrarCursor(documento, inicio, inicio)
   await pausa(TIEMPOS_REPRODUCCION.intro, true)
@@ -153,16 +186,19 @@ async function reproducir (documento: Document, tramos: TramoDeReemplazo[], espe
     if (documento.isDestroyed) break
 
     const animada = orden < LIMITES_REPRODUCCION.maxBloquesAnimados
-    const sobran = modelo.slice(tramo.desde, tramo.desde + tramo.borrar)
-    const ancla = tramo.desde > 0 ? modelo[tramo.desde - 1] : undefined
+    const sobran = tramo.borrarVivos.flatMap((indice) => modelo[indice] ?? [])
     const nuevos = nodosDe(tramo.html)
 
-    // Primero se marca lo que se va a reemplazar...
+    // Primero se marca lo que se va a reemplazar (o el punto donde se escribirá)...
     if (animada && sobran.length > 0) {
       const primero = indiceVivo(fragmento, sobran[0])
       const ultimo = indiceVivo(fragmento, sobran.at(-1))
 
       if (primero >= 0 && ultimo >= primero) mostrarCursor(documento, posicionEn(fragmento, primero), posicionEn(fragmento, ultimo + 1))
+    } else if (animada) {
+      const punto = posicionEn(fragmento, indiceDeEntrada(fragmento, modelo, tramo.ancla))
+
+      mostrarCursor(documento, punto, punto)
     }
     await pausa(TIEMPOS_REPRODUCCION.salto + (sobran.length > 0 ? TIEMPOS_REPRODUCCION.pausaDeBorrado : 0), animada)
 
@@ -174,11 +210,8 @@ async function reproducir (documento: Document, tramos: TramoDeReemplazo[], espe
         if (indice >= 0) fragmento.delete(indice, 1)
       }
 
-      const indiceAncla = indiceVivo(fragmento, ancla)
-
-      fragmento.insert(ancla === undefined ? 0 : indiceAncla >= 0 ? indiceAncla + 1 : fragmento.length, nuevos)
+      fragmento.insert(indiceDeEntrada(fragmento, modelo, tramo.ancla), nuevos)
     }, ORIGEN_ORBE)
-    modelo.splice(tramo.desde, tramo.borrar, ...nuevos)
 
     const texto = ultimoTexto(nuevos.at(-1))
     const fin = texto === null
@@ -193,17 +226,20 @@ async function reproducir (documento: Document, tramos: TramoDeReemplazo[], espe
 }
 
 /**
- * Los tramos que llevan el documento vivo al HTML nuevo. Si los bloques del HTML del documento no
- * coinciden uno a uno con los hijos del árbol Yjs (no debería pasar con el esquema del acta), se
- * reemplaza todo en un tramo para no tocar bloques ajenos.
+ * Los tramos del orbe ubicados en el documento vivo (3 bandas: base, orbe y documento vivo).
+ *
+ * Los bloques del HTML del documento deben coincidir uno a uno con los hijos del árbol Yjs para poder
+ * apuntar a ellos; con el esquema del acta siempre ocurre. Si no, el documento se trata como sin
+ * bloques reconocibles: no se borra nada ajeno y lo del orbe entra al final.
+ *
+ * @param htmlBase el acta guardada sobre la que el orbe trabajó, normalizada
+ * @param htmlNuevo el acta que propone el orbe, normalizada
  */
-function planearTramos (documento: Document, htmlNuevo: string): TramoDeReemplazo[] {
-  const htmlActual = yDocAHtml(documento)
+function planearTramos (documento: Document, htmlBase: string, htmlNuevo: string): TramoUbicado[] {
+  const htmlVivo = yDocAHtml(documento)
+  const mapeable = bloquesComoHtml(htmlVivo).length === documento.getXmlFragment(CAMPO).length
 
-  if (bloquesComoHtml(htmlActual).length === documento.getXmlFragment(CAMPO).length) return tramosDeReemplazo(htmlActual, htmlNuevo)
-  if (htmlActual === htmlNuevo) return []
-
-  return [{ desde: 0, borrar: documento.getXmlFragment(CAMPO).length, html: htmlNuevo, insertados: bloquesComoHtml(htmlNuevo).length }]
+  return ubicarTramosEnVivo(htmlBase, mapeable ? htmlVivo : '', htmlNuevo)
 }
 
 /**
@@ -214,13 +250,13 @@ function planearTramos (documento: Document, htmlNuevo: string): TramoDeReemplaz
  * Dos pedidos sobre el mismo acta se encolan en el candado de guardado del documento. Quien llame
  * debe atrapar el rechazo de `terminada` (el cambio no se pudo completar).
  *
- * Límite conocido: el orbe parte del acta que el board tenía guardada. Lo que alguien escribió en
- * los últimos segundos y aún no se guardó se reemplaza, igual que si el orbe hubiera editado un
- * instante antes de esa persona.
+ * Lo que alguien escribió y aún no se guardó no se pisa: el cambio se aplica a 3 bandas (ver el
+ * encabezado del módulo). Un bloque que el orbe cambió y una persona también editó conserva el texto de
+ * la persona, y lo del orbe entra a continuación.
  *
  * @param servicio los documentos del servicio
  * @param id el id del acta
- * @param pedido el HTML nuevo, quién lo pidió y de qué Espacio
+ * @param pedido el HTML nuevo, la base sobre la que se calculó, quién lo pidió y de qué Espacio
  * @param opciones cómo esperar entre gestos
  * @returns `no_abierta` si el acta no está cargada con conexiones o es de otro Espacio; `no_aplicable`
  * si el HTML no se pudo convertir (el board debe seguir su camino de siempre); `aplicando` si ya está en marcha
@@ -237,10 +273,12 @@ export function aplicarComoOrbe (
   if (abierto === null || abierto.estado.espacioId !== pedido.espacioId) return { estado: 'no_abierta' }
 
   let htmlNuevo: string
+  let htmlBase: string
 
   try {
     // Pasar el HTML del board por el esquema del acta lo deja comparable con el del documento vivo.
     htmlNuevo = yDocAHtml(htmlAYDoc(pedido.html))
+    htmlBase = yDocAHtml(htmlAYDoc(pedido.base))
   } catch {
     registrar({ evento: 'orbe_html_ilegible', documento: nombre })
 
@@ -252,13 +290,22 @@ export function aplicarComoOrbe (
 
   const terminada = (async () => {
     let aplicados = 0
+    let conservados = 0
 
     try {
       await documento.saveMutex.runExclusive(async () => {
         if (documento.isDestroyed) return
 
+        // La revisión se compara como texto opaco: si el board ya la movió, hay guardados que este documento no vio.
+        if (pedido.revision !== null && pedido.revision !== estado.revision) {
+          registrar({ evento: 'orbe_revision_distinta', documento: nombre })
+        }
+
         try {
-          aplicados = await reproducir(documento, planearTramos(documento, htmlNuevo), esperar)
+          const tramos = planearTramos(documento, htmlBase, htmlNuevo)
+
+          conservados = tramos.reduce((suma, tramo) => suma + tramo.conservados, 0)
+          aplicados = await reproducir(documento, tramos, esperar)
         } finally {
           documento.awareness.setLocalState(null)
         }
@@ -277,7 +324,7 @@ export function aplicarComoOrbe (
 
     if (aplicados === 0 || documento.isDestroyed) return
 
-    registrar({ evento: 'orbe_aplicada', documento: nombre, tramos: aplicados })
+    registrar({ evento: 'orbe_aplicada', documento: nombre, tramos: aplicados, conservados })
     await servicio.guardarYa(documento)
   })()
 

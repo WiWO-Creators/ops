@@ -35,6 +35,11 @@ export interface PayloadDeBoleto {
   doc: string | null
   /** Espacio al que pertenece el documento, o `null`. */
   esp: number | null
+  /**
+   * Si la persona puede escribir en el documento. `false` abre la conexión en solo lectura. Un boleto
+   * sin el campo (anterior a esta versión) cuenta como `true`: la verificación lo normaliza.
+   */
+  esc: boolean
   /** Vencimiento, en segundos Unix. */
   exp: number
   /** Identificador único, 16 hex. */
@@ -47,6 +52,8 @@ export interface DatosDeBoleto {
   salas: string[]
   doc?: string | null
   esp?: number | null
+  /** Por defecto `true`; `false` para quien puede leer el documento pero no editarlo. */
+  escritura?: boolean
 }
 
 function ahoraEnSegundos (): number {
@@ -92,6 +99,7 @@ export function emitirBoleto (
     salas: [...new Set(datos.salas)],
     doc: datos.doc ?? null,
     esp: datos.esp ?? null,
+    esc: datos.escritura ?? true,
     exp,
     jti: randomBytes(8).toString('hex')
   }
@@ -104,13 +112,13 @@ function leerPayload (parte: string): PayloadDeBoleto | null {
   try {
     const valor: unknown = JSON.parse(Buffer.from(parte, 'base64url').toString('utf8'))
 
-    return esPayloadValido(valor) ? valor : null
+    return esPayloadValido(valor) ? { ...valor, esc: valor.esc !== false } : null
   } catch {
     return null
   }
 }
 
-function esPayloadValido (valor: unknown): valor is PayloadDeBoleto {
+function esPayloadValido (valor: unknown): valor is Omit<PayloadDeBoleto, 'esc'> & { esc?: boolean } {
   if (typeof valor !== 'object' || valor === null) return false
 
   const p = valor as Record<string, unknown>
@@ -122,6 +130,7 @@ function esPayloadValido (valor: unknown): valor is PayloadDeBoleto {
     p.salas.every((sala) => typeof sala === 'string') &&
     (p.doc === null || typeof p.doc === 'string') &&
     (p.esp === null || (typeof p.esp === 'number' && Number.isSafeInteger(p.esp))) &&
+    (p.esc === undefined || typeof p.esc === 'boolean') &&
     typeof p.exp === 'number' && Number.isFinite(p.exp) &&
     typeof p.jti === 'string' && /^[0-9a-f]{16}$/.test(p.jti)
 }

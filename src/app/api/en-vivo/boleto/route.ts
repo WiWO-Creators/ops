@@ -9,10 +9,13 @@ import { refrescar } from '@/datos/refresco'
 import { guardarSesion, borrarSesion, leerSesion } from '@/datos/sesion'
 import type { Sesion } from '@/datos/sobre-sesion'
 import {
+  exigePermisosParaEscribir,
   funcionDeDocumento,
   leerNombreDeDocumento,
   leerPedidoDeBoleto,
+  puedeEscribirDocumento,
   rutaDeAvalDelDocumento,
+  type ClaseDeDocumento,
   salasPermitidasPorDefecto,
   validacionDeSala
 } from '@/dominio/en-vivo'
@@ -26,8 +29,9 @@ import { emitirBoleto } from '@/lib/en-vivo/boleto'
  * que puede ver cada sala o documento que pide, y firma un boleto de 120 s que el servicio solo
  * verifica. Una sala que la API no deja leer no entra al boleto.
  *
- * Responde `{data:{boleto, expira_en, url, staff_id}}` (`staff_id` es quien pide: la presencia lo usa
- * para no mostrarle a nadie su propio avatar); 401 sin sesión; 503 `en_vivo_apagado` con el maestro
+ * Responde `{data:{boleto, expira_en, url, staff_id, escritura}}` (`staff_id` es quien pide: la presencia
+ * lo usa para no mostrarle a nadie su propio avatar; `escritura` dice si puede editar el documento: con
+ * `false` el servicio abre su conexión en solo lectura; sin documento es `true`); 401 sin sesión; 503 `en_vivo_apagado` con el maestro
  * apagado, sin URL o sin secreto; 400 si el cuerpo es inválido; 403 `sala_no_permitida` si la API
  * niega algo (403/404); 502 si la API no contesta.
  */
@@ -52,16 +56,23 @@ class ApiNoDisponible extends Error {}
 /** La sesión no se pudo renovar: hay que volver a entrar. */
 class SesionCerrada extends Error {}
 
+/** Lo que la API contestó a una lectura: el estado y, si se pidió, el JSON del cuerpo (`null` si no lo hay o no se pidió). */
+interface LecturaDeApi {
+  status: number
+  cuerpo: unknown
+}
+
 /**
- * Pregunta a la API si la persona puede leer un recurso, renovando la sesión si hace falta.
+ * Lee una ruta de la API con el token de la persona, renovando la sesión si hace falta.
  *
  * @param actual la sesión vigente; se reemplaza si hubo refresco
  * @param ruta ruta de la API a leer (`/projects/3`)
- * @returns `true` si la lectura dio 2xx, `false` si la API contestó 403 o 404
- * @throws ApiNoDisponible si la API falló o no contestó a tiempo
+ * @param conCuerpo si hay que leer el JSON de la respuesta; si no, se descarta
+ * @returns el estado y el cuerpo
+ * @throws ApiNoDisponible si la API no contestó a tiempo o no se pudo alcanzar
  * @throws SesionCerrada si la sesión venció y no se pudo renovar
  */
-async function puedeLeer (actual: SesionVigente, ruta: string): Promise<boolean> {
+async function consultar (actual: SesionVigente, ruta: string, conCuerpo: boolean): Promise<LecturaDeApi> {
   let llamada: Awaited<ReturnType<typeof llamarConRefresco>>
 
   try {
@@ -94,12 +105,53 @@ async function puedeLeer (actual: SesionVigente, ruta: string): Promise<boolean>
 
   const { status } = llamada.respuesta
 
-  await llamada.respuesta.body?.cancel()
+  if (!conCuerpo || status < 200 || status >= 300) {
+    await llamada.respuesta.body?.cancel()
+
+    return { status, cuerpo: null }
+  }
+
+  return { status, cuerpo: await llamada.respuesta.json().catch(() => null) as unknown }
+}
+
+/**
+ * Pregunta a la API si la persona puede leer un recurso.
+ *
+ * @param actual la sesión vigente; se reemplaza si hubo refresco
+ * @param ruta ruta de la API a leer (`/projects/3`)
+ * @returns `true` si la lectura dio 2xx, `false` si la API contestó 403 o 404
+ * @throws ApiNoDisponible si la API falló o no contestó a tiempo
+ * @throws SesionCerrada si la sesión venció y no se pudo renovar
+ */
+async function puedeLeer (actual: SesionVigente, ruta: string): Promise<boolean> {
+  const { status } = await consultar(actual, ruta, false)
 
   if (status >= 200 && status < 300) return true
   if (status === 403 || status === 404) return false
 
   throw new ApiNoDisponible()
+}
+
+/**
+ * Si la persona puede escribir en el documento. Solo la tarea necesita preguntar a la API
+ * (`GET /me`, sus permisos); en las demás clases la respuesta no depende de ella.
+ *
+ * @param actual la sesión vigente; se reemplaza si hubo refresco
+ * @param clase la clase del documento
+ * @returns `true` si puede escribir
+ * @throws ApiNoDisponible si `/me` falló o no se pudo leer
+ * @throws SesionCerrada si la sesión venció y no se pudo renovar
+ */
+async function puedeEscribir (actual: SesionVigente, clase: ClaseDeDocumento): Promise<boolean> {
+  if (!exigePermisosParaEscribir(clase)) return puedeEscribirDocumento(clase, null)
+
+  const { status, cuerpo } = await consultar(actual, '/me', true)
+
+  if (status < 200 || status >= 300 || typeof cuerpo !== 'object' || cuerpo === null) throw new ApiNoDisponible()
+
+  const datos = (cuerpo as { data?: { permissions?: unknown } }).data
+
+  return puedeEscribirDocumento(clase, datos?.permissions)
 }
 
 /**
@@ -169,10 +221,13 @@ export async function POST (peticion: NextRequest): Promise<Response> {
     rutas.add(aval)
   }
 
+  let escritura = true
+
   try {
     const vigente: SesionVigente = { sesion, origen: cabecerasDeOrigen(peticion.headers) }
 
     if (!await todasLegibles(vigente, [...rutas])) return error(403, 'sala_no_permitida')
+    if (documento !== null) escritura = await puedeEscribir(vigente, documento.clase)
   } catch (fallo) {
     if (fallo instanceof SesionCerrada) return error(401, 'token_revoked')
     if (fallo instanceof ApiNoDisponible) return error(502, 'upstream_error')
@@ -180,9 +235,9 @@ export async function POST (peticion: NextRequest): Promise<Response> {
   }
 
   const { boleto, exp } = emitirBoleto(
-    { suj: 'staff', id: sesion.sujetoId, salas, doc: pedido.documento, esp: pedido.espacioId },
+    { suj: 'staff', id: sesion.sujetoId, salas, doc: pedido.documento, esp: pedido.espacioId, escritura },
     secreto
   )
 
-  return NextResponse.json({ data: { boleto, expira_en: exp, url: config.url, staff_id: sesion.sujetoId } }, { headers: SIN_CACHE })
+  return NextResponse.json({ data: { boleto, expira_en: exp, url: config.url, staff_id: sesion.sujetoId, escritura } }, { headers: SIN_CACHE })
 }

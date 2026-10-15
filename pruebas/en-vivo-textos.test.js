@@ -5,9 +5,10 @@
  * Servicio real + board falso firmado + clientes `@hocuspocus/provider` en Node. Lo que se protege: que
  * el texto pase a Yjs y vuelva con el esquema del editor sin deformarse, que dos personas converjan y el
  * board reciba UN guardado como la última persona que editó, que un cambio de otra cosa de la tarea no
- * pise lo que se escribe (la revisión de la tarea se mueve con cualquier cambio), que un cambio real de
- * la descripción sí se recargue, que un borrador vacío se borre y que el borrador enviado se limpie en
- * todos los clientes.
+ * pise lo que se escribe (la revisión es `sha1(description)`: no se mueve), que un cambio real de la
+ * descripción sí se recargue (un 409 es siempre «otra persona cambió el texto»), que un borrador vacío se
+ * borre, que el borrador enviado se limpie en todos los clientes, que quien no puede escribir no llegue
+ * al texto y que un 403 al guardar no cierre la sesión de todos.
  */
 
 import { afterEach, test } from 'node:test'
@@ -25,7 +26,7 @@ import {
   evento,
   iniciarServicio
 } from './apoyo/en-vivo.mjs'
-import { crearBoardDeTextos } from './apoyo/board-textos.mjs'
+import { crearBoardDeTextos, revisionDe } from './apoyo/board-textos.mjs'
 
 const recursos = []
 
@@ -142,6 +143,8 @@ test('tarea: dos personas convergen y el board recibe UN guardado como quien edi
   await esperarHasta(() => ana.sincronizado && beto.sincronizado, 4000, 'sincronizar los dos clientes')
   assert.deepEqual(textos(ana.ydoc), ['Inicial'])
 
+  const revisionInicial = board.estado.tarea.revision
+
   agregarParrafo(ana.ydoc, 'Línea de Ana')
   agregarParrafo(beto.ydoc, 'Línea de Beto')
 
@@ -153,7 +156,8 @@ test('tarea: dos personas convergen y el board recibe UN guardado como quien edi
   const [put] = board.estado.puts
 
   assert.equal(put.ruta, 'en-vivo/tareas/500')
-  assert.equal(put.revision, 't1')
+  assert.equal(put.revision, revisionInicial)
+  assert.equal(put.revision, revisionDe('<p>Inicial</p>'), 'la revisión de la tarea es sha1 de la descripción')
   assert.ok([11, 22].includes(put.staff_id))
   assert.deepEqual(Object.keys(put).sort(), ['content', 'revision', 'ruta', 'staff_id'], 'sin autores ni origen: el contrato de la tarea no los tiene')
   assert.ok(put.content.includes('Línea de Ana') && put.content.includes('Línea de Beto'))
@@ -172,16 +176,20 @@ test('tarea: sin cambios no se guarda nada', async () => {
   assert.equal(board.estado.puts.length, 0)
 })
 
-test('tarea: si solo cambió otra cosa de la tarea, un 409 adopta la revisión y vuelve a guardar sin recargar', async () => {
+test('tarea: si solo cambió otra cosa de la tarea, la revisión no se mueve: se guarda sin recargar ni reintentar', async () => {
   const { board, servicio } = await montar({ descripcion: '<p>Inicial</p>' })
   const ana = conectar(servicio, 'tarea:500')
 
   await esperarHasta(() => ana.sincronizado)
+
+  const revisionInicial = board.estado.tarea.revision
+
   board.estado.cambiarOtraCosaDeLaTarea()
+  assert.equal(board.estado.tarea.revision, revisionInicial)
   agregarParrafo(ana.ydoc, 'Lo que escribe Ana')
 
-  await esperarHasta(() => board.estado.puts.length === 1, 4000, 'el guardado tras adoptar la revisión')
-  assert.equal(board.estado.puts[0].revision, 't2', 'el segundo intento va con la revisión nueva')
+  await esperarHasta(() => board.estado.puts.length === 1, 4000, 'el guardado')
+  assert.equal(board.estado.puts[0].revision, revisionInicial)
   assert.ok(board.estado.puts[0].content.includes('Lo que escribe Ana'))
   assert.equal(ana.statelesss.some((m) => m.t === 'recargado'), false, 'no se pisó el documento')
   assert.deepEqual(textos(ana.ydoc), ['Inicial', 'Lo que escribe Ana'])
@@ -233,21 +241,86 @@ test('tarea: un evento de otra tarea no toca este documento', async () => {
   assert.equal(board.estado.gets.length, lecturas)
 })
 
-test('tarea: si el board niega el guardado se avisa «sin_acceso»; si el texto queda vacío (422) no se cierra', async () => {
+test('tarea: si el texto queda vacío (422) no se cierra nada', async () => {
   const { board, servicio } = await montar({ descripcion: '<p>Inicial</p>' })
   const ana = conectar(servicio, 'tarea:500')
 
   await esperarHasta(() => ana.sincronizado)
 
-  // Descripción vacía: el board contesta 422 y el servicio no cierra nada.
   vaciar(ana.ydoc)
   await esperar(700)
   assert.equal(board.estado.puts.length, 0)
   assert.equal(ana.statelesss.some((m) => m.t === 'sin_acceso'), false)
+})
 
+test('tarea: si el board niega a quien guardaba (403) se descarta a esa persona y se reintenta con otra, sin cerrar a nadie', async () => {
+  const { board, servicio } = await montar({ descripcion: '<p>Inicial</p>' })
+  const ana = conectar(servicio, 'tarea:500', { staffId: 11 })
+  const beto = conectar(servicio, 'tarea:500', { staffId: 22 })
+
+  await esperarHasta(() => ana.sincronizado && beto.sincronizado)
+  board.estado.denegarA.add(22)
+
+  agregarParrafo(ana.ydoc, 'Línea de Ana')
+  await esperar(100)
+  // Beto edita último: el guardado va como él, el board lo niega y el servicio reintenta como Ana.
+  agregarParrafo(beto.ydoc, 'Línea de Beto')
+
+  await esperarHasta(() => board.estado.puts.length === 1, 6000, 'el guardado como Ana')
+  assert.equal(board.estado.puts[0].staff_id, 11)
+  assert.ok(board.estado.puts[0].content.includes('Línea de Ana'))
+  assert.equal(ana.statelesss.some((m) => m.t === 'sin_acceso') || beto.statelesss.some((m) => m.t === 'sin_acceso'), false)
+  assert.equal(ana.fallo || beto.fallo, false)
+  assert.deepEqual(textos(ana.ydoc), textos(beto.ydoc))
+})
+
+test('tarea: si quien guardaba es el único editor y el board lo niega, se recarga lo del board y nadie se cierra', async () => {
+  const { board, servicio } = await montar({ descripcion: '<p>Inicial</p>' })
+  const ana = conectar(servicio, 'tarea:500', { staffId: 11 })
+
+  await esperarHasta(() => ana.sincronizado)
+  board.estado.denegarA.add(11)
+  agregarParrafo(ana.ydoc, 'Sin permiso')
+
+  await esperarHasta(() => ana.statelesss.some((m) => m.t === 'recargado'), 4000, 'la recarga')
+  assert.deepEqual(ana.statelesss.find((m) => m.t === 'recargado'), { t: 'recargado', motivo: 'sin_permiso' })
+  assert.equal(ana.statelesss.some((m) => m.t === 'sin_acceso'), false)
+  await esperarHasta(() => textos(ana.ydoc).join('|') === 'Inicial')
+  assert.equal(board.estado.puts.length, 0)
+})
+
+test('tarea: si además el board ya no tiene la tarea (404 al leer), sí se avisa «sin_acceso»', async () => {
+  const { board, servicio } = await montar({ descripcion: '<p>Inicial</p>' })
+  const ana = conectar(servicio, 'tarea:500')
+
+  await esperarHasta(() => ana.sincronizado)
   board.estado.estadoPut = 403
+  board.estado.estadoGet = 404
   agregarParrafo(ana.ydoc, 'Sin permiso')
   await esperarHasta(() => ana.statelesss.some((m) => m.t === 'sin_acceso'), 4000, 'el aviso de sin acceso')
+})
+
+test('un boleto sin escritura abre el documento en solo lectura: sus cambios no llegan al texto ni al board', async () => {
+  const { board, servicio } = await montar({ descripcion: '<p>Inicial</p>' })
+  const lector = conectar(servicio, 'tarea:500', {
+    boleto: boletoDe({ suj: 'staff', id: 33, salas: [], doc: 'tarea:500', esp: null, escritura: false })
+  })
+  const editor = conectar(servicio, 'tarea:500', { staffId: 11 })
+
+  await esperarHasta(() => lector.sincronizado && editor.sincronizado)
+
+  agregarParrafo(lector.ydoc, 'Lo que el lector intenta escribir')
+  await esperar(700)
+
+  assert.deepEqual(textos(editor.ydoc), ['Inicial'], 'el editor no ve nada del lector')
+  assert.equal(board.estado.puts.length, 0, 'el lector no provoca ningún guardado')
+
+  // El editor sí escribe, el lector lo ve y el guardado sale como el editor.
+  agregarParrafo(editor.ydoc, 'Lo del editor')
+  await esperarHasta(() => board.estado.puts.length === 1, 4000, 'el guardado del editor')
+  assert.equal(board.estado.puts[0].staff_id, 11)
+  assert.ok(!board.estado.puts[0].content.includes('lector intenta'))
+  await esperarHasta(() => textos(lector.ydoc).includes('Lo del editor'), 3000, 'que el lector vea lo del editor')
 })
 
 test('tarea: si el board no la tiene, nadie se sincroniza', async () => {
@@ -279,11 +352,15 @@ test('borrador: sin borrador abre vacío, guarda con revisión nula y las siguie
   assert.ok(board.estado.puts[0].content.includes('ya lo estamos revisando'))
 
   await esperarHasta(() => ana.statelesss.some((m) => m.t === 'guardado'))
-  assert.equal(ana.statelesss.find((m) => m.t === 'guardado').revision, 'b1')
+
+  const devuelta = board.estado.borrador.revision
+
+  assert.equal(typeof devuelta, 'string')
+  assert.equal(ana.statelesss.find((m) => m.t === 'guardado').revision, devuelta)
 
   agregarParrafo(ana.ydoc, 'Segunda línea')
   await esperarHasta(() => board.estado.puts.length === 2, 4000, 'el segundo guardado')
-  assert.equal(board.estado.puts[1].revision, 'b1')
+  assert.equal(board.estado.puts[1].revision, devuelta)
 })
 
 test('borrador: lo guardado se ve al abrir de nuevo, y dos personas convergen', async () => {

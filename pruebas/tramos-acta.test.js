@@ -8,7 +8,7 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import { LIMITES_REPRODUCCION } from '../src/dominio/diff-acta.ts'
-import { bloquesComoHtml, tramosDeReemplazo } from '../src/dominio/tramos-acta.ts'
+import { bloquesComoHtml, tramosDeReemplazo, ubicarTramosEnVivo } from '../src/dominio/tramos-acta.ts'
 
 /** Aplica los tramos sobre los bloques del acta actual, como lo hace el servicio, y devuelve el HTML. */
 function aplicar (actual, tramos) {
@@ -121,4 +121,125 @@ test('con una tabla de comparación demasiado grande se reemplaza todo lo distin
   assert.equal(tramos[0].borrar, lado)
   assert.equal(tramos[0].insertados, lado)
   assert.equal(aplicar(actual, tramos), nuevo)
+})
+
+// --- 3 bandas: base → orbe sobre el documento vivo ----------------------------------------------------
+
+/**
+ * Aplica los tramos ubicados sobre los bloques del documento vivo como lo hace el servicio: los bloques
+ * a borrar y el ancla se resuelven por identidad (no por posición) y cada tramo entra donde dice su ancla.
+ */
+function aplicarEnVivo (vivo, tramos) {
+  const modelo = bloquesComoHtml(vivo).map((html) => ({ html }))
+  let bloques = [...modelo]
+
+  for (const tramo of tramos) {
+    const sobran = new Set(tramo.borrarVivos.map((indice) => modelo[indice]))
+
+    bloques = bloques.filter((bloque) => !sobran.has(bloque))
+
+    const { ancla } = tramo
+    const posicion = ancla.tipo === 'inicio'
+      ? 0
+      : ancla.tipo === 'fin' ? bloques.length : bloques.indexOf(modelo[ancla.vivo])
+    const destino = posicion < 0 ? bloques.length : ancla.tipo === 'despues' ? posicion + 1 : posicion
+
+    assert.equal(bloquesComoHtml(tramo.html).length, tramo.insertados)
+    bloques.splice(destino, 0, ...bloquesComoHtml(tramo.html).map((html) => ({ html })))
+  }
+
+  return bloques.map((bloque) => bloque.html)
+}
+
+const ACTA = '<h1>Acta</h1><p>Uno</p><p>Dos</p><p>Tres</p>'
+
+test('3 bandas: si el documento vivo es la base, el resultado es exactamente lo que propone el orbe', () => {
+  const nuevo = '<h1>Acta</h1><p>Uno corregido</p><p>Dos</p><p>Tres</p><p>Cuatro</p>'
+
+  assert.deepEqual(aplicarEnVivo(ACTA, ubicarTramosEnVivo(ACTA, ACTA, nuevo)), bloquesComoHtml(nuevo))
+})
+
+test('3 bandas: sin cambios del orbe, o con el documento vivo ya igual a lo propuesto, no hay nada que aplicar', () => {
+  assert.deepEqual(ubicarTramosEnVivo(ACTA, '<p>otra cosa escrita por alguien</p>', ACTA), [])
+  assert.deepEqual(ubicarTramosEnVivo(ACTA, '<h1>Acta</h1><p>Uno!</p><p>Dos</p><p>Tres</p>', '<h1>Acta</h1><p>Uno!</p><p>Dos</p><p>Tres</p>'), [])
+})
+
+test('3 bandas: un bloque que la persona editó se conserva y lo del orbe entra a continuación', () => {
+  const vivo = '<h1>Acta</h1><p>Uno de Ana</p><p>Dos</p><p>Tres</p>'
+  const nuevo = '<h1>Acta</h1><p>Uno del orbe</p><p>Dos</p><p>Tres</p>'
+  const tramos = ubicarTramosEnVivo(ACTA, vivo, nuevo)
+
+  assert.equal(tramos.length, 1)
+  assert.deepEqual(tramos[0].borrarVivos, [], 'el bloque editado no se borra')
+  assert.equal(tramos[0].conservados, 1)
+  assert.deepEqual(aplicarEnVivo(vivo, tramos), ['<h1>Acta</h1>', '<p>Uno de Ana</p>', '<p>Uno del orbe</p>', '<p>Dos</p>', '<p>Tres</p>'])
+})
+
+test('3 bandas: lo que la persona editó en un bloque que el orbe no toca queda intacto, y lo del orbe se aplica', () => {
+  const vivo = '<h1>Acta</h1><p>Uno de Ana</p><p>Dos</p><p>Tres</p>'
+  const nuevo = '<h1>Acta</h1><p>Uno</p><p>Dos revisado</p><p>Tres</p>'
+
+  assert.deepEqual(aplicarEnVivo(vivo, ubicarTramosEnVivo(ACTA, vivo, nuevo)), ['<h1>Acta</h1>', '<p>Uno de Ana</p>', '<p>Dos revisado</p>', '<p>Tres</p>'])
+})
+
+test('3 bandas: si la persona borró el bloque que el orbe cambia, lo del orbe igual entra', () => {
+  const vivo = '<h1>Acta</h1><p>Uno</p><p>Tres</p>'
+  const nuevo = '<h1>Acta</h1><p>Uno</p><p>Dos revisado</p><p>Tres</p>'
+
+  assert.deepEqual(aplicarEnVivo(vivo, ubicarTramosEnVivo(ACTA, vivo, nuevo)), ['<h1>Acta</h1>', '<p>Uno</p>', '<p>Dos revisado</p>', '<p>Tres</p>'])
+})
+
+test('3 bandas: un bloque nuevo que alguien agregó al final no se pisa cuando el orbe también agrega', () => {
+  const vivo = `${ACTA}<p>De Ana</p>`
+  const nuevo = `${ACTA}<p>Del orbe</p>`
+  const resultado = aplicarEnVivo(vivo, ubicarTramosEnVivo(ACTA, vivo, nuevo))
+
+  assert.ok(resultado.includes('<p>De Ana</p>') && resultado.includes('<p>Del orbe</p>'))
+  assert.equal(resultado.length, 6)
+})
+
+test('3 bandas: el orbe borra bloques y los que la persona ya había editado se quedan', () => {
+  const vivo = '<h1>Acta</h1><p>Uno</p><p>Dos de Ana</p><p>Tres</p>'
+  const nuevo = '<h1>Acta</h1><p>Tres</p>'
+  const resultado = aplicarEnVivo(vivo, ubicarTramosEnVivo(ACTA, vivo, nuevo))
+
+  assert.deepEqual(resultado, ['<h1>Acta</h1>', '<p>Dos de Ana</p>', '<p>Tres</p>'], 'se borra «Uno» (intacto) y se conserva «Dos de Ana»')
+})
+
+test('3 bandas: con una base que no tiene nada que ver con el documento vivo no se borra nada ajeno', () => {
+  const vivo = '<p>Otro 1</p><p>Otro 2</p>'
+  const resultado = aplicarEnVivo(vivo, ubicarTramosEnVivo(ACTA, vivo, '<h1>Acta</h1><p>Uno</p><p>Dos nuevo</p><p>Tres</p>'))
+
+  assert.ok(resultado.includes('<p>Otro 1</p>') && resultado.includes('<p>Otro 2</p>'))
+  assert.ok(resultado.includes('<p>Dos nuevo</p>'))
+})
+
+test('3 bandas (barrido): con el vivo igual a la base da lo del orbe; con un bloque ajeno nunca se pierde', () => {
+  const piezas = ['<h1>T</h1>', '<p>a</p>', '<p>b</p>', '<hr>', '<ul><li><p>i</p></li></ul>', '<p></p>', '<blockquote><p>c</p></blockquote>']
+  let semilla = 11
+  const azar = (tope) => { semilla = (semilla * 1103515245 + 12345) % 2_147_483_648; return semilla % tope }
+  const secuencia = () => Array.from({ length: azar(7) }, () => piezas[azar(piezas.length)])
+
+  for (let vuelta = 0; vuelta < 300; vuelta++) {
+    const base = secuencia()
+    const nuevo = secuencia()
+
+    assert.deepEqual(aplicarEnVivo(base.join(''), ubicarTramosEnVivo(base.join(''), base.join(''), nuevo.join(''))), nuevo, `${base.join('')} -> ${nuevo.join('')}`)
+
+    // Una persona reemplaza un bloque de la base por texto suyo, o agrega uno en un lugar cualquiera.
+    const vivo = [...base]
+    const lugar = azar(vivo.length + 1)
+
+    if (vivo.length > 0 && azar(2) === 0) vivo[Math.min(lugar, vivo.length - 1)] = '<p>PERSONA</p>'
+    else vivo.splice(lugar, 0, '<p>PERSONA</p>')
+
+    const tramos = ubicarTramosEnVivo(base.join(''), vivo.join(''), nuevo.join(''))
+    const resultado = aplicarEnVivo(vivo.join(''), tramos)
+
+    assert.ok(resultado.includes('<p>PERSONA</p>'), `se perdió lo de la persona: ${vivo.join('')} + ${base.join('')} -> ${nuevo.join('')}`)
+
+    for (const tramo of tramos) {
+      for (const bloque of bloquesComoHtml(tramo.html)) assert.ok(resultado.includes(bloque), `falta lo del orbe ${bloque}`)
+    }
+  }
 })

@@ -11,7 +11,7 @@ import type { Doc } from 'yjs'
 import { extensionesDeTexto } from '../../../src/lib/en-vivo/extensiones-texto.ts'
 import type { ClienteBoard } from '../cliente-board.ts'
 import { registrar } from '../registro.ts'
-import { desenvolver, esperaTransitoria } from './comun.ts'
+import { descartarEditorSinPermiso, desenvolver, esperaTransitoria } from './comun.ts'
 import {
   ErrorDeAdaptador,
   type AdaptadorDeDocumento,
@@ -28,10 +28,9 @@ import {
  * `extensionesDeTexto()`, el mismo del editor del navegador. Lo que cambia entre un texto y otro —la
  * ruta del board, el cuerpo del guardado y si la revisión puede faltar— lo da una {@link DefinicionDeTexto}.
  *
- * Una diferencia con el acta: la revisión de una tarea es `wiwo_actualizado`, que se mueve con
- * CUALQUIER cambio de la tarea (estado, fecha, asignado…) y no solo con la descripción. Por eso un 409
- * o un aviso del board no recargan el documento si la descripción que tiene el board es la que ya se
- * conocía: solo se adopta la revisión nueva y se sigue, sin pisar lo que alguien está escribiendo.
+ * La revisión es un texto opaco que el board calcula solo con el texto (para la tarea, `sha1(description)`):
+ * no cambia si se toca otro campo de la tarea. Por eso se trata igual que la del acta: si difiere de la
+ * conocida, otra persona cambió el texto y se recarga; un 409 al guardar significa lo mismo.
  */
 
 /** Nombre del fragmento Yjs donde vive el texto. */
@@ -145,6 +144,7 @@ export function crearAdaptadorDeTexto (board: ClienteBoard, definicion: Definici
         ultimoHtml: yDocATexto(ydoc),
         autores: new Set(),
         ultimoEditor: null,
+        vetados: new Set(),
         origen: 'colaborativo',
         pendiente: false,
         reintentos: 0,
@@ -190,25 +190,16 @@ export function crearAdaptadorDeTexto (board: ClienteBoard, definicion: Definici
 
     if (texto.revision === estado.revision) return 'sin_cambios'
 
-    // Otra cosa de la tarea cambió pero el texto es el que ya se conocía: se adopta la revisión y el
-    // documento se deja como está, con lo que alguien esté escribiendo.
-    if (yDocATexto(textoAYDoc(texto.content)) === estado.ultimoHtml) {
-      estado.revision = texto.revision
-
-      return 'sin_cambios'
-    }
-
     return await recargar(documento, estado, 'externo')
   }
 
   /**
-   * Resuelve un 409: el board cambió desde la revisión que se conocía.
+   * Resuelve un 409: otra persona cambió el texto desde la revisión que se conocía.
    *
-   * Tres casos según el texto que tenga ahora el board: es el mismo que se iba a guardar (no hay nada
-   * que hacer); es el que ya se conocía (solo cambió otra cosa: se adopta la revisión y se vuelve a
-   * guardar, una vez); es otro (alguien más lo editó: se recarga y se pierde lo no guardado).
+   * Si el texto que tiene ahora el board es justo el que se iba a guardar no hay nada que hacer; en
+   * cualquier otro caso se recarga lo del board y se pierde lo no guardado, igual que en el acta.
    */
-  async function alConflicto (documento: Document, estado: EstadoDeDocumento, html: string, puedeReintentar: boolean): Promise<ResultadoDeGuardado> {
+  async function alConflicto (documento: Document, estado: EstadoDeDocumento, html: string): Promise<ResultadoDeGuardado> {
     let texto: TextoDelBoard
 
     try {
@@ -225,19 +216,26 @@ export function crearAdaptadorDeTexto (board: ClienteBoard, definicion: Definici
       return 'sin_cambios'
     }
 
-    if (delBoard === estado.ultimoHtml) {
-      estado.revision = texto.revision
-
-      return puedeReintentar ? await enviar(documento, estado, html, false) : 'reintentar'
-    }
-
     const recarga = await recargar(documento, estado, 'conflicto')
 
     return recarga === 'recargado' ? 'recargado' : recarga === 'sin_acceso' ? 'sin_acceso' : 'reintentar'
   }
 
+  /**
+   * El board negó guardar como el último editor (403/404): se lo descarta y se reintenta con otra
+   * persona que haya escrito; si no queda ninguna, se recarga lo del board. Solo si el propio texto ya
+   * no está disponible (la lectura da 403/404) el resultado es `sin_acceso` y se cierra para todos.
+   */
+  async function alNegarseElGuardado (documento: Document, estado: EstadoDeDocumento): Promise<ResultadoDeGuardado> {
+    if (descartarEditorSinPermiso(documento, estado, nombreDe(estado.id))) return await guardar(documento, estado)
+
+    const recarga = await recargar(documento, estado, 'sin_permiso')
+
+    return recarga === 'recargado' ? 'recargado' : recarga === 'sin_acceso' ? 'sin_acceso' : 'reintentar'
+  }
+
   /** Manda el `PUT` y traduce la respuesta. */
-  async function enviar (documento: Document, estado: EstadoDeDocumento, html: string, puedeReintentar: boolean): Promise<ResultadoDeGuardado> {
+  async function enviar (documento: Document, estado: EstadoDeDocumento, html: string): Promise<ResultadoDeGuardado> {
     const autores = [...estado.autores]
     const staffId = estado.ultimoEditor
 
@@ -263,8 +261,8 @@ export function crearAdaptadorDeTexto (board: ClienteBoard, definicion: Definici
       return 'guardado'
     }
 
-    if (http === 409) return await alConflicto(documento, estado, html, puedeReintentar)
-    if (http === 403 || http === 404) return 'sin_acceso'
+    if (http === 409) return await alConflicto(documento, estado, html)
+    if (http === 403 || http === 404) return await alNegarseElGuardado(documento, estado)
     if (esperaTransitoria(http)) return 'reintentar'
 
     registrar({ evento: 'guardado_rechazado', documento: nombreDe(estado.id), estado: http })
@@ -283,7 +281,7 @@ export function crearAdaptadorDeTexto (board: ClienteBoard, definicion: Definici
       return 'sin_cambios'
     }
 
-    return await enviar(documento, estado, html, true)
+    return await enviar(documento, estado, html)
   }
 
   return { cargar, guardar, recargar, sincronizar }

@@ -35,8 +35,8 @@ export interface ContextoInterno {
   nonces: AlmacenDeNonces
 }
 
-/** Tope del cuerpo de `aplicar`: un acta entera en HTML (el lector de reproducción acepta hasta 400 KB). */
-const MAXIMO_BYTES_ACTA = 1_048_576
+/** Tope del cuerpo de `aplicar`: dos actas enteras en HTML, la propuesta y la base (el lector de reproducción acepta hasta 400 KB cada una). */
+const MAXIMO_BYTES_ACTA = 2_097_152
 
 class CuerpoDemasiadoGrande extends Error {}
 
@@ -138,7 +138,8 @@ function destinoDe (canonica: string): Destino | null {
  *
  * 202 `{aplicada:true}` apenas el cambio queda en marcha (se aplica y guarda de forma asíncrona);
  * 404 `{abierta:false}` si el acta no está abierta con conexiones, es de otro Espacio o su HTML no
- * se pudo convertir: en esos casos el board sigue su camino de siempre; 422 si el cuerpo es inválido.
+ * se pudo convertir: en esos casos el board sigue su camino de siempre; 422 si el cuerpo es inválido
+ * (el cuerpo es `{html, base, revision, staff_id, espacio_id}` y sin `base` no hay 3 bandas posibles).
  */
 function aplicarActa (res: ServerResponse, cuerpo: Buffer, actaId: number, contexto: ContextoInterno): void {
   const pedido = leerPedidoDeAplicar(cuerpo.toString('utf8'))
@@ -159,7 +160,7 @@ function aplicarActa (res: ServerResponse, cuerpo: Buffer, actaId: number, conte
  *
  * `interno/eventos`: 202 `{aceptados}` al lote; 422 si el lote es inválido. `interno/actas/{id}/aplicar`:
  * ver {@link aplicarActa}. En ambas, 401 si la firma no cuadra o el nonce se repite; 413 si el cuerpo
- * pasa del tope (64 KB el lote, 1 MB el acta); 404 si la ruta no existe.
+ * pasa del tope (64 KB el lote, 2 MB el acta); 404 si la ruta no existe.
  *
  * @param req la petición
  * @param res la respuesta

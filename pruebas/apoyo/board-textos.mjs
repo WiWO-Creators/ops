@@ -1,3 +1,4 @@
+import { createHash } from 'node:crypto'
 import { createServer } from 'node:http'
 import { rutaCanonica, verificarFirma } from '../../src/lib/en-vivo/firma.ts'
 import { SECRETO } from './en-vivo.mjs'
@@ -5,8 +6,9 @@ import { SECRETO } from './en-vivo.mjs'
 /**
  * Un board falso con la descripción de una tarea y el borrador de respuesta de un ticket, con las
  * rutas firmadas de la fase 8 (`en-vivo/tareas/{id}` y `en-vivo/tickets/{id}/borrador`) y el control
- * de revisión del board real: un `PUT` con otra revisión es 409, la descripción de la tarea no puede
- * quedar vacía (422) y un borrador sin nada visible se borra y contesta `date_updated: null`.
+ * de revisión del board real (texto opaco, `sha1` del contenido): un `PUT` con otra revisión es 409, la
+ * descripción de la tarea no puede quedar vacía (422) y un borrador sin nada visible se borra y
+ * contesta `date_updated: null`.
  *
  * `estado.tarea` y `estado.borrador` son el contenido vigente; `puts` guarda cada guardado aceptado.
  */
@@ -29,6 +31,11 @@ function responder (res, estado, cuerpo) {
   res.end(JSON.stringify(cuerpo))
 }
 
+/** La revisión opaca de un texto en el board: `sha1` del contenido. */
+export function revisionDe (content) {
+  return createHash('sha1').update(content).digest('hex')
+}
+
 /** `true` si el HTML no tiene texto visible ni imágenes. */
 function sinNadaVisible (html) {
   return html.replace(/<[^>]*>/g, '').trim() === '' && !/<img\b/.test(html)
@@ -42,21 +49,28 @@ function sinNadaVisible (html) {
  */
 export async function crearBoardDeTextos ({ descripcion = '<p>Descripción inicial</p>', borrador = null } = {}) {
   const estado = {
-    tarea: { content: descripcion, revision: 't1', contador: 1 },
-    borrador: borrador === null ? { content: '', revision: null, contador: 0 } : { content: borrador, revision: 'b1', contador: 1 },
+    tarea: { content: descripcion, revision: revisionDe(descripcion), contador: 1 },
+    borrador: borrador === null
+      ? { content: '', revision: null, contador: 0 }
+      : { content: borrador, revision: revisionDe(borrador), contador: 1 },
     puts: [],
     gets: [],
     estadoGet: null,
     estadoPut: null,
-    /** Alguien cambia otra cosa de la tarea (estado, fecha…): la revisión se mueve y la descripción no. */
+    /** `staff_id` a los que el PUT niega (403). */
+    denegarA: new Set(),
+    /**
+     * Alguien cambia otra cosa de la tarea (estado, fecha…): la descripción y su revisión, que es
+     * `sha1(description)`, no se mueven.
+     */
     cambiarOtraCosaDeLaTarea () {
       this.tarea.contador += 1
-      this.tarea.revision = `t${this.tarea.contador}`
     },
     /** Alguien guarda la descripción por otra vía. */
     editarTareaPorFuera (html) {
-      this.cambiarOtraCosaDeLaTarea()
+      this.tarea.contador += 1
       this.tarea.content = html
+      this.tarea.revision = revisionDe(html)
     },
     /** Se envió la respuesta del ticket: el board consume el borrador. */
     consumirBorrador () {
@@ -101,6 +115,7 @@ export async function crearBoardDeTextos ({ descripcion = '<p>Descripción inici
     const pedido = JSON.parse(cuerpo.toString('utf8'))
 
     if (estado.estadoPut !== null) return responder(res, estado.estadoPut, { error: { code: 'forzado' } })
+    if (estado.denegarA.has(pedido.staff_id)) return responder(res, 403, { error: { code: 'forbidden' } })
     if (!Number.isInteger(pedido.staff_id) || typeof pedido.content !== 'string') return responder(res, 422, { error: { code: 'validation_error' } })
     if (pedido.revision !== texto.revision) return responder(res, 409, { error: { code: 'conflict' } })
 
@@ -116,7 +131,7 @@ export async function crearBoardDeTextos ({ descripcion = '<p>Descripción inici
     estado.puts.push({ ruta, ...pedido })
     texto.content = pedido.content
     texto.contador += 1
-    texto.revision = `${esTarea ? 't' : 'b'}${texto.contador}`
+    texto.revision = revisionDe(pedido.content)
 
     return responder(res, 200, { data: { date_updated: texto.revision } })
   })

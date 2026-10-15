@@ -1,3 +1,4 @@
+import { createHash } from 'node:crypto'
 import { createServer } from 'node:http'
 import { setTimeout as esperar } from 'node:timers/promises'
 import WebSocket from 'ws'
@@ -51,26 +52,38 @@ function responderJson (res, estado, cuerpo) {
 }
 
 /**
+ * La revisión opaca del acta en el board: `<ISO>~<sha1[0..16]>`. Nada en el servicio la interpreta como fecha.
+ *
+ * @param contador número de guardado, que mueve el segundo del ISO
+ * @param content el contenido que cubre la huella
+ */
+function revisionDeActa (contador, content) {
+  return `2026-10-15T10:00:${String(contador % 60).padStart(2, '0')}Z~${createHash('sha1').update(content).digest('hex').slice(0, 16)}`
+}
+
+/**
  * Un board falso con el acta `12`: `GET` y `PUT en-vivo/actas/12` con firma y control de revisión.
  *
- * `estado.estadoGet` / `estado.estadoPut` fuerzan un código de respuesta; `estado.editarPorFuera()`
- * simula que alguien guardó el acta por otra vía (cambia contenido y revisión).
+ * `estado.estadoGet` / `estado.estadoPut` fuerzan un código de respuesta; `estado.denegarA` es el
+ * conjunto de `staff_id` a los que el PUT niega (403); `estado.editarPorFuera()` simula que alguien
+ * guardó el acta por otra vía (cambia contenido y revisión).
  */
 export async function crearBoardFalso ({ content = '<p>Inicial</p>', espacioId = 3 } = {}) {
   const estado = {
     content,
     espacioId,
-    revision: 'r1',
+    revision: revisionDeActa(1, content),
     contador: 1,
     puts: [],
     gets: 0,
     estadoGet: null,
     estadoPut: null,
+    denegarA: new Set(),
     firmasInvalidas: 0,
     editarPorFuera (nuevoContenido) {
       this.contador += 1
-      this.revision = `r${this.contador}`
       this.content = nuevoContenido
+      this.revision = revisionDeActa(this.contador, nuevoContenido)
     }
   }
 
@@ -101,12 +114,13 @@ export async function crearBoardFalso ({ content = '<p>Inicial</p>', espacioId =
     const pedido = JSON.parse(cuerpo.toString('utf8'))
 
     if (estado.estadoPut !== null) return responderJson(res, estado.estadoPut, { error: { code: 'forzado' } })
+    if (estado.denegarA.has(pedido.staff_id)) return responderJson(res, 403, { error: { code: 'forbidden' } })
     if (pedido.revision !== estado.revision) return responderJson(res, 409, { error: { code: 'conflict' } })
 
     estado.puts.push(pedido)
     estado.content = pedido.content
     estado.contador += 1
-    estado.revision = `r${estado.contador}`
+    estado.revision = revisionDeActa(estado.contador, pedido.content)
 
     return responderJson(res, 200, { data: { date_updated: estado.revision } })
   })
