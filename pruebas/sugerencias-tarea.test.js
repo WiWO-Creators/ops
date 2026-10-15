@@ -181,7 +181,9 @@ test('parteDeSugerencias separa aceptadas de ignoradas y no cuenta dos veces lo 
   assert.deepEqual(parte.aceptadas, [{ campo: 'asignados', valor: '12' }, { campo: 'etiquetas', valor: 'Digital' }])
   assert.equal(parte.ignoradas.some((e) => e.campo === 'asignados' && e.valor === '12'), false)
   assert.equal(parte.ignoradas.some((e) => e.campo === 'asignados' && e.valor === '15'), true)
-  assert.equal(parte.ignoradas.some((e) => e.campo === 'plazo' && e.valor === '2026-10-20'), true)
+  assert.equal(parte.ignoradas.some((e) => e.campo === 'plazo' && e.valor === '5'), true, 'el plazo viaja como dias')
+  assert.equal(parte.ignoradas.some((e) => e.campo === 'plazo' && e.valor === '2026-10-20'), false)
+  assert.equal(parte.ignoradas.some((e) => e.campo === 'facturable' && e.valor === '0'), true, 'facturable viaja como 0/1')
   assert.ok(parte.ignoradas.every((e) => typeof e.valor === 'string'), 'el valor viaja siempre como texto')
 })
 

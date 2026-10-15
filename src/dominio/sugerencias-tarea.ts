@@ -50,8 +50,13 @@ export interface SugerenciasTarea {
 /** Un chip `+ X`: lo que se ofrece, y con que valor viaja en el parte de aceptadas e ignoradas. */
 export interface ChipSugerido {
   campo: CampoSugerido
-  /** Valor como cadena, tal como lo registra el servidor: id, nombre de etiqueta, fecha, horas. */
+  /** Valor como cadena que el formulario aplica al campo: id, nombre de etiqueta, fecha, horas. */
   valor: string
+  /**
+   * Valor con que viaja en el parte cuando difiere del que aplica el formulario: los dias del plazo
+   * y `'0'`/`'1'` del facturable, como los registra el servidor. Sin el, viaja `valor`.
+   */
+  valorEnParte?: string
   /** Lo que dice el boton, sin el `+`. */
   texto: string
   /** Por que se sugiere; sale como ayuda del boton. */
@@ -275,7 +280,7 @@ function chipDePlazo (plazo: SugerenciasTarea['plazo'], vencimiento: string): Ch
     ? 'Es el plazo estándar de este tipo de tarea.'
     : `Es lo que suelen tardar las tareas de este proyecto (${tareas(plazo.apoyo)}).`
 
-  return [{ campo: 'plazo', valor: plazo.fecha, texto: `Vence ${formatearFecha(plazo.fecha)}`, ayuda, id: null }]
+  return [{ campo: 'plazo', valor: plazo.fecha, valorEnParte: String(Math.round(plazo.dias)), texto: `Vence ${formatearFecha(plazo.fecha)}`, ayuda, id: null }]
 }
 
 /** El chip de las horas estimadas, si el campo esta vacío. */
@@ -297,7 +302,7 @@ function chipDeHoras (horas: SugerenciasTarea['horas'], texto: string): ChipSuge
 function chipDeFacturable (facturable: SugerenciasTarea['facturable'], actual: boolean): ChipSugerido[] {
   if (facturable === null || facturable.valor || !actual) return []
 
-  return [{ campo: 'facturable', valor: 'false', texto: 'No facturable', ayuda: ayudaDeHabito(facturable.apoyo), id: null }]
+  return [{ campo: 'facturable', valor: 'false', valorEnParte: '0', texto: 'No facturable', ayuda: ayudaDeHabito(facturable.apoyo), id: null }]
 }
 
 /**
@@ -363,7 +368,9 @@ function sinRepetidos (chips: readonly ChipSugerido[]): EventoDeSugerencia[] {
   const vistos = new Set<string>()
   const eventos: EventoDeSugerencia[] = []
 
-  for (const { campo, valor } of chips) {
+  for (const chip of chips) {
+    const { campo } = chip
+    const valor = chip.valorEnParte ?? chip.valor
     const clave = `${campo}:${valor}`
 
     if (vistos.has(clave)) continue
@@ -392,6 +399,7 @@ export function parteDeSugerencias (
   const aceptadasUnicas = sinRepetidos(aceptadas)
   const yaAceptado = new Set(aceptadasUnicas.map(({ campo, valor }) => `${campo}:${valor}`))
   const ignoradas = sinRepetidos(visibles).filter(({ campo, valor }) => !yaAceptado.has(`${campo}:${valor}`))
+  // `sinRepetidos` ya devuelve el valor del parte, asi que la comparacion es entre iguales.
 
   return aceptadasUnicas.length === 0 && ignoradas.length === 0
     ? null
