@@ -4,10 +4,12 @@ import type { ReactElement } from 'react'
 import { Boton } from '@/componentes/formularios/Boton'
 import { Vacio } from '@/componentes/estado/Estados'
 import { EnlacePersona } from '@/componentes/presentadores/EnlacePersona'
+import { GrupoEnlacesPersona } from '@/componentes/presentadores/GrupoEnlacesPersona'
 import { Insignia } from '@/componentes/presentadores/Insignia'
 import {
   FILTROS_DE_HISTORIAL,
   accionDeRevision,
+  autoresDeRevision,
   contarPorFiltro,
   esOrigenDelAsistente,
   etiquetaDeOrigen,
@@ -94,13 +96,17 @@ export function ListaDelHistorial ({ revisiones, filtro, onFiltrar, onElegir }: 
 function Fila ({ revision, onElegir }: { revision: RevisionDelActa, onElegir: (revision: RevisionDelActa) => void }): ReactElement {
   const esCambio = revision.kind === 'change'
   const resumen = revision.summary !== null && revision.summary !== '' ? revision.summary : null
+  // Una edición conjunta puede tener varias personas; con una sola se muestra a quien firma, como siempre.
+  const autores = autoresDeRevision(revision)
 
   return (
     <li className="border-linea flex flex-col gap-1.5 border-b py-3 first:pt-0 last:border-b-0">
       <div className="flex items-center justify-between gap-3">
-        {revision.staff_id !== null && revision.staff_name !== null
-          ? <EnlacePersona id={revision.staff_id} nombre={revision.staff_name} imagen={revision.staff_image} tamano="chico" className="text-sm font-medium" />
-          : <span className="text-sm font-medium">Alguien del equipo</span>}
+        {autores.length > 0
+          ? <GrupoEnlacesPersona personas={autores} maximo={4} />
+          : revision.staff_id !== null && revision.staff_name !== null
+            ? <EnlacePersona id={revision.staff_id} nombre={revision.staff_name} imagen={revision.staff_image} tamano="chico" className="text-sm font-medium" />
+            : <span className="text-sm font-medium">Alguien del equipo</span>}
         <time
           dateTime={revision.date_added ?? undefined}
           title={formatearFecha(revision.date_added, true)}

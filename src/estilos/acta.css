@@ -119,3 +119,53 @@
   color: #9ca3af;
   pointer-events: none;
 }
+
+/*
+ * Los cursores de la edición conjunta (`acta/cursoresDelActa.ts`).
+ *
+ * Cada persona trae su color en `--cursor-color`. El del asistente no viene de ahí: es el azul de
+ * marca del Orbe, el mismo de su cursor cuando se reproduce una edición sobre el visor
+ * (`.acta-cursor` en `acta-reproduccion.css`), para que se lea como la misma presencia.
+ */
+.acta-editor .collaboration-carets__caret {
+  --cursor-color: #6b7280;
+  position: relative;
+  margin-right: -1px;
+  margin-left: -1px;
+  border-right: 1px solid var(--cursor-color);
+  border-left: 1px solid var(--cursor-color);
+  word-break: normal;
+  pointer-events: none;
+}
+
+.acta-editor .collaboration-carets__caret--orbe {
+  --cursor-color: var(--wiwo-blue, #4242ff);
+}
+
+.acta-editor .collaboration-carets__label {
+  position: absolute;
+  bottom: calc(100% + 0.1em);
+  left: -1px;
+  z-index: 2;
+  padding: 3px 7px;
+  border-radius: 5px 5px 5px 0;
+  background: var(--cursor-color);
+  color: #fff;
+  font-family: 'Plus Jakarta Sans', ui-sans-serif, system-ui, sans-serif;
+  font-size: 11px;
+  font-style: normal;
+  font-weight: 600;
+  letter-spacing: 0;
+  line-height: 1;
+  white-space: nowrap;
+  user-select: none;
+}
+
+.acta-editor .collaboration-carets__selection {
+  --cursor-color: #6b7280;
+  background: color-mix(in srgb, var(--cursor-color) 22%, transparent);
+}
+
+.acta-editor .collaboration-carets__selection--orbe {
+  --cursor-color: var(--wiwo-blue, #4242ff);
+}

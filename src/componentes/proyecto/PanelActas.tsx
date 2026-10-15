@@ -236,6 +236,7 @@ function ActasDelProyecto ({
           // Borrar exige la capacidad Y ser el autor o quien administra, que es la misma regla que
           // aplica la API. Sin `yo` no hay a quién comparar: no se ofrece.
           puedeBorrar={capacidades.includes('delete') && yo !== undefined ? { yo } : null}
+          yo={yo}
           conIa={ia.activa}
           puedeCrearTareas={capacidadesTareas.includes('create')}
           destacarTareas={recienGenerada === abierta}
@@ -359,6 +360,7 @@ function ActaAbierta ({
   fuente,
   puedeEditar,
   puedeBorrar,
+  yo,
   conIa,
   puedeCrearTareas,
   destacarTareas,
@@ -373,6 +375,8 @@ function ActaAbierta ({
   puedeEditar: boolean
   /** Quien mira, solo si tiene la capacidad de borrar. `null` = no se ofrece eliminar. */
   puedeBorrar: { yo: Yo } | null
+  /** Quien mira, para el cursor de la edición conjunta. Sin él (el portal) no hay edición conjunta. */
+  yo: Yo | undefined
   conIa: boolean
   puedeCrearTareas: boolean
   destacarTareas: boolean
@@ -402,6 +406,7 @@ function ActaAbierta ({
       puedeBorrar={puedeBorrar !== null && (acta.staff_id === puedeBorrar.yo.id || puedeBorrar.yo.is_admin)}
       // Solo un superadmin fija la privacidad; la API lo vuelve a exigir con un 403.
       puedeMarcarPrivada={puedeEditar && puedeBorrar?.yo.is_superadmin === true}
+      yo={yo}
       conIa={conIa}
       puedeCrearTareas={puedeCrearTareas}
       destacarTareas={destacarTareas}

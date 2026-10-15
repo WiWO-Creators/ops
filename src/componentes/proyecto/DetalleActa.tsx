@@ -27,6 +27,9 @@ import { EVENTO_ABRIR_ORBE } from '@/dominio/pantalla'
 import { hayCambioAjeno, textoDeCambioAjeno } from '@/dominio/acta-concurrencia'
 import { EVENTO_ORBE_ESCRITURA, escrituraAlcanzaAlActa } from '@/dominio/orbe-escritura'
 import { useAviso } from '@/componentes/estado/useAviso'
+import { useConfigEnVivo } from '@/componentes/en-vivo/ProveedorEnVivo'
+import { ESPERA_TRAS_CERRAR_MS } from '@/dominio/acta-colaborativa'
+import type { Yo } from '@/datos/tipos'
 
 /**
  * Un Meeting Paper: se lee, se corrige y se imprime.
@@ -116,6 +119,14 @@ import { useAviso } from '@/componentes/estado/useAviso'
  * golpe: se reproduce la edicion sobre el visor con un cursor que lleva su nombre (ver
  * `useReproduccionDelActa` y `ReproduccionDelActa`). Con el editor abierto no se anima nada: ahi
  * manda el aviso de cambio ajeno de arriba.
+ *
+ * === EDICION CONJUNTA ===
+ *
+ * Con «Ops en vivo» encendido para actas (`useConfigEnVivo().actas`), una persona del equipo y el
+ * acta original (no una traducción), «Corregir» abre `EdicionConjuntaDelActa` en vez del editor de
+ * siempre: varias personas escriben a la vez y el servicio guarda solo, así que no hay Guardar ni
+ * Descartar sino «Cerrar edición». Si la conexión no abre o no vuelve, se sigue con el editor de
+ * siempre con lo último que se vio. Con la opción apagada, nada de esto existe.
  */
 
 const EditorDeActa = dynamic(
@@ -123,6 +134,11 @@ const EditorDeActa = dynamic(
   { ssr: false, loading: () => <p className="text-texto-tenue text-sm">Cargando el editor…</p> }
 )
 
+// Carga aparte por lo mismo, y con más razón: trae Yjs y el cliente del servicio de edición conjunta.
+const EdicionConjuntaDelActa = dynamic(
+  async () => (await import('./acta/EdicionConjuntaDelActa')).EdicionConjuntaDelActa,
+  { ssr: false, loading: () => <p className="text-texto-tenue text-sm">Cargando el editor…</p> }
+)
 
 interface PropsDetalle {
   acta: Acta
@@ -152,6 +168,8 @@ interface PropsDetalle {
   destacarTareas?: boolean
   /** Quien mira es superadmin: ve el original de la reunión. La API lo vuelve a exigir con un 403. */
   esSuperadmin?: boolean
+  /** Quien mira: sin esto no hay edición conjunta, porque su cursor necesita nombre y color. */
+  yo?: Pick<Yo, 'id' | 'full_name' | 'profile_image_url'>
   /** Vuelve a pedir el acta en silencio (ver `useRecurso.revalidar`): el Orbe u otra persona la cambió. */
   onRevalidar: () => void
   onCambiada: (acta: Acta) => void
@@ -170,6 +188,7 @@ export function DetalleActa ({
   puedeCrearTareas = false,
   destacarTareas = false,
   esSuperadmin = false,
+  yo,
   onRevalidar,
   onCambiada,
   onBorrada,
@@ -183,7 +202,11 @@ export function DetalleActa ({
   const [error, setError] = useState<string | null>(null)
   /** La API rechazó el último guardado con 409: el acta cambió desde que se abrió el editor. */
   const [conflicto, setConflicto] = useState(false)
+  /** Se está corrigiendo en conjunto (sin Guardar: guarda el servicio). Excluye a `edicion.editando`. */
+  const [conjunta, setConjunta] = useState(false)
+  const revalidacionTrasCerrar = useRef<number | null>(null)
   const aviso = useAviso()
+  const enVivo = useConfigEnVivo()
 
   const marco = useRef<HTMLIFrameElement>(null)
   // Las tres escrituras del acta van a la misma ruta: se arma una vez para que no se puedan
@@ -244,7 +267,16 @@ export function DetalleActa ({
   // proyecto y, cuando la reunion no lo dijo, el modelo escribe "#No especificado". Es un hueco de su
   // formulario, no un dato, y el cliente lo lee como encabezado del acta.
   const cuerpo = cuerpoDelActa(htmlActivo)
-  const reproduccion = useReproduccionDelActa({ actaId: acta.id, html: cuerpo, vista: idioma, editando: edicion.editando })
+  /** Hay un editor abierto, del tipo que sea. */
+  const corrigiendo = edicion.editando || conjunta
+  /** «Corregir» abre la edición conjunta: solo el original (las traducciones siguen el flujo de siempre). */
+  const corrigeEnConjunto = enVivo.actas && puedeEditar && traduccionActiva === null && yo !== undefined
+  const reproduccion = useReproduccionDelActa({ actaId: acta.id, html: cuerpo, vista: idioma, editando: corrigiendo })
+
+  // La revalidación pendiente tras cerrar la edición no sobrevive a la pantalla.
+  useEffect(() => () => {
+    if (revalidacionTrasCerrar.current !== null) window.clearTimeout(revalidacionTrasCerrar.current)
+  }, [])
 
   /**
    * Renombrar se esconde mientras se corrige, igual que el estilo y el idioma.
@@ -254,12 +286,37 @@ export function DetalleActa ({
    * meter una tercera escritura del mismo documento entre medio es la forma de guardar una y creer
    * que se guardaron las dos.
    */
-  const puedeRenombrar = puedeEditar && !edicion.editando
+  const puedeRenombrar = puedeEditar && !corrigiendo
 
-  /** Abre el editor sobre la versión que se está viendo; un conflicto anterior ya no aplica. */
+  /**
+   * Abre el editor sobre la versión que se está viendo; un conflicto anterior ya no aplica. Con la
+   * edición conjunta disponible abre esa; si no, el editor de siempre.
+   */
   function corregir (): void {
     setConflicto(false)
-    edicion.corregir()
+
+    if (corrigeEnConjunto) setConjunta(true)
+    else edicion.corregir()
+  }
+
+  /**
+   * Cierra la edición conjunta y trae el acta como quedó. El servicio guarda unos segundos después
+   * de la última tecla, así que se vuelve a pedir una vez más pasado ese tiempo.
+   */
+  function cerrarConjunta (): void {
+    setConjunta(false)
+    onRevalidar()
+
+    if (revalidacionTrasCerrar.current !== null) window.clearTimeout(revalidacionTrasCerrar.current)
+    revalidacionTrasCerrar.current = window.setTimeout(onRevalidar, ESPERA_TRAS_CERRAR_MS)
+  }
+
+  /** La edición conjunta no se sostuvo: sigue el editor de siempre, con lo último que se vio. */
+  function seguirSinConexion (ultimoHtml: string | null, ultimaRevision: string | null): void {
+    setConjunta(false)
+    edicion.continuarSinConexion(ultimoHtml, ultimaRevision)
+    aviso.info('No se pudo mantener la edición conjunta; sigues corrigiendo como siempre.')
+    onRevalidar()
   }
 
   /**
@@ -310,7 +367,7 @@ export function DetalleActa ({
           idioma={idioma}
           esTraduccion={traduccionActiva !== null}
           yaTraducidos={lectura.yaTraducidos}
-          editando={edicion.editando}
+          editando={corrigiendo}
           puedeEditar={puedeEditar}
           puedeTraducir={puedeTraducir}
           puedeMarcarPrivada={puedeMarcarPrivada}
@@ -325,12 +382,13 @@ export function DetalleActa ({
 
         <AccionesDelActa
           editando={edicion.editando}
+          conjunta={conjunta}
           guardando={edicion.guardando}
           exportando={exportando}
           puedeEditar={puedeEditar}
           puedeRenombrar={puedeRenombrar}
-          puedeBorrar={puedeBorrar}
-          puedeVerHistorial={puedeEditar && traduccionActiva === null && !edicion.editando}
+          puedeBorrar={puedeBorrar && !conjunta}
+          puedeVerHistorial={puedeEditar && traduccionActiva === null && !corrigiendo}
           onHistorial={() => { setVerHistorial(true) }}
           puedePreguntar={conIa}
           onPreguntar={() => { window.dispatchEvent(new CustomEvent(EVENTO_ABRIR_ORBE, { detail: { actaId: acta.id } })) }}
@@ -366,7 +424,21 @@ export function DetalleActa ({
         </p>
       )}
 
-      {edicion.editando
+      {conjunta && yo !== undefined && (
+        <EdicionConjuntaDelActa
+          actaId={acta.id}
+          proyectoId={proyectoId}
+          marca={acta.brand}
+          // Igual que en el editor de siempre: la IA solo trabaja sobre el idioma original.
+          conIa={conIa && traduccionActiva === null}
+          yo={yo}
+          onGuardado={onRevalidar}
+          onCerrar={cerrarConjunta}
+          onSinConexion={seguirSinConexion}
+        />
+      )}
+
+      {!conjunta && (edicion.editando
         ? (
           <EditorDeActa
             // La copia con la que se abrió el editor, no `htmlActivo`: si el acta se recarga
@@ -411,7 +483,7 @@ export function DetalleActa ({
               />
             )}
           </div>
-          )}
+          ))}
 
       {/* El resumen de lo que hizo el Orbe, para quien no ve la animación. El foco no se mueve. */}
       <p role="status" aria-live="polite" className="sr-only">{reproduccion.resumen}</p>
@@ -441,7 +513,7 @@ export function DetalleActa ({
         abierto={verHistorial}
         ruta={ruta}
         revision={acta.date_updated}
-        puedeRestaurar={puedeEditar && !edicion.editando}
+        puedeRestaurar={puedeEditar && !corrigiendo}
         onRestaurada={(restaurada) => { onCambiada(restaurada); onRevalidar() }}
         onCambioAjeno={onRevalidar}
         onCerrar={() => { setVerHistorial(false) }}

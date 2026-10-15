@@ -24,6 +24,47 @@ const DOCUMENTO = GLOSARIO.acta.singular
 /** Lo que dice la API de por qué cambió el contenido. Un valor desconocido se muestra como «Cambio». */
 export type OrigenDeRevision = 'manual' | 'ia' | 'orb' | 'restauracion' | 'colaborativo'
 
+/**
+ * Una de las personas que escribieron en un mismo cambio. Una revisión de edición conjunta puede
+ * tener varias; `staff_id` de la revisión sigue siendo quien escribió último.
+ */
+export interface AutorDelActa {
+  staff_id: number
+  staff_name: string
+  staff_image: string | null
+}
+
+/** Una persona tal como la pide `GrupoEnlacesPersona`. */
+export interface PersonaDelGrupo {
+  id: number
+  full_name: string
+  profile_image_url: string | null
+}
+
+/**
+ * Las personas de un cambio cuando fueron varias, para mostrarlas juntas.
+ *
+ * Con una sola (o ninguna, o una API que aún no manda `authors`) devuelve vacío: ahí se muestra a
+ * quien firma la revisión, como siempre. Se descartan las repetidas y las entradas inválidas.
+ *
+ * @param revision la entrada o el cambio, con su lista opcional de `authors`
+ * @returns las personas si son dos o más; vacío en cualquier otro caso
+ */
+export function autoresDeRevision (revision: { authors?: readonly AutorDelActa[] | null }): PersonaDelGrupo[] {
+  const vistos = new Set<number>()
+  const personas: PersonaDelGrupo[] = []
+
+  for (const autor of revision.authors ?? []) {
+    if (!Number.isInteger(autor.staff_id) || autor.staff_id <= 0 || vistos.has(autor.staff_id)) continue
+    if (typeof autor.staff_name !== 'string' || autor.staff_name === '') continue
+
+    vistos.add(autor.staff_id)
+    personas.push({ id: autor.staff_id, full_name: autor.staff_name, profile_image_url: autor.staff_image ?? null })
+  }
+
+  return personas.length > 1 ? personas : []
+}
+
 /** Una entrada de la lista: un cambio, o el punto en que se creó el documento. */
 export interface RevisionDelActa {
   /** `0` en la entrada de creación. */
@@ -34,6 +75,8 @@ export interface RevisionDelActa {
   staff_id: number | null
   staff_name: string | null
   staff_image: string | null
+  /** Quienes escribieron en el cambio (edición conjunta). Opcional: una API anterior no lo manda. */
+  authors?: readonly AutorDelActa[]
   /** Las secciones tocadas, ya redactadas por la API; `null` si no se calculó. */
   summary: string | null
   preview: string | null
@@ -47,6 +90,8 @@ export interface CambioDelActa {
   staff_id: number | null
   staff_name: string | null
   staff_image: string | null
+  /** Quienes escribieron en el cambio (edición conjunta). Opcional: una API anterior no lo manda. */
+  authors?: readonly AutorDelActa[]
   date_added: string | null
   summary: string | null
   /** El HTML que había antes del cambio; es lo que «Restaurar» devuelve. */

@@ -1,16 +1,22 @@
 'use client'
 
 import { useEffect, useState, type ReactElement } from 'react'
+import type { Extensions } from '@tiptap/core'
 import { EditorContent, useEditor, type Editor } from '@tiptap/react'
 import { BubbleMenu } from '@tiptap/react/menus'
-import StarterKit from '@tiptap/starter-kit'
 import Placeholder from '@tiptap/extension-placeholder'
+import Collaboration from '@tiptap/extension-collaboration'
+import CollaborationCaret from '@tiptap/extension-collaboration-caret'
+import type { HocuspocusProvider } from '@hocuspocus/provider'
+import type { Doc } from 'yjs'
 import { Bold, Expand, GraduationCap, Handshake, Heading2, Heading3, Italic, List, ListCollapse, Quote, Shrink, Sparkles } from 'lucide-react'
 import { DOMSerializer } from '@tiptap/pm/model'
 import { AvisoEnLinea } from '@/componentes/estado/Estados'
 import { Boton } from '@/componentes/formularios/Boton'
 import { escribirEnBff } from '@/componentes/datos/mutaciones'
 import { cn } from '@/lib/clases'
+import { extensionesDeActa } from '@/lib/en-vivo/extensiones-acta'
+import { cursorDeColaborador, seleccionDeColaborador } from './acta/cursoresDelActa'
 import '@/estilos/acta.css'
 import type { LucideIcon } from 'lucide-react'
 import { claseDeMarca, cssDeMarcas } from '@/dominio/marcas-acta'
@@ -43,7 +49,15 @@ import {
  * títulos, listas, negrita, cursiva, subrayado, citas y separadores. Agregar una extensión después es
  * una línea; quitarla cuando ya hay actas que la usan es pérdida de datos.
  *
- * StarterKit v3 ya trae Link y Underline, así que no se instalan por separado.
+ * StarterKit v3 ya trae Link y Underline, así que no se instalan por separado. La lista vive en
+ * `lib/en-vivo/extensiones-acta.ts` y la comparte con el servicio de «Ops en vivo»: el servicio
+ * convierte el HTML del board a documento Yjs con ella, y un esquema distinto corrompería el acta.
+ *
+ * === EDICION CONJUNTA ===
+ *
+ * Con `colaboracion` el documento es el de Yjs: no se pasa `content`, no hay Placeholder y se suman
+ * los cursores de las demás personas. El caret del asistente (`Thinking Orb`) se dibuja con el azul
+ * de su marca, no con el color que publica el servicio. Ver `acta/cursoresDelActa.ts`.
  *
  * === POR QUE MONTAR HTML ACA NO ES UN XSS ===
  *
@@ -88,9 +102,27 @@ interface Propuesta {
   contexto: string
 }
 
+/**
+ * Lo que convierte al editor en uno conjunto: el documento Yjs y su proveedor, y quién es la persona
+ * (lo que los demás ven en su cursor).
+ */
+export interface ColaboracionDelEditor {
+  provider: HocuspocusProvider
+  ydoc: Doc
+  usuario: { id: number, name: string, color: string, imagen: string | null }
+}
+
 interface PropsEditor {
-  /** HTML inicial. Se monta una sola vez: los cambios posteriores los maneja el editor. */
-  htmlInicial: string
+  /**
+   * HTML inicial. Se monta una sola vez: los cambios posteriores los maneja el editor. Con
+   * `colaboracion` se ignora: el contenido viene del documento Yjs.
+   */
+  htmlInicial?: string
+  /**
+   * Edición conjunta. Con ella el editor se arma sobre el documento compartido, sin `content` ni
+   * Placeholder; si cambia el documento (una reconexión) se crea un editor nuevo.
+   */
+  colaboracion?: ColaboracionDelEditor
   /** Recibe el HTML en cada cambio, para que el panel sepa que hay algo sin guardar. */
   onCambio: (html: string) => void
   /** Proyecto al que pertenece el acta: la reescritura cuelga de él para poder autorizarla. */
@@ -110,26 +142,44 @@ interface PropsEditor {
   onReescrituraIa?: () => void
 }
 
-export function EditorDeActa ({ htmlInicial, onCambio, proyectoId, conIa = true, marca = null, actaId, onReescrituraIa }: PropsEditor): ReactElement {
+/**
+ * Las extensiones del editor: el esquema del acta más lo que cambia entre editar solo y editar en
+ * conjunto. Solo, el deshacer es el de TipTap y hay marcador de posición; en conjunto, el documento
+ * y los cursores son de Yjs y el deshacer también (dos pilas se pisarían).
+ *
+ * @param colaboracion la edición conjunta, si la hay
+ * @returns la lista para `useEditor`
+ */
+function extensionesDelEditor (colaboracion: ColaboracionDelEditor | undefined): Extensions {
+  if (colaboracion === undefined) {
+    return [...extensionesDeActa({ conHistorial: true }), Placeholder.configure({ placeholder: 'El acta de la reunión…' })]
+  }
+
+  return [
+    ...extensionesDeActa(),
+    Collaboration.configure({ document: colaboracion.ydoc }),
+    CollaborationCaret.configure({
+      provider: colaboracion.provider,
+      user: colaboracion.usuario,
+      render: cursorDeColaborador,
+      selectionRender: seleccionDeColaborador
+    })
+  ]
+}
+
+export function EditorDeActa ({ htmlInicial = '', colaboracion, onCambio, proyectoId, conIa = true, marca = null, actaId, onReescrituraIa }: PropsEditor): ReactElement {
   const [reescribiendo, setReescribiendo] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [propuesta, setPropuesta] = useState<Propuesta | null>(null)
   const [instruccion, setInstruccion] = useState('')
   const [pidiendoAlActa, setPidiendoAlActa] = useState(false)
+  const conjunto = colaboracion !== undefined
 
   const editor = useEditor({
     immediatelyRender: false,
-    extensions: [
-      StarterKit.configure({
-        link: {
-          openOnClick: false,
-          // `javascript:` sobrevive a cualquier parseo de HTML: el esquema no lo filtra solo.
-          protocols: ['http', 'https', 'mailto']
-        }
-      }),
-      Placeholder.configure({ placeholder: 'El acta de la reunión…' })
-    ],
-    content: htmlInicial,
+    extensions: extensionesDelEditor(colaboracion),
+    // Con Yjs el contenido lo da el documento compartido: pasar `content` lo escribiría encima.
+    ...(conjunto ? {} : { content: htmlInicial }),
     editorProps: {
       attributes: {
         class: `acta-editor acta-marca ${claseDeMarca(marca)} rounded-chico border-linea min-h-[24rem]`
@@ -137,16 +187,20 @@ export function EditorDeActa ({ htmlInicial, onCambio, proyectoId, conIa = true,
       }
     },
     onUpdate: ({ editor: actual }) => { onCambio(actual.getHTML()) }
-  })
+    // Cada documento Yjs necesita su editor: el de una sesión que se reconectó ya no sirve.
+  }, [colaboracion?.ydoc])
 
-  // El contenido cambia cuando termina una generación nueva sobre el mismo editor montado.
+  // El contenido cambia cuando termina una generación nueva sobre el mismo editor montado. En
+  // edición conjunta no se toca: pisaría lo que escriben las demás personas.
   useEffect(() => {
+    if (conjunto) return
+
     if (editor !== null && htmlInicial !== editor.getHTML()) {
       editor.commands.setContent(htmlInicial)
     }
     // `editor.getHTML()` se lee adentro pero no va en las dependencias: cambia en cada tecla y
     // remontaría el contenido mientras alguien escribe.
-  }, [htmlInicial, editor])
+  }, [htmlInicial, editor, conjunto])
 
   if (editor === null) return <p className="text-texto-tenue text-sm">Cargando el editor…</p>
 

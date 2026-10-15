@@ -13,6 +13,8 @@ import type { FormatoDeExportacion } from './useExportacionDelActa'
 
 interface PropsAcciones {
   editando: boolean
+  /** Edición conjunta abierta: no hay Guardar ni Descartar (guarda el servicio) ni otras acciones del acta. */
+  conjunta: boolean
   guardando: boolean
   exportando: FormatoDeExportacion | null
   puedeEditar: boolean
@@ -40,6 +42,7 @@ interface PropsAcciones {
  */
 export function AccionesDelActa ({
   editando,
+  conjunta,
   guardando,
   exportando,
   puedeEditar,
@@ -59,7 +62,7 @@ export function AccionesDelActa ({
 }: PropsAcciones): ReactElement {
   return (
     <div className="flex shrink-0 flex-wrap items-center gap-2">
-      {editando
+      {!conjunta && (editando
         ? (
           <>
             <Boton variante="sutil" tamano="chico" onClick={onDescartar}>
@@ -105,7 +108,7 @@ export function AccionesDelActa ({
               </Boton>
             )}
           </>
-          )}
+          ))}
 
       {/* El `⋯` se dibuja solo si tiene algo dentro: un menú que se abre vacío promete acciones
           que este sujeto no tiene. */}
