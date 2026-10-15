@@ -1,3 +1,6 @@
+import { debeSondear } from '../dominio/en-vivo.ts'
+import { estaConectadoEnVivo } from './en-vivo.ts'
+
 /** Cadencia compartida de actualización de las listas personales visibles. */
 export const REFRESCO_LISTA_MS = 30_000
 export const EVENTO_TAREAS_CAMBIADAS = 'ops:tareas-cambiadas'
@@ -21,6 +24,37 @@ export interface OpcionesDeObservacion {
    * la siguiente llega con el intervalo, el foco o un evento.
    */
   inmediato?: boolean
+  /**
+   * Si el bus de «en vivo» está conectado; por defecto, el del navegador. Conectado, el intervalo
+   * pasa a respaldo (ver `debeSondear`); los eventos, la vuelta a la pestaña y el foco no cambian.
+   */
+  conectado?: () => boolean
+}
+
+/** Primer segmento de una ruta del BFF: `tasks/12` → `tasks`. */
+function primerSegmento (ruta: string): string {
+  return ruta.split('/')[0] ?? ''
+}
+
+/**
+ * Si un `ops:recurso-cambiado` obliga a una tabla de esa ruta a volver a pedir sus datos.
+ *
+ * Las escrituras propias (sin `origen`) invalidan todo, como siempre. Un aviso del bus
+ * (`origen: 'en-vivo'`) solo invalida a la tabla del mismo recurso: el bus dice «cambió la tarea 12»
+ * y no hay por qué releer la lista de tickets.
+ *
+ * @param detalle el `detail` del evento
+ * @param rutaDeLaTabla la ruta de la definición de la tabla (`tasks`, `tickets`…)
+ * @returns `true` si la tabla debe invalidarse
+ */
+export function afectaALaRuta (detalle: unknown, rutaDeLaTabla: string): boolean {
+  if (typeof detalle !== 'object' || detalle === null) return true
+
+  const { origen, ruta } = detalle as { origen?: unknown, ruta?: unknown }
+
+  if (origen !== 'en-vivo') return true
+
+  return typeof ruta === 'string' && primerSegmento(ruta) === primerSegmento(rutaDeLaTabla)
 }
 
 /**
@@ -40,13 +74,14 @@ export function observarLista<T> (
   cargar: (senal: AbortSignal) => Promise<T>,
   recibir: (datos: T) => void,
   fallar: (fallo: unknown) => void,
-  { eventos = EVENTOS_POR_DEFECTO, inmediato = true }: OpcionesDeObservacion = {}
+  { eventos = EVENTOS_POR_DEFECTO, inmediato = true, conectado = estaConectadoEnVivo }: OpcionesDeObservacion = {}
 ): () => void {
   const control = new AbortController()
   const documento = document
   const ventana = window
   let enCurso = false
   let pendiente = false
+  let ultima = 0
 
   /**
    * Agrupa avisos simultáneos y repite si hubo una escritura durante la consulta.
@@ -59,6 +94,7 @@ export function observarLista<T> (
       return
     }
     enCurso = true
+    ultima = Date.now()
     try {
       const datos = await cargar(control.signal)
       if (!control.signal.aborted) recibir(datos)
@@ -75,7 +111,13 @@ export function observarLista<T> (
 
   const tic = (): void => { void actualizar(false) }
   const regreso = (): void => { void actualizar(true) }
-  const intervalo = globalThis.setInterval(tic, REFRESCO_LISTA_MS)
+  // Con el bus conectado el intervalo es solo respaldo. La comprobación va solo con el bus conectado:
+  // apagado, el intervalo sigue exactamente igual (sin depender de la precisión del reloj).
+  const ticPeriodico = (): void => {
+    if (conectado() && !debeSondear(ultima, REFRESCO_LISTA_MS, true, Date.now())) return
+    tic()
+  }
+  const intervalo = globalThis.setInterval(ticPeriodico, REFRESCO_LISTA_MS)
   documento.addEventListener('visibilitychange', regreso)
   ventana.addEventListener('focus', regreso)
   for (const evento of eventos) ventana.addEventListener(evento, tic)

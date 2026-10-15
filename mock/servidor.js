@@ -4851,6 +4851,15 @@ const CLAVES_DE_AJUSTES_DEL_MOCK = new Set([
   'wiwo_modo_especial', 'wiwo_modo_desde', 'wiwo_modo_hasta'
 ])
 
+/**
+ * El maestro de «Ops en vivo» en `GET /settings`. Nace apagado, como la instalación real;
+ * `MOCK_EN_VIVO=1` lo enciende para las pruebas de navegador (`pruebas/en-vivo-dos-sesiones.browser.mjs`).
+ * Solo el maestro: las salas por defecto no necesitan que el mock valide nada más.
+ */
+function opcionesDeEnVivo () {
+  return { wiwo_en_vivo: { group: 'en_vivo', type: 'bool', value: process.env.MOCK_EN_VIVO === '1' ? '1' : '0' } }
+}
+
 /** El grupo `apariencia` de `GET /settings`, con la forma de `RecursoAjustes::presentar()`. */
 function opcionesDeModo () {
   return {
@@ -7591,7 +7600,8 @@ async function resolverRuta (metodo, segmentos, parametros, token, cuerpo, petic
           ia_tope_tokens: { value: 700, tipo: 'int' },
           ...opcionDelOrbePortal(),
           ...opcionesDeJornada(),
-          ...opcionesDeModo()
+          ...opcionesDeModo(),
+          ...opcionesDeEnVivo()
         }
       })
     }

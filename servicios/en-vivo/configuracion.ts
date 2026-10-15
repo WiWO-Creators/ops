@@ -116,6 +116,45 @@ function leerApiBase (env: Entorno): string {
   return url.href.replace(/\/+$/, '')
 }
 
+/** Lo mínimo para escuchar en modo inactivo: dónde, sin secretos ni board. */
+export interface ConfiguracionInactiva {
+  puerto: number
+  host: string
+  prefijo: string
+}
+
+/** Los secretos sin los que el servicio no puede firmar ni verificar nada. */
+const VARIABLES_DE_SECRETO = ['EN_VIVO_SECRETO', 'EN_VIVO_BOLETO_SECRETO'] as const
+
+/**
+ * Nombres de los secretos que no están definidos (ausentes o vacíos).
+ *
+ * Es el criterio del modo inactivo: mientras el servidor no tenga las variables, el servicio
+ * arranca sin funciones en vez de caerse y dejar a PM2 reiniciándolo en bucle. Un secreto presente
+ * pero inválido (corto, repetido) no es «faltante»: `leerConfiguracion` lo sigue rechazando.
+ *
+ * @param env las variables de entorno; por defecto `process.env`
+ * @returns los nombres (nunca los valores) de los secretos que faltan; vacío si están todos
+ */
+export function secretosFaltantes (env: Entorno = process.env): string[] {
+  return VARIABLES_DE_SECRETO.filter((nombre) => (env[nombre] ?? '').trim() === '')
+}
+
+/**
+ * Valida solo dónde escuchar (puerto, host, prefijo) para el modo inactivo.
+ *
+ * @param env las variables de entorno; por defecto `process.env`
+ * @returns puerto, host y prefijo
+ * @throws Error si el puerto o el prefijo son inválidos
+ */
+export function leerConfiguracionInactiva (env: Entorno = process.env): ConfiguracionInactiva {
+  return {
+    puerto: leerEntero(env, 'EN_VIVO_PUERTO', PUERTO_POR_DEFECTO, 0, 65_535),
+    host: (env.EN_VIVO_HOST ?? '').trim() || HOST_POR_DEFECTO,
+    prefijo: leerPrefijo(env)
+  }
+}
+
 /**
  * Valida el entorno y arma la configuración del servicio.
  *

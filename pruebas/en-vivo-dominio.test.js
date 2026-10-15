@@ -150,6 +150,14 @@ test('eventos de ventana por tipo de cambio', () => {
     { nombre: 'ops:tickets-cambiados', detalle: { id: 9 } },
     { nombre: 'ops:recurso-cambiado', detalle: { ruta: 'tickets/9', origen: 'en-vivo' } }
   ])
+  // Un ticket sin id (el portal no recibe ids) no tiene qué releer en concreto.
+  assert.deepEqual(eventosDeVentanaPara({ tipo: 'ticket', id: null }), [])
+  assert.deepEqual(eventosDeVentanaPara({ tipo: 'jornada', id: 3 }), [
+    { nombre: 'ops:en-vivo', detalle: { tipo: 'jornada', id: 3, espacio_id: null } }
+  ])
+  assert.deepEqual(eventosDeVentanaPara({ tipo: 'pantalla', id: null }), [
+    { nombre: 'ops:en-vivo', detalle: { tipo: 'pantalla', id: null, espacio_id: null } }
+  ])
   assert.deepEqual(eventosDeVentanaPara({ tipo: 'aviso', id: 2, espacio_id: 4 }), [
     { nombre: 'ops:en-vivo', detalle: { tipo: 'aviso', id: 2, espacio_id: 4 } }
   ])

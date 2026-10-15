@@ -12,8 +12,10 @@ import {
 import { escribirEnBff } from '@/componentes/datos/mutaciones'
 import { formatearDuracion } from '@/componentes/proyecto/cronometro'
 import { conLimite, esTiempoAgotado, TIEMPO_LECTURA_MS } from '@/datos/red'
+import { estaConectadoEnVivo } from '@/datos/en-vivo'
 import { sondeoSinApilar } from '@/datos/sondeo'
 import type { ClienteDeJornada, EstadoDeJornada } from '@/datos/live'
+import { debeSondear } from '@/dominio/en-vivo'
 import { GLOSARIO } from '@/dominio/glosario'
 import {
   clienteDeJornada,
@@ -250,8 +252,11 @@ export function ControlJornada ({
 
   useEffect(() => {
     const control = new AbortController()
+    let ultimaConsulta = 0
 
     const consultar = sondeoSinApilar(async () => {
+      ultimaConsulta = Date.now()
+
       try {
         await refrescar(control.signal)
       } catch (fallo) {
@@ -280,12 +285,18 @@ export function ControlJornada ({
 
     const tic = (): void => { preguntar(false) }
     const ticPeriodico = (): void => { preguntar(true) }
+    // Con el bus de «en vivo» conectado el intervalo es solo respaldo: los cambios llegan por
+    // `escucharMedidor` (el puente lo avisa en cada evento de jornada o cronómetro).
+    const ticDelIntervalo = (): void => {
+      if (estaConectadoEnVivo() && !debeSondear(ultimaConsulta, segundos * 1000, true, Date.now())) return
+      ticPeriodico()
+    }
 
     // Un cambio propio ya trae su refresco: esto sirve para el primer pintado del cliente cuando el
     // servidor no pudo resolver el estado, y para volver a leer tras una accion.
     if (intento > 0) tic()
 
-    const intervalo = globalThis.setInterval(ticPeriodico, segundos * 1000)
+    const intervalo = globalThis.setInterval(ticDelIntervalo, segundos * 1000)
     document.addEventListener('visibilitychange', ticPeriodico)
     // El medidor tambien se toca desde la ficha del proceso y desde el panel de tiempos. Sin esta
     // suscripcion, detenerlo alla dejaria el contador de la cabecera corriendo hasta el proximo

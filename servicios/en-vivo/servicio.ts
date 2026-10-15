@@ -37,12 +37,26 @@ export interface Servicio {
   documentosCargados: () => number
 }
 
-function responderJson (res: ServerResponse, estado: number, cuerpo: unknown): void {
+/**
+ * Responde un JSON sin caché.
+ *
+ * @param res la respuesta
+ * @param estado el código HTTP
+ * @param cuerpo lo que se serializa
+ */
+export function responderJson (res: ServerResponse, estado: number, cuerpo: unknown): void {
   res.writeHead(estado, { 'content-type': 'application/json; charset=utf-8', 'cache-control': 'no-store' })
   res.end(JSON.stringify(cuerpo))
 }
 
-function rechazarUpgrade (socket: Duplex, estado: number, frase: string): void {
+/**
+ * Niega la mejora a WebSocket con un código HTTP y cierra el socket.
+ *
+ * @param socket el socket crudo de la petición `upgrade`
+ * @param estado el código HTTP
+ * @param frase la frase del código
+ */
+export function rechazarUpgrade (socket: Duplex, estado: number, frase: string): void {
   socket.on('error', () => undefined)
   socket.write(`HTTP/1.1 ${estado} ${frase}\r\nConnection: close\r\nContent-Length: 0\r\n\r\n`)
   socket.destroy()

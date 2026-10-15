@@ -7,8 +7,10 @@ import { EnlacePersona } from '@/componentes/presentadores/EnlacePersona'
 import type { AlcanceDeLive } from '@/dominio/live'
 import type { FilaDeLive } from '@/datos/live'
 import { conLimite, esTiempoAgotado, TIEMPO_LECTURA_MS } from '@/datos/red'
+import { estaConectadoEnVivo } from '@/datos/en-vivo'
 import { sondeoSinApilar } from '@/datos/sondeo'
 import type { Yo } from '@/datos/tipos'
+import { debeSondear } from '@/dominio/en-vivo'
 import { escucharMedidor } from './medidor'
 import { cn } from '@/lib/clases'
 import { repartirTablero } from './presentacion'
@@ -114,8 +116,11 @@ export function PanelEquipo ({
 
   useEffect(() => {
     const control = new AbortController()
+    let ultimaConsulta = 0
 
     const consultar = sondeoSinApilar(async () => {
+      ultimaConsulta = Date.now()
+
       try {
         await refrescar(control.signal)
       } catch (fallo) {
@@ -133,9 +138,15 @@ export function PanelEquipo ({
     // en cuanto vuelve al frente. El tic periodico no se apila sobre una consulta en camino.
     const tic = (): void => { if (!document.hidden) consultar(false) }
     const ticPeriodico = (): void => { if (!document.hidden) consultar(true) }
+    // Con el bus de «en vivo» conectado el intervalo es solo respaldo: los cambios llegan por
+    // `escucharMedidor` (el puente lo avisa en cada evento de jornada o cronómetro).
+    const ticDelIntervalo = (): void => {
+      if (estaConectadoEnVivo() && !debeSondear(ultimaConsulta, segundos * 1000, true, Date.now())) return
+      ticPeriodico()
+    }
 
     const dejarDeEscuchar = escucharMedidor(tic)
-    const intervalo = globalThis.setInterval(ticPeriodico, segundos * 1000)
+    const intervalo = globalThis.setInterval(ticDelIntervalo, segundos * 1000)
     document.addEventListener('visibilitychange', ticPeriodico)
 
     return () => {
