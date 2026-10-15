@@ -1,6 +1,7 @@
 'use client'
 
 import { useCallback, useEffect, useState, type ReactElement } from 'react'
+import { PresentesEnRecurso } from '@/componentes/en-vivo/PresentesEnRecurso'
 import { Cargando, ErrorEstado, Vacio } from '@/componentes/estado/Estados'
 import type { Capacidad } from '@/datos/tipos'
 import { avisarCambioDeTicket } from '@/dominio/ticket-estados'
@@ -145,6 +146,10 @@ export function DetalleTicket ({
         />
 
         <AccionesDelSolicitante ticket={vista} fuente={fuente} onCambiado={alEscribir} onRechazado={() => { void refrescar() }} />
+
+        {/* Quiénes más miran este ticket y quién está respondiendo; solo el equipo, y solo con la
+            presencia de «Ops en vivo» encendida (apagada no dibuja nada). */}
+        {fuente.sujeto === 'panel' && <PresentesEnRecurso tipo="ticket" id={vista.id} />}
       </header>
 
       <Hilo mensajes={vista.hilo} />

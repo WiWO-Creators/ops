@@ -1,4 +1,4 @@
-import { leerMensajeDelServidor, type TipoDeCambio } from '../dominio/en-vivo.ts'
+import { leerMensajeDelServidor, type MensajeDelServidor, type TipoDeCambio } from '../dominio/en-vivo.ts'
 
 /**
  * Cliente del bus de «Ops en vivo» para el navegador.
@@ -18,6 +18,9 @@ export interface CambioEnVivo {
   id: number | null
   espacio_id: number | null
 }
+
+/** Un aviso de presencia en un recurso: quiénes lo miran, o quién acaba de escribir. */
+export type AvisoDePresencia = Extract<MensajeDelServidor, { t: 'presentes' | 'escribiendo' }>
 
 /** Pide un boleto; `null` si no se pudo (se reintenta con espera). */
 export type PedirBoleto = () => Promise<string | null>
@@ -59,6 +62,9 @@ const CIERRE_BOLETO = 4401
 /** Código con el que el navegador cierra por su cuenta. */
 const CIERRE_NORMAL = 1000
 
+/** La misma lista vacía para toda sala sin presentes: un valor estable para `useSyncExternalStore`. */
+const SIN_PRESENTES: number[] = []
+
 /**
  * Cuánto esperar antes del próximo intento de conexión.
  *
@@ -81,6 +87,20 @@ export interface ClienteEnVivo {
   escuchar: (oyente: (cambio: CambioEnVivo) => void) => () => void
   escucharEstado: (oyente: (conectado: boolean) => void) => () => void
   estaConectado: () => boolean
+  /**
+   * Dice al servicio que esta pestaña está «viendo» la sala (`recurso:*`); devuelve la función que
+   * dice «fuera». Varias altas de una sala cuentan como una. Se repite sola tras cada reconexión.
+   */
+  anunciarPresencia: (sala: string) => () => void
+  /** Avisa a la sala que se está escribiendo. Se ignora si el socket no está listo o no está en la sala. */
+  avisarEscribiendo: (sala: string) => void
+  /** Se entera de quiénes miran y quién escribe en las salas `recurso:*` suscritas. */
+  escucharPresencia: (oyente: (aviso: AvisoDePresencia) => void) => () => void
+  /**
+   * Los últimos presentes que el servicio difundió para la sala (vacío si no hay o se cayó el socket).
+   * Es la misma lista mientras no llegue otra: sirve de instantánea para `useSyncExternalStore`.
+   */
+  presentesDe: (sala: string) => number[]
 }
 
 interface SalaPedida {
@@ -97,7 +117,15 @@ interface SalaPedida {
 export function crearClienteEnVivo (dependencias: DependenciasDelCliente): ClienteEnVivo {
   const oyentes = new Set<(cambio: CambioEnVivo) => void>()
   const oyentesDeEstado = new Set<(conectado: boolean) => void>()
+  const oyentesDePresencia = new Set<(aviso: AvisoDePresencia) => void>()
   const salasPedidas = new Map<string, SalaPedida>()
+  /** Salas donde esta pestaña quiere figurar «viendo», con cuántos componentes lo piden. */
+  const presenciaDeseada = new Map<string, number>()
+  /** Salas ya anunciadas por el socket actual (la presencia vive en la conexión, no en la pestaña). */
+  const anunciadas = new Set<string>()
+  /** Salas que el servicio confirmó en el socket actual. */
+  let salasListas = new Set<string>()
+  const presentes = new Map<string, number[]>()
   let opciones: OpcionesDeConexion | null = null
   let socket: SocketMinimo | null = null
   let conectado = false
@@ -137,17 +165,56 @@ export function crearClienteEnVivo (dependencias: DependenciasDelCliente): Clien
     socket.send(JSON.stringify({ t: 'suscribir', sala, boleto }))
   }
 
+  /** Manda un mensaje por el socket actual; no hace nada si no hay uno listo. */
+  function enviar (mensaje: object): void {
+    if (socket === null || !conectado) return
+
+    try {
+      socket.send(JSON.stringify(mensaje))
+    } catch {
+      // El socket se cerró entre medio: la reconexión se encarga.
+    }
+  }
+
+  /** Anuncia «viendo» en las salas deseadas que el servicio ya confirmó y aún no se anunciaron. */
+  function anunciarPendientes (): void {
+    for (const sala of presenciaDeseada.keys()) {
+      if (!salasListas.has(sala) || anunciadas.has(sala)) continue
+
+      anunciadas.add(sala)
+      enviar({ t: 'presencia', sala, estado: 'viendo' })
+    }
+  }
+
+  function notificarPresencia (aviso: AvisoDePresencia): void {
+    for (const oyente of [...oyentesDePresencia]) oyente(aviso)
+  }
+
+  /** La conexión terminó: lo que se sabía de quién mira ya no vale. */
+  function olvidarPresencia (): void {
+    const salas = [...presentes.keys()]
+
+    anunciadas.clear()
+    salasListas = new Set()
+    presentes.clear()
+    for (const sala of salas) notificarPresencia({ t: 'presentes', sala, staff: [] })
+  }
+
   function alRecibir (texto: unknown, vigente: number): void {
     const mensaje = leerMensajeDelServidor(texto)
 
     if (mensaje === null) return
 
     if (mensaje.t === 'listo') {
+      salasListas = new Set(mensaje.salas)
+
       if (!conectado) {
         intentos = 0
         fijarEstado(true)
         for (const [sala, pedida] of salasPedidas) void suscribir(sala, pedida, vigente)
       }
+
+      anunciarPendientes()
 
       return
     }
@@ -156,12 +223,18 @@ export function crearClienteEnVivo (dependencias: DependenciasDelCliente): Clien
       const cambio: CambioEnVivo = { tipo: mensaje.tipo, id: mensaje.id, espacio_id: mensaje.espacio_id }
 
       for (const oyente of [...oyentes]) oyente(cambio)
+
+      return
     }
+
+    if (mensaje.t === 'presentes') presentes.set(mensaje.sala, mensaje.staff)
+    if (mensaje.t === 'presentes' || mensaje.t === 'escribiendo') notificarPresencia(mensaje)
   }
 
   function alCerrar (codigo: number): void {
     socket = null
     fijarEstado(false)
+    olvidarPresencia()
 
     // 4401: el boleto venció o no valió; el siguiente intento pide uno nuevo, sin esperar de más.
     if (codigo === CIERRE_BOLETO) intentos = 0
@@ -228,6 +301,7 @@ export function crearClienteEnVivo (dependencias: DependenciasDelCliente): Clien
       try { viejo.close(CIERRE_NORMAL) } catch { /* ya estaba cerrado */ }
     }
     fijarEstado(false)
+    olvidarPresencia()
   }
 
   function suscribirSala (sala: string, pedirBoletoDeSala: PedirBoleto): () => void {
@@ -247,8 +321,44 @@ export function crearClienteEnVivo (dependencias: DependenciasDelCliente): Clien
       if (pedida.cuenta > 0) return
 
       salasPedidas.delete(sala)
+      anunciadas.delete(sala)
+      salasListas.delete(sala)
+      presentes.delete(sala)
       if (conectado && socket !== null) socket.send(JSON.stringify({ t: 'desuscribir', sala }))
     }
+  }
+
+  function anunciarPresencia (sala: string): () => void {
+    presenciaDeseada.set(sala, (presenciaDeseada.get(sala) ?? 0) + 1)
+    anunciarPendientes()
+
+    let suelta = false
+
+    return () => {
+      if (suelta) return
+      suelta = true
+
+      const quedan = (presenciaDeseada.get(sala) ?? 1) - 1
+
+      if (quedan > 0) {
+        presenciaDeseada.set(sala, quedan)
+
+        return
+      }
+
+      presenciaDeseada.delete(sala)
+      if (anunciadas.delete(sala)) enviar({ t: 'presencia', sala, estado: 'fuera' })
+    }
+  }
+
+  function avisarEscribiendo (sala: string): void {
+    if (salasListas.has(sala)) enviar({ t: 'escribiendo', sala })
+  }
+
+  function escucharPresencia (oyente: (aviso: AvisoDePresencia) => void): () => void {
+    oyentesDePresencia.add(oyente)
+
+    return () => { oyentesDePresencia.delete(oyente) }
   }
 
   function escuchar (oyente: (cambio: CambioEnVivo) => void): () => void {
@@ -263,7 +373,17 @@ export function crearClienteEnVivo (dependencias: DependenciasDelCliente): Clien
     return () => { oyentesDeEstado.delete(oyente) }
   }
 
-  return { conectar, suscribirSala, escuchar, escucharEstado, estaConectado: () => conectado }
+  return {
+    conectar,
+    suscribirSala,
+    escuchar,
+    escucharEstado,
+    estaConectado: () => conectado,
+    anunciarPresencia,
+    avisarEscribiendo,
+    escucharPresencia,
+    presentesDe: (sala) => presentes.get(sala) ?? SIN_PRESENTES
+  }
 }
 
 /** Dependencias reales del navegador. */
@@ -316,6 +436,26 @@ export function escucharEnVivo (oyente: (cambio: CambioEnVivo) => void): () => v
 /** Se entera de cuándo el socket pasa a conectado o desconectado. */
 export function escucharEstado (oyente: (conectado: boolean) => void): () => void {
   return cliente.escucharEstado(oyente)
+}
+
+/** Dice que esta pestaña mira la sala; ver {@link ClienteEnVivo.anunciarPresencia}. */
+export function anunciarPresencia (sala: string): () => void {
+  return cliente.anunciarPresencia(sala)
+}
+
+/** Avisa que se está escribiendo en la sala; ver {@link ClienteEnVivo.avisarEscribiendo}. */
+export function avisarEscribiendoEnSala (sala: string): void {
+  cliente.avisarEscribiendo(sala)
+}
+
+/** Se entera de quiénes miran y quién escribe; ver {@link ClienteEnVivo.escucharPresencia}. */
+export function escucharPresencia (oyente: (aviso: AvisoDePresencia) => void): () => void {
+  return cliente.escucharPresencia(oyente)
+}
+
+/** Los últimos presentes conocidos de una sala; ver {@link ClienteEnVivo.presentesDe}. */
+export function presentesDe (sala: string): number[] {
+  return cliente.presentesDe(sala)
 }
 
 /** `true` si el socket del bus está conectado y listo. Sin conexión, el sondeo manda como siempre. */

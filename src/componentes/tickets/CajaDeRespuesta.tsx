@@ -3,6 +3,7 @@
 import { Lock, MessageCircleQuestion, MessageSquareText } from 'lucide-react'
 import { useEffect, useRef, useState, type ReactElement } from 'react'
 import { AvisoEnLinea } from '@/componentes/estado/Estados'
+import { useAvisarEscribiendo } from '@/componentes/en-vivo/usePresenciaEnRecurso'
 import { Boton } from '@/componentes/formularios/Boton'
 import { EditorRico } from '@/componentes/formularios/EditorRico'
 import { Contenido } from '@/componentes/presentadores/Contenido'
@@ -91,6 +92,8 @@ export function CajaDeRespuesta ({
   // Segundos que pidio esperar un 429; mientras no es `null` el envio queda bloqueado.
   const [espera, setEspera] = useState<number | null>(null)
   const enviandoAhora = useRef(false)
+  // Avisa al equipo que se está respondiendo (presencia en vivo); sin la función encendida no hace nada.
+  const avisarEscribiendo = useAvisarEscribiendo(ticket.id, fuente.sujeto === 'panel')
 
   // El tope se mide sobre el texto visible y no sobre el marcado, que la persona no escribio.
   const largo = textoPlano(mensaje).length
@@ -209,7 +212,10 @@ export function CajaDeRespuesta ({
         aria-invalid={fallo !== null || undefined}
         autoenfocar
         imagenes={destinoDeImagenes}
-        onCambio={escribir}
+        onCambio={(html) => {
+          escribir(html)
+          if (html !== '') avisarEscribiendo()
+        }}
         onEnviar={() => { void responder() }}
       />
 

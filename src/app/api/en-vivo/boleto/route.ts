@@ -23,7 +23,8 @@ import { emitirBoleto } from '@/lib/en-vivo/boleto'
  * que puede ver cada sala o documento que pide, y firma un boleto de 120 s que el servicio solo
  * verifica. Una sala que la API no deja leer no entra al boleto.
  *
- * Responde `{data:{boleto, expira_en, url}}`; 401 sin sesión; 503 `en_vivo_apagado` con el maestro
+ * Responde `{data:{boleto, expira_en, url, staff_id}}` (`staff_id` es quien pide: la presencia lo usa
+ * para no mostrarle a nadie su propio avatar); 401 sin sesión; 503 `en_vivo_apagado` con el maestro
  * apagado, sin URL o sin secreto; 400 si el cuerpo es inválido; 403 `sala_no_permitida` si la API
  * niega algo (403/404); 502 si la API no contesta.
  */
@@ -172,5 +173,5 @@ export async function POST (peticion: NextRequest): Promise<Response> {
     secreto
   )
 
-  return NextResponse.json({ data: { boleto, expira_en: exp, url: config.url } }, { headers: SIN_CACHE })
+  return NextResponse.json({ data: { boleto, expira_en: exp, url: config.url, staff_id: sesion.sujetoId } }, { headers: SIN_CACHE })
 }

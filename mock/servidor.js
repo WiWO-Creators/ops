@@ -4866,6 +4866,18 @@ function opcionesDeEnVivo () {
       group: 'en_vivo',
       type: 'bool',
       value: encendido === '1' && process.env.MOCK_EN_VIVO_EQUIPO !== '0' ? '1' : '0'
+    },
+    // La presencia en recursos y la edición conjunta de textos: con el maestro encendido,
+    // `MOCK_EN_VIVO_PRESENCIA=0` / `MOCK_EN_VIVO_TEXTOS=0` las dejan apagadas.
+    wiwo_en_vivo_presencia: {
+      group: 'en_vivo',
+      type: 'bool',
+      value: encendido === '1' && process.env.MOCK_EN_VIVO_PRESENCIA !== '0' ? '1' : '0'
+    },
+    wiwo_en_vivo_textos: {
+      group: 'en_vivo',
+      type: 'bool',
+      value: encendido === '1' && process.env.MOCK_EN_VIVO_TEXTOS !== '0' ? '1' : '0'
     }
   }
 }
