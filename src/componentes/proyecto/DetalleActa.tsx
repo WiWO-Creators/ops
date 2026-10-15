@@ -15,7 +15,9 @@ import { ConfirmacionDelActa } from './acta/ConfirmacionDelActa'
 import { DialogoDeRenombre } from './acta/DialogoDeRenombre'
 import { HistorialDelActa } from './acta/HistorialDelActa'
 import { OriginalDelActa } from './acta/OriginalDelActa'
+import { ReproduccionDelActa } from './acta/ReproduccionDelActa'
 import { TareasPropuestas } from './acta/TareasPropuestas'
+import { useReproduccionDelActa } from './acta/useReproduccionDelActa'
 import { useEdicionDelActa } from './acta/useEdicionDelActa'
 import { useEscriturasDelActa } from './acta/useEscriturasDelActa'
 import { useExportacionDelActa } from './acta/useExportacionDelActa'
@@ -107,6 +109,13 @@ import { useAviso } from '@/componentes/estado/useAviso'
  * sola. Corrigiendo, el editor NO se toca —lleva lo escrito y su propia copia del documento— y se
  * avisa con la accion de recargar. El guardado manda la version con la que se abrio el editor
  * (`revision`): si el acta cambio entremedio, la API contesta 409 y no se pisa nada.
+ *
+ * === LA EDICION DEL ORBE SE VE, NO SOLO SE APLICA ===
+ *
+ * Leyendo, cuando el Orbe termina de editar el acta abierta, el cuerpo nuevo no reemplaza al viejo de
+ * golpe: se reproduce la edicion sobre el visor con un cursor que lleva su nombre (ver
+ * `useReproduccionDelActa` y `ReproduccionDelActa`). Con el editor abierto no se anima nada: ahi
+ * manda el aviso de cambio ajeno de arriba.
  */
 
 const EditorDeActa = dynamic(
@@ -231,6 +240,11 @@ export function DetalleActa ({
     setError
   })
   const { exportando, exportar } = useExportacionDelActa({ acta, htmlActivo, tituloActivo, infoIdioma, setError })
+  // `cuerpoDelActa` y no `acta.content` a secas: el documento arranca con el identificador del
+  // proyecto y, cuando la reunion no lo dijo, el modelo escribe "#No especificado". Es un hueco de su
+  // formulario, no un dato, y el cliente lo lee como encabezado del acta.
+  const cuerpo = cuerpoDelActa(htmlActivo)
+  const reproduccion = useReproduccionDelActa({ actaId: acta.id, html: cuerpo, vista: idioma, editando: edicion.editando })
 
   /**
    * Renombrar se esconde mientras se corrige, igual que el estilo y el idioma.
@@ -372,25 +386,35 @@ export function DetalleActa ({
           />
           )
         : (
-          <ContenidoHtml
-            ref={marco}
-            // `cuerpoDelActa` y no `acta.content` a secas: el documento arranca con el identificador
-            // del proyecto y, cuando la reunion no lo dijo, el modelo escribe "#No especificado". Es
-            // un hueco de su formulario, no un dato, y el cliente lo lee como encabezado del acta.
-            html={cuerpoDelActa(htmlActivo)}
-            titulo={`Meeting Paper: ${tituloActivo}`}
-            marca={acta.brand}
-            // Decide el corte de linea, la fuente del sistema para los glifos que la de marca no
-            // tiene y la voz del lector de pantalla. Ver `ContenidoHtml`.
-            idioma={infoIdioma.etiquetaHtml}
-            // Sin esto "Imprimir" lanza `SecurityError` y no imprime: con el origen opaco del
-            // `sandbox` vacio el padre no puede ni leer `contentWindow.print`.
-            imprimible
-            // Mas alto que el de un contrato del portal: un acta se lee entera de corrido, y
-            // desplazar dentro de un iframe cada dos temas rompe la lectura.
-            alto="h-[46rem]"
-          />
+          <div className="relative">
+            <ContenidoHtml
+              ref={marco}
+              html={cuerpo}
+              titulo={`Meeting Paper: ${tituloActivo}`}
+              marca={acta.brand}
+              // Decide el corte de linea, la fuente del sistema para los glifos que la de marca no
+              // tiene y la voz del lector de pantalla. Ver `ContenidoHtml`.
+              idioma={infoIdioma.etiquetaHtml}
+              // Sin esto "Imprimir" lanza `SecurityError` y no imprime: con el origen opaco del
+              // `sandbox` vacio el padre no puede ni leer `contentWindow.print`.
+              imprimible
+              // Mas alto que el de un contrato del portal: un acta se lee entera de corrido, y
+              // desplazar dentro de un iframe cada dos temas rompe la lectura.
+              alto="h-[46rem]"
+            />
+            {reproduccion.guion !== null && (
+              <ReproduccionDelActa
+                guion={reproduccion.guion}
+                marca={acta.brand}
+                idioma={infoIdioma.etiquetaHtml}
+                onTerminar={reproduccion.terminar}
+              />
+            )}
+          </div>
           )}
+
+      {/* El resumen de lo que hizo el Orbe, para quien no ve la animación. El foco no se mueve. */}
+      <p role="status" aria-live="polite" className="sr-only">{reproduccion.resumen}</p>
 
       {esSuperadmin && (
         <OriginalDelActa ruta={`${conId(fuente.acta, acta.id)}/fuente`} marca={acta.brand} />

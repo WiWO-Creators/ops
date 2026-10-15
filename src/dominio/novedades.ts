@@ -54,6 +54,20 @@ export const ROTULO_TIPO: Record<TipoNovedad, string> = {
 export const NOVEDADES: Novedad[] = [
   {
     fecha: '2026-10-15',
+    tipo: 'nuevo',
+    titulo: 'Mira al Thinking Orb reescribir el Meeting Paper',
+    detalle: 'Cuando el Thinking Orb termina de editar el Meeting Paper que tienes abierto, un cursor con su nombre recorre los cambios: borra lo viejo y escribe lo nuevo. Puedes saltarlo con «Saltar» o Escape.',
+    commits: []
+  },
+  {
+    fecha: '2026-10-15',
+    tipo: 'arreglo',
+    titulo: 'El Thinking Orb aplica varios cambios seguidos al mismo Meeting Paper',
+    detalle: 'Los planes con varias ediciones sobre un mismo Meeting Paper ya no fallan al confirmarlos. Si se lo pides, el Thinking Orb lee la transcripción de la reunión antes de reescribir.',
+    commits: ['wiwo-board@d9312b2']
+  },
+  {
+    fecha: '2026-10-15',
     tipo: 'mejora',
     titulo: 'El Thinking Orb ayuda a ordenar y corregir el Meeting Paper abierto',
     detalle: 'Con un Meeting Paper abierto, pídele al Thinking Orb que agregue, quite, mueva o renombre secciones, o que reescriba una parte; cada cambio se confirma antes de aplicarse y la pantalla se actualiza sola. Si estás editando y alguien cambia el documento, te avisa en vez de pisarlo.',
