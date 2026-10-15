@@ -1,8 +1,8 @@
 'use client'
 
 import { useEffect, useRef, useState, type ChangeEvent, type KeyboardEvent, type ReactElement } from 'react'
+import type { Extensions } from '@tiptap/core'
 import { EditorContent, useEditor, useEditorState, type Editor } from '@tiptap/react'
-import StarterKit from '@tiptap/starter-kit'
 import Placeholder from '@tiptap/extension-placeholder'
 import {
   Bold, Heading2, Heading3, ImagePlus, Italic, Link2, List, ListOrdered, Quote, Underline as Subrayado,
@@ -10,12 +10,12 @@ import {
 } from 'lucide-react'
 import { atributoAcceptDeImagenes, separarImagenes } from '@/dominio/imagenes-ricas'
 import { direccionDeEnlace, esHtml, htmlVacio, textoAHtml } from '@/dominio/texto-rico'
+import { extensionesDeTexto } from '@/lib/en-vivo/extensiones-texto'
 import { LOCALE } from '@/lib/fechas'
 import { cn } from '@/lib/clases'
 import { Boton } from './Boton'
 import { CLASES_CONTROL, Entrada } from './Entrada'
 import { ALTO_MINIMO_RICO, EditorRicoMarcador } from './EditorRicoMarcador'
-import { ImagenRica } from './ImagenRica'
 import { subirImagenRica, type DestinoDeImagenes } from './subirImagenRica'
 
 /**
@@ -25,9 +25,18 @@ import { subirImagenRica, type DestinoDeImagenes } from './subirImagenRica'
  * === EL ESQUEMA ES EL FORMATO ===
  *
  * Lo que las extensiones no conocen, ProseMirror lo descarta **en silencio** al abrir el documento.
- * La lista coincide con la de `dominio/texto-rico.ts` —lo unico que `Contenido` sabe dibujar—:
- * parrafos, titulos 2 y 3, listas, negrita, cursiva, subrayado, tachado, enlaces, citas e imagenes
- * propias (`ImagenRica`). Sin codigo, bloque de codigo ni linea horizontal, que ninguna vista pinta.
+ * La lista (`extensionesDeTexto`, en `lib/en-vivo/extensiones-texto.ts`) coincide con la de
+ * `dominio/texto-rico.ts` —lo unico que `Contenido` sabe dibujar—: parrafos, titulos 2 y 3, listas,
+ * negrita, cursiva, subrayado, tachado, enlaces, citas e imagenes propias (`ImagenRica`). Sin codigo,
+ * bloque de codigo ni linea horizontal, que ninguna vista pinta. Vive aparte porque el servicio de
+ * «Ops en vivo» tiene que convertir el texto con EXACTAMENTE el mismo esquema.
+ *
+ * === EDICION CONJUNTA ===
+ *
+ * Con la prop `colaboracion` el contenido es el de un documento Yjs compartido: no se pasa `content`
+ * (lo escribiria encima), no hay marcador de posicion ni historial propio (el deshacer lo da Yjs) y,
+ * si cambia la sesion, se crea un editor nuevo. Las extensiones de colaboracion llegan armadas de
+ * fuera para que este cuerpo no cargue Yjs en cada campo de texto que no es conjunto.
  *
  * === IMAGENES ===
  *
@@ -52,9 +61,39 @@ const TODAS: readonly HerramientaRica[] = [
   'negrita', 'cursiva', 'subrayado', 'h2', 'h3', 'vinetas', 'numerada', 'cita', 'enlace', 'imagen'
 ]
 
+/**
+ * Lo que convierte al editor en uno conjunto.
+ *
+ * `extensiones` son las de colaboracion (documento Yjs y cursores) ya armadas; `sesion` identifica el
+ * documento Yjs al que pertenecen: cada documento necesita su editor, asi que cuando cambia (una
+ * reconexion) el editor se vuelve a crear.
+ */
+export interface ColaboracionDelTexto {
+  extensiones: Extensions
+  sesion: object
+}
+
+/** Un contenido que reemplaza al del editor ya montado: cada `version` nueva se aplica una vez. */
+export interface ReemplazoDelTexto {
+  version: number
+  /** HTML; cadena vacia para dejar el editor vacio. */
+  html: string
+}
+
 export interface PropsEditorRico {
   /** HTML, o texto plano de una fila vieja (se convierte con `textoAHtml`). Se lee una sola vez. */
   valorInicial?: string | null
+  /**
+   * Edicion conjunta sobre un documento Yjs. Con ella `valorInicial` se ignora: el contenido viene del
+   * documento compartido.
+   */
+  colaboracion?: ColaboracionDelTexto
+  /**
+   * Cambia el contenido del editor ya montado (una predefinida, la redaccion del asistente, vaciar tras
+   * enviar). En edicion conjunta el cambio viaja a los demas como cualquier otra edicion; sin ella el
+   * campo se remonta con otra `key`, y esto no hace falta. La version con la que se monta no se aplica.
+   */
+  reemplazo?: ReemplazoDelTexto
   /** Recibe el HTML en cada cambio; cadena vacia cuando no hay nada visible. */
   onCambio: (html: string) => void
   /**
@@ -164,6 +203,8 @@ function useFormatosActivos (editor: Editor | null): Record<HerramientaRica, boo
 
 export function EditorRicoInterno ({
   valorInicial = null,
+  colaboracion,
+  reemplazo,
   onCambio,
   onListo,
   etiqueta,
@@ -220,27 +261,18 @@ export function EditorRicoInterno ({
     style: `--filas-rico: ${filasMinimas}; min-height: ${ALTO_MINIMO_RICO}`
   })
 
+  const conjunto = colaboracion !== undefined
+
   const editor = useEditor({
     immediatelyRender: false,
     editable: !deshabilitado,
-    extensions: [
-      StarterKit.configure({
-        code: false,
-        codeBlock: false,
-        horizontalRule: false,
-        heading: { levels: [2, 3] },
-        link: {
-          openOnClick: false,
-          // `javascript:` sobrevive a cualquier parseo de HTML: el esquema no lo filtra solo.
-          protocols: ['http', 'https', 'mailto']
-        }
-      }),
-      Placeholder.configure({ placeholder }),
-      ImagenRica
-    ],
-    content: valorInicial === null || valorInicial === ''
-      ? ''
-      : esHtml(valorInicial) ? valorInicial : textoAHtml(valorInicial),
+    extensions: conjunto
+      ? [...extensionesDeTexto({ conHistorial: false }), ...colaboracion.extensiones]
+      : [...extensionesDeTexto(), Placeholder.configure({ placeholder })],
+    // Con Yjs el contenido lo da el documento compartido: pasar `content` lo escribiria encima.
+    ...(conjunto
+      ? {}
+      : { content: valorInicial === null || valorInicial === '' ? '' : esHtml(valorInicial) ? valorInicial : textoAHtml(valorInicial) }),
     editorProps: {
       attributes: atributos(),
       handleKeyDown: (_vista, evento) => {
@@ -287,7 +319,19 @@ export function EditorRicoInterno ({
       setCaracteres(actual.getText().length)
       onCambioRef.current(htmlDeEditor(actual))
     }
-  })
+    // Cada documento Yjs necesita su editor: el de una sesion que se reconecto ya no sirve.
+  }, [colaboracion?.sesion])
+
+  // Aplica un contenido nuevo sobre el editor montado. La version con la que el campo se monta no
+  // cuenta: es la que ya estaba y el contenido inicial ya la refleja.
+  const versionAplicada = useRef(reemplazo?.version)
+
+  useEffect(() => {
+    if (editor === null || reemplazo === undefined || reemplazo.version === versionAplicada.current) return
+
+    versionAplicada.current = reemplazo.version
+    editor.commands.setContent(reemplazo.html)
+  }, [editor, reemplazo])
 
   // Sube las imagenes y las inserta en el cursor, o en `posicion` si se soltaron ahi. Vive en un
   // efecto y se publica por ref porque el editor se crea una sola vez y sus manejadores de pegado y

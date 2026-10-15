@@ -35,7 +35,7 @@ const EditorRicoInterno = dynamic(
   { ssr: false, loading: () => <EditorRicoMarcador /> }
 )
 
-export type { HerramientaRica, PropsEditorRico } from './EditorRicoInterno'
+export type { ColaboracionDelTexto, HerramientaRica, PropsEditorRico, ReemplazoDelTexto } from './EditorRicoInterno'
 
 export function EditorRico (props: PropsEditorRico): ReactElement {
   const estilo = { '--filas-rico': props.filasMinimas ?? 4 } as CSSProperties

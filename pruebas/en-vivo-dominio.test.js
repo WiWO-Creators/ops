@@ -14,10 +14,13 @@ import {
   debeSondear,
   esSalaValida,
   eventosDeVentanaPara,
+  funcionDeDocumento,
   leerLoteDeEventos,
   leerMensajeDelCliente,
   leerMensajeDelServidor,
+  leerNombreDeDocumento,
   leerPedidoDeBoleto,
+  rutaDeAvalDelDocumento,
   salaCorrespondeAlSujeto,
   salasPermitidasPorDefecto,
   validacionDeSala
@@ -132,12 +135,39 @@ test('pedido de boleto: formas válidas e inválidas', () => {
   assert.deepEqual(leerPedidoDeBoleto({}), { salas: undefined, documento: null, espacioId: null })
   assert.deepEqual(leerPedidoDeBoleto({ salas: ['equipo'], documento: 'acta:12', espacio_id: 3 }), { salas: ['equipo'], documento: 'acta:12', espacioId: 3 })
 
+  // La tarea y el borrador de ticket no cuelgan de un Espacio: no lo exigen y, si llega, se descarta.
+  assert.deepEqual(leerPedidoDeBoleto({ documento: 'tarea:5' }), { salas: undefined, documento: 'tarea:5', espacioId: null })
+  assert.deepEqual(leerPedidoDeBoleto({ documento: 'tarea:5', espacio_id: 3 }), { salas: undefined, documento: 'tarea:5', espacioId: null })
+  assert.deepEqual(leerPedidoDeBoleto({ documento: 'ticket-borrador:9' }), { salas: undefined, documento: 'ticket-borrador:9', espacioId: null })
+
   for (const cuerpo of [
-    null, [], 'x', { salas: 'equipo' }, { salas: ['nada'] }, { documento: 'acta:12' }, { documento: 'tarea:5', espacio_id: 3 },
-    { documento: 'acta:abc', espacio_id: 3 }, { espacio_id: '3' }, { salas: Array.from({ length: 21 }, (_, i) => `espacio:${i + 1}`) }
+    null, [], 'x', { salas: 'equipo' }, { salas: ['nada'] }, { documento: 'acta:12' },
+    { documento: 'acta:abc', espacio_id: 3 }, { documento: 'tarea:abc' }, { documento: 'tarea:0' }, { documento: 'ticket:9' },
+    { documento: 'ticket-borrador:' }, { documento: 7 }, { espacio_id: '3' }, { salas: Array.from({ length: 21 }, (_, i) => `espacio:${i + 1}`) }
   ]) {
     assert.equal(leerPedidoDeBoleto(cuerpo), null, JSON.stringify(cuerpo))
   }
+})
+
+test('documentos colaborativos: nombre, interruptor y ruta que avala el permiso', () => {
+  assert.deepEqual(leerNombreDeDocumento('acta:12'), { clase: 'acta', id: 12 })
+  assert.deepEqual(leerNombreDeDocumento('tarea:500'), { clase: 'tarea', id: 500 })
+  assert.deepEqual(leerNombreDeDocumento('ticket-borrador:40'), { clase: 'ticket-borrador', id: 40 })
+
+  for (const malo of ['acta', 'acta:', 'acta:0', 'acta:01', 'cosa:1', 'tarea:1:2', ' tarea:1', null, 5, undefined]) {
+    assert.equal(leerNombreDeDocumento(malo), null, String(malo))
+  }
+
+  assert.equal(funcionDeDocumento('acta'), 'actas')
+  assert.equal(funcionDeDocumento('tarea'), 'textos')
+  assert.equal(funcionDeDocumento('ticket-borrador'), 'textos')
+
+  assert.equal(rutaDeAvalDelDocumento('acta:12', 3), '/projects/3/actas/12')
+  assert.equal(rutaDeAvalDelDocumento('acta:12', null), null)
+  assert.equal(rutaDeAvalDelDocumento('tarea:500', null), '/tasks/500')
+  assert.equal(rutaDeAvalDelDocumento('tarea:500', 3), '/tasks/500')
+  assert.equal(rutaDeAvalDelDocumento('ticket-borrador:40', null), '/tickets/40')
+  assert.equal(rutaDeAvalDelDocumento('otro:1', 3), null)
 })
 
 test('eventos de ventana por tipo de cambio', () => {

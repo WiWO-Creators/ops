@@ -26,7 +26,10 @@ test('leerMensajeDelDocumento: reconoce guardado, recargado y sin_acceso', () =>
 })
 
 test('leerMensajeDelDocumento: ignora lo desconocido o malformado', () => {
-  for (const texto of ['', 'no json', 'null', '[]', '"x"', '{"t":"otro"}', '{"t":"guardado"}', '{"t":"guardado","revision":""}', '{"t":"guardado","revision":3}']) {
+  // Un borrador de ticket que queda vacío se guarda sin revisión: sigue siendo un guardado.
+  assert.deepEqual(leerMensajeDelDocumento('{"t":"guardado","revision":null}'), { t: 'guardado', revision: null })
+
+  for (const texto of ['', 'no json', 'null', '[]', '"x"', '{"t":"otro"}', '{"t":"guardado"}','{"t":"guardado","revision":""}', '{"t":"guardado","revision":3}']) {
     assert.equal(leerMensajeDelDocumento(texto), null, texto)
   }
 })

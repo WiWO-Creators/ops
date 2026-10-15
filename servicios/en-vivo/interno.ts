@@ -1,6 +1,11 @@
 import type { IncomingMessage, ServerResponse } from 'node:http'
 
-import { MAXIMO_BYTES_LOTE, leerLoteDeEventos } from '../../src/dominio/en-vivo.ts'
+import {
+  MAXIMO_BYTES_LOTE,
+  leerLoteDeEventos,
+  type EventoDeBoard,
+  type TipoDeEvento
+} from '../../src/dominio/en-vivo.ts'
 import {
   CABECERA_FIRMA,
   CABECERA_MARCA,
@@ -72,7 +77,28 @@ async function leerCuerpoCrudo (req: IncomingMessage, maximo: number): Promise<B
   return Buffer.concat(trozos)
 }
 
-/** Aplica el lote al bus y, si un acta abierta cambió por fuera, la recarga. */
+/** El documento colaborativo que un tipo de evento puede haber cambiado por fuera. */
+const DOCUMENTO_DE_EVENTO: Partial<Record<TipoDeEvento, string>> = {
+  acta: 'acta',
+  tarea: 'tarea',
+  ticket: 'ticket-borrador'
+}
+
+/**
+ * El nombre del documento que un evento del board pudo haber cambiado: el acta de un `acta`, la
+ * descripción de una `tarea` y el borrador de respuesta de un `ticket` (el board lo descarta al
+ * enviarse la respuesta y avisa con un evento de ticket).
+ *
+ * @param evento el evento del board
+ * @returns `acta:{id}`, `tarea:{id}` o `ticket-borrador:{id}`; `null` si no corresponde a ninguno
+ */
+function documentoDeEvento (evento: EventoDeBoard): string | null {
+  const clase = DOCUMENTO_DE_EVENTO[evento.tipo]
+
+  return clase === undefined || evento.id === null ? null : `${clase}:${evento.id}`
+}
+
+/** Aplica el lote al bus y, si un documento abierto cambió por fuera, lo sincroniza. */
 async function aplicarLote (cuerpo: Buffer, contexto: ContextoInterno): Promise<number | null> {
   const lote = leerLoteDeEventos(cuerpo.toString('utf8'))
 
@@ -81,7 +107,7 @@ async function aplicarLote (cuerpo: Buffer, contexto: ContextoInterno): Promise<
   for (const evento of lote.eventos) {
     contexto.bus.entregar(evento)
 
-    const nombre = evento.tipo === 'acta' && evento.id !== null ? `acta:${evento.id}` : null
+    const nombre = documentoDeEvento(evento)
 
     if (nombre !== null && contexto.documentos.estaCargado(nombre)) {
       // Sin esperar: el board no tiene por qué aguardar a que se recargue un documento.

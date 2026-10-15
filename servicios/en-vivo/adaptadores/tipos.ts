@@ -8,12 +8,16 @@ export type OrigenDeGuardado = 'colaborativo' | 'orb'
  * Lo que el servicio recuerda de cada documento abierto, aparte del propio documento Yjs.
  *
  * `revision` es lo que el board entiende como «la versión que yo vi» (`date_updated` del acta): se
- * devuelve en cada guardado para que el board detecte una edición ajena y conteste 409.
+ * devuelve en cada guardado para que el board detecte una edición ajena y conteste 409. Es un texto
+ * opaco; `null` solo en el borrador de un ticket que todavía no existe en el board.
+ *
+ * `espacioId` es el Espacio del documento; `null` en los que no cuelgan de uno (borrador de ticket y
+ * descripción de una tarea, cuyo permiso el boleto avala contra la propia tarea o ticket).
  */
 export interface EstadoDeDocumento {
   id: number
-  espacioId: number
-  revision: string
+  espacioId: number | null
+  revision: string | null
   /** El HTML del último estado que el board ya tiene (tras pasar por el esquema del editor). */
   ultimoHtml: string
   /** Personas que editaron desde el último guardado. */

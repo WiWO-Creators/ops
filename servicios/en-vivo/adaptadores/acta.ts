@@ -11,6 +11,7 @@ import type { Doc } from 'yjs'
 import { extensionesDeActa } from '../../../src/lib/en-vivo/extensiones-acta.ts'
 import type { ClienteBoard } from '../cliente-board.ts'
 import { registrar } from '../registro.ts'
+import { desenvolver, esperaTransitoria } from './comun.ts'
 import {
   ErrorDeAdaptador,
   type AdaptadorDeDocumento,
@@ -39,19 +40,6 @@ interface ActaDelBoard {
   espacioId: number
 }
 
-type Objeto = Record<string, unknown>
-
-function esObjeto (valor: unknown): valor is Objeto {
-  return typeof valor === 'object' && valor !== null && !Array.isArray(valor)
-}
-
-/** Abre el sobre `{data: …}` del contrato de la API, si lo trae. */
-function desenvolver (datos: unknown): Objeto | null {
-  if (!esObjeto(datos)) return null
-
-  return esObjeto(datos.data) ? datos.data : datos
-}
-
 function leerActa (datos: unknown): ActaDelBoard | null {
   const cuerpo = desenvolver(datos)
 
@@ -71,10 +59,6 @@ function leerRevision (datos: unknown): string | null {
   const revision = cuerpo?.date_updated
 
   return typeof revision === 'string' || typeof revision === 'number' ? String(revision) : null
-}
-
-function esperaTransitoria (estado: number): boolean {
-  return estado >= 500 || estado === 429 || estado === 408
 }
 
 /**

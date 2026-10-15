@@ -28,7 +28,8 @@ export const ESPERA_TRAS_CERRAR_MS = 3000
 
 /** Lo que el servicio avisa fuera del documento (mensajes «stateless» de Hocuspocus). */
 export type MensajeDelDocumento =
-  | { t: 'guardado', revision: string }
+  /** `revision` es `null` solo cuando el texto guardado quedó vacío y el board ya no lo tiene (borrador de ticket). */
+  | { t: 'guardado', revision: string | null }
   | { t: 'recargado', motivo: string }
   | { t: 'sin_acceso' }
 
@@ -52,7 +53,7 @@ export function leerMensajeDelDocumento (texto: string): MensajeDelDocumento | n
 
   const { t, revision, motivo } = crudo as Record<string, unknown>
 
-  if (t === 'guardado' && typeof revision === 'string' && revision !== '') return { t, revision }
+  if (t === 'guardado' && (revision === null || (typeof revision === 'string' && revision !== ''))) return { t, revision }
   if (t === 'recargado') return { t, motivo: typeof motivo === 'string' ? motivo : '' }
   if (t === 'sin_acceso') return { t }
 

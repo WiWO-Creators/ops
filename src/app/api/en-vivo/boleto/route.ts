@@ -9,7 +9,10 @@ import { refrescar } from '@/datos/refresco'
 import { guardarSesion, borrarSesion, leerSesion } from '@/datos/sesion'
 import type { Sesion } from '@/datos/sobre-sesion'
 import {
+  funcionDeDocumento,
+  leerNombreDeDocumento,
   leerPedidoDeBoleto,
+  rutaDeAvalDelDocumento,
   salasPermitidasPorDefecto,
   validacionDeSala
 } from '@/dominio/en-vivo'
@@ -127,7 +130,8 @@ async function leerCuerpo (peticion: NextRequest): Promise<unknown> {
  *
  * Cuerpo: `{salas?, documento?, espacio_id?}`. Sin `salas` se piden las de por defecto (la propia y
  * la del equipo). Con `documento: 'acta:{id}'` hace falta `espacio_id` y la edición conjunta de
- * actas encendida.
+ * actas encendida; con `tarea:{id}` o `ticket-borrador:{id}`, la edición conjunta de textos, y el
+ * permiso se avala leyendo la propia tarea (`/tasks/{id}`) o ticket (`/tickets/{id}`).
  */
 export async function POST (peticion: NextRequest): Promise<Response> {
   const sesion = await leerSesion('staff')
@@ -142,7 +146,11 @@ export async function POST (peticion: NextRequest): Promise<Response> {
   const pedido = leerPedidoDeBoleto(await leerCuerpo(peticion))
 
   if (pedido === null) return error(400, 'invalid_body')
-  if (pedido.documento !== null && !config.actas) return error(403, 'sala_no_permitida')
+
+  const documento = pedido.documento === null ? null : leerNombreDeDocumento(pedido.documento)
+
+  // Cada clase de documento tiene su propio interruptor: el acta, `actas`; la tarea y el borrador, `textos`.
+  if (documento !== null && !config[funcionDeDocumento(documento.clase)]) return error(403, 'sala_no_permitida')
 
   const salas = [...new Set(pedido.salas ?? salasPermitidasPorDefecto({ suj: 'staff', id: sesion.sujetoId }))]
   const rutas = new Set<string>()
@@ -155,7 +163,10 @@ export async function POST (peticion: NextRequest): Promise<Response> {
   }
 
   if (pedido.documento !== null) {
-    rutas.add(`/projects/${pedido.espacioId}/actas/${pedido.documento.split(':')[1]}`)
+    const aval = rutaDeAvalDelDocumento(pedido.documento, pedido.espacioId)
+
+    if (aval === null) return error(400, 'invalid_body')
+    rutas.add(aval)
   }
 
   try {

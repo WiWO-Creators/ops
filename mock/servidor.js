@@ -4879,6 +4879,13 @@ function opcionesDeEnVivo () {
       group: 'en_vivo',
       type: 'bool',
       value: encendido === '1' && process.env.MOCK_EN_VIVO_TEXTOS !== '0' ? '1' : '0'
+    },
+    // La edición conjunta del Meeting Paper: solo con `MOCK_EN_VIVO_ACTAS=1`, porque exige un servicio
+    // que tenga las actas del mock en su board.
+    wiwo_actas_colaborativas: {
+      group: 'en_vivo',
+      type: 'bool',
+      value: encendido === '1' && process.env.MOCK_EN_VIVO_ACTAS === '1' ? '1' : '0'
     }
   }
 }

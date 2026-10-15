@@ -335,19 +335,66 @@ export function validacionDeSala (sala: string, staffId: number): ValidacionDeSa
   return base === undefined ? { via: 'denegada' } : { via: 'api', ruta: `/${base}/${id}` }
 }
 
+/** Los documentos colaborativos: el Meeting Paper, la descripción de una tarea y el borrador de respuesta de un ticket. */
+export type ClaseDeDocumento = 'acta' | 'tarea' | 'ticket-borrador'
+
 /** El pedido de un boleto (`POST /api/en-vivo/boleto`), ya validado. */
 export interface PedidoDeBoleto {
   /** `undefined` si no se pidieron salas: se usan las de por defecto. */
   salas?: string[]
-  /** `acta:{id}` o `null`. */
+  /** `acta:{id}`, `tarea:{id}`, `ticket-borrador:{id}` o `null`. */
   documento: string | null
+  /** El Espacio del acta; `null` en los documentos que no cuelgan de uno (tarea y borrador de ticket). */
   espacioId: number | null
 }
 
-const DOCUMENTO_DE_ACTA = /^acta:[1-9]\d{0,9}$/
+const DOCUMENTO_VALIDO = /^(acta|tarea|ticket-borrador):([1-9]\d{0,9})$/
+
+/**
+ * Separa el nombre de un documento colaborativo en su clase y su id.
+ *
+ * @param documento por ejemplo `acta:12`
+ * @returns la clase y el id, o `null` si el nombre no tiene la forma de un documento conocido
+ */
+export function leerNombreDeDocumento (documento: unknown): { clase: ClaseDeDocumento, id: number } | null {
+  const partes = typeof documento === 'string' ? DOCUMENTO_VALIDO.exec(documento) : null
+
+  return partes === null ? null : { clase: partes[1] as ClaseDeDocumento, id: Number(partes[2]) }
+}
+
+/**
+ * Qué interruptor de `ConfigEnVivo` enciende cada clase de documento.
+ *
+ * @param clase la clase del documento
+ * @returns `actas` para el Meeting Paper, `textos` para la descripción de tarea y el borrador de ticket
+ */
+export function funcionDeDocumento (clase: ClaseDeDocumento): 'actas' | 'textos' {
+  return clase === 'acta' ? 'actas' : 'textos'
+}
+
+/**
+ * La lectura a la API que avala que una persona puede abrir un documento (con su propio token).
+ *
+ * @param documento el nombre del documento (`acta:12`, `tarea:5`, `ticket-borrador:9`)
+ * @param espacioId el Espacio del acta; ignorado en los demás
+ * @returns la ruta a leer, o `null` si el nombre es inválido o falta el Espacio del acta
+ */
+export function rutaDeAvalDelDocumento (documento: string, espacioId: number | null): string | null {
+  const leido = leerNombreDeDocumento(documento)
+
+  if (leido === null) return null
+  if (leido.clase === 'tarea') return `/tasks/${leido.id}`
+  if (leido.clase === 'ticket-borrador') return `/tickets/${leido.id}`
+
+  return espacioId === null ? null : `/projects/${espacioId}/actas/${leido.id}`
+}
 
 /**
  * Lee y valida el cuerpo de `POST /api/en-vivo/boleto`.
+ *
+ * El acta exige `espacio_id`; la tarea y el borrador de ticket no cuelgan de un Espacio, así que
+ * cualquier `espacio_id` que lleguen se descarta (el boleto lleva `null`, que es lo que el servicio
+ * espera de esos documentos).
  *
  * @param cuerpo el JSON recibido
  * @returns el pedido, o `null` si algún campo tiene una forma inválida o hay más de 20 salas
@@ -360,11 +407,18 @@ export function leerPedidoDeBoleto (cuerpo: unknown): PedidoDeBoleto | null {
   if (salas !== undefined && (!Array.isArray(salas) || salas.length > MAXIMO_SALAS_POR_BOLETO || !salas.every(esSalaValida))) {
     return null
   }
-  if (documento !== null && (typeof documento !== 'string' || !DOCUMENTO_DE_ACTA.test(documento))) return null
   if (!esIdOpcional(espacioId)) return null
-  if (documento !== null && espacioId === null) return null
 
-  return { salas: salas as string[] | undefined, documento, espacioId }
+  const leido = documento === null ? null : leerNombreDeDocumento(documento)
+
+  if (documento !== null && leido === null) return null
+  if (leido?.clase === 'acta' && espacioId === null) return null
+
+  return {
+    salas: salas as string[] | undefined,
+    documento: documento as string | null,
+    espacioId: leido === null || leido.clase === 'acta' ? espacioId : null
+  }
 }
 
 /**
