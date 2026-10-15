@@ -78,13 +78,14 @@ async function traer<T> (ruta: string, senal: AbortSignal): Promise<Resultado<T>
  *
  * @param ruta ruta sin la base del BFF ni barra inicial. Ej: `projects/93/overview`
  * @param mensajeGenerico que decir cuando el fallo no trae mensaje propio
- * @returns el estado, una funcion para volver a pedir y otra para reemplazar los datos con los que ya
- *   devolvio una escritura, sin pasar por `cargando`
+ * @returns el estado, una funcion para volver a pedir, otra para reemplazar los datos con los que ya
+ *   devolvio una escritura, sin pasar por `cargando`, y `revalidar` para volver a pedir en silencio
+ *   cuando se sabe que el dato cambio (sin umbral de antiguedad)
  */
 export function useRecurso<T> (
   ruta: string,
   mensajeGenerico: string
-): { estado: EstadoCarga<T>, recargar: () => void, reemplazar: (datos: T) => void } {
+): { estado: EstadoCarga<T>, recargar: () => void, reemplazar: (datos: T) => void, revalidar: () => void } {
   const [estado, setEstado] = useState<EstadoCarga<T>>({ fase: 'cargando' })
   const [intento, setIntento] = useState(0)
   const [peticion, setPeticion] = useState(`${ruta}|0`)
@@ -146,60 +147,84 @@ export function useRecurso<T> (
     return () => { control.abort() }
   }, [ruta, intento, mensajeGenerico])
 
-  useEffect(() => {
-    let enVuelo: AbortController | null = null
+  // La peticion silenciosa en vuelo, para cancelarla si llega otra o si el recurso cambia.
+  const enVuelo = useRef<AbortController | null>(null)
 
-    const revalidar = (): void => {
+  /**
+   * Vuelve a pedir el recurso sin pasar por `cargando` y sin mirar la antiguedad del dato.
+   *
+   * Es el cuerpo de la revalidacion al volver a la pestaña, sacado para poder pedirlo tambien cuando
+   * se sabe que el dato cambio (ver `revalidar`).
+   */
+  const pedirEnSilencio = useCallback((): void => {
+    // Se marca ANTES de pedir, no solo al contestar. Volver a una pestaña dispara los dos eventos
+    // —`visibilitychange` y `focus`— en el mismo instante, y sin esta marca el segundo entraba con
+    // la antiguedad todavia vieja y mandaba una peticion identica a la que acababa de salir.
+    ultimaRespuesta.current = Date.now()
+
+    enVuelo.current?.abort()
+    const control = new AbortController()
+    enVuelo.current = control
+
+    void (async () => {
+      try {
+        const resultado = await traer<T>(ruta, control.signal)
+        if (control.signal.aborted) return
+
+        ultimaRespuesta.current = Date.now()
+
+        if (resultado.ok) {
+          setEstado({ fase: 'listo', datos: resultado.sobre.data, meta: resultado.sobre.meta })
+          return
+        }
+
+        if (resultado.sesionCerrada) {
+          setEstado({ fase: 'error', mensaje: MENSAJE_SESION_CERRADA })
+          return
+        }
+
+        // Un fallo del recurso no borra lo que ya se estaba mirando: un dato de hace un rato sirve
+        // mas que un cartel de error donde habia una tabla. Solo se muestra si no habia nada.
+        setEstado((previo) => previo.fase === 'listo' ? previo : { fase: 'error', mensaje: resultado.mensaje })
+      } catch {
+        // Red caida al volver a la pestaña: `pedirRespuesta` ya aviso con el cartel flotante, y lo
+        // que hay en pantalla sigue siendo lo ultimo que la API contesto. Se deja como esta.
+        ultimaRespuesta.current = Date.now()
+      }
+    })()
+  }, [ruta])
+
+  /**
+   * Revalida a pedido de quien sabe que el recurso cambio (p. ej. el Orbe escribio en un acta).
+   *
+   * Igual que la revalidacion al volver a la pestaña, pero sin umbral de antiguedad ni exigir que la
+   * pestaña este visible. Sigue sin hacer nada mientras la primera carga esta en vuelo: esa ya trae
+   * el dato mas reciente.
+   */
+  const revalidar = useCallback((): void => {
+    if (ultimaRespuesta.current === 0) return
+
+    pedirEnSilencio()
+  }, [pedirEnSilencio])
+
+  useEffect(() => {
+    const alVolver = (): void => {
       if (document.visibilityState !== 'visible') return
       if (ultimaRespuesta.current === 0) return
       if (Date.now() - ultimaRespuesta.current < ANTIGUEDAD_PARA_REVALIDAR_MS) return
 
-      // Se marca ANTES de pedir, no solo al contestar. Volver a una pestaña dispara los dos eventos
-      // —`visibilitychange` y `focus`— en el mismo instante, y sin esta marca el segundo entraba con
-      // la antiguedad todavia vieja y mandaba una peticion identica a la que acababa de salir.
-      ultimaRespuesta.current = Date.now()
-
-      enVuelo?.abort()
-      const control = new AbortController()
-      enVuelo = control
-
-      void (async () => {
-        try {
-          const resultado = await traer<T>(ruta, control.signal)
-          if (control.signal.aborted) return
-
-          ultimaRespuesta.current = Date.now()
-
-          if (resultado.ok) {
-            setEstado({ fase: 'listo', datos: resultado.sobre.data, meta: resultado.sobre.meta })
-            return
-          }
-
-          if (resultado.sesionCerrada) {
-            setEstado({ fase: 'error', mensaje: MENSAJE_SESION_CERRADA })
-            return
-          }
-
-          // Un fallo del recurso no borra lo que ya se estaba mirando: un dato de hace un rato sirve
-          // mas que un cartel de error donde habia una tabla. Solo se muestra si no habia nada.
-          setEstado((previo) => previo.fase === 'listo' ? previo : { fase: 'error', mensaje: resultado.mensaje })
-        } catch {
-          // Red caida al volver a la pestaña: `pedirRespuesta` ya aviso con el cartel flotante, y lo
-          // que hay en pantalla sigue siendo lo ultimo que la API contesto. Se deja como esta.
-          ultimaRespuesta.current = Date.now()
-        }
-      })()
+      pedirEnSilencio()
     }
 
-    document.addEventListener('visibilitychange', revalidar)
-    window.addEventListener('focus', revalidar)
+    document.addEventListener('visibilitychange', alVolver)
+    window.addEventListener('focus', alVolver)
 
     return () => {
-      document.removeEventListener('visibilitychange', revalidar)
-      window.removeEventListener('focus', revalidar)
-      enVuelo?.abort()
+      document.removeEventListener('visibilitychange', alVolver)
+      window.removeEventListener('focus', alVolver)
+      enVuelo.current?.abort()
     }
-  }, [ruta, mensajeGenerico])
+  }, [pedirEnSilencio])
 
-  return { estado, recargar, reemplazar }
+  return { estado, recargar, reemplazar, revalidar }
 }

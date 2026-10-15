@@ -1,12 +1,13 @@
 'use client'
 
 import dynamic from 'next/dynamic'
-import { useRef, useState, type ReactElement } from 'react'
+import { useEffect, useRef, useState, type ReactElement } from 'react'
 import { AvisoEnLinea } from '@/componentes/estado/Estados'
 import { Boton } from '@/componentes/formularios/Boton'
 import { ContenidoHtml } from '@/componentes/presentadores/ContenidoHtml'
 import { conId, type FuenteDeProyecto } from '@/dominio/fuente-proyecto'
 import { cuerpoDelActa } from '@/dominio/actas'
+import { GLOSARIO } from '@/dominio/glosario'
 import { AccionesDelActa } from './acta/AccionesDelActa'
 import { AdjuntosDelActa } from './acta/AdjuntosDelActa'
 import { CabeceraDelActa } from './acta/CabeceraDelActa'
@@ -21,6 +22,9 @@ import { useExportacionDelActa } from './acta/useExportacionDelActa'
 import { useIdiomaDelActa } from './acta/useIdiomaDelActa'
 import type { Acta } from '@/datos/recursos'
 import { EVENTO_ABRIR_ORBE } from '@/dominio/pantalla'
+import { hayCambioAjeno, textoDeCambioAjeno } from '@/dominio/acta-concurrencia'
+import { EVENTO_ORBE_ESCRITURA, escrituraAlcanzaAlActa } from '@/dominio/orbe-escritura'
+import { useAviso } from '@/componentes/estado/useAviso'
 
 /**
  * Un Meeting Paper: se lee, se corrige y se imprime.
@@ -94,6 +98,15 @@ import { EVENTO_ABRIR_ORBE } from '@/dominio/pantalla'
  * Su permiso no es ninguno de los dos de esta pantalla: lo que produce son Procesos, asi que cuelga
  * de `puedeCrearTareas`, y su ruta sale de `fuente` como todo lo demas. Con la ruta en `null` —el
  * portal— la seccion ni se monta.
+ *
+ * === EL ACTA PUEDE CAMBIAR MIENTRAS SE LEE O SE CORRIGE ===
+ *
+ * El Orbe edita Meeting Papers desde el chat, y otra persona tambien puede hacerlo. Cuando el Orbe
+ * termina una escritura avisa a la ventana (`EVENTO_ORBE_ESCRITURA`) y este componente le pide a
+ * quien lo monta que revalide el acta, sin pasar por «cargando». Leyendo, la pantalla se actualiza
+ * sola. Corrigiendo, el editor NO se toca —lleva lo escrito y su propia copia del documento— y se
+ * avisa con la accion de recargar. El guardado manda la version con la que se abrio el editor
+ * (`revision`): si el acta cambio entremedio, la API contesta 409 y no se pisa nada.
  */
 
 const EditorDeActa = dynamic(
@@ -130,6 +143,8 @@ interface PropsDetalle {
   destacarTareas?: boolean
   /** Quien mira es superadmin: ve el original de la reunión. La API lo vuelve a exigir con un 403. */
   esSuperadmin?: boolean
+  /** Vuelve a pedir el acta en silencio (ver `useRecurso.revalidar`): el Orbe u otra persona la cambió. */
+  onRevalidar: () => void
   onCambiada: (acta: Acta) => void
   onBorrada: () => void
   onVolver: () => void
@@ -146,6 +161,7 @@ export function DetalleActa ({
   puedeCrearTareas = false,
   destacarTareas = false,
   esSuperadmin = false,
+  onRevalidar,
   onCambiada,
   onBorrada,
   onVolver
@@ -156,6 +172,9 @@ export function DetalleActa ({
   const [renombrando, setRenombrando] = useState(false)
   const [verHistorial, setVerHistorial] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  /** La API rechazó el último guardado con 409: el acta cambió desde que se abrió el editor. */
+  const [conflicto, setConflicto] = useState(false)
+  const aviso = useAviso()
 
   const marco = useRef<HTMLIFrameElement>(null)
   // Las tres escrituras del acta van a la misma ruta: se arma una vez para que no se puedan
@@ -171,10 +190,38 @@ export function DetalleActa ({
     rutaTraducciones: conId(fuente.actaTraduccion, acta.id),
     puedeTraducir,
     onCambiada,
+    onConflicto: () => {
+      setConflicto(true)
+      aviso.advertencia(`No se guardó: el ${GLOSARIO.acta.singular} cambió mientras lo corregías.`)
+    },
     setError
   })
   const { idioma, infoIdioma, traduccionActiva, htmlActivo, tituloActivo } = lectura
-  const edicion = useEdicionDelActa({ htmlActivo, escribirEnLoVisible: lectura.escribirEnLoVisible, setError })
+  const edicion = useEdicionDelActa({
+    htmlActivo,
+    revisionActual: acta.date_updated ?? null,
+    escribirEnLoVisible: lectura.escribirEnLoVisible,
+    setError
+  })
+  const cambioAjeno = hayCambioAjeno({
+    editando: edicion.editando,
+    esTraduccion: traduccionActiva !== null,
+    conflicto,
+    revisionBase: edicion.revisionBase,
+    revisionActual: acta.date_updated ?? null
+  })
+
+  // El Orbe terminó una escritura: se revalida el acta. Con el editor abierto igual se pide —así se
+  // detecta el cambio—, pero el editor lleva su propia copia (`htmlBase`) y no se reemplaza.
+  useEffect(() => {
+    const alEscribirElOrbe = (evento: Event): void => {
+      if (escrituraAlcanzaAlActa((evento as CustomEvent<unknown>).detail, acta.id)) onRevalidar()
+    }
+
+    window.addEventListener(EVENTO_ORBE_ESCRITURA, alEscribirElOrbe)
+
+    return () => { window.removeEventListener(EVENTO_ORBE_ESCRITURA, alEscribirElOrbe) }
+  }, [acta.id, onRevalidar])
   const escrituras = useEscriturasDelActa({
     acta,
     ruta,
@@ -194,6 +241,22 @@ export function DetalleActa ({
    * que se guardaron las dos.
    */
   const puedeRenombrar = puedeEditar && !edicion.editando
+
+  /** Abre el editor sobre la versión que se está viendo; un conflicto anterior ya no aplica. */
+  function corregir (): void {
+    setConflicto(false)
+    edicion.corregir()
+  }
+
+  /**
+   * Cierra el editor y trae la versión nueva. Es la decisión explícita de la persona de dejar lo que
+   * escribió: por eso el aviso lo dice y esto no pregunta de nuevo.
+   */
+  function recargarVersionNueva (): void {
+    setConflicto(false)
+    edicion.descartar()
+    onRevalidar()
+  }
 
   /** Descartar con correcciones sin guardar (incluidas las de la IA) pierde trabajo: se pregunta antes. */
   function descartar (): void {
@@ -261,14 +324,26 @@ export function DetalleActa ({
           onGuardar={() => { void edicion.guardar() }}
           onExportar={(formato) => { void exportar(formato) }}
           onImprimir={() => { marco.current?.contentWindow?.print() }}
-          onCorregir={edicion.corregir}
+          onCorregir={corregir}
           onRenombrar={() => { setRenombrando(true) }}
           onEliminar={() => { setConfirmando(true) }}
         />
       </div>
 
-      {error !== null && (
+      {error !== null && !conflicto && (
         <AvisoEnLinea variante="error" mensaje={error} className="bg-superficie-peligro rounded-chico px-3 py-2 text-sm" />
+      )}
+
+      {cambioAjeno && (
+        <div
+          role="alert"
+          className="border-texto-aviso/35 bg-superficie-aviso rounded-chico flex flex-col gap-2 border px-3 py-2 sm:flex-row sm:items-center sm:justify-between"
+        >
+          <p className="text-texto text-sm">{textoDeCambioAjeno(conflicto)}</p>
+          <Boton variante="secundario" tamano="chico" onClick={recargarVersionNueva} className="shrink-0 self-start">
+            Recargar
+          </Boton>
+        </div>
       )}
 
       {edicion.editando && conIa && traduccionActiva !== null && (
@@ -280,7 +355,10 @@ export function DetalleActa ({
       {edicion.editando
         ? (
           <EditorDeActa
-            htmlInicial={htmlActivo}
+            // La copia con la que se abrió el editor, no `htmlActivo`: si el acta se recarga
+            // mientras se corrige, el editor reemplaza su contenido cuando cambia `htmlInicial` y
+            // se llevaría lo que la persona lleva escrito.
+            htmlInicial={edicion.htmlBase}
             proyectoId={proyectoId}
             // La reescritura con IA del editor (`acta-transformar`) devuelve español: su prompt lo
             // fija. Ofrecerla sobre una traduccion terminaria metiendo un parrafo en español dentro

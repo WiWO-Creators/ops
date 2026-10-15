@@ -10,6 +10,7 @@ import { LimiteDeError } from '@/componentes/estado/LimiteDeError'
 import { BloqueCopiable } from '@/componentes/presentadores/BloqueCopiable'
 import { ACTAS } from '@/definiciones/actas'
 import { conId, type FuenteDeProyecto } from '@/dominio/fuente-proyecto'
+import { idPositivoDeTexto } from '@/dominio/pantalla'
 import { useRecurso } from './carga'
 import { AsistenteDeActa } from './AsistenteDeActa'
 import { AsistenteDeTranscripcion } from './AsistenteDeTranscripcion'
@@ -185,7 +186,7 @@ function ActasDelProyecto ({
   // La URL la escribe cualquiera: sin esta guarda, un cliente que escribiera `?acta=nuevo` abriría
   // el asistente de un alta que su API contesta con 404.
   if (puedeCrear && pedida === 'nuevo') {
-    const transcripcionId = idPositivo(params.get('transcripcion'))
+    const transcripcionId = idPositivoDeTexto(params.get('transcripcion'))
 
     return (
       <LimiteDeError zona="Meeting Paper — asistente de creación">
@@ -204,9 +205,9 @@ function ActasDelProyecto ({
   }
 
   // Solo transcribir: el mismo material de una reunión, sin escribir un acta. Va antes que `abierta`
-  // por el mismo motivo que `nuevo`: `transcribir` no es un id de acta y `idPositivo` lo descarta solo.
+  // por el mismo motivo que `nuevo`: `transcribir` no es un id de acta y `idPositivoDeTexto` lo descarta solo.
   if (puedeCrear && pedida === 'transcribir') {
-    const transcripcionAbiertaId = idPositivo(params.get('transcripcion'))
+    const transcripcionAbiertaId = idPositivoDeTexto(params.get('transcripcion'))
 
     return (
       <LimiteDeError zona="Meeting Paper — solo transcribir">
@@ -223,7 +224,7 @@ function ActasDelProyecto ({
     )
   }
 
-  const abierta = idPositivo(pedida)
+  const abierta = idPositivoDeTexto(pedida)
   if (abierta !== null) {
     return (
       <LimiteDeError zona="Meeting Paper — acta abierta">
@@ -380,7 +381,7 @@ function ActaAbierta ({
   onBorrada: () => void
   onVolver: () => void
 }): ReactElement {
-  const { estado, recargar, reemplazar } = useRecurso<Acta>(
+  const { estado, recargar, reemplazar, revalidar } = useRecurso<Acta>(
     conId(fuente.acta, actaId),
     'No se pudo cargar el Meeting Paper.'
   )
@@ -405,6 +406,7 @@ function ActaAbierta ({
       puedeCrearTareas={puedeCrearTareas}
       destacarTareas={destacarTareas}
       esSuperadmin={esSuperadmin}
+      onRevalidar={revalidar}
       onCambiada={(actualizada) => {
         reemplazar(actualizada)
         onCambiada()
@@ -413,17 +415,4 @@ function ActaAbierta ({
       onVolver={onVolver}
     />
   )
-}
-
-/**
- * Lee un id de la URL.
- *
- * La URL la escribe cualquiera: `?acta=abc` o `?acta=-3` no pueden terminar en un pedido al BFF.
- */
-function idPositivo (crudo: string | null): number | null {
-  if (crudo === null || crudo.trim() === '') return null
-
-  const id = Number(crudo)
-
-  return Number.isInteger(id) && id > 0 ? id : null
 }

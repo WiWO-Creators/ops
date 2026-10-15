@@ -2,6 +2,7 @@
 
 import { useState } from 'react'
 import { escribirEnBff, leerDelBff } from '@/componentes/datos/mutaciones'
+import { esConflictoDeRevision } from '@/dominio/acta-concurrencia'
 import { conIdioma } from '@/dominio/fuente-proyecto'
 import { IDIOMAS, type CodigoDeIdioma, type IdiomaDelActa } from '@/dominio/idiomas-acta'
 import type { Acta, TraduccionActa } from '@/datos/recursos'
@@ -28,6 +29,8 @@ interface OpcionesDeIdioma {
   /** Pedir una traduccion nueva gasta: `puedeEditar` y `conIa`. */
   puedeTraducir: boolean
   onCambiada: (acta: Acta) => void
+  /** La API rechazó un guardado con 409: el acta cambió desde la versión con la que se escribió. */
+  onConflicto: () => void
   setError: (mensaje: string | null) => void
 }
 
@@ -64,6 +67,7 @@ export function useIdiomaDelActa ({
   rutaTraducciones,
   puedeTraducir,
   onCambiada,
+  onConflicto,
   setError
 }: OpcionesDeIdioma): LecturaEnIdioma {
   const [confirmandoRetraduccion, setConfirmandoRetraduccion] = useState(false)
@@ -125,8 +129,9 @@ export function useIdiomaDelActa ({
    * @returns el mensaje de error de la API, o `null` si quedo guardado
    */
   async function escribirEnLoVisible (cuerpo: Record<string, string>): Promise<string | null> {
-    // `origen` y `revision` son del acta original: la traducción tiene su propio PATCH y los rechaza.
-    const { origen: _origen, ...paraTraduccion } = cuerpo
+    // `origen` y `revision` son del acta original: el PATCH de la traducción no los conoce
+    // (`TraduccionDeActa::editar` no compara versiones), así que no viajan.
+    const { origen: _origen, revision: _revision, ...paraTraduccion } = cuerpo
 
     if (traduccionActiva !== null) {
       const enIdioma = await escribirEnBff<TraduccionActa>(
@@ -141,14 +146,19 @@ export function useIdiomaDelActa ({
     }
 
     // Al reescribir el contenido se manda la versión que se tenía a la vista: si otra persona (o la
-    // IA desde el chat) cambió el acta mientras tanto, la API contesta 409 en vez de pisarla.
-    const conRevision = cuerpo.content !== undefined && acta.date_updated !== null && acta.date_updated !== undefined
+    // IA desde el chat) cambió el acta mientras tanto, la API contesta 409 en vez de pisarla. Si
+    // quien llama ya trae la suya (el editor manda la versión con la que se abrió), esa manda.
+    const conRevision = cuerpo.content !== undefined && cuerpo.revision === undefined && acta.date_updated !== null && acta.date_updated !== undefined
       ? { ...cuerpo, revision: acta.date_updated }
       : cuerpo
 
     const resultado = await escribirEnBff<Acta>(ruta, 'PATCH', conRevision)
 
-    if (!resultado.ok) return resultado.mensaje
+    if (!resultado.ok) {
+      if (esConflictoDeRevision(resultado.estado, conRevision.revision !== undefined)) onConflicto()
+
+      return resultado.mensaje
+    }
 
     onCambiada(resultado.datos)
 

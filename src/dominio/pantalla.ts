@@ -50,10 +50,26 @@ export function actaAbiertaDeUrl (ruta: string, busqueda: URLSearchParams): numb
   if (!/^\/(proyectos|espacios)\/\d+$/.test(ruta.toLowerCase())) return null
   if (busqueda.get('tab') !== 'actas') return null
 
-  const crudo = busqueda.get('acta')
-  const id = crudo === null ? NaN : Number(crudo)
+  return idPositivoDeTexto(busqueda.get('acta'))
+}
 
-  return Number.isInteger(id) && id > 0 ? id : null
+/**
+ * Lee un id de un parámetro de la URL.
+ *
+ * La URL la escribe cualquiera: `abc`, `-3`, `1.5`, `nuevo` o `transcribir` no son un id y no pueden
+ * terminar en un pedido al BFF ni viajar al servidor como `acta_id`. Es el criterio único de
+ * `?acta=` para el panel de actas y para el contexto del orbe.
+ *
+ * @param crudo el valor del parámetro, o `null` si no viene
+ * @returns el entero positivo, o `null` si no lo es
+ */
+export function idPositivoDeTexto (crudo: string | null): number | null {
+  const texto = crudo?.trim() ?? ''
+  if (!/^[1-9]\d*$/.test(texto)) return null
+
+  const id = Number(texto)
+
+  return Number.isSafeInteger(id) ? id : null
 }
 
 /**
