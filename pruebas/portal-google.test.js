@@ -8,7 +8,7 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import {
-  accesoGoogleDelPortal, cantidadSinCobertura, configuracionDesdeApi, cuerpoDeGuardado, etiquetaDeDominio,
+  accesoGoogleDelPortal, accesoTrasConsulta, pasoTrasConsulta, cantidadSinCobertura, configuracionDesdeApi, cuerpoDeGuardado, etiquetaDeDominio,
   fraseDeConfiguracion, frasesDeRechazo, hayCambios, mensajeDeEntradaAlPortal, motivoParaRechazarClientId,
   motivoParaRechazarConfiguracion, motivoParaRechazarDominioDelCliente, MAX_DOMINIOS_PORTAL, PORTAL_SIN_GOOGLE
 } from '../src/dominio/portal-google.ts'
@@ -146,6 +146,41 @@ test('el 422 del PUT se traduce a frases con el nombre del dominio de cada posic
   assert.equal(frases.length, 6, 'el codigo desconocido se omite')
   assert.deepEqual(frasesDeRechazo(undefined, []), [])
   assert.deepEqual(frasesDeRechazo({ x: ['y'] }, []), [])
+})
+
+test('si la consulta del acceso falla o da 429 se sigue con la contraseña, nunca se bloquea', () => {
+  assert.deepEqual(accesoTrasConsulta(false, null), PORTAL_SIN_GOOGLE)
+  assert.equal(pasoTrasConsulta(accesoTrasConsulta(false, null)), 'clave')
+  assert.equal(pasoTrasConsulta(accesoTrasConsulta(true, { enabled: true, client_id: null, required: false })), 'clave')
+  assert.equal(pasoTrasConsulta(accesoTrasConsulta(true, { enabled: true, client_id: CLIENT_ID, required: false })), 'google')
+})
+
+test('google_required sin boton explica que el correo no esta habilitado y no manda a usar el boton', () => {
+  const sinBoton = mensajeDeEntradaAlPortal('google_required', 403, undefined, 'clave', false, false)
+  const conBoton = mensajeDeEntradaAlPortal('google_required', 403, undefined, 'clave', true, true)
+
+  assert.match(sinBoton, /no está habilitado/)
+  assert.match(sinBoton, /Escríbenos/)
+  assert.doesNotMatch(sinBoton, /botón/)
+  assert.match(conBoton, /botón de Google/)
+  assert.equal(mensajeDeEntradaAlPortal('google_required', 403, undefined, 'clave', true), conBoton)
+})
+
+test('por la contraseña, 403 y 429 se reconocen solo por codigo: la traduccion de siempre', () => {
+  // Sin codigo caen al mensaje de la API, como antes de existir Google.
+  assert.equal(mensajeDeEntradaAlPortal(undefined, 403, 'Prohibido', 'clave', false), 'Prohibido')
+  assert.equal(mensajeDeEntradaAlPortal(undefined, 429, 'Calma', 'clave', false), 'Calma')
+  assert.equal(mensajeDeEntradaAlPortal(undefined, 403, undefined, 'clave', false), 'No se pudo entrar. Intenta de nuevo.')
+  // Con codigo, la misma frase de siempre.
+  assert.equal(
+    mensajeDeEntradaAlPortal('rate_limited', 429, undefined, 'clave', false),
+    'Demasiados intentos fallidos. Espera unos minutos antes de volver a probar.'
+  )
+  assert.equal(
+    mensajeDeEntradaAlPortal('forbidden', 403, undefined, 'clave', false),
+    'Tu acceso está desactivado. Escríbenos y lo revisamos.'
+  )
+  assert.equal(mensajeDeEntradaAlPortal(undefined, 401, undefined, 'clave', false), 'Correo o contraseña incorrectos.')
 })
 
 test('las frases de la regla y de los dominios se leen en español', () => {

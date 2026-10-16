@@ -69,6 +69,25 @@ export function accesoGoogleDelPortal (bruto: unknown): AccesoGooglePortal {
   }
 }
 
+/**
+ * El acceso que se asume tras consultar `GET /api/sesion/portal-google`.
+ *
+ * Cualquier respuesta que no sea un `200` —el freno de intentos (`429`), un error de la API, la red
+ * caida— deja el portal sin Google: la persona sigue con su contraseña y nunca se queda bloqueada en
+ * el primer paso. Si su cliente exige Google, la API lo dice con `google_required` al intentar entrar.
+ *
+ * @param ok si la consulta respondio `2xx`
+ * @param cuerpo el JSON de la respuesta, solo si `ok`
+ */
+export function accesoTrasConsulta (ok: boolean, cuerpo: unknown): AccesoGooglePortal {
+  return ok ? accesoGoogleDelPortal(cuerpo) : PORTAL_SIN_GOOGLE
+}
+
+/** El paso que sigue al del correo: Google si hay boton para ese correo, la contraseña si no. */
+export function pasoTrasConsulta (acceso: AccesoGooglePortal): 'google' | 'clave' {
+  return acceso.client_id !== null ? 'google' : 'clave'
+}
+
 /** Una configuracion vacia: lo que se muestra para un cliente que nunca la tuvo. */
 export const CONFIGURACION_VACIA: ConfiguracionPortalGoogle = {
   configurado: false,
@@ -308,21 +327,33 @@ export type ViaDelPortal = 'clave' | 'google'
  * @param mensaje el texto de la API, usado solo cuando nada lo explica mejor
  * @param via de donde venia la credencial
  * @param exigido si el cliente de esta persona exige Google
+ * @param hayBotonGoogle si la pantalla puede ofrecer el boton de Google a este correo. Sin el, un
+ *                       `google_required` no puede mandar a «usar el boton»: se explica que el correo
+ *                       no esta habilitado.
+ *
+ * Por la via de la contraseña el `403` y el `429` se reconocen solo por su codigo, igual que antes de
+ * existir Google: con el interruptor global apagado la traduccion no cambia. El estado HTTP se usa
+ * unicamente por la via de Google, que no existe con el interruptor apagado.
  */
 export function mensajeDeEntradaAlPortal (
   codigo: string | undefined,
   estado: number,
   mensaje: string | undefined,
   via: ViaDelPortal,
-  exigido: boolean
+  exigido: boolean,
+  hayBotonGoogle = true
 ): string {
-  if (codigo === 'rate_limited' || estado === 429) {
+  const porEstado = via === 'google'
+
+  if (codigo === 'rate_limited' || (porEstado && estado === 429)) {
     return 'Demasiados intentos fallidos. Espera unos minutos antes de volver a probar.'
   }
   if (codigo === 'google_required') {
-    return 'Tu empresa entra al portal con Google. Usa el botón de Google con tu cuenta de trabajo.'
+    return hayBotonGoogle
+      ? 'Tu empresa entra al portal con Google. Usa el botón de Google con tu cuenta de trabajo.'
+      : 'Tu empresa exige entrar con Google y tu correo no está habilitado para eso. Escríbenos y lo revisamos.'
   }
-  if (codigo === 'forbidden' || estado === 403) {
+  if (codigo === 'forbidden' || (porEstado && estado === 403)) {
     return 'Tu acceso está desactivado. Escríbenos y lo revisamos.'
   }
   if (via === 'google') return mensajeDeGoogle(estado, exigido)

@@ -14,7 +14,7 @@ import { PasoCodigoPortal, type DesafioDelPortal } from '@/componentes/portal/Pa
 import { PanelVidrio } from '@/componentes/superposiciones/PanelVidrio'
 import { destinoDeEntrada } from '@/dominio/portal'
 import {
-  accesoGoogleDelPortal, mensajeDeEntradaAlPortal, PORTAL_SIN_GOOGLE,
+  accesoTrasConsulta, mensajeDeEntradaAlPortal, pasoTrasConsulta, PORTAL_SIN_GOOGLE,
   type AccesoGooglePortal, type ViaDelPortal
 } from '@/dominio/portal-google'
 import { avisoDeCodigoNoEnviado } from '@/dominio/segundo-factor-portal'
@@ -116,25 +116,20 @@ export function FormularioEntrarPortal ({ aviso = null, googleActivo = false }: 
   /**
    * Pregunta a la API que puerta le corresponde a este correo y pasa al paso que toca.
    *
-   * Si la consulta falla por algo que no sea el freno de intentos, se sigue con la contraseña: Google
-   * es una comodidad y nunca puede costarle la entrada a quien tiene su clave.
+   * Si la consulta falla —red caida, error de la API o el freno de intentos (`429`)—, se sigue con la
+   * contraseña: Google es una comodidad y nunca puede costarle la entrada a quien tiene su clave. Si su
+   * cliente exige Google, la API lo dira con `google_required` al intentar entrar.
    *
    * @param email el correo escrito, ya sin espacios
-   * @returns el acceso resuelto, o `null` si la API frenó la consulta y no se avanzó
+   * @returns el acceso resuelto, o `PORTAL_SIN_GOOGLE` si no se pudo saber
    */
-  async function resolverAcceso (email: string): Promise<AccesoGooglePortal | null> {
+  async function resolverAcceso (email: string): Promise<AccesoGooglePortal> {
     try {
       const respuesta = await fetch(`/api/sesion/portal-google?email=${encodeURIComponent(email)}`, {
         signal: conLimite(undefined, TIEMPO_LECTURA_MS)
       })
 
-      if (respuesta.status === 429) {
-        establecerError(mensajeDeEntradaAlPortal('rate_limited', 429, undefined, 'clave', false))
-
-        return null
-      }
-
-      return respuesta.ok ? accesoGoogleDelPortal(await respuesta.json()) : PORTAL_SIN_GOOGLE
+      return accesoTrasConsulta(respuesta.ok, respuesta.ok ? await respuesta.json() : null)
     } catch {
       return PORTAL_SIN_GOOGLE
     }
@@ -155,17 +150,10 @@ export function FormularioEntrarPortal ({ aviso = null, googleActivo = false }: 
     const resuelto = await resolverAcceso(email)
 
     establecerEnviando(false)
-
-    if (resuelto === null) {
-      señalarError()
-
-      return
-    }
-
     establecerEstadoOrbe(undefined)
     establecerCorreo(email)
     establecerAcceso(resuelto)
-    establecerPaso(resuelto.client_id !== null ? 'google' : 'clave')
+    establecerPaso(pasoTrasConsulta(resuelto))
   }
 
   /**
@@ -224,17 +212,21 @@ export function FormularioEntrarPortal ({ aviso = null, googleActivo = false }: 
    * Muestra por que no se entro y ajusta el paso si el rechazo cambia lo que corresponde ofrecer.
    *
    * - `google_required`: la clave estaba bien pero el cliente exige Google. Se vuelve a consultar el
-   *   acceso de ese correo para que aparezca el boton (y desaparezca la contraseña).
+   *   acceso de ese correo para que aparezca el boton (y desaparezca la contraseña). Si no hay boton
+   *   que ofrecer —el correo no cae en un dominio con Google, la consulta fallo o Google no esta
+   *   activo en esta pantalla— el mensaje lo explica y manda a escribirnos, sin decir «usa el boton».
    * - Google caido o apagado (`404`/`503`): se abre la contraseña, salvo que el cliente la tenga cerrada.
    */
   async function tratarRechazo (datos: RespuestaEntrar, estado: number, via: ViaDelPortal): Promise<void> {
     const sinCodigo = avisoDeCodigoNoEnviado(datos.codigo, datos.mensaje)
+    let hayBotonGoogle = true
 
-    if (datos.codigo === 'google_required' && googleActivo) {
-      const email = correo
-      const resuelto = email === '' ? null : await resolverAcceso(email)
+    if (datos.codigo === 'google_required') {
+      const resuelto = googleActivo && correo !== '' ? await resolverAcceso(correo) : PORTAL_SIN_GOOGLE
 
-      if (resuelto !== null && resuelto.client_id !== null) {
+      hayBotonGoogle = resuelto.client_id !== null
+
+      if (hayBotonGoogle) {
         establecerAcceso({ ...resuelto, required: true })
         establecerPaso('google')
       }
@@ -242,7 +234,9 @@ export function FormularioEntrarPortal ({ aviso = null, googleActivo = false }: 
       establecerPaso('clave')
     }
 
-    establecerError(sinCodigo ?? mensajeDeEntradaAlPortal(datos.codigo, estado, datos.mensaje, via, acceso.required))
+    establecerError(
+      sinCodigo ?? mensajeDeEntradaAlPortal(datos.codigo, estado, datos.mensaje, via, acceso.required, hayBotonGoogle)
+    )
     establecerEnviando(false)
     señalarError()
   }
