@@ -50,7 +50,16 @@ export interface JornadaEnVivo {
   started_at: string
   seconds: number
   client?: ClienteDeJornada | null
+  /**
+   * Cómo trabaja la persona hoy, si lo declaró. Opcional y anulable por lo mismo que `client`:
+   * ausente es una API sin la migración `1670`, `null` es «sin indicar». Viaja en el tablero y en
+   * las rutas propias; se lee con `modalidadDeJornada()` y no a pelo.
+   */
+  modalidad?: ModalidadDeJornada | null
 }
+
+/** Cómo declara una persona que trabaja su jornada: en la oficina o en teletrabajo. */
+export type ModalidadDeJornada = 'oficina' | 'teletrabajo'
 
 /** Lo que se abre al arrancar la jornada. */
 export interface JornadaAbierta {
@@ -95,12 +104,26 @@ export interface MedidorEnVivo {
   task: { id: number, name: string, status?: number | null } | null
   start_time: string
   seconds: number
+  /**
+   * El Cliente del Proyecto que se mide, para decir «de quién es» sin pedir otra cosa. Solo lo manda
+   * el tablero `GET /live`, y solo una API que ya trae el equipo en vivo: ausente es una API anterior
+   * y `null` es un Proyecto sin Cliente.
+   */
+  client?: { id: number, name: string } | null
 }
 
-/** Ultima señal de vida. Los segundos los calcula el servidor; ver `haceCuanto()`. */
+/**
+ * Ultima señal de vida. Los segundos los calcula el servidor; ver `haceCuanto()`.
+ *
+ * `route` y `phrase` los manda el tablero de una API con el equipo en vivo: la pantalla en que está la
+ * persona y la frase cruda del servidor para esa pantalla («en /tareas/12» cuando no la conoce). La
+ * tarjeta resuelve la ruta con `fraseDePresencia()` y deja `phrase` solo como respaldo.
+ */
 export interface PresenciaEnVivo {
   last_seen: string
   seconds_ago: number
+  route?: string | null
+  phrase?: string | null
 }
 
 /** Una persona en el tablero `GET /live`. */

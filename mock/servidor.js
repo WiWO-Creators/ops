@@ -22,6 +22,7 @@ import {
 } from './recurrentes.js'
 import { contarCopias, limpiarCopias, listarCopias, marcarEditada, sembrarCopias, usoDe } from './copias-recurrentes.js'
 import { avisosRuta } from './avisos.js'
+import { comentariosDelActaRuta, opcionesDeComentarios } from './comentarios-acta.js'
 import { fusionRuta } from './fusion.js'
 import { integracionesRuta, propuestasRuta } from './mcp-externo.js'
 import { actividadDeCliente, actividadDeContacto, registrarActividad } from './actividad-portal.js'
@@ -2936,6 +2937,17 @@ function presentarActa (acta, { conContenido }) {
   }
 }
 
+/** Quien hizo un cambio del historial de un acta, con la forma de la API: `staff_id`, nombre y foto. */
+function autorDeRevision (staffId) {
+  const persona = STAFF.find((s) => s.id === staffId) ?? null
+
+  return {
+    staff_id: staffId ?? null,
+    staff_name: persona?.full_name ?? null,
+    staff_image: persona?.profile_image_url ?? null
+  }
+}
+
 /** El HTML que "genera" el modelo, con la estructura real del Meeting Paper. */
 function actaGenerada (espacio) {
   return `<h1>Meeting Paper - Avance de ${espacio.name}</h1>`
@@ -3173,12 +3185,29 @@ const FUERA_DEL_PORTAL_ACTA = ['source', 'staff_id', 'updated_by']
  * hay que poder verlo al lado del que si los tiene.
  */
 function sembrarActas () {
+  /** Tres cambios sobre el Kickoff, de tres orígenes, para poder ver la lista y el diff sin editar nada. */
+  function sembrarHistorialDelKickoff (acta) {
+    const actual = acta.content
+    const antesDelOrbe = actual
+      .replace(' y se fijó la fecha de entrega.', '.')
+      .replace('<p><strong>Acción:</strong> Definir el proveedor.</p>', '')
+    const antesDeLaIa = antesDelOrbe.replace('Sigue pendiente la elección del alojamiento.', 'Hay que elegir hosting.')
+    const antesDeLaPersona = antesDeLaIa.replace(/<h3>Proveedor de hosting<\/h3>.*?<h2>Próximos Pasos:<\/h2>/s, '<h2>Próximos Pasos:</h2>')
+    const hace = (horas) => new Date(Date.now() - horas * 3_600_000).toISOString()
+
+    acta.revisiones = [
+      { id: 1, origin: 'manual', staff_id: 2, content: antesDeLaPersona, summary: 'Temas Discutidos y Acuerdos', date_added: hace(72) },
+      { id: 2, origin: 'ia', staff_id: 1, content: antesDeLaIa, summary: 'Temas Discutidos y Acuerdos', date_added: hace(26) },
+      { id: 3, origin: 'orb', staff_id: 1, content: antesDelOrbe, summary: 'Temas Discutidos y Acuerdos', date_added: hace(2) }
+    ]
+  }
+
   const espacio = ESPACIOS.find((e) => e.id === 1)
   const autora = STAFF.find((s) => s.id === 1) ?? STAFF[0]
 
   if (espacio === undefined || autora === undefined) return
 
-  guardarActa(
+  const kickoff = guardarActa(
     espacio,
     autora,
     {
@@ -3197,6 +3226,8 @@ function sembrarActas () {
       { name: 'pizarra.png', size: 412_000, type: 'image/png' }
     ]
   )
+
+  sembrarHistorialDelKickoff(kickoff)
 
   guardarActa(
     espacio,
@@ -4742,6 +4773,23 @@ function idOpcional (valor, campo) {
   return valor
 }
 
+/** Las modalidades de jornada que acepta la API (`Escritura\Jornada::MODALIDADES`). */
+const MODALIDADES_DE_JORNADA = ['oficina', 'teletrabajo']
+
+/**
+ * La modalidad del cuerpo, como la valida la API: ausente, nula y vacia son "sin indicar" (`null`);
+ * cualquier otra cosa fuera de la lista es 422 `modalidad: ['invalido']`.
+ */
+function modalidadOpcional (valor) {
+  if (valor === undefined || valor === null || valor === '') return null
+
+  if (typeof valor !== 'string' || !MODALIDADES_DE_JORNADA.includes(valor)) {
+    throw new ErrorApi(422, 'validation_failed', 'Hay campos que no se pueden guardar.', { modalidad: ['invalido'] })
+  }
+
+  return valor
+}
+
 /** El Cliente existe y no esta en la papelera, o 422. Devuelve su id. */
 function exigirCliente (id) {
   const cliente = CLIENTES.find((c) => c.id === id)
@@ -4768,7 +4816,8 @@ function presentarJornada (jornada) {
     id: jornada.id,
     started_at: jornada.started_at,
     seconds: segundosDesde(jornada.started_at),
-    client: clienteDeJornada(jornada)
+    client: clienteDeJornada(jornada),
+    modalidad: jornada.modalidad ?? null
   }
 }
 
@@ -4829,6 +4878,44 @@ const CLAVES_DE_AJUSTES_DEL_MOCK = new Set([
   'wiwo_portal_ia_chat', 'wiwo_live_cierre_automatico', 'wiwo_live_hora_cierre', 'wiwo_live_prorroga_minutos',
   'wiwo_modo_especial', 'wiwo_modo_desde', 'wiwo_modo_hasta', 'wiwo_portal_google_enabled'
 ])
+
+/**
+ * El maestro de «Ops en vivo» en `GET /settings`. Nace apagado, como la instalación real;
+ * `MOCK_EN_VIVO=1` lo enciende para las pruebas de navegador (`pruebas/en-vivo-dos-sesiones.browser.mjs`).
+ * Solo el maestro: las salas por defecto no necesitan que el mock valide nada más.
+ */
+function opcionesDeEnVivo () {
+  const encendido = process.env.MOCK_EN_VIVO === '1' ? '1' : '0'
+
+  return {
+    wiwo_en_vivo: { group: 'en_vivo', type: 'bool', value: encendido },
+    // Las tarjetas del equipo: con el maestro encendido, `MOCK_EN_VIVO_EQUIPO=0` las deja apagadas.
+    wiwo_en_vivo_equipo: {
+      group: 'en_vivo',
+      type: 'bool',
+      value: encendido === '1' && process.env.MOCK_EN_VIVO_EQUIPO !== '0' ? '1' : '0'
+    },
+    // La presencia en recursos y la edición conjunta de textos: con el maestro encendido,
+    // `MOCK_EN_VIVO_PRESENCIA=0` / `MOCK_EN_VIVO_TEXTOS=0` las dejan apagadas.
+    wiwo_en_vivo_presencia: {
+      group: 'en_vivo',
+      type: 'bool',
+      value: encendido === '1' && process.env.MOCK_EN_VIVO_PRESENCIA !== '0' ? '1' : '0'
+    },
+    wiwo_en_vivo_textos: {
+      group: 'en_vivo',
+      type: 'bool',
+      value: encendido === '1' && process.env.MOCK_EN_VIVO_TEXTOS !== '0' ? '1' : '0'
+    },
+    // La edición conjunta del Meeting Paper: solo con `MOCK_EN_VIVO_ACTAS=1`, porque exige un servicio
+    // que tenga las actas del mock en su board.
+    wiwo_actas_colaborativas: {
+      group: 'en_vivo',
+      type: 'bool',
+      value: encendido === '1' && process.env.MOCK_EN_VIVO_ACTAS === '1' ? '1' : '0'
+    }
+  }
+}
 
 /**
  * El grupo `acceso` del login con Google del equipo, solo de lectura: el mock no lo escribe, pero la
@@ -4971,6 +5058,101 @@ function estadoDelDia (staffId) {
     over_journey: segundos > 8 * 3600,
     timer: presentarMedidor(jornada.timer),
     closing: cierreProgramado(jornada)
+  }
+}
+
+/** Cuantas personas trae el tablero del mock: las primeras activas, las suficientes para ver los cuatro estados. */
+const PERSONAS_DEL_TABLERO = 8
+
+/** Pantallas que el mock reparte entre las personas del tablero: una es de una seccion que el panel no conoce. */
+const RUTAS_DE_PRESENCIA = ['/tareas/12', '/proyectos/3', '/inicio', '/cosa-rara/1', '/clientes']
+
+/**
+ * Una jornada de relleno para quien no abrio ninguna de verdad.
+ *
+ * Solo el mock lo hace: la API real devuelve la fila de cada persona con lo que tenga. Sirve para
+ * que el tablero tenga en que mirarse sin tener que abrir ocho sesiones.
+ */
+function jornadaDeRelleno (indice) {
+  const abierta = new Date(Date.now() - (2 + indice) * 3600_000).toISOString().replace(/\.\d{3}Z$/, 'Z')
+
+  // Una de cada tres personas de relleno declara teletrabajo, una oficina y el resto no indico nada.
+  const modalidad = indice % 3 === 1 ? 'teletrabajo' : indice % 3 === 0 ? 'oficina' : null
+
+  return { id: 9000 + indice, started_at: abierta, seconds: segundosDesde(abierta), client: null, modalidad }
+}
+
+/** El medidor de relleno de una persona: una Tarea de un Espacio, con el Cliente del Espacio. */
+function medidorDeRelleno (indice) {
+  const procesos = PROCESOS.filter((p) => p.rel_type === 'project')
+  const proceso = procesos[(indice * 5) % procesos.length]
+  const espacio = ESPACIOS.find((e) => e.id === proceso.rel_id)
+  const cliente = CLIENTES.find((c) => c.id === espacio?.clientid) ?? null
+  const inicio = new Date(Date.now() - (10 + indice * 7) * 60_000).toISOString().replace(/\.\d{3}Z$/, 'Z')
+
+  return {
+    id: 9500 + indice,
+    project: espacio ? { id: espacio.id, name: espacio.name } : null,
+    task: { id: proceso.id, name: proceso.name, status: proceso.status },
+    start_time: inicio,
+    seconds: segundosDesde(inicio),
+    client: cliente === null ? null : { id: cliente.id, name: cliente.name }
+  }
+}
+
+/**
+ * `GET /live`: el tablero del equipo con la forma que manda el board con el equipo en vivo.
+ *
+ * Las sesiones reales del mock mandan; a quien no abrio nada se le reparte un estado de relleno
+ * (con medidor, solo jornada o nada) para que las tarjetas muestren los casos. La presencia lleva
+ * `route` y `phrase` cruda, igual que el board: «en /cosa-rara/1» es la que la tarjeta no debe mostrar.
+ */
+function tableroDeLive () {
+  return STAFF.filter((p) => p.active).slice(0, PERSONAS_DEL_TABLERO).map((persona, indice) => {
+    const real = JORNADAS.get(persona.id)
+    const jornada = real ? presentarJornada(real) : (indice % 3 !== 2 ? jornadaDeRelleno(indice) : null)
+    const medidor = real ? presentarMedidor(real.timer) : (jornada !== null && indice % 3 === 0 ? medidorDeRelleno(indice) : null)
+    const ruta = RUTAS_DE_PRESENCIA[indice % RUTAS_DE_PRESENCIA.length]
+
+    return {
+      staff: {
+        id: persona.id,
+        name: persona.full_name,
+        avatar: persona.profile_image_url,
+        cargo: indice % 2 === 0 ? 'Diseñadora' : null,
+        area: AREAS.find((a) => a.id === persona.area_id)?.name ?? null
+      },
+      jornada: jornada === null
+        ? null
+        : { id: jornada.id, started_at: jornada.started_at, seconds: jornada.seconds, modalidad: jornada.modalidad ?? null },
+      medidor,
+      presencia: { last_seen: ahoraIso(), seconds_ago: indice * 25, route: ruta, phrase: `en ${ruta}` },
+      seconds_today: medidor === null ? 0 : medidor.seconds
+    }
+  })
+}
+
+/**
+ * `GET /live/personas/{id}/resumen`: el resumen de la jornada de otra persona.
+ *
+ * 404 si no tiene jornada abierta (real o de relleno), como la API; `id` 999 simula una persona fuera
+ * del alcance, que responde igual.
+ */
+function resumenDePersona (id) {
+  const fila = tableroDeLive().find((f) => f.staff.id === id)
+
+  if (!fila || fila.jornada === null) throw new ErrorApi(404, 'not_found', 'Esa persona no tiene una jornada abierta.')
+
+  const medidor = fila.medidor
+  const medidos = medidor === null ? 0 : medidor.seconds
+
+  return {
+    jornada: { id: fila.jornada.id, started_at: fila.jornada.started_at, seconds: fila.jornada.seconds, client: null },
+    measured_seconds: medidos,
+    uncovered_seconds: Math.max(0, fila.jornada.seconds - medidos),
+    items: medidor === null
+      ? []
+      : [{ project: medidor.project, task: medidor.task === null ? null : { id: medidor.task.id, name: medidor.task.name }, seconds: medidor.seconds, corriendo: true }]
   }
 }
 
@@ -5122,11 +5304,13 @@ async function jornadaRuta (metodo, resto, actual, cuerpo) {
     const { espacioId, procesoId } = resolverDestino(entrada)
     const clienteId = idOpcional(entrada.client_id, 'client_id')
     const cliente = clienteId === null ? null : exigirCliente(clienteId)
+    const modalidad = modalidadOpcional(entrada.modalidad)
 
     JORNADAS.set(actual.id, {
       id: ++SIGUIENTE_JORNADA,
       started_at: ahoraIso(),
       client_id: cliente,
+      modalidad,
       medidos: 0,
       timer: null
     })
@@ -5142,6 +5326,18 @@ async function jornadaRuta (metodo, resto, actual, cuerpo) {
     if (!jornada) throw new ErrorApi(409, 'conflict', 'No tienes ninguna jornada abierta.')
 
     const entrada = (await cuerpo()) ?? {}
+
+    // La modalidad se cambia sola o junto al Cliente; se valida todo antes de escribir nada.
+    if ('modalidad' in entrada) {
+      const modalidad = modalidadOpcional(entrada.modalidad)
+      const clienteId = 'client_id' in entrada ? idOpcional(entrada.client_id, 'client_id') : undefined
+      const cliente = clienteId === undefined || clienteId === null ? null : exigirCliente(clienteId)
+
+      if (clienteId !== undefined) jornada.client_id = cliente
+      jornada.modalidad = modalidad
+
+      return { estado: 200, cuerpo: conDatos(estadoDelDia(actual.id)) }
+    }
 
     // La clave tiene que venir: un PATCH sin `client_id` es un error de quien lo manda, no un
     // borrado silencioso. Para quitarlo se manda `client_id: null` explicito.
@@ -7474,6 +7670,14 @@ async function resolverRuta (metodo, segmentos, parametros, token, cuerpo, petic
     throw new ErrorApi(404, 'not_found', 'Recurso desconocido.')
   }
 
+  // `GET /live` y `GET /live/personas/{id}/resumen`: el tablero del equipo y el resumen por persona.
+  if (recurso === 'live' && metodo === 'GET' && resto.length === 0) {
+    return { estado: 200, cuerpo: { data: tableroDeLive(), meta: { scope: actual.is_admin ? 'all' : 'self' } } }
+  }
+  if (recurso === 'live' && metodo === 'GET' && resto[0] === 'personas' && resto[2] === 'resumen') {
+    return { estado: 200, cuerpo: conDatos(resumenDePersona(Number(resto[1]))) }
+  }
+
   // `DELETE /live/timers/{id}`: detener desde la cabecera, sin saber sobre que se estaba midiendo.
   // El id no se compara porque el mock tiene un cronometro por persona; lo que importa es de quien.
   if (recurso === 'live' && resto[0] === 'timers' && metodo === 'DELETE') {
@@ -7611,6 +7815,8 @@ async function resolverRuta (metodo, segmentos, parametros, token, cuerpo, petic
           ...opcionDelOrbePortal(),
           ...opcionesDeJornada(),
           ...opcionesDeModo(),
+          ...opcionesDeEnVivo(),
+          ...opcionesDeComentarios(),
           ...opcionesDeAcceso(),
           ...opcionPortalGoogle()
         }
@@ -8122,6 +8328,11 @@ async function resolverRuta (metodo, segmentos, parametros, token, cuerpo, petic
     const acta = suyas.find((a) => a.id === actaId)
     if (acta === undefined) throw new ErrorApi(404, 'not_found', 'No existe ese Meeting Paper.')
 
+    // Los comentarios en línea (fase 10): el módulo valida y guarda los hilos, esto solo lo enruta.
+    if (resto[3] === 'comentarios') {
+      return await comentariosDelActaRuta(metodo, resto.slice(4), acta.id, actual, cuerpo, autorDeRevision)
+    }
+
     if (resto[3] === 'tareas' && resto.length === 4 && metodo === 'GET') {
       return { estado: 200, cuerpo: conDatos(listarPropuestasDelActa(acta.id)) }
     }
@@ -8150,17 +8361,57 @@ async function resolverRuta (metodo, segmentos, parametros, token, cuerpo, petic
       }
     }
 
-    // El historial de versiones: lista, una versión y restaurar.
+    // El historial de versiones: lista (de la más nueva a la más vieja, con la creación al final), el
+    // cambio con su antes y después, y restaurar. Cada revisión guarda el contenido ANTERIOR al cambio.
     if (resto[3] === 'revisiones') {
       acta.revisiones ??= []
       if (resto.length === 4 && metodo === 'GET') {
-        return { estado: 200, cuerpo: conDatos(acta.revisiones.map(({ content, ...resumen }) => ({ ...resumen, preview: content.replace(/<[^>]+>/g, ' ').trim().slice(0, 140) })).reverse()) }
+        const cambios = acta.revisiones.map((r) => ({
+          id: r.id,
+          kind: 'change',
+          origin: r.origin,
+          ...autorDeRevision(r.staff_id),
+          summary: r.summary ?? null,
+          preview: r.content.replace(/<[^>]+>/g, ' ').trim().slice(0, 140),
+          date_added: r.date_added
+        })).reverse()
+        const creada = {
+          id: 0,
+          kind: 'created',
+          origin: acta.source === 'manual' ? 'manual' : 'ia',
+          ...autorDeRevision(acta.staff_id),
+          summary: null,
+          preview: null,
+          date_added: acta.date_added
+        }
+
+        return { estado: 200, cuerpo: conDatos([...cambios, creada]) }
       }
       const revision = acta.revisiones.find((r) => r.id === Number(resto[4]))
       if (revision === undefined) throw new ErrorApi(404, 'not_found', 'No existe esa versión del Meeting Paper.')
       if (resto.length === 5 && metodo === 'GET') return { estado: 200, cuerpo: conDatos(revision) }
+      if (resto[5] === 'cambio' && resto.length === 6 && metodo === 'GET') {
+        const siguiente = acta.revisiones.find((r) => r.id > revision.id)
+
+        return {
+          estado: 200,
+          cuerpo: conDatos({
+            id: revision.id,
+            origin: revision.origin,
+            ...autorDeRevision(revision.staff_id),
+            date_added: revision.date_added,
+            summary: revision.summary ?? null,
+            before: revision.content,
+            after: siguiente === undefined ? (acta.content ?? '') : siguiente.content
+          })
+        }
+      }
       if (resto[5] === 'restaurar' && metodo === 'POST') {
-        acta.revisiones.push({ id: acta.revisiones.length + 1, origin: 'restauracion', staff_id: actual.id, content: acta.content ?? '', date_added: new Date().toISOString() })
+        const datos = await cuerpo()
+        if (datos.revision !== undefined && datos.revision !== acta.date_updated) {
+          throw new ErrorApi(409, 'conflict', 'El Meeting Paper cambió mientras mirabas el historial. Recarga para ver la última versión.')
+        }
+        acta.revisiones.push({ id: Math.max(0, ...acta.revisiones.map((r) => r.id)) + 1, origin: 'restauracion', staff_id: actual.id, content: acta.content ?? '', date_added: new Date().toISOString() })
         acta.content = revision.content
         acta.date_updated = new Date().toISOString().replace(/\.\d{3}Z$/, 'Z')
 

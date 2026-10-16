@@ -58,6 +58,20 @@ test('los campos iniciales salen de la tarea, con vacio donde la API manda null'
   })
 })
 
+test('con la descripcion en edicion conjunta el parche no la manda, pero sí lo demas', () => {
+  const campos = camposDeTarea(TAREA, 'algo')
+  const editados = { ...campos, descripcion: '<p>Escrito en conjunto</p>', nombre: 'Otro nombre' }
+
+  assert.equal(cuerpoDeParche(campos, editados).description, '<p>Escrito en conjunto</p>')
+
+  const parche = cuerpoDeParche(campos, editados, { sinDescripcion: true })
+
+  assert.equal('description' in parche, false)
+  assert.equal('format' in parche, false)
+  assert.equal(parche.name, 'Otro nombre')
+  assert.deepEqual(cuerpoDeParche(campos, { ...campos, descripcion: '<p>Solo esto</p>' }, { sinDescripcion: true }), {})
+})
+
 test('sin cambios el parche va vacio', () => {
   const campos = camposDeTarea(TAREA, 'algo')
 

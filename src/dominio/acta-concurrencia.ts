@@ -65,3 +65,53 @@ export function textoDeCambioAjeno (conflicto: boolean): string {
     ? `${quien} cambió ${que} antes de que guardaras, así que no se guardó nada. ${salida}`
     : `${quien} cambió ${que} mientras lo corregías. ${salida}`
 }
+
+/** Lo que el aviso en vivo `acta` dice del cambio: cuál acta y de qué Espacio (`null` si no lo trae). */
+export interface CambioDeActaEnVivo {
+  id: number | null
+  espacio_id: number | null
+}
+
+/** Lo que se sabe de la pantalla que recibe el aviso en vivo de un acta. */
+export interface PantallaDeActa {
+  /** El Espacio del panel de actas. */
+  espacioId: number
+  /** El acta abierta en el detalle, o `null` si lo que se ve es la lista. */
+  actaAbiertaId: number | null
+  /** Se corrige en edición conjunta: el servicio ya fusiona los cambios en el documento compartido. */
+  conjunta: boolean
+}
+
+/**
+ * Indica si el aviso en vivo `acta` toca a este Espacio.
+ *
+ * El aviso llega por la sala del Espacio, así que `espacio_id` casi siempre coincide; se comprueba
+ * igual porque un aviso de otro Espacio no debe recargar nada. Sin `espacio_id` se asume que sí.
+ *
+ * @param cambio el aviso del bus
+ * @param espacioId el Espacio del panel
+ * @returns `true` si la lista de actas debe revalidarse
+ */
+export function debeRevalidarListaDeActas (cambio: CambioDeActaEnVivo, espacioId: number): boolean {
+  return cambio.espacio_id === null || cambio.espacio_id === espacioId
+}
+
+/**
+ * Indica si el acta abierta debe revalidarse por un aviso en vivo.
+ *
+ * Revalidar no pisa nada: el editor normal lleva su propia copia, y es justo la revisión nueva la que
+ * enciende el aviso de cambio ajeno (`hayCambioAjeno`) en vez de reemplazar lo que se escribe. La
+ * única excepción es la edición conjunta, donde el servicio ya fusiona el cambio en el documento
+ * compartido y una lectura aparte solo traería una versión intermedia. Un aviso sin id (el servicio
+ * no supo cuál) cuenta como «puede ser esta».
+ *
+ * @param cambio el aviso del bus
+ * @param pantalla el Espacio, el acta abierta y si se corrige en conjunto
+ * @returns `true` si el detalle debe volver a pedir su acta en silencio
+ */
+export function debeRevalidarActaAbierta (cambio: CambioDeActaEnVivo, pantalla: PantallaDeActa): boolean {
+  if (pantalla.actaAbiertaId === null || pantalla.conjunta) return false
+  if (!debeRevalidarListaDeActas(cambio, pantalla.espacioId)) return false
+
+  return cambio.id === null || cambio.id === pantalla.actaAbiertaId
+}

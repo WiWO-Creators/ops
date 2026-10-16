@@ -111,6 +111,17 @@
   text-underline-offset: 2px;
 }
 
+/*
+ * El fragmento con un hilo de comentarios (`lib/en-vivo/marca-comentario.ts`). Solo se pinta aquí,
+ * mientras se corrige: el visor, el PDF y el portal muestran el texto limpio, porque el comentario es
+ * una conversación del equipo y no parte del documento que se entrega. Además del fondo lleva un
+ * subrayado punteado, para que no dependa solo del color. Con dos hilos encimados el fondo se suma.
+ */
+.acta-editor span[data-hilo] {
+  background: rgb(250 204 21 / 0.28);
+  border-bottom: 2px dotted #b45309;
+}
+
 /* El marcador de posición de TipTap, que se pinta sobre el primer párrafo vacío. */
 .acta-editor p.is-editor-empty:first-child::before {
   content: attr(data-placeholder);
@@ -118,4 +129,54 @@
   height: 0;
   color: #9ca3af;
   pointer-events: none;
+}
+
+/*
+ * Los cursores de la edición conjunta (`acta/cursoresDelActa.ts`).
+ *
+ * Cada persona trae su color en `--cursor-color`. El del asistente no viene de ahí: es el azul de
+ * marca del Orbe, el mismo de su cursor cuando se reproduce una edición sobre el visor
+ * (`.acta-cursor` en `acta-reproduccion.css`), para que se lea como la misma presencia.
+ */
+.acta-editor .collaboration-carets__caret {
+  --cursor-color: #6b7280;
+  position: relative;
+  margin-right: -1px;
+  margin-left: -1px;
+  border-right: 1px solid var(--cursor-color);
+  border-left: 1px solid var(--cursor-color);
+  word-break: normal;
+  pointer-events: none;
+}
+
+.acta-editor .collaboration-carets__caret--orbe {
+  --cursor-color: var(--wiwo-blue, #4242ff);
+}
+
+.acta-editor .collaboration-carets__label {
+  position: absolute;
+  bottom: calc(100% + 0.1em);
+  left: -1px;
+  z-index: 2;
+  padding: 3px 7px;
+  border-radius: 5px 5px 5px 0;
+  background: var(--cursor-color);
+  color: #fff;
+  font-family: 'Plus Jakarta Sans', ui-sans-serif, system-ui, sans-serif;
+  font-size: 11px;
+  font-style: normal;
+  font-weight: 600;
+  letter-spacing: 0;
+  line-height: 1;
+  white-space: nowrap;
+  user-select: none;
+}
+
+.acta-editor .collaboration-carets__selection {
+  --cursor-color: #6b7280;
+  background: color-mix(in srgb, var(--cursor-color) 22%, transparent);
+}
+
+.acta-editor .collaboration-carets__selection--orbe {
+  --cursor-color: var(--wiwo-blue, #4242ff);
 }

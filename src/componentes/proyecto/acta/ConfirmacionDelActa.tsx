@@ -12,6 +12,8 @@ interface PropsConfirmacion {
   etiquetaCancelar: string
   etiquetaConfirmar: string
   cargando?: boolean
+  /** `peligro` si la acción pierde algo (por defecto); `primario` si se puede deshacer, como restaurar. */
+  variante?: 'peligro' | 'primario'
   onConfirmar: () => void
 }
 
@@ -24,6 +26,7 @@ export function ConfirmacionDelActa ({
   etiquetaCancelar,
   etiquetaConfirmar,
   cargando,
+  variante = 'peligro',
   onConfirmar
 }: PropsConfirmacion): ReactElement {
   return (
@@ -31,7 +34,7 @@ export function ConfirmacionDelActa ({
       <ContenidoDialogo titulo={titulo} descripcion={descripcion} ancho="chico">
         <div className="flex justify-end gap-2">
           <Boton variante="sutil" onClick={() => { onCambiar(false) }}>{etiquetaCancelar}</Boton>
-          <Boton variante="peligro" cargando={cargando} onClick={onConfirmar}>
+          <Boton variante={variante} cargando={cargando} onClick={onConfirmar}>
             {etiquetaConfirmar}
           </Boton>
         </div>

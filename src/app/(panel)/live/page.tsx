@@ -2,7 +2,10 @@ import Link from 'next/link'
 import { ArrowRight } from 'lucide-react'
 import { ControlJornada } from '@/componentes/live/ControlJornada'
 import { PanelEquipo } from '@/componentes/live/PanelEquipo'
+import { TarjetasDelEquipo } from '@/componentes/live/TarjetasDelEquipo'
+import { Segmentado } from '@/componentes/formularios/Segmentado'
 import { TituloModulo } from '@/componentes/estructura/TituloModulo'
+import { estadoEnVivo } from '@/datos/ajustes'
 import { ErrorApi } from '@/datos/errores'
 import { intervaloDeLive, type EstadoDeJornada, type FilaDeLive } from '@/datos/live'
 import type { Lookups } from '@/datos/recursos'
@@ -51,11 +54,20 @@ function mensaje (resultado: unknown): string | null {
  * `variante="panel"`. Los dos hablan con el mismo endpoint y se enteran del mismo pub/sub, asi que no
  * pueden divergir. Un componente aparte para la pantalla grande seria la segunda copia de la logica
  * de arranque, y con ella la segunda forma de que los numeros no coincidan.
+ *
+ * === LA VISTA DE TARJETAS ===
+ *
+ * `?vista=tarjetas` dibuja el mismo tablero del equipo como grilla de tarjetas, con quien esta en una
+ * sala y el resumen de jornada por persona. Existe solo con «Equipo en vivo» encendido
+ * (`config.equipo`) y para quien ve a mas gente que a si misma: con el interruptor apagado no hay
+ * selector ni vista, y la pantalla es identica a la de siempre aunque la URL traiga el parametro.
  */
-export default async function LivePage () {
-  const { data: yo } = await cargarYo()
+export default async function LivePage (props: PageProps<'/live'>) {
+  const [{ data: yo }, params, config] = await Promise.all([cargarYo(), props.searchParams, estadoEnVivo()])
   const alcance = alcanceDeLive(yo)
   const segundos = intervaloDeLive()
+  const conTarjetas = config.equipo && alcance !== 'propio'
+  const vista = conTarjetas && params.vista === 'tarjetas' ? 'tarjetas' : 'lista'
 
   // El catalogo se pide junto al tablero y solo cuando hay tablero: sin equipo que mostrar no hay
   // ninguna insignia que pintar. Va por `traer` como los demas —un `/lookups` caido deja el tablero
@@ -98,7 +110,29 @@ export default async function LivePage () {
         errorInicial={mensaje(jornada)}
       />
 
-      {equipo !== null && (
+      {conTarjetas && (
+        <Segmentado
+          etiqueta="Presentación del equipo"
+          opciones={[
+            { valor: 'lista', etiqueta: 'Lista', icono: 'lista', href: '/live' },
+            { valor: 'tarjetas', etiqueta: 'Tarjetas', icono: 'tarjetas', href: '/live?vista=tarjetas' }
+          ]}
+          activo={vista}
+          className="self-start"
+        />
+      )}
+
+      {equipo !== null && vista === 'tarjetas' && (
+        <TarjetasDelEquipo
+          alcance={alcance}
+          segundos={segundos}
+          inicial={equipo instanceof ErrorApi ? [] : equipo.data}
+          errorInicial={mensaje(equipo)}
+          estados={estados}
+        />
+      )}
+
+      {equipo !== null && vista === 'lista' && (
         <PanelEquipo
           alcance={alcance}
           operador={{ id: yo.id, is_admin: yo.is_admin, is_superadmin: yo.is_superadmin }}

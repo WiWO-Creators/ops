@@ -8,6 +8,8 @@ import { Boton } from '@/componentes/formularios/Boton'
 import { ContenidoDialogo, Dialogo } from '@/componentes/superposiciones/Dialogo'
 import { GLOSARIO } from '@/dominio/glosario'
 import { enviarAlApp, mensajeLogout } from '@/lib/puente-app'
+import type { ModalidadDeJornada } from '@/datos/live'
+import { SelectorDeModalidad } from './SelectorDeModalidad'
 import { SelectorEspacio } from './SelectorEspacio'
 import { SelectorTarea } from './SelectorTarea'
 import { conLimite, TIEMPO_ESCRITURA_MS } from '@/datos/red'
@@ -33,8 +35,9 @@ import { cerrarSesionOrbe } from '@/dominio/sesion-orbe'
  * Proyecto de la lista. Un destino inventado se cuela en los reportes de horas y después no se
  * distingue de uno real; el hueco declarado es mejor dato, y ya tenía nombre: `uncovered_seconds`.
  *
- * Así que en `apertura` queda el texto y un botón. El `POST /me/jornada` sale con el cuerpo vacío,
- * que la API acepta: abre el día y no arranca ningún cronómetro.
+ * Así que en `apertura` queda el texto y un botón, más un selector opcional de modalidad (Oficina o
+ * Teletrabajo) que no es un destino. El `POST /me/jornada` sale con el cuerpo vacío —o con solo
+ * `modalidad` si se dejó puesta—, que la API acepta: abre el día y no arranca ningún cronómetro.
  *
  * **La jornada corre; el cronómetro no.** Eso el texto lo dice, porque es la mitad que no es obvia y
  * porque de ella depende que nadie crea que perdió la posibilidad de imputar sus horas. El destino se
@@ -87,6 +90,10 @@ interface PropsDestinoDeJornada {
   enCurso: boolean
   /** Por qué no se pudo. Se pinta dentro: encima del velo no se ve nada más. */
   aviso: string | null
+  /** Sólo en `apertura`: la modalidad que viajará con el alta (oficina, teletrabajo o `null`). */
+  modalidad?: ModalidadDeJornada | null
+  /** Sólo en `apertura`: la persona eligió o quitó la modalidad. */
+  onElegirModalidad?: (modalidad: ModalidadDeJornada | null) => void
   /** Sólo en `apertura`: abrir el día, sin destino y sin cronómetro. */
   onAbrir?: () => void
   /**
@@ -112,6 +119,8 @@ export function DestinoDeJornada ({
   staffId,
   enCurso,
   aviso,
+  modalidad = null,
+  onElegirModalidad,
   onAbrir,
   onElegir,
   onCancelar,
@@ -147,6 +156,8 @@ export function DestinoDeJornada ({
             <CuerpoApertura
               enCurso={enCurso}
               aviso={aviso}
+              modalidad={modalidad}
+              onElegirModalidad={onElegirModalidad}
               onAbrir={onAbrir}
               onEntrarSinJornada={onEntrarSinJornada}
             />
@@ -170,20 +181,27 @@ export function DestinoDeJornada ({
 }
 
 /**
- * La apertura: un botón y nada más.
+ * La apertura: un botón y, opcional, cómo se trabaja hoy.
  *
- * No hay estado que guardar porque no hay nada que elegir, así que tampoco hay forma de que la
- * ventana quede a medias. Lo único que recuerda es si se pidió la salida de emergencia, que es otra
- * pantalla y no otro campo.
+ * La modalidad (Oficina o Teletrabajo) es la única cosa que se puede decir aquí y se puede dejar en
+ * blanco: viene preseleccionada con la última que la persona eligió, pero abrir sin tocarla sigue
+ * siendo un clic. No es un destino ni arranca nada, así que no rompe lo de arriba. El estado vive en
+ * quien monta la ventana, que es quien la manda con el alta; aquí solo se muestra y se pulsa. Lo
+ * único que se recuerda aquí es si se pidió la salida de emergencia, que es otra pantalla y no otro
+ * campo.
  */
 function CuerpoApertura ({
   enCurso,
   aviso,
+  modalidad,
+  onElegirModalidad,
   onAbrir,
   onEntrarSinJornada
 }: {
   enCurso: boolean
   aviso: string | null
+  modalidad: ModalidadDeJornada | null
+  onElegirModalidad?: (modalidad: ModalidadDeJornada | null) => void
   onAbrir?: () => void
   onEntrarSinJornada?: () => void
 }) {
@@ -201,6 +219,15 @@ function CuerpoApertura ({
 
   return (
     <div className="flex flex-col gap-4">
+      <div className="flex flex-col gap-1.5">
+        <span className="text-texto-tenue text-xs font-semibold">Modalidad (opcional)</span>
+        <SelectorDeModalidad
+          valor={modalidad}
+          deshabilitado={enCurso}
+          onElegir={(elegida) => { onElegirModalidad?.(elegida) }}
+        />
+      </div>
+
       {aviso !== null && (
         <AvisoEnLinea variante="error" mensaje={aviso} className="text-pretty text-sm" />
       )}

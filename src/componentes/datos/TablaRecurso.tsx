@@ -10,7 +10,7 @@ import type { TableroDePreset } from '@/datos/recursos'
 import { leerError } from '@/datos/errores'
 import { escribirEnBff } from './mutaciones'
 import { conLimite, esTiempoAgotado, TIEMPO_LECTURA_MS } from '@/datos/red'
-import { EVENTO_RECURSO_CAMBIADO } from '@/datos/refresco-lista'
+import { afectaALaRuta, EVENTO_RECURSO_CAMBIADO } from '@/datos/refresco-lista'
 import { ErrorEstado, Vacio } from '@/componentes/estado/Estados'
 import { CargandoConOrbe } from '@/componentes/estado/Orbe'
 import { useAviso } from '@/componentes/estado/useAviso'
@@ -359,13 +359,16 @@ export function TablaRecurso<T> ({
    *
    * Una escritura hecha fuera de la tabla (un alta, el modal de detalle) solo refrescaba lo resuelto
    * en el servidor; con esto la tabla que se pide desde el navegador tambien se pone al dia. Varias
-   * escrituras seguidas se agrupan en una sola consulta.
+   * escrituras seguidas se agrupan en una sola consulta. Un aviso del bus de «en vivo»
+   * (`origen: 'en-vivo'`) solo cuenta para la tabla de su propio recurso.
    */
   useEffect(() => {
     if (datos !== undefined) return
 
     let espera: ReturnType<typeof setTimeout> | undefined
-    const alCambiar = (): void => {
+    const alCambiar = (evento: Event): void => {
+      if (!afectaALaRuta((evento as CustomEvent<unknown>).detail, definicion.ruta)) return
+
       clearTimeout(espera)
       espera = setTimeout(() => { setRevision((n) => n + 1) }, ESPERA_DE_INVALIDACION_MS)
     }
@@ -376,7 +379,7 @@ export function TablaRecurso<T> ({
       clearTimeout(espera)
       window.removeEventListener(EVENTO_RECURSO_CAMBIADO, alCambiar)
     }
-  }, [datos])
+  }, [datos, definicion.ruta])
 
   /**
    * Adopta los datos frescos que baja `router.refresh()`.

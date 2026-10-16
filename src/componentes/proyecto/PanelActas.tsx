@@ -11,6 +11,10 @@ import { BloqueCopiable } from '@/componentes/presentadores/BloqueCopiable'
 import { ACTAS } from '@/definiciones/actas'
 import { conId, type FuenteDeProyecto } from '@/dominio/fuente-proyecto'
 import { idPositivoDeTexto } from '@/dominio/pantalla'
+import { useConfigEnVivo } from '@/componentes/en-vivo/ProveedorEnVivo'
+import { useEnVivo } from '@/componentes/en-vivo/useEnVivo'
+import { useSalaDelEspacio } from '@/componentes/en-vivo/useSalaDelEspacio'
+import { debeRevalidarListaDeActas } from '@/dominio/acta-concurrencia'
 import { useRecurso } from './carga'
 import { AsistenteDeActa } from './AsistenteDeActa'
 import { AsistenteDeTranscripcion } from './AsistenteDeTranscripcion'
@@ -133,6 +137,12 @@ function ActasDelProyecto ({
 }: PropsPanelActas): ReactElement {
   const router = useRouter()
   const params = useSearchParams()
+  const enVivo = useConfigEnVivo()
+
+  // Los avisos de actas y de comentarios del Proyecto llegan por su sala; solo para el equipo (el
+  // portal no tiene `yo`). Sin conexión el sondeo de cada pantalla sigue como siempre.
+  useSalaDelEspacio(proyectoId, enVivo.activo && yo !== undefined)
+
   const [revision, setRevision] = useState(0)
   const [revisionTranscripciones, setRevisionTranscripciones] = useState(0)
   const [motivoALaVista, setMotivoALaVista] = useState(false)
@@ -140,6 +150,12 @@ function ActasDelProyecto ({
   const [recienGenerada, setRecienGenerada] = useState<number | null>(null)
 
   const recargar = useCallback(() => { setRevision((n) => n + 1) }, [])
+
+  // Un acta del Espacio cambió (alta, edición, borrado): la lista se vuelve a pedir. `revision` no
+  // vuelve a «cargando», así que la lista no parpadea.
+  useEnVivo(['acta'], (cambio) => {
+    if (debeRevalidarListaDeActas(cambio, proyectoId)) recargar()
+  })
   const recargarTranscripciones = useCallback(() => { setRevisionTranscripciones((n) => n + 1) }, [])
   const pedida = params.get('acta')
   const puedeCrear = capacidades.includes('create')
@@ -236,6 +252,7 @@ function ActasDelProyecto ({
           // Borrar exige la capacidad Y ser el autor o quien administra, que es la misma regla que
           // aplica la API. Sin `yo` no hay a quién comparar: no se ofrece.
           puedeBorrar={capacidades.includes('delete') && yo !== undefined ? { yo } : null}
+          yo={yo}
           conIa={ia.activa}
           puedeCrearTareas={capacidadesTareas.includes('create')}
           destacarTareas={recienGenerada === abierta}
@@ -359,6 +376,7 @@ function ActaAbierta ({
   fuente,
   puedeEditar,
   puedeBorrar,
+  yo,
   conIa,
   puedeCrearTareas,
   destacarTareas,
@@ -373,6 +391,8 @@ function ActaAbierta ({
   puedeEditar: boolean
   /** Quien mira, solo si tiene la capacidad de borrar. `null` = no se ofrece eliminar. */
   puedeBorrar: { yo: Yo } | null
+  /** Quien mira, para el cursor de la edición conjunta. Sin él (el portal) no hay edición conjunta. */
+  yo: Yo | undefined
   conIa: boolean
   puedeCrearTareas: boolean
   destacarTareas: boolean
@@ -402,6 +422,7 @@ function ActaAbierta ({
       puedeBorrar={puedeBorrar !== null && (acta.staff_id === puedeBorrar.yo.id || puedeBorrar.yo.is_admin)}
       // Solo un superadmin fija la privacidad; la API lo vuelve a exigir con un 403.
       puedeMarcarPrivada={puedeEditar && puedeBorrar?.yo.is_superadmin === true}
+      yo={yo}
       conIa={conIa}
       puedeCrearTareas={puedeCrearTareas}
       destacarTareas={destacarTareas}

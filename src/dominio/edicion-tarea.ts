@@ -153,9 +153,15 @@ export function camposDeTarea (tarea: Proceso, descripcion: string): CamposEdici
  *
  * @param inicial los campos tal como se abrieron
  * @param actual los campos tal como quedaron
+ * @param opciones `sinDescripcion`: la descripcion se edita en conjunto y la guarda el servicio de
+ *   «Ops en vivo»; mandarla desde aca la pisaria con una copia que puede estar atrasada
  * @returns el cuerpo del `PATCH`, vacio si no cambio nada
  */
-export function cuerpoDeParche (inicial: CamposEdicion, actual: CamposEdicion): ParcheTarea {
+export function cuerpoDeParche (
+  inicial: CamposEdicion,
+  actual: CamposEdicion,
+  opciones: { sinDescripcion?: boolean } = {}
+): ParcheTarea {
   const parche: ParcheTarea = {}
 
   // La comparacion sigue siendo contra el texto crudo: `enFormatoTitulo` solo decide como se
@@ -207,7 +213,7 @@ export function cuerpoDeParche (inicial: CamposEdicion, actual: CamposEdicion): 
   if (!mismosIds(actual.asignados, inicial.asignados)) parche.assignees = actual.asignados
   if (!mismosIds(actual.seguidores, inicial.seguidores)) parche.followers = actual.seguidores
   if (!mismosIds(actual.etiquetas, inicial.etiquetas)) parche.tags = actual.etiquetas
-  if (actual.descripcion.trim() !== inicial.descripcion.trim()) {
+  if (opciones.sinDescripcion !== true && actual.descripcion.trim() !== inicial.descripcion.trim()) {
     parche.description = htmlVacio(actual.descripcion) ? null : actual.descripcion.trim()
     parche.format = 'html'
   }

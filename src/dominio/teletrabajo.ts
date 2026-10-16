@@ -161,6 +161,48 @@ export function identidadDe (staffId: number, sufijo: string): string {
   return `staff-${staffId}-${sufijo}`
 }
 
+/** La forma de una identidad de staff: `identidadDe` al revés. */
+const IDENTIDAD_DE_STAFF = /^staff-([1-9]\d*)-.+$/
+
+/**
+ * Quién es la persona detrás de una identidad de LiveKit: la operación inversa de `identidadDe`.
+ *
+ * Lo usa el tablero del equipo para saber quién está en una sala sin guardar nada: la identidad ya
+ * lo dice. Cualquier otra forma (un invitado, una identidad de otro sistema) no es de nadie del
+ * equipo y devuelve `null` en vez de adivinar.
+ *
+ * @param identidad identidad del participante tal como la entrega LiveKit
+ * @returns el id de la persona, o `null` si la identidad no tiene la forma de `identidadDe`
+ */
+export function staffDeIdentidad (identidad: string): number | null {
+  const coincidencia = IDENTIDAD_DE_STAFF.exec(identidad)
+  if (coincidencia === null) return null
+
+  const id = Number(coincidencia[1])
+
+  return Number.isSafeInteger(id) ? id : null
+}
+
+/** Lo que el tablero del equipo dice de cualquier sala de Espacio, sin nombrar el Espacio. */
+export const SALA_PRIVADA_PARA_EL_EQUIPO = 'privada'
+
+/**
+ * Cómo se llama, hacia el resto del equipo, la sala en que alguien está.
+ *
+ * El id de una sala común es público (cualquiera puede entrar), pero el de una sala de Espacio dice
+ * en qué Proyecto se está reuniendo alguien, y una sala privada se decide cerrada a propósito: ahí
+ * solo se dice que es privada. Es la regla de «quién ve qué» de las tarjetas del equipo.
+ *
+ * @param sala nombre de la sala en LiveKit
+ * @returns el id de la sala común, `'privada'` para una de Espacio, o `null` si no es una sala válida
+ */
+export function salaParaElEquipo (sala: string): string | null {
+  if (!esNombreDeSalaValido(sala)) return null
+  if (espacioDeSala(sala) !== null) return SALA_PRIVADA_PARA_EL_EQUIPO
+
+  return sala
+}
+
 /** Como queda repartido el mosaico de fichas. */
 export interface Mosaico {
   columnas: number

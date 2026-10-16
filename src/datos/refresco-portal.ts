@@ -7,6 +7,8 @@
  * quien la usa (`componentes/portal/RefrescoDelPortal`) solo aporta el reloj y el estado del DOM.
  */
 
+import { RESPALDO_CONECTADO_MS } from '../dominio/en-vivo.ts'
+
 /** Cada cuánto se refresca una pestaña visible. */
 export const INTERVALO_REFRESCO_PORTAL_MS = 60_000
 
@@ -31,14 +33,30 @@ export interface EstadoDeRefrescoPortal {
   editando: boolean
   /** Hay un refresco todavía en camino. */
   enVuelo: boolean
+  /**
+   * El bus de «Ops en vivo» está conectado: el aviso de cambio trae los datos nuevos y el minuto pasa
+   * a ser un respaldo de cinco. Ausente o `false`, el ritmo es el de siempre.
+   */
+  conectado?: boolean
+}
+
+/**
+ * Cada cuánto se refresca una pestaña visible según haya o no socket.
+ *
+ * @param conectado si el bus de «Ops en vivo» está conectado
+ * @returns milisegundos: un minuto sin socket, cinco con él
+ */
+export function intervaloDeRefrescoPortal (conectado: boolean): number {
+  return conectado ? Math.max(INTERVALO_REFRESCO_PORTAL_MS, RESPALDO_CONECTADO_MS) : INTERVALO_REFRESCO_PORTAL_MS
 }
 
 /**
  * Decide si toca refrescar el portal.
  *
  * Nunca con la pestaña oculta, con un refresco en camino ni mientras la persona escribe. Fuera de
- * eso: el intervalo exige que haya pasado un minuto desde el último, el regreso a la pestaña exige
- * más de treinta segundos, y una escritura confirmada refresca de inmediato.
+ * eso: el intervalo exige que haya pasado un minuto desde el último (cinco con el bus conectado), el
+ * regreso a la pestaña exige más de treinta segundos, y una escritura confirmada —o un aviso de
+ * cambio del bus, que se trata igual— refresca de inmediato.
  *
  * @param estado el reloj y el estado de la pestaña
  * @param motivo qué disparó la pregunta
@@ -49,7 +67,7 @@ export function debeRefrescarPortal (estado: EstadoDeRefrescoPortal, motivo: Mot
 
   const transcurrido = estado.ahoraMs - estado.ultimoRefrescoMs
 
-  if (motivo === 'intervalo') return transcurrido >= INTERVALO_REFRESCO_PORTAL_MS
+  if (motivo === 'intervalo') return transcurrido >= intervaloDeRefrescoPortal(estado.conectado === true)
   if (motivo === 'regreso') return transcurrido > AUSENCIA_MINIMA_PORTAL_MS
 
   return true

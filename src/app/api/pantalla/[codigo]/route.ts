@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server'
 import type { NextRequest } from 'next/server'
 import { llamarApi } from '@/datos/api'
+import { esCodigoDePantalla } from '@/dominio/codigo-de-pantalla'
 
 /**
  * Lo que sondea el televisor: el paquete de la pantalla de un area.
@@ -26,19 +27,6 @@ import { llamarApi } from '@/datos/api'
 export const dynamic = 'force-dynamic'
 
 /**
- * La forma de un codigo de pantalla: cinco caracteres del alfabeto sin ambiguedades.
- *
- * Se valida antes de reenviar para que la ruta no sirva de tunel hacia otras rutas de la API. La caja
- * no importa —nadie controla las mayusculas escribiendo con un control remoto, y la API normaliza—
- * pero la clase de caracteres si: nada que pueda salirse del segmento de URL.
- *
- * Tiene que seguir a `Escritura\Pantallas::ALFABETO`. Si alla se agrega un simbolo y aca no, esta
- * ruta contesta 404 a codigos que la API considera validos, y el fallo se ve como "esa pantalla no
- * existe" en vez de como lo que es.
- */
-const FORMA_DE_CODIGO = /^[23456789ABCDEFGHJKMNPQRSTVWXYZ]{5}$/i
-
-/**
  * Reenvia `GET /public/display/{codigo}`, incluida la revalidacion por `ETag`.
  *
  * El `if-none-match` que manda el navegador viaja tal cual, y un `304` de la API vuelve como `304`
@@ -53,7 +41,7 @@ export async function GET (
 ): Promise<Response> {
   const { codigo } = await ctx.params
 
-  if (!FORMA_DE_CODIGO.test(codigo)) {
+  if (!esCodigoDePantalla(codigo)) {
     return NextResponse.json({ error: { code: 'not_found' } }, { status: 404 })
   }
 

@@ -29,6 +29,8 @@ export interface EdicionDelActa {
   sucio: boolean
   guardando: boolean
   corregir: () => void
+  /** Abre el editor de siempre con lo que dejó una edición conjunta que se cortó. */
+  continuarSinConexion: (ultimoHtml: string | null, ultimaRevision: string | null) => void
   descartar: () => void
   cambiar: (siguiente: string) => void
   guardar: () => Promise<void>
@@ -60,6 +62,27 @@ export function useEdicionDelActa ({ htmlActivo, revisionActual, escribirEnLoVis
     setHtml(htmlActivo)
     setHtmlBase(htmlActivo)
     setRevisionBase(revisionActual)
+    setHuboIa(false)
+    setEditando(true)
+  }
+
+  /**
+   * Abre el editor de siempre con lo que dejó una edición conjunta que se cortó.
+   *
+   * Parte del último texto que se vio en el editor conjunto y de la última revisión que el servicio
+   * confirmó (o la del acta a la vista), y queda marcado como sin guardar: es lo que la persona
+   * tiene delante y todavía no sabe si llegó al board.
+   *
+   * @param ultimoHtml lo último que mostró el editor conjunto, o `null` si no mostró nada
+   * @param ultimaRevision la revisión del último guardado del servicio, o `null` si no hubo ninguno
+   */
+  function continuarSinConexion (ultimoHtml: string | null, ultimaRevision: string | null): void {
+    const inicial = ultimoHtml ?? htmlActivo
+
+    setHtml(inicial)
+    setHtmlBase(inicial)
+    setRevisionBase(ultimaRevision ?? revisionActual)
+    setSucio(ultimoHtml !== null)
     setHuboIa(false)
     setEditando(true)
   }
@@ -118,5 +141,5 @@ export function useEdicionDelActa ({ htmlActivo, revisionActual, escribirEnLoVis
     setHuboIa(true)
   }
 
-  return { editando, html, htmlBase, revisionBase, sucio, guardando, corregir, descartar, cambiar, guardar, marcarIa }
+  return { editando, html, htmlBase, revisionBase, sucio, guardando, corregir, continuarSinConexion, descartar, cambiar, guardar, marcarIa }
 }

@@ -1,6 +1,6 @@
 'use client'
 
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { Bell } from 'lucide-react'
 import {
   ContenidoMenu,
@@ -8,14 +8,27 @@ import {
   MenuContextual
 } from '@/componentes/superposiciones/MenuContextual'
 import { escribirEnBff } from '@/componentes/datos/mutaciones'
-import type { ConteoDeAvisos } from '@/datos/avisos'
+import { useAviso } from '@/componentes/estado/useAviso'
+import { useEnVivo } from '@/componentes/en-vivo/useEnVivo'
+import type { Aviso, ConteoDeAvisos } from '@/datos/avisos'
+import { pedirSobre } from '@/datos/cliente'
+import { estaConectadoEnVivo } from '@/datos/en-vivo'
 import { conLimite, TIEMPO_LECTURA_MS } from '@/datos/red'
 import { sondeoSinApilar } from '@/datos/sondeo'
+import { debeSondear } from '@/dominio/en-vivo'
 import { cn } from '@/lib/clases'
 import { ListaAvisos } from './ListaAvisos'
 
 /** A partir de aca el globo deja de decir el numero: no entra, y "99+" ya comunica lo mismo. */
 const TOPE_VISIBLE = 99
+
+/** Largo máximo del texto del aviso que sale como toast cuando llega en vivo. */
+const LARGO_MAXIMO_DEL_TOAST = 80
+
+/** Recorta el texto de un aviso para el toast, con puntos suspensivos si no entra. */
+function textoParaToast (texto: string): string {
+  return texto.length <= LARGO_MAXIMO_DEL_TOAST ? texto : `${texto.slice(0, LARGO_MAXIMO_DEL_TOAST - 1).trimEnd()}…`
+}
 
 interface PropsCampana {
   /**
@@ -50,25 +63,40 @@ interface PropsCampana {
 export function Campana ({ inicial, segundos }: PropsCampana) {
   const [conteo, setConteo] = useState<ConteoDeAvisos | null>(inicial)
   const [abierto, setAbierto] = useState(false)
+  const aviso = useAviso()
+  // Lo último que se sabe del contador y si el desplegable está abierto, para decidir sin
+  // volver a suscribirse al bus en cada render.
+  const conteoVisto = useRef<ConteoDeAvisos | null>(inicial)
+  const desplegableAbierto = useRef(false)
 
   const sinLeer = conteo?.unread ?? 0
 
-  const contar = useCallback(async (senal: AbortSignal): Promise<void> => {
+  const fijarConteo = useCallback((nuevo: ConteoDeAvisos | null): void => {
+    conteoVisto.current = nuevo
+    setConteo(nuevo)
+  }, [])
+
+  const contar = useCallback(async (senal: AbortSignal): Promise<ConteoDeAvisos | null> => {
     const respuesta = await fetch('/api/bff/notifications/count', { signal: conLimite(senal, TIEMPO_LECTURA_MS) })
 
-    if (!respuesta.ok) return
+    if (!respuesta.ok) return null
 
     const sobre = await respuesta.json() as { data: ConteoDeAvisos }
 
-    setConteo(sobre.data)
-  }, [])
+    fijarConteo(sobre.data)
+
+    return sobre.data
+  }, [fijarConteo])
 
   useEffect(() => {
     const control = new AbortController()
+    let ultimaConsulta = 0
 
     // Un fallo del contador no se muestra: la campana no es el trabajo de nadie, y un error rojo
     // permanente en la cabecera por una fila que no llego es peor que un numero viejo.
     const consultar = sondeoSinApilar(async () => {
+      ultimaConsulta = Date.now()
+
       try {
         await contar(control.signal)
       } catch {
@@ -79,8 +107,13 @@ export function Campana ({ inicial, segundos }: PropsCampana) {
     // Con la pestaña oculta no se cuenta: el globo se pone al dia en cuanto vuelve al frente. El tic
     // no se apila sobre una consulta en camino.
     const tic = (): void => { if (!document.hidden) consultar(true) }
+    // Con el bus conectado el intervalo es solo respaldo: los avisos llegan por `useEnVivo`.
+    const ticDelIntervalo = (): void => {
+      if (estaConectadoEnVivo() && !debeSondear(ultimaConsulta, segundos * 1000, true, Date.now())) return
+      tic()
+    }
 
-    const intervalo = globalThis.setInterval(tic, segundos * 1000)
+    const intervalo = globalThis.setInterval(ticDelIntervalo, segundos * 1000)
     document.addEventListener('visibilitychange', tic)
 
     return () => {
@@ -90,11 +123,33 @@ export function Campana ({ inicial, segundos }: PropsCampana) {
     }
   }, [contar, segundos])
 
+  // Llegó un aviso por el bus: se vuelve a contar y, si el contador subió, se muestra el más
+  // reciente como toast (salvo que el desplegable esté abierto, que ya lo muestra).
+  useEnVivo(['aviso'], () => {
+    const previo = conteoVisto.current?.unread ?? 0
+    const senal = new AbortController().signal
+
+    void (async () => {
+      try {
+        const nuevo = await contar(senal)
+
+        if (nuevo === null || nuevo.unread <= previo || desplegableAbierto.current) return
+
+        const sobre = await pedirSobre<Aviso[]>('notifications?per_page=1', senal)
+        const ultimo = sobre.data[0]
+
+        if (ultimo !== undefined && !ultimo.read) aviso.info(textoParaToast(ultimo.text))
+      } catch {
+        // El toast es un extra: el contador ya se actualizó o lo hará el respaldo.
+      }
+    })()
+  })
+
   /** Marca todo como leido y baja el globo sin esperar la respuesta. */
   function marcarTodo (): void {
     if (sinLeer === 0) return
 
-    setConteo((previo) => previo === null ? previo : { ...previo, unread: 0 })
+    fijarConteo(conteoVisto.current === null ? null : { ...conteoVisto.current, unread: 0 })
 
     void escribirEnBff('notifications/read', 'POST', {}).then((resultado) => {
       // Si no se confirmo, el globo en cero puede ser falso: se vuelve a contar ya y no en el proximo tic.
@@ -106,6 +161,7 @@ export function Campana ({ inicial, segundos }: PropsCampana) {
     <MenuContextual
       open={abierto}
       onOpenChange={(siguiente) => {
+        desplegableAbierto.current = siguiente
         setAbierto(siguiente)
 
         if (!siguiente) marcarTodo()

@@ -4,8 +4,10 @@ import { cache } from 'react'
 
 import { pedir } from './servidor.ts'
 import { ErrorApi } from './errores.ts'
+import { urlDeEnVivo } from './config.ts'
 import { motivoDeIa } from '../dominio/ajustes.ts'
 import type { EstadoIa } from '../dominio/ajustes.ts'
+import { CONFIG_EN_VIVO_APAGADA, configDeEnVivo, type ConfigEnVivo } from '../dominio/en-vivo.ts'
 import type { Ajustes } from './recursos.ts'
 
 /**
@@ -19,14 +21,18 @@ import type { Ajustes } from './recursos.ts'
  *
  * Mismo reparto que `lookups.ts` (carga) y `catalogos.ts` (lectura pura).
  *
+ * `cache()` de React: memoiza por peticion, asi que `estadoIa`, `estadoEnVivo` y la pagina que los
+ * use en el mismo render comparten una sola `GET /settings`. No dura mas que la peticion, de modo
+ * que nadie ve ajustes viejos despues de guardar.
+ *
  * @returns Las opciones editables con su dominio y las de solo lectura.
  * @throws ErrorApi si la API responde con error. La sesion vencida la resuelve `pedir()`.
  */
-export async function leerAjustes (): Promise<Ajustes> {
+export const leerAjustes = cache(async (): Promise<Ajustes> => {
   const { data } = await pedir<Ajustes>('/settings')
 
   return data
-}
+})
 
 /**
  * Si la capa de IA esta encendida en esta instalacion, y por que no lo esta cuando no lo esta.
@@ -60,6 +66,23 @@ export const estadoIa = cache(async (): Promise<EstadoIa> => {
         ? `${error.codigo} (HTTP ${error.estado}): ${error.message}`
         : error instanceof Error ? error.message : String(error)
     }
+  }
+})
+
+/**
+ * Los interruptores de «Ops en vivo»: el maestro `wiwo_en_vivo` mas uno por funcion, y la URL del servicio.
+ *
+ * `activo` exige el maestro y `NEXT_PUBLIC_EN_VIVO_URL`; ninguna funcion se enciende sin `activo`.
+ * Un fallo de `/settings` da todo apagado, por la misma razon que `estadoIa`: es una comodidad, y
+ * una pantalla no puede caerse porque no se pudo leer un interruptor. `cache()` de React, por peticion.
+ */
+export type { ConfigEnVivo }
+
+export const estadoEnVivo = cache(async (): Promise<ConfigEnVivo> => {
+  try {
+    return configDeEnVivo(await leerAjustes(), urlDeEnVivo())
+  } catch {
+    return CONFIG_EN_VIVO_APAGADA
   }
 })
 

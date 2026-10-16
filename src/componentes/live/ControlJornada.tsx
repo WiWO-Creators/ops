@@ -12,8 +12,10 @@ import {
 import { escribirEnBff } from '@/componentes/datos/mutaciones'
 import { formatearDuracion } from '@/componentes/proyecto/cronometro'
 import { conLimite, esTiempoAgotado, TIEMPO_LECTURA_MS } from '@/datos/red'
+import { estaConectadoEnVivo } from '@/datos/en-vivo'
 import { sondeoSinApilar } from '@/datos/sondeo'
-import type { ClienteDeJornada, EstadoDeJornada } from '@/datos/live'
+import type { ClienteDeJornada, EstadoDeJornada, ModalidadDeJornada } from '@/datos/live'
+import { debeSondear } from '@/dominio/en-vivo'
 import { GLOSARIO } from '@/dominio/glosario'
 import {
   clienteDeJornada,
@@ -26,9 +28,13 @@ import {
   mensajeDeFalloDeCliente,
   mensajeDeFalloDeJornada,
   mensajeDeFalloDeMedidor,
+  mensajeDeFalloDeModalidad,
   mensajeDeFalloDeProrroga,
+  modalidadDeJornada,
+  modalidadRecordada,
   olvidarJornadaPospuesta,
   posponerJornadaPorHoy,
+  recordarModalidad,
   recordatorioDeDestinoActivo
 } from '@/dominio/live'
 import { cn } from '@/lib/clases'
@@ -39,6 +45,7 @@ import { DestinoDeJornada } from './DestinoDeJornada'
 import { RecordatorioDeDestino } from './RecordatorioDeDestino'
 import { AvisoDeCierre } from './AvisoDeCierre'
 import { SelectorCliente } from './SelectorCliente'
+import { SelectorDeModalidad } from './SelectorDeModalidad'
 import { avisarCambioDeJornada } from '@/lib/puente-app'
 import { avisarCambioDeMedidor, escucharMedidor } from './medidor'
 
@@ -216,6 +223,16 @@ export function ControlJornada ({
   const [recordatorioActivo, setRecordatorioActivo] = useState(
     () => typeof window === 'undefined' || recordatorioDeDestinoActivo(window.localStorage, staffId)
   )
+  /**
+   * La modalidad que se ofrece al abrir el día: la última que esta persona eligió, o `null`.
+   *
+   * Se lee en el inicializador por lo mismo que `pospuestaHoy`: la ventana de apertura vive en un
+   * portal que no entra en el HTML del servidor, así que no hay hidratación que romper. Es opcional:
+   * sin ninguna puesta la jornada se abre «sin indicar».
+   */
+  const [modalidadDeApertura, setModalidadDeApertura] = useState<ModalidadDeJornada | null>(
+    () => (typeof window === 'undefined' ? null : modalidadRecordada(window.localStorage, staffId))
+  )
   const montado = useSyncExternalStore(NO_ESCUCHAR, EN_EL_CLIENTE, EN_EL_SERVIDOR)
   const [intento, setIntento] = useState(0)
 
@@ -250,8 +267,11 @@ export function ControlJornada ({
 
   useEffect(() => {
     const control = new AbortController()
+    let ultimaConsulta = 0
 
     const consultar = sondeoSinApilar(async () => {
+      ultimaConsulta = Date.now()
+
       try {
         await refrescar(control.signal)
       } catch (fallo) {
@@ -280,12 +300,18 @@ export function ControlJornada ({
 
     const tic = (): void => { preguntar(false) }
     const ticPeriodico = (): void => { preguntar(true) }
+    // Con el bus de «en vivo» conectado el intervalo es solo respaldo: los cambios llegan por
+    // `escucharMedidor` (el puente lo avisa en cada evento de jornada o cronómetro).
+    const ticDelIntervalo = (): void => {
+      if (estaConectadoEnVivo() && !debeSondear(ultimaConsulta, segundos * 1000, true, Date.now())) return
+      ticPeriodico()
+    }
 
     // Un cambio propio ya trae su refresco: esto sirve para el primer pintado del cliente cuando el
     // servidor no pudo resolver el estado, y para volver a leer tras una accion.
     if (intento > 0) tic()
 
-    const intervalo = globalThis.setInterval(ticPeriodico, segundos * 1000)
+    const intervalo = globalThis.setInterval(ticDelIntervalo, segundos * 1000)
     document.addEventListener('visibilitychange', ticPeriodico)
     // El medidor tambien se toca desde la ficha del proceso y desde el panel de tiempos. Sin esta
     // suscripcion, detenerlo alla dejaria el contador de la cabecera corriendo hasta el proximo
@@ -428,12 +454,19 @@ export function ControlJornada ({
    *
    * Aca no hay compensacion ni reintento. Un fallo deja el estado como estaba y el aviso dice por
    * que; el unico alcanzable con un cuerpo vacio es el 409 de otra pestaña que abrio primero.
+   *
+   * La unica clave que puede viajar es `modalidad` (oficina o teletrabajo), y solo si la persona la
+   * dejo puesta: es opcional y no es un destino, asi que sin ella el cuerpo sigue siendo `{}`.
    */
   async function abrirJornada (): Promise<void> {
     setEnCurso(true)
     setAviso(null)
 
-    const respuesta = await llamar('me/jornada', 'POST', {})
+    const respuesta = await llamar(
+      'me/jornada',
+      'POST',
+      modalidadDeApertura === null ? {} : { modalidad: modalidadDeApertura }
+    )
 
     setEnCurso(false)
 
@@ -519,6 +552,44 @@ export function ControlJornada ({
       return
     }
 
+    recargar()
+  }
+
+  /**
+   * Elige la modalidad que se ofrece al abrir el dia y la recuerda para la proxima vez.
+   *
+   * Solo toca esta pestaña y `localStorage`: no escribe en la API, la modalidad viaja con el alta.
+   * Si el navegador no deja guardar la preferencia se pierde la memoria y nada mas.
+   */
+  function elegirModalidadDeApertura (modalidad: ModalidadDeJornada | null): void {
+    setModalidadDeApertura(modalidad)
+    recordarModalidad(window.localStorage, staffId, modalidad)
+  }
+
+  /**
+   * Cambia, o quita con `null`, la modalidad de la jornada que ya esta abierta.
+   *
+   * Igual que `fijarCliente()`: la clave viaja siempre —un `PATCH` sin ella es un 422 `requerido`—,
+   * no toca ningun cronometro y solo vuelve a leer el estado del dia. La eleccion tambien se recuerda
+   * para la proxima apertura, que es lo que la persona espera de «hoy trabajo desde casa».
+   */
+  async function fijarModalidad (modalidad: ModalidadDeJornada | null): Promise<void> {
+    setEnCurso(true)
+    setAviso(null)
+
+    const respuesta = await llamar('me/jornada', 'PATCH', { modalidad })
+
+    setEnCurso(false)
+
+    if (!acepto(respuesta)) {
+      setAviso(mensajeDeFalloDeModalidad(respuesta))
+      // El 409 es "no tienes ninguna jornada abierta": volver a leer hace que el control pida la
+      // apertura en vez de dejar un selector sobre una jornada que ya no existe.
+      if (respuesta === 409 || respuesta === ESTADO_INCIERTO) recargar()
+      return
+    }
+
+    recordarModalidad(window.localStorage, staffId, modalidad)
     recargar()
   }
 
@@ -720,6 +791,8 @@ export function ControlJornada ({
       errorDeRed={errorDeRed}
       onElegirDestino={() => { setAviso(null); setPidiendoDestino(true) }}
       onFijarCliente={(id) => { void fijarCliente(id) }}
+      modalidad={modalidadDeJornada(estado?.open)}
+      onFijarModalidad={(modalidad) => { void fijarModalidad(modalidad) }}
       recordatorioActivo={recordatorioActivo}
       montado={montado}
       onCambiarRecordatorio={cambiarRecordatorio}
@@ -752,6 +825,8 @@ export function ControlJornada ({
         staffId={staffId}
         enCurso={enCurso}
         aviso={destinoAbierto && !confirmandoCierre ? aviso : null}
+        modalidad={modalidadDeApertura}
+        onElegirModalidad={elegirModalidadDeApertura}
         onAbrir={() => { void abrirJornada() }}
         onElegir={(espacioId, tareaId) => { void arrancar(espacioId, tareaId) }}
         onCancelar={() => { setPidiendoDestino(false); setAviso(null) }}
@@ -880,6 +955,10 @@ interface PropsCuerpo {
   onElegirDestino: () => void
   /** `null` es quitar el Cliente, no "no hacer nada". Ver `fijarCliente()`. */
   onFijarCliente: (clienteId: number | null) => void
+  /** Cómo trabaja la persona hoy, o `null` si no lo indicó —o si la API no manda el campo—. */
+  modalidad: ModalidadDeJornada | null
+  /** `null` es quitar la modalidad, no "no hacer nada". Ver `fijarModalidad()`. */
+  onFijarModalidad: (modalidad: ModalidadDeJornada | null) => void
   onCerrar: () => void
   onDetener: () => void
   /** `true` si el recordatorio de asignar destino sigue encendido para esta persona. */
@@ -912,6 +991,8 @@ function CuerpoControl ({
   errorDeRed,
   onElegirDestino,
   onFijarCliente,
+  modalidad,
+  onFijarModalidad,
   onCerrar,
   onDetener,
   recordatorioActivo,
@@ -1022,6 +1103,16 @@ function CuerpoControl ({
                   </button>
                 </div>
                 )}
+          </div>
+        )}
+
+        {/* Cómo se trabaja hoy. Opcional, y cambiable con la jornada abierta: el equipo la ve en las
+            tarjetas de «En vivo» como «Teletrabajo». No depende de «En vivo»: es un dato del día de
+            quien lo declara. */}
+        {jornadaAbierta && (
+          <div className="flex flex-col gap-1.5">
+            <span className="text-texto-tenue text-xs font-semibold">Modalidad</span>
+            <SelectorDeModalidad valor={modalidad} deshabilitado={enCurso} onElegir={onFijarModalidad} />
           </div>
         )}
 

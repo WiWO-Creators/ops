@@ -1,3 +1,4 @@
+import { PresentesEnRecurso } from '@/componentes/en-vivo/PresentesEnRecurso'
 import { BotonVolver } from '@/componentes/estructura/BotonVolver'
 import { CodigoCopiable } from '@/componentes/presentadores/CodigoCopiable'
 import { Etiquetas } from '@/componentes/presentadores/Etiqueta'
@@ -70,6 +71,12 @@ interface PropsCabecera {
 
   /** Quien mira, si lo hay. Solo lo usa el editor de equipo, para reconocer una salida propia. */
   yoId?: number
+
+  /**
+   * Muestra quiénes más están mirando el Proyecto («Ops en vivo», presencia). Solo el panel del
+   * equipo lo enciende; el portal no. Con la presencia apagada no dibuja nada aunque esté en `true`.
+   */
+  conPresencia?: boolean
 }
 
 /**
@@ -91,7 +98,8 @@ export function CabeceraProyecto ({
   estados = [],
   acciones,
   yoId,
-  conAvance = true
+  conAvance = true,
+  conPresencia = false
 }: PropsCabecera) {
   const puedeEditar = capacidades.includes('edit')
 
@@ -122,6 +130,7 @@ export function CabeceraProyecto ({
         </div>
 
         <div className="flex flex-wrap items-center gap-2">
+          {conPresencia && <PresentesEnRecurso tipo="proyecto" id={proyecto.id} className="mr-1" />}
           {puedeEditar && estados.length > 0
             ? (
               <MenuEstadoProyecto

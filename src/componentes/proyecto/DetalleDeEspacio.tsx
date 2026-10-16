@@ -138,6 +138,7 @@ export function DetalleDeEspacio ({
         volverA={volverA}
         subtitulo={subtitulo}
         acciones={acciones}
+        conPresencia
       />
 
       <Suspense fallback={<Cargando alto="min-h-36" mensaje="Cargando el detalle…" />}>

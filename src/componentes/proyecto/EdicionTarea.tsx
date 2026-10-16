@@ -6,6 +6,8 @@ import { AvisoEnLinea } from '@/componentes/estado/Estados'
 import { Boton } from '@/componentes/formularios/Boton'
 import { Campo } from '@/componentes/formularios/Campo'
 import { CamposPersonalizados } from '@/componentes/formularios/CamposPersonalizados'
+import { EditorRicoConjunto } from '@/componentes/en-vivo/EditorRicoConjunto'
+import { useConfigEnVivo } from '@/componentes/en-vivo/ProveedorEnVivo'
 import { EditorRico } from '@/componentes/formularios/EditorRico'
 import { Entrada } from '@/componentes/formularios/Entrada'
 import { SelectorPersonas } from '@/componentes/formularios/SelectorPersonas'
@@ -109,6 +111,10 @@ export function EdicionTarea (
 ): ReactElement {
   useAccionPresencia('editando_tarea')
   const aviso = useAviso()
+  const { textos: textosEnConjunto } = useConfigEnVivo()
+  /** El editor conjunto dejo de sostenerse (sin conexion o sin acceso): la descripcion vuelve a guardarse con el formulario. */
+  const [conjuntoCaido, setConjuntoCaido] = useState(false)
+  const descripcionEnConjunto = textosEnConjunto && !conjuntoCaido
 
   const [inicial, setInicial] = useState(() => camposDeTarea(tarea, descripcion))
   const [campos, setCampos] = useState<CamposEdicion>(inicial)
@@ -432,7 +438,8 @@ export function EdicionTarea (
       return
     }
 
-    const cuerpo = cuerpoDeParche(inicial, campos)
+    // En conjunto la descripcion la guarda el servicio de «Ops en vivo»: el PATCH no la manda.
+    const cuerpo = cuerpoDeParche(inicial, campos, { sinDescripcion: descripcionEnConjunto })
     const parcheCampos = cuerpoDeCamposPersonalizados(
       'tasks', tarea.id, definiciones, personalizadosIniciales, personalizados
     )
@@ -807,22 +814,37 @@ export function EdicionTarea (
               error={errorDescripcion ?? undefined}
               ayuda={`Qué hay que hacer y con qué se da por terminada. Quien abra la ${GLOSARIO.proceso.singular.toLowerCase()} no estuvo en la conversación donde se pidió.`}
             >
-              {(props) => (
-                <EditorRico
-                  {...props}
-                  key={versionDescripcion}
-                  etiqueta="Descripción"
-                  filasMinimas={5}
-                  valorInicial={campos.descripcion}
-                  deshabilitado={enCurso}
-                  imagenes={espacioId === null ? undefined : { portal: false, proyectoId: espacioId }}
-                  onListo={fijarBaseDeDescripcion}
-                  onCambio={(html) => {
+              {(props) => {
+                const propsDelEditor = {
+                  ...props,
+                  etiqueta: 'Descripción',
+                  filasMinimas: 5,
+                  valorInicial: campos.descripcion,
+                  deshabilitado: enCurso,
+                  imagenes: espacioId === null ? undefined : { portal: false, proyectoId: espacioId },
+                  onListo: fijarBaseDeDescripcion,
+                  onCambio: (html: string) => {
                     setCampos((previos) => ({ ...previos, descripcion: html }))
                     setErrorDescripcion(null)
-                  }}
-                />
-              )}
+                  }
+                }
+
+                // Con la edición conjunta de textos encendida la descripción se escribe sobre un
+                // documento compartido que el servicio guarda solo; sin ella (o si no abre) es el
+                // editor de siempre. La redacción del asistente entra por `reemplazo` y no remontando
+                // el campo: remontarlo abriría otra sesión.
+                return textosEnConjunto
+                  ? (
+                    <EditorRicoConjunto
+                      {...propsDelEditor}
+                      key="conjunto"
+                      documento={{ clase: 'tarea', id: tarea.id }}
+                      alCaerElConjunto={() => { setConjuntoCaido(true) }}
+                      reemplazo={{ version: versionDescripcion, html: campos.descripcion }}
+                    />
+                    )
+                  : <EditorRico {...propsDelEditor} key={versionDescripcion} />
+              }}
             </Campo>
 
             {/* Se monta siempre y se oculta solo: no hay por donde bajarle un `conIa` —el detalle de

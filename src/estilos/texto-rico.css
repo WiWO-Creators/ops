@@ -123,4 +123,44 @@
     color: var(--texto-sutil);
     pointer-events: none;
   }
+
+  /*
+   * Los cursores de la edicion conjunta (`en-vivo/cursores.ts`): descripcion de tarea y borrador de
+   * respuesta de ticket. Cada persona trae su color en `--cursor-color`. La etiqueta con el nombre va
+   * debajo del cursor y no encima: el editor tiene `overflow-y: auto` y una etiqueta sobre la primera
+   * linea quedaria recortada por el borde del cuadro.
+   */
+  .texto-rico-editor .collaboration-carets__caret {
+    --cursor-color: #6b7280;
+    position: relative;
+    margin-right: -1px;
+    margin-left: -1px;
+    border-right: 1px solid var(--cursor-color);
+    border-left: 1px solid var(--cursor-color);
+    word-break: normal;
+    pointer-events: none;
+  }
+
+  .texto-rico-editor .collaboration-carets__label {
+    position: absolute;
+    top: calc(100% + 0.1em);
+    left: -1px;
+    z-index: 2;
+    padding: 3px 7px;
+    border-radius: 0 5px 5px 5px;
+    background: var(--cursor-color);
+    color: #fff;
+    font-size: 11px;
+    font-style: normal;
+    font-weight: 600;
+    letter-spacing: 0;
+    line-height: 1;
+    white-space: nowrap;
+    user-select: none;
+  }
+
+  .texto-rico-editor .collaboration-carets__selection {
+    --cursor-color: #6b7280;
+    background: color-mix(in srgb, var(--cursor-color) 22%, transparent);
+  }
 }

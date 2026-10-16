@@ -1,6 +1,7 @@
 import type { ReactElement } from 'react'
 import { notFound } from 'next/navigation'
 import { llamarApiTipado } from '@/datos/api'
+import { urlDeEnVivo } from '@/datos/config'
 import { ErrorApi } from '@/datos/errores'
 import { leerParametrosDePantalla } from '@/dominio/pantalla-area'
 import { Escenario } from './Escenario'
@@ -74,6 +75,7 @@ export default async function PantallaDeArea (
       inicial={inicial}
       metaInicial={meta}
       parametros={parametros}
+      urlEnVivo={urlDeEnVivo()}
     />
   )
 }

@@ -299,6 +299,7 @@ export default async function ProyectoPage (props: PageProps<'/proyectos/[id]'>)
         // Espacio archivado, y una pildora que abre un menu para fallar es peor que una etiqueta.
         estados={proyecto.archived ? [] : estados}
         yoId={yo.id}
+        conPresencia
         acciones={
           <>
             <BotonFijar

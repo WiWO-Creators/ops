@@ -10,7 +10,10 @@ import type { Escena, Orientacion, ParametrosDePantalla, TablaDePantalla } from 
 import { franjaDelMomento } from '@/dominio/momento-del-dia'
 import type { FranjaDelDia } from '@/dominio/momento-del-dia'
 import type { MetaDePantalla, PaqueteDePantalla, PersonaTrabajando } from '@/datos/pantalla-area'
+import { debeConectarPantalla, esperaParaPedirDeNuevo, intervaloDeSondeoDePantalla } from '@/dominio/pantalla-en-vivo'
+import { useConectadoEnVivo } from '@/componentes/en-vivo/useEnVivo'
 import { useLatido, useNoApagarPantalla } from './proyeccion'
+import { useBusDePantalla } from './useBusDePantalla'
 import { MarcoDePantalla } from './MarcoDePantalla'
 import { EscenaPortada } from './escenas/EscenaPortada'
 import { EscenaTrabajando } from './escenas/EscenaTrabajando'
@@ -27,6 +30,8 @@ interface Props {
   inicial: PaqueteDePantalla | null
   metaInicial: MetaDePantalla | null
   parametros: ParametrosDePantalla
+  /** Base pública del servicio de «Ops en vivo», o `''` si no hay: la pantalla sondea como siempre. */
+  urlEnVivo: string
 }
 
 /**
@@ -59,7 +64,7 @@ interface Props {
  * pantalla se queda ahi hasta que alguien la recargue a mano. Un `fetch` del cliente se puede atrapar
  * e ignorar, que es lo unico aceptable en una pared.
  */
-export function Escenario ({ codigo, inicial, metaInicial, parametros }: Props): ReactElement {
+export function Escenario ({ codigo, inicial, metaInicial, parametros, urlEnVivo }: Props): ReactElement {
   const [datos, setDatos] = useState<PaqueteDePantalla | null>(inicial)
   const [meta, setMeta] = useState<MetaDePantalla | null>(metaInicial)
   const [fallos, setFallos] = useState(0)
@@ -120,10 +125,20 @@ export function Escenario ({ codigo, inicial, metaInicial, parametros }: Props):
    *
    * Que sea uno solo no es prolijidad: la frescura se mide en multiplos del intervalo, asi que dos
    * valores distintos harian que la pantalla se declare vieja antes o despues de lo que corresponde.
+   *
+   * Con «Ops en vivo» y el socket conectado, el sondeo pasa a ser un respaldo de al menos cinco
+   * minutos (`intervaloDeSondeoDePantalla`): el aviso del bus es lo que trae los datos nuevos. Si el
+   * socket cae, vuelve al ritmo de siempre.
    */
-  const intervaloMs = (meta?.poll_after_seconds ?? parametros.segundosDeRefresco) * 1000
+  const enVivo = debeConectarPantalla(meta?.en_vivo, urlEnVivo)
+  const conectado = useConectadoEnVivo()
+  const intervaloMs = intervaloDeSondeoDePantalla(meta?.poll_after_seconds ?? parametros.segundosDeRefresco, conectado)
 
-  const sondearSiToca = useSondeo({ codigo, intervaloMs, fallos, setFallos, setDatos, setMeta, setLeidoEn, setDesfase })
+  const { sondearSiToca, pedirPorAviso } = useSondeo({
+    codigo, intervaloMs, fallos, setFallos, setDatos, setMeta, setLeidoEn, setDesfase
+  })
+
+  useBusDePantalla({ codigo, activo: enVivo, url: urlEnVivo, alCambiar: pedirPorAviso })
 
   // -- El unico reloj de la pantalla, fuera del hilo principal. --------------------------------
   //
@@ -374,6 +389,9 @@ function indiceDe (guion: Escena[], id: string): number {
 /** Cuanto se espera una respuesta antes de darla por perdida y contarla como fallo. */
 const TOPE_DE_PETICION_MS = 15_000
 
+/** Cuanto se espera para reintentar un aviso del bus que cayo mientras otro pedido seguia en camino. */
+const ESPERA_SI_HAY_PEDIDO_MS = 1000
+
 interface OpcionesDeSondeo {
   codigo: string
   /** El ritmo base, antes del backoff. Lo decide `meta.poll_after_seconds`; ver `Escenario`. */
@@ -404,18 +422,28 @@ interface OpcionesDeSondeo {
  * "nada cambio": se actualiza la marca de frescura y no se toca `datos`, asi que React no repinta
  * nada. Es lo que hace que un televisor que pregunta cada treinta segundos durante meses no mueva
  * datos mientras el area esta quieta.
+ *
+ * === EL AVISO DEL BUS ===
+ *
+ * `pedirPorAviso` es la otra puerta de entrada: «Ops en vivo» dice que algo cambio y se vuelve a pedir
+ * el paquete por este mismo camino (mismo ETag, mismo `enVuelo`, mismo tope). Entre dos pedidos hay al
+ * menos `ESPERA_MINIMA_ENTRE_PEDIDOS_MS`, y una rafaga de avisos cuenta como uno solo. Si el aviso
+ * cae con otro pedido en camino, se reintenta despues: ese pedido pudo haber leido antes del cambio.
  */
-function useSondeo (opciones: OpcionesDeSondeo): (ahora: number) => void {
+function useSondeo (opciones: OpcionesDeSondeo): { sondearSiToca: (ahora: number) => void, pedirPorAviso: () => void } {
   const { codigo, intervaloMs, fallos, setFallos, setDatos, setMeta, setLeidoEn, setDesfase } = opciones
 
   const enVuelo = useRef(false)
   const etag = useRef<string | null>(null)
   const aborto = useRef<AbortController | null>(null)
+  const ultimoPedido = useRef<number | null>(null)
+  const avisoAgendado = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   const pedir = useCallback(async (): Promise<void> => {
     if (enVuelo.current) return
 
     enVuelo.current = true
+    ultimoPedido.current = Date.now()
     aborto.current?.abort()
     const control = new AbortController()
 
@@ -487,6 +515,23 @@ function useSondeo (opciones: OpcionesDeSondeo): (ahora: number) => void {
     void pedir()
   }, [pedir, conBackoff])
 
+  // Un aviso del bus: se agenda UN pedido, respetando la espera minima desde el ultimo.
+  const pedirPorAviso = useCallback((): void => {
+    if (avisoAgendado.current !== null) return
+
+    const agendar = (espera: number): void => {
+      avisoAgendado.current = globalThis.setTimeout(() => {
+        avisoAgendado.current = null
+
+        if (enVuelo.current) return agendar(ESPERA_SI_HAY_PEDIDO_MS)
+
+        void pedir()
+      }, espera)
+    }
+
+    agendar(esperaParaPedirDeNuevo(ultimoPedido.current, Date.now()))
+  }, [pedir])
+
   // Una peticion al montar, sin esperar al primer tic.
   //
   // Importa cuando el servidor no pudo traer el paquete —la API estaba caida al cargar la pagina—:
@@ -515,10 +560,13 @@ function useSondeo (opciones: OpcionesDeSondeo): (ahora: number) => void {
   }, [pedir])
 
   useEffect(() => {
-    return () => { aborto.current?.abort() }
+    return () => {
+      aborto.current?.abort()
+      if (avisoAgendado.current !== null) globalThis.clearTimeout(avisoAgendado.current)
+    }
   }, [])
 
-  return sondearSiToca
+  return { sondearSiToca, pedirPorAviso }
 }
 
 /**

@@ -374,6 +374,11 @@ export interface YoPortal extends ContactoPortal {
    * anterior a la migracion 1160, y entonces no se registra: el endpoint tampoco existe.
    */
   rastreo?: boolean
+  /**
+   * Si el portal de este cliente escucha el bus de «Ops en vivo» (`wiwo_en_vivo_portal` y el
+   * interruptor del cliente). Ausente en una API anterior: se trata como apagado.
+   */
+  en_vivo?: boolean
   locale: string
 }
 

@@ -1,6 +1,7 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
-import { observarLista, avisarCambioDeTareas, REFRESCO_LISTA_MS } from '../src/datos/refresco-lista.ts'
+import { afectaALaRuta, observarLista, avisarCambioDeTareas, REFRESCO_LISTA_MS } from '../src/datos/refresco-lista.ts'
+import { RESPALDO_CONECTADO_MS } from '../src/dominio/en-vivo.ts'
 
 /** Entorno de navegador mínimo con reloj controlado y limpieza por caso. */
 function navegador (t) {
@@ -204,4 +205,65 @@ test('el regreso en vuelo no esconde una escritura: esa si repite al terminar', 
   resolver[1]()
   await terminar()
   assert.equal(resolver.length, 3)
+})
+
+test('en vivo conectado, el intervalo es respaldo; los eventos, el foco y el regreso siguen igual', async (t) => {
+  const { ventana, documento } = navegador(t)
+  let consultas = 0
+  const detener = observarLista(async () => ++consultas, () => {}, assert.fail, { conectado: () => true })
+  t.after(detener)
+  await terminar()
+  assert.equal(consultas, 1)
+  t.mock.timers.tick(REFRESCO_LISTA_MS * 3)
+  await terminar()
+  assert.equal(consultas, 1, 'el intervalo no consulta mientras el bus está conectado')
+  avisarCambioDeTareas('tasks/356')
+  await terminar()
+  assert.equal(consultas, 2, 'el aviso de Tareas sí')
+  ventana.dispatchEvent(new Event('focus'))
+  await terminar()
+  assert.equal(consultas, 3, 'el foco sí')
+  documento.dispatchEvent(new Event('visibilitychange'))
+  await terminar()
+  assert.equal(consultas, 4, 'la vuelta a la pestaña sí')
+})
+
+test('en vivo conectado, pasados 5 minutos el intervalo vuelve a consultar como respaldo', async (t) => {
+  navegador(t)
+  let ahora = 1_000_000
+  t.mock.method(Date, 'now', () => ahora)
+  const avanzar = (ms) => { ahora += ms; t.mock.timers.tick(ms) }
+  let consultas = 0
+  const detener = observarLista(async () => ++consultas, () => {}, assert.fail, { conectado: () => true })
+  t.after(detener)
+  await terminar()
+  avanzar(RESPALDO_CONECTADO_MS - REFRESCO_LISTA_MS)
+  await terminar()
+  assert.equal(consultas, 1)
+  avanzar(REFRESCO_LISTA_MS)
+  await terminar()
+  assert.equal(consultas, 2)
+})
+
+test('en vivo desconectado, el intervalo consulta en cada tic como siempre', async (t) => {
+  navegador(t)
+  let consultas = 0
+  const detener = observarLista(async () => ++consultas, () => {}, assert.fail, { conectado: () => false })
+  t.after(detener)
+  await terminar()
+  t.mock.timers.tick(REFRESCO_LISTA_MS)
+  await terminar()
+  t.mock.timers.tick(REFRESCO_LISTA_MS)
+  await terminar()
+  assert.equal(consultas, 3)
+})
+
+test('afectaALaRuta: las escrituras propias invalidan todo y las del bus solo a su recurso', () => {
+  assert.equal(afectaALaRuta({ ruta: 'tickets/9' }, 'tasks'), true, 'escritura propia')
+  assert.equal(afectaALaRuta(null, 'tasks'), true)
+  assert.equal(afectaALaRuta(undefined, 'tasks'), true)
+  assert.equal(afectaALaRuta({ ruta: 'tasks/5', origen: 'en-vivo' }, 'tasks'), true)
+  assert.equal(afectaALaRuta({ ruta: 'tasks/5', origen: 'en-vivo' }, 'tasks/mias'), true)
+  assert.equal(afectaALaRuta({ ruta: 'tickets/9', origen: 'en-vivo' }, 'tasks'), false)
+  assert.equal(afectaALaRuta({ origen: 'en-vivo' }, 'tasks'), false, 'sin ruta, el bus no invalida a nadie')
 })

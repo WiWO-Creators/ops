@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useEffectEvent, useRef, useState } from 'react'
 import { useSearchParams } from 'next/navigation'
 import { idDeParametro } from '@/componentes/datos/tabla'
+import { escucharEnVivo } from '@/datos/en-vivo'
 import { agruparAvisos } from '@/lib/agrupar-avisos'
 import { ESPERA_AVISOS_DE_TICKET_MS, selectorDeTicketSinLeer } from '@/dominio/ticket-sondeo'
 import { EVENTO_TICKETS_CAMBIADOS, PARAMETRO_TICKET } from '@/dominio/ticket-estados'
@@ -18,21 +19,31 @@ import { EVENTO_TICKETS_CAMBIADOS, PARAMETRO_TICKET } from '@/dominio/ticket-est
  * o el marcado como leido junto a una escritura, emiten varios y la lista pedia su pagina una vez por
  * cada uno.
  *
+ * El bus de «Ops en vivo» del portal no trae ids (la sala del cliente solo dice «algo cambió»), así
+ * que no puede traducirse a `ops:tickets-cambiados`. Con `puente` también se escucha el bus
+ * directamente: cada aviso de tipo `ticket` cuenta como un aviso más, agrupado con los demás. El panel
+ * del equipo no lo usa: su puente ya dispara el evento de ventana con el id.
+ *
  * @param alCambiar lo que hay que hacer cuando llega el aviso
+ * @param puente `true` para escuchar además los avisos de tickets del bus (portal); por defecto `false`
  */
-export function useAlCambiarTickets (alCambiar: () => void): void {
+export function useAlCambiarTickets (alCambiar: () => void, puente = false): void {
   const avisar = useEffectEvent(alCambiar)
 
   useEffect(() => {
     const aviso = agruparAvisos(() => { avisar() }, ESPERA_AVISOS_DE_TICKET_MS)
+    const dejarDeEscuchar = puente
+      ? escucharEnVivo((cambio) => { if (cambio.tipo === 'ticket') aviso.disparar() })
+      : null
 
     window.addEventListener(EVENTO_TICKETS_CAMBIADOS, aviso.disparar)
 
     return () => {
+      dejarDeEscuchar?.()
       window.removeEventListener(EVENTO_TICKETS_CAMBIADOS, aviso.disparar)
       aviso.cancelar()
     }
-  }, [])
+  }, [puente])
 }
 
 /**
@@ -72,13 +83,14 @@ export function useAlCerrarTicket (alCerrar: () => void): void {
  * montarse dentro de un limite de `Suspense`, por `useAlCerrarTicket`.
  *
  * @param activo `false` si la lista no muestra tickets y no debe pedirse de nuevo (por defecto `true`)
+ * @param puente `true` en el portal: escucha tambien el bus de «Ops en vivo» (ver `useAlCambiarTickets`)
  * @returns el numero de revision
  */
-export function useRefrescoDeTickets (activo = true): number {
+export function useRefrescoDeTickets (activo = true, puente = false): number {
   const [revision, setRevision] = useState(0)
   const alCambiar = useCallback(() => { if (activo) setRevision((n) => n + 1) }, [activo])
 
-  useAlCambiarTickets(alCambiar)
+  useAlCambiarTickets(alCambiar, puente)
   useAlCerrarTicket(alCambiar)
 
   return revision

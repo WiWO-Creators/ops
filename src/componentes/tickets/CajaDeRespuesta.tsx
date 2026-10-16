@@ -3,6 +3,9 @@
 import { Lock, MessageCircleQuestion, MessageSquareText } from 'lucide-react'
 import { useEffect, useRef, useState, type ReactElement } from 'react'
 import { AvisoEnLinea } from '@/componentes/estado/Estados'
+import { EditorRicoConjunto } from '@/componentes/en-vivo/EditorRicoConjunto'
+import { useConfigEnVivo } from '@/componentes/en-vivo/ProveedorEnVivo'
+import { useAvisarEscribiendo } from '@/componentes/en-vivo/usePresenciaEnRecurso'
 import { Boton } from '@/componentes/formularios/Boton'
 import { EditorRico } from '@/componentes/formularios/EditorRico'
 import { Contenido } from '@/componentes/presentadores/Contenido'
@@ -91,6 +94,11 @@ export function CajaDeRespuesta ({
   // Segundos que pidio esperar un 429; mientras no es `null` el envio queda bloqueado.
   const [espera, setEspera] = useState<number | null>(null)
   const enviandoAhora = useRef(false)
+  // Avisa al equipo que se está respondiendo (presencia en vivo); sin la función encendida no hace nada.
+  const avisarEscribiendo = useAvisarEscribiendo(ticket.id, fuente.sujeto === 'panel')
+  // La respuesta se escribe sobre un borrador compartido solo para el equipo y con la edición conjunta
+  // de textos encendida; sin ella, la caja es la de siempre.
+  const borradorCompartido = useConfigEnVivo().textos && fuente.sujeto === 'panel'
 
   // El tope se mide sobre el texto visible y no sobre el marcado, que la persona no escribio.
   const largo = textoPlano(mensaje).length
@@ -173,6 +181,23 @@ export function CajaDeRespuesta ({
   }
 
   const vacio = htmlVacio(mensaje)
+
+  /** Lo que escribe el editor: se guarda en pantalla y en el borrador de la sesión, y se avisa al equipo. */
+  function alEscribir (html: string): void {
+    escribir(html)
+    if (html !== '') avisarEscribiendo()
+  }
+
+  /**
+   * El borrador compartido abrió. Lo que tiene manda sobre lo que había en esta pestaña; pero si está
+   * vacío y esta pestaña traía un borrador propio (de antes de que la edición conjunta abriera), ese
+   * borrador se vuelca al compartido en vez de perderse.
+   */
+  function alAbrirElBorrador (html: string): void {
+    if (html === '' && !htmlVacio(mensaje)) setVersionDelEditor((version) => version + 1)
+    else escribir(html)
+  }
+
   // El contacto sube siempre atado al Espacio del ticket; sin el, la API no tiene contra que medir la
   // imagen y el editor no la acepta. El equipo puede subir sin Espacio (un ticket sin Proyecto).
   const portal = fuente.sujeto === 'portal'
@@ -198,20 +223,45 @@ export function CajaDeRespuesta ({
           }} />
         )}
       </div>
-      <EditorRico
-        key={versionDelEditor}
-        id={idCampo}
-        etiqueta="Tu respuesta"
-        valorInicial={mensaje}
-        maxCaracteres={tope}
-        placeholder="Escribe tu respuesta."
-        aria-describedby={`${idCampo}-atajo`}
-        aria-invalid={fallo !== null || undefined}
-        autoenfocar
-        imagenes={destinoDeImagenes}
-        onCambio={escribir}
-        onEnviar={() => { void responder() }}
-      />
+      {borradorCompartido
+        ? (
+          // El borrador compartido: lo que se escribe lo ve y lo edita el resto del equipo, y el
+          // servicio lo guarda en el board hasta que alguien envía la respuesta. Predefinidas y
+          // vaciar tras enviar entran por `reemplazo` (cambiar la `key` abriría otra sesión).
+          <EditorRicoConjunto
+            key="conjunto"
+            documento={{ clase: 'ticket-borrador', id: ticket.id }}
+            id={idCampo}
+            etiqueta="Tu respuesta"
+            valorInicial={mensaje}
+            reemplazo={{ version: versionDelEditor, html: mensaje }}
+            avisarAlRecargar={false}
+            maxCaracteres={tope}
+            aria-describedby={`${idCampo}-atajo`}
+            aria-invalid={fallo !== null || undefined}
+            autoenfocar
+            imagenes={destinoDeImagenes}
+            onListo={alAbrirElBorrador}
+            onCambio={alEscribir}
+            onEnviar={() => { void responder() }}
+          />
+          )
+        : (
+          <EditorRico
+            key={versionDelEditor}
+            id={idCampo}
+            etiqueta="Tu respuesta"
+            valorInicial={mensaje}
+            maxCaracteres={tope}
+            placeholder="Escribe tu respuesta."
+            aria-describedby={`${idCampo}-atajo`}
+            aria-invalid={fallo !== null || undefined}
+            autoenfocar
+            imagenes={destinoDeImagenes}
+            onCambio={alEscribir}
+            onEnviar={() => { void responder() }}
+          />
+          )}
 
       <ArchivosParaAdjuntar archivos={archivos} onCambiar={setArchivos} deshabilitado={enviando} />
 

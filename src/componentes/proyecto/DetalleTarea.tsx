@@ -7,6 +7,7 @@ import { useCallback, useEffect, useRef, useState, type ReactElement } from 'rea
 import { PARAMETRO_TAREA, urlConParametro } from '@/componentes/datos/tabla'
 import { ArbolDrive } from '@/componentes/archivos/ArbolDrive'
 import { useUbicacionTarea } from '@/componentes/auditoria/accion'
+import { PresentesEnRecurso } from '@/componentes/en-vivo/PresentesEnRecurso'
 import { Cargando, ErrorEstado, Vacio } from '@/componentes/estado/Estados'
 import { ConfirmacionEnLinea } from '@/componentes/datos/ConfirmacionEnLinea'
 import { EnlacePanelClasico } from '@/componentes/presentadores/EnlacePanelClasico'
@@ -270,6 +271,9 @@ export function DetalleTarea (
             nivel={3}
           />
           <VinculoDeTarea vinculos={tarea.vinculos} />
+          {/* Solo el equipo (los subrecursos son suyos) y solo con la presencia de «Ops en vivo»
+              encendida; apagada no dibuja nada. */}
+          {subrecursos !== null && <PresentesEnRecurso tipo="tarea" id={procesoId} />}
           <div className="flex flex-wrap items-center gap-1.5">
             {/* La insignia de estado es ademas un menu cuando se puede editar: es el gesto mas
                 repetido de la ficha, y hasta ahora obligaba a abrir el formulario entero y guardarlo

@@ -1,8 +1,9 @@
 'use client'
 
 import type { ReactElement } from 'react'
-import { Download, MessageCircleQuestion } from 'lucide-react'
+import { Download, History, MessageCircleQuestion, MessageSquare } from 'lucide-react'
 import { Boton } from '@/componentes/formularios/Boton'
+import { Insignia } from '@/componentes/presentadores/Insignia'
 import {
   ContenidoMenu,
   DisparadorMenu,
@@ -13,14 +14,22 @@ import type { FormatoDeExportacion } from './useExportacionDelActa'
 
 interface PropsAcciones {
   editando: boolean
+  /** Edición conjunta abierta: no hay Guardar ni Descartar (guarda el servicio) ni otras acciones del acta. */
+  conjunta: boolean
   guardando: boolean
   exportando: FormatoDeExportacion | null
   puedeEditar: boolean
   puedeRenombrar: boolean
   puedeBorrar: boolean
-  /** Ofrece "Historial de versiones": cualquiera que pueda corregir el acta. */
+  /** Ofrece «Historial»: cualquiera que pueda corregir el acta. */
   puedeVerHistorial: boolean
   onHistorial: () => void
+  /**
+   * Ofrece «Comentarios» (fase 10): `abiertos` es la cantidad de hilos sin resolver, o `null` mientras
+   * cargan. Se ve también con el editor abierto, donde el panel convive con la edición. Sin esto
+   * (comentarios apagados o sin permiso) no hay botón.
+   */
+  comentarios?: { abiertos: number | null, onAbrir: () => void }
   /** Ofrece "Preguntar": abre el chat con este acta como contexto. Solo el equipo con IA activa. */
   puedePreguntar: boolean
   onPreguntar: () => void
@@ -40,6 +49,7 @@ interface PropsAcciones {
  */
 export function AccionesDelActa ({
   editando,
+  conjunta,
   guardando,
   exportando,
   puedeEditar,
@@ -47,6 +57,7 @@ export function AccionesDelActa ({
   puedeBorrar,
   puedeVerHistorial,
   onHistorial,
+  comentarios,
   puedePreguntar,
   onPreguntar,
   onDescartar,
@@ -57,9 +68,26 @@ export function AccionesDelActa ({
   onRenombrar,
   onEliminar
 }: PropsAcciones): ReactElement {
+  const botonComentarios = comentarios !== undefined && (
+    <Boton variante="secundario" tamano="chico" onClick={comentarios.onAbrir}>
+      <MessageSquare size={14} strokeWidth={2} aria-hidden="true" className="shrink-0" />
+      Comentarios
+      {comentarios.abiertos !== null && comentarios.abiertos > 0 && (
+        <Insignia tono="acento" tamano="chico">
+          {comentarios.abiertos}
+          <span className="sr-only"> sin resolver</span>
+        </Insignia>
+      )}
+    </Boton>
+  )
+
   return (
     <div className="flex shrink-0 flex-wrap items-center gap-2">
-      {editando
+      {/* Con el editor abierto (de siempre o conjunto) el botón va primero: ahí no hay más acciones
+          del acta que lo desplacen. En lectura va junto a Historial, que es de la misma familia. */}
+      {(editando || conjunta) && botonComentarios}
+
+      {!conjunta && (editando
         ? (
           <>
             <Boton variante="sutil" tamano="chico" onClick={onDescartar}>
@@ -87,6 +115,13 @@ export function AccionesDelActa ({
                 <ItemMenu onSelect={onImprimir}>Imprimir</ItemMenu>
               </ContenidoMenu>
             </MenuContextual>
+            {puedeVerHistorial && (
+              <Boton variante="secundario" tamano="chico" onClick={onHistorial}>
+                <History size={14} strokeWidth={2} aria-hidden="true" className="shrink-0" />
+                Historial
+              </Boton>
+            )}
+            {botonComentarios}
             {puedePreguntar && (
               <Boton variante="secundario" tamano="chico" onClick={onPreguntar}>
                 <MessageCircleQuestion size={14} strokeWidth={2} aria-hidden="true" className="shrink-0" />
@@ -99,11 +134,11 @@ export function AccionesDelActa ({
               </Boton>
             )}
           </>
-          )}
+          ))}
 
       {/* El `⋯` se dibuja solo si tiene algo dentro: un menú que se abre vacío promete acciones
           que este sujeto no tiene. */}
-      {(puedeRenombrar || puedeBorrar || puedeVerHistorial) && (
+      {(puedeRenombrar || puedeBorrar) && (
         <MenuContextual>
           <DisparadorMenu asChild>
             <Boton variante="sutil" tamano="chico" soloIcono aria-label="Más acciones del Meeting Paper">
@@ -113,9 +148,6 @@ export function AccionesDelActa ({
           <ContenidoMenu align="end">
             {puedeRenombrar && (
               <ItemMenu onSelect={onRenombrar}>Renombrar</ItemMenu>
-            )}
-            {puedeVerHistorial && (
-              <ItemMenu onSelect={onHistorial}>Historial de versiones</ItemMenu>
             )}
             {puedeBorrar && (
               <ItemMenu peligroso onSelect={onEliminar}>Eliminar</ItemMenu>
