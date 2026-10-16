@@ -1,7 +1,11 @@
 import type { Metadata } from 'next'
+import { headers } from 'next/headers'
 import { redirect } from 'next/navigation'
+import { llamarApiTipado } from '@/datos/api'
+import { cabecerasDeOrigen } from '@/datos/origen'
 import { leerSesionSiSePuede } from '@/datos/sesion'
 import { avisoDeSesion, PARAMETRO_SESION, vieneDeSesionRechazada } from '@/dominio/entrada'
+import { accesoGoogleDelPortal } from '@/dominio/portal-google'
 import { FormularioEntrarPortal } from './FormularioEntrarPortal'
 
 export const metadata: Metadata = { title: 'Entrar · Portal de clientes' }
@@ -28,5 +32,25 @@ export default async function EntrarPortalPagina (
 
   if (!vieneDeSesionRechazada(motivo) && await leerSesionSiSePuede('contacto') !== null) redirect('/portal')
 
-  return <FormularioEntrarPortal aviso={avisoDeSesion(motivo)} />
+  return <FormularioEntrarPortal aviso={avisoDeSesion(motivo)} googleActivo={await googleActivoEnElPortal()} />
+}
+
+/**
+ * Pregunta a la API si el acceso con Google al portal esta encendido (el interruptor global).
+ *
+ * Se consulta aca y no en el cliente por lo mismo que en `/colab`: `/auth/*` esta fuera de la lista
+ * blanca del BFF. Cualquier fallo cae a `false` —el portal de siempre, correo y contraseña—, porque un
+ * paso de mas nunca puede costar el formulario entero: la API caida, el endpoint sin desplegar o un
+ * freno de intentos dejan la pantalla exactamente como estaba antes de esta funcion.
+ */
+async function googleActivoEnElPortal (): Promise<boolean> {
+  try {
+    const { data } = await llamarApiTipado<unknown>('/auth/portal/google', {
+      cabeceras: cabecerasDeOrigen(await headers())
+    })
+
+    return accesoGoogleDelPortal(data).enabled
+  } catch {
+    return false
+  }
 }

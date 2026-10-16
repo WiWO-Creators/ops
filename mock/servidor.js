@@ -32,6 +32,10 @@ import { analizarScope, interpretarScope, scopeRuta } from './scope.js'
 import { supervisionDelEquipo } from './supervision.js'
 import { driveDeEntidadRuta, driveRuta, sesionDirectaRuta } from './drive.js'
 import { escribirAjustesDelOrbePortal, opcionDelOrbePortal, orbePortalRuta } from './orbe-portal.js'
+import {
+  accesoPublico, autenticarConGoogle, escribirAjusteGlobal, exigeGoogle, guardarConfiguracion,
+  leerConfiguracion, opcionPortalGoogle
+} from './portal-google.js'
 import { altaDeTareasDelEspacio, crearTareaDelPortal, editarTareaDelPortal, puedeCrearEnAlgunProyecto } from './tareas-del-portal.js'
 import {
   ADMINS_DE_CLIENTE, AREAS, ARCHIVOS, CAMPOS_PERSONALIZADOS, CHECKLIST, CLIENTES, COMENTARIOS, CRONOMETROS,
@@ -1602,6 +1606,9 @@ function registrarReporte (cuerpo, actual) {
 
   return incidente
 }
+
+/** Clientes con el codigo por correo encendido en el portal (`GET|PUT /clients/{id}/portal-2fa`). */
+const CLIENTES_CON_CODIGO = new Set()
 
 /** Segmento con el que se publica la pantalla. En la instalacion real sale del `.env`. */
 const RUTA_MANTENIMIENTO = 'k3p9x'
@@ -4820,8 +4827,26 @@ const DIA_VALIDO = /^\d{4}-\d{2}-\d{2}$/
 /** Las unicas claves que el mock sabe escribir en `PATCH /settings`; cualquier otra es 422 `no_editable`. */
 const CLAVES_DE_AJUSTES_DEL_MOCK = new Set([
   'wiwo_portal_ia_chat', 'wiwo_live_cierre_automatico', 'wiwo_live_hora_cierre', 'wiwo_live_prorroga_minutos',
-  'wiwo_modo_especial', 'wiwo_modo_desde', 'wiwo_modo_hasta'
+  'wiwo_modo_especial', 'wiwo_modo_desde', 'wiwo_modo_hasta', 'wiwo_portal_google_enabled'
 ])
+
+/**
+ * El grupo `acceso` del login con Google del equipo, solo de lectura: el mock no lo escribe, pero la
+ * pantalla de Administracion → Acceso necesita que existan para dibujarse (y con ella el interruptor
+ * de Google en el portal).
+ */
+function opcionesDeAcceso () {
+  const login = INTERRUPTORES_MANT.find((i) => i.clave === 'wiwo_google_login_enabled')
+  const autoalta = INTERRUPTORES_MANT.find((i) => i.clave === 'wiwo_google_autoalta_enabled')
+
+  return {
+    wiwo_google_login_enabled: { group: 'acceso', type: 'bool', value: login?.valor === true },
+    wiwo_google_login_domains: { group: 'acceso', type: 'texto', value: 'wiwo.me' },
+    wiwo_google_client_id: { group: 'acceso', type: 'texto', value: 'mock-equipo.apps.googleusercontent.com' },
+    wiwo_google_autoalta_enabled: { group: 'acceso', type: 'bool', value: autoalta?.valor === true },
+    wiwo_google_autoalta_domains: { group: 'acceso', type: 'texto', value: '' }
+  }
+}
 
 /** El grupo `apariencia` de `GET /settings`, con la forma de `RecursoAjustes::presentar()`. */
 function opcionesDeModo () {
@@ -6684,8 +6709,29 @@ async function resolverRuta (metodo, segmentos, parametros, token, cuerpo, petic
       return { estado: 201, cuerpo: conDatos({ ...sesion.emitirSesion(staff.id), staff: presentarStaff(staff) }) }
     }
 
+    // La puerta publica de Google en el portal: la GET dice que ofrecer para un correo y la POST canjea el
+    // ID token por la sesion del contacto, con el mismo cuerpo que el login con contraseña.
+    if (accion === 'portal' && resto[1] === 'google' && metodo === 'GET') {
+      return { estado: 200, cuerpo: conDatos(accesoPublico(parametros.get('email'))) }
+    }
+
+    if (accion === 'portal' && resto[1] === 'google' && metodo === 'POST') {
+      const contacto = autenticarConGoogle(datos)
+      return {
+        estado: 201,
+        cuerpo: conDatos({
+          ...sesion.emitirSesion(contacto.id, 'contacto'),
+          contact: presentarContacto(contacto)
+        })
+      }
+    }
+
     if (accion === 'portal' && resto[1] === 'login' && metodo === 'POST') {
       const contacto = sesion.autenticarContacto(datos.email, datos.password)
+      // Como la API: el bloqueo va DESPUES de validar la clave, para no servir de oraculo de quien existe.
+      if (exigeGoogle(contacto.client_id)) {
+        throw new ErrorApi(403, 'google_required', 'Tu empresa entra al portal con Google.')
+      }
       return {
         estado: 201,
         cuerpo: conDatos({
@@ -7553,6 +7599,7 @@ async function resolverRuta (metodo, segmentos, parametros, token, cuerpo, petic
       escribirAjustesDelOrbePortal('wiwo_portal_ia_chat' in cambios ? { wiwo_portal_ia_chat: cambios.wiwo_portal_ia_chat } : {})
       escribirAjustesDeJornada(cambios)
       escribirAjustesDeModo(cambios)
+      escribirAjusteGlobal(cambios)
     }
 
     return {
@@ -7563,7 +7610,9 @@ async function resolverRuta (metodo, segmentos, parametros, token, cuerpo, petic
           ia_tope_tokens: { value: 700, tipo: 'int' },
           ...opcionDelOrbePortal(),
           ...opcionesDeJornada(),
-          ...opcionesDeModo()
+          ...opcionesDeModo(),
+          ...opcionesDeAcceso(),
+          ...opcionPortalGoogle()
         }
       })
     }
@@ -7783,6 +7832,52 @@ async function resolverRuta (metodo, segmentos, parametros, token, cuerpo, petic
   //
   // Mismo lugar y misma razon que el bloque anterior: antes del `clients` de solo lectura, o el PUT
   // cae al 404 final. La fila es el interruptor y nace vacia; el PUT exige el booleano como la API.
+  // El codigo por correo del portal, por cliente. Faltaba en el mock: sin la ruta la ficha del cliente
+  // se caia entera al dibujar `ClienteSegundoFactorPortal`, y con ella la nueva seccion de Google.
+  if (recurso === 'clients' && resto[1] === 'portal-2fa' && resto.length === 2) {
+    const cliente = buscarO404(CLIENTES, Number(resto[0]), 'cliente')
+
+    if (metodo === 'PUT') {
+      exigirPermiso(actual, 'customers', 'edit')
+      const datos = await cuerpo()
+
+      if (typeof datos?.habilitado !== 'boolean') {
+        throw new ErrorApi(422, 'validation_failed', 'Falta decir si se pide el código por correo.', { habilitado: ['no_booleano'] })
+      }
+
+      if (datos.habilitado) CLIENTES_CON_CODIGO.add(cliente.id)
+      else CLIENTES_CON_CODIGO.delete(cliente.id)
+    }
+
+    exigirPermiso(actual, 'customers', 'view')
+
+    return {
+      estado: 200,
+      cuerpo: conDatos({
+        habilitado: CLIENTES_CON_CODIGO.has(cliente.id),
+        correo: { disponible: true, modo: 'real', entrega: 'real', motivo: null }
+      })
+    }
+  }
+
+  // --- Acceso con Google al portal, por cliente ------------------------------------
+  //
+  // Mismo lugar y misma razon: el PUT no puede caer en el `clients` de solo lectura. Un cliente sin fila
+  // devuelve la configuracion vacia; guardar con Client ID y dominios vacios la borra.
+  if (recurso === 'clients' && resto[1] === 'portal-google' && resto.length === 2) {
+    const cliente = buscarO404(CLIENTES, Number(resto[0]), 'cliente')
+
+    if (metodo === 'PUT') {
+      exigirPermiso(actual, 'customers', 'edit')
+
+      return { estado: 200, cuerpo: conDatos(guardarConfiguracion(cliente.id, await cuerpo())) }
+    }
+
+    exigirPermiso(actual, 'customers', 'view')
+
+    return { estado: 200, cuerpo: conDatos(leerConfiguracion(cliente.id)) }
+  }
+
   if (recurso === 'clients' && resto[1] === 'portal-crea-tareas' && resto.length === 2) {
     const cliente = buscarO404(CLIENTES, Number(resto[0]), 'cliente')
 
@@ -8455,7 +8550,9 @@ async function resolverRuta (metodo, segmentos, parametros, token, cuerpo, petic
 
   if (recurso === 'projects' && (metodo === 'GET' || (metodo === 'PATCH' && resto[1] === 'milestones' && resto[2] === 'orden'))) {
     exigirPermiso(actual, 'projects', 'view')
-    const includes = leerIncludes(parametros, ['custom_fields', 'members'])
+    // `upsells` se acepta aunque el mock no lo presente: la ficha del cliente lo pide en el listado y sin
+    // esto el 422 dejaba la pestaña Proyectos en «Cargando…» para siempre contra el mock.
+    const includes = leerIncludes(parametros, ['custom_fields', 'members', 'upsells'])
 
     if (resto.length === 0) {
       const { filas, paginacion } = aplicarConsulta(ESPACIOS, parametros, CONSULTA_ESPACIOS)

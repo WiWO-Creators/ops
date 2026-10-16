@@ -21,7 +21,9 @@ export const AJUSTES_GOOGLE = {
   dominios: 'wiwo_google_login_domains',
   clienteId: 'wiwo_google_client_id',
   autoaltaHabilitada: 'wiwo_google_autoalta_enabled',
-  autoaltaDominios: 'wiwo_google_autoalta_domains'
+  autoaltaDominios: 'wiwo_google_autoalta_domains',
+  /** Interruptor global del acceso con Google al portal de clientes (kill-switch). */
+  portalHabilitado: 'wiwo_portal_google_enabled'
 } as const
 
 /**
@@ -103,6 +105,16 @@ export function tieneAjustesDeGoogle (ajustes: Ajustes): boolean {
   return ajusteDe(ajustes, AJUSTES_GOOGLE.habilitado, 'bool') !== null &&
     ajusteDe(ajustes, AJUSTES_GOOGLE.dominios, 'texto') !== null &&
     ajusteDe(ajustes, AJUSTES_GOOGLE.clienteId, 'texto') !== null
+}
+
+/**
+ * `true` si la API publica el interruptor de Google en el portal de clientes.
+ *
+ * Aparte de `tieneAjustesDeGoogle`: es una opcion independiente del login del equipo, y mientras el
+ * board no la despliegue la pantalla no debe dibujar un interruptor que no se puede guardar.
+ */
+export function tieneAjusteDePortalGoogle (ajustes: Ajustes): boolean {
+  return ajusteDe(ajustes, AJUSTES_GOOGLE.portalHabilitado, 'bool') !== null
 }
 
 /**
