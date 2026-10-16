@@ -12,7 +12,7 @@ import { detallesDeAjustesLegibles } from '@/dominio/ajustes'
 import {
   AJUSTES_GOOGLE, ajusteBool, ajusteTexto, dominiosATexto, dominiosDesdeTexto,
   motivoParaRechazarDominio, normalizarDominio, tieneAjustesDeGoogle,
-  tieneAjustesDeAutoalta, autoaltaSinDominios
+  tieneAjustesDeAutoalta, autoaltaSinDominios, tieneAjusteDePortalGoogle
 } from '@/dominio/acceso'
 import type { Ajustes, CambiosDeAjustes } from '@/datos/recursos'
 
@@ -22,7 +22,8 @@ const ETIQUETA_DE_CLAVE: Record<string, string> = {
   [AJUSTES_GOOGLE.dominios]: 'Dominios autorizados',
   [AJUSTES_GOOGLE.clienteId]: 'Client ID de Google',
   [AJUSTES_GOOGLE.autoaltaHabilitada]: 'Alta automática con Google',
-  [AJUSTES_GOOGLE.autoaltaDominios]: 'Dominios de alta automática'
+  [AJUSTES_GOOGLE.autoaltaDominios]: 'Dominios de alta automática',
+  [AJUSTES_GOOGLE.portalHabilitado]: 'Google en el portal de clientes'
 }
 
 interface PropsAccesoGoogle {
@@ -51,6 +52,8 @@ export function AccesoGoogle ({ inicial }: PropsAccesoGoogle): ReactElement {
   const [dominios, setDominios] = useState(() => dominiosDesdeTexto(ajusteTexto(inicial, AJUSTES_GOOGLE.dominios)))
   const [clienteId, setClienteId] = useState(() => ajusteTexto(inicial, AJUSTES_GOOGLE.clienteId))
 
+  const [portal, setPortal] = useState(() => ajusteBool(inicial, AJUSTES_GOOGLE.portalHabilitado))
+
   const [autoalta, setAutoalta] = useState(() => ajusteBool(inicial, AJUSTES_GOOGLE.autoaltaHabilitada))
   const [dominiosAutoalta, setDominiosAutoalta] = useState(() => dominiosDesdeTexto(ajusteTexto(inicial, AJUSTES_GOOGLE.autoaltaDominios)))
   const [nuevoDominioAutoalta, setNuevoDominioAutoalta] = useState('')
@@ -70,6 +73,8 @@ export function AccesoGoogle ({ inicial }: PropsAccesoGoogle): ReactElement {
   const dominiosAutoaltaGuardados = ajusteTexto(guardada, AJUSTES_GOOGLE.autoaltaDominios)
   const textoDominiosAutoalta = dominiosATexto(dominiosAutoalta)
   const sinDominiosAutoalta = autoaltaSinDominios(autoalta, dominiosAutoalta)
+  const portalDisponible = tieneAjusteDePortalGoogle(guardada)
+  const portalGuardado = ajusteBool(guardada, AJUSTES_GOOGLE.portalHabilitado)
   const habilitadoGuardado = ajusteBool(guardada, AJUSTES_GOOGLE.habilitado)
   const dominiosGuardados = ajusteTexto(guardada, AJUSTES_GOOGLE.dominios)
   const clienteIdGuardado = ajusteTexto(guardada, AJUSTES_GOOGLE.clienteId)
@@ -78,7 +83,8 @@ export function AccesoGoogle ({ inicial }: PropsAccesoGoogle): ReactElement {
   const sucio = habilitado !== habilitadoGuardado ||
     textoDominios !== dominiosGuardados ||
     clienteId.trim() !== clienteIdGuardado ||
-    autoalta !== autoaltaGuardada || textoDominiosAutoalta !== dominiosAutoaltaGuardados
+    autoalta !== autoaltaGuardada || textoDominiosAutoalta !== dominiosAutoaltaGuardados ||
+    (portalDisponible && portal !== portalGuardado)
 
   // Prender el login sin dominios autorizados impide que cualquier cuenta de Google
   // ingrese. Se bloquea el guardado, no se corrige solo, porque la decision es de quien administra.
@@ -169,6 +175,7 @@ export function AccesoGoogle ({ inicial }: PropsAccesoGoogle): ReactElement {
 
     if (autoalta !== autoaltaGuardada) cambios[AJUSTES_GOOGLE.autoaltaHabilitada] = autoalta
     if (textoDominiosAutoalta !== dominiosAutoaltaGuardados) cambios[AJUSTES_GOOGLE.autoaltaDominios] = textoDominiosAutoalta
+    if (portalDisponible && portal !== portalGuardado) cambios[AJUSTES_GOOGLE.portalHabilitado] = portal
 
     setGuardando(true)
     setErrorGuardar(null)
@@ -191,6 +198,7 @@ export function AccesoGoogle ({ inicial }: PropsAccesoGoogle): ReactElement {
     setHabilitado(ajusteBool(resultado.ajustes, AJUSTES_GOOGLE.habilitado))
     setDominios(dominiosDesdeTexto(ajusteTexto(resultado.ajustes, AJUSTES_GOOGLE.dominios)))
     setClienteId(ajusteTexto(resultado.ajustes, AJUSTES_GOOGLE.clienteId))
+    setPortal(ajusteBool(resultado.ajustes, AJUSTES_GOOGLE.portalHabilitado))
     setAutoalta(ajusteBool(resultado.ajustes, AJUSTES_GOOGLE.autoaltaHabilitada))
     setDominiosAutoalta(dominiosDesdeTexto(ajusteTexto(resultado.ajustes, AJUSTES_GOOGLE.autoaltaDominios)))
     setConfirmado(true)
@@ -263,6 +271,52 @@ export function AccesoGoogle ({ inicial }: PropsAccesoGoogle): ReactElement {
           )}
         </div>
       </Seccion>
+
+      {portalDisponible && (
+        <Seccion titulo="Google en el portal de clientes">
+          <div className="flex max-w-2xl flex-col gap-3">
+            <div className="border-linea rounded-tarjeta flex items-center justify-between gap-4 border p-3">
+              <div>
+                <p className="text-texto text-sm font-semibold">
+                  {portal ? 'Encendido' : 'Apagado'}
+                </p>
+                <p className="text-texto-tenue mt-1 text-xs">
+                  {portal
+                    ? 'Los clientes que tengan su Client ID y sus dominios configurados en su ficha ven el botón de Google al entrar al portal.'
+                    : 'Ningún cliente puede entrar al portal con Google. Todos entran con su contraseña, tengan o no Google configurado en su ficha.'}
+                </p>
+              </div>
+
+              <button
+                type="button"
+                role="switch"
+                aria-checked={portal}
+                aria-label="Google en el portal de clientes"
+                onClick={() => { setPortal(!portal); setConfirmado(false) }}
+                className={
+                  'relative h-6 w-11 shrink-0 cursor-pointer rounded-control border transition-colors duration-rapida ease-neo focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-acento ' +
+                  (portal
+                    ? 'bg-acento border-acento'
+                    : 'bg-relleno-neutro border-linea-fuerte')
+                }
+              >
+                <span
+                  aria-hidden="true"
+                  className={
+                    'bg-superficie border-linea-fuerte absolute top-0.5 size-5 rounded-control border transition-[left] duration-rapida ease-neo ' +
+                    (portal ? 'left-[1.375rem] border-transparent' : 'left-0.5')
+                  }
+                />
+              </button>
+            </div>
+
+            <p className="text-texto-tenue text-sm">
+              Es el interruptor general: apagarlo devuelve el portal a la contraseña para todos, incluso para los clientes
+              que exigen Google. Cada cliente se configura en su ficha.
+            </p>
+          </div>
+        </Seccion>
+      )}
 
       {autoaltaDisponible && (
         <Seccion titulo="Alta automática con Google">

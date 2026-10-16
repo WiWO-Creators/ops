@@ -172,8 +172,8 @@ async function canjearEnlace (cuerpo: CuerpoEntrar, origen: Cabeceras): Promise<
 /**
  * Entra al portal del cliente.
  *
- * Elige entre las tres llamadas del portal: clave (primer paso), codigo (segundo paso) o reenvio del
- * codigo. Escribe la cookie `ops_portal`, distinta de la del panel, asi que alguien del equipo puede
+ * Elige entre las llamadas del portal: clave (primer paso), Google (credencial en `google`), codigo
+ * (segundo paso) o reenvio del codigo. Escribe la cookie `ops_portal`, distinta de la del panel, asi que alguien del equipo puede
  * tener las dos sesiones abiertas a la vez sin que una pise a la otra.
  */
 async function entrarAlPortal (
@@ -184,8 +184,34 @@ async function entrarAlPortal (
 ): Promise<NextResponse> {
   if (cuerpo.reenviar === true) return await reenviarCodigoDelPortal(peticion, origen)
   if (codigo !== '') return await entrarAlPortalConCodigo(peticion, codigo, origen)
+  if (typeof cuerpo.google === 'string') return await entrarAlPortalConGoogle(cuerpo.google, origen)
 
   return await entrarAlPortalConClave(cuerpo, origen)
+}
+
+/**
+ * Entra al portal con la cuenta de Google del contacto.
+ *
+ * `/auth/portal/google` responde igual que `/auth/portal/login`, asi que el cierre es el mismo
+ * (`abrirSesionDeContacto`) y no se duplica. No trae segundo factor: el que pone la organizacion en
+ * Google reemplaza al codigo por correo. Quien decide si la cuenta entra —firma, dominio, cliente,
+ * estado del contacto— es la API; con el interruptor global apagado contesta `404`, y esa respuesta
+ * llega a la pantalla tal cual para que ofrezca la contraseña.
+ *
+ * @param credential el ID token de Google. Se reenvia tal cual y no se registra en ningun lado.
+ */
+async function entrarAlPortalConGoogle (credential: string, origen: Cabeceras): Promise<NextResponse> {
+  if (credential.trim() === '') {
+    return NextResponse.json({ mensaje: 'Falta la credencial de Google' }, { status: 400 })
+  }
+
+  const { data } = await llamarApiTipado<ParDeTokensConContacto | DesafioPortal>('/auth/portal/google', {
+    metodo: 'POST',
+    cuerpo: { credential },
+    cabeceras: origen
+  })
+
+  return await abrirSesionDeContacto(data)
 }
 
 /**

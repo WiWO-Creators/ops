@@ -85,6 +85,7 @@ Todos `GET` bajo `/portal/`, salvo el acceso.
 |---|---|
 | `POST /auth/portal/login` | Par de tokens de contacto más sus datos |
 | `POST /auth/portal/access-link` | Canjea el enlace, fija la contraseña y devuelve la sesión ya iniciada |
+| `GET\|POST /auth/portal/google` | Con Google: qué ofrecer para un correo, y canje del ID token por la sesión (ver `docs/contrato-api.md`, «Los contactos del cliente entran al portal con Google») |
 | `/portal/me` | El contacto, sus permisos y sus secciones habilitadas |
 | `/portal/company` | La empresa; facturación y envío solo si es primario |
 | `/portal/lookups` | Subconjunto de catálogos: sin roles, sin equipo, sin departamentos |
