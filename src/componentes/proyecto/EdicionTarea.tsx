@@ -11,6 +11,7 @@ import { useConfigEnVivo } from '@/componentes/en-vivo/ProveedorEnVivo'
 import { EditorRico } from '@/componentes/formularios/EditorRico'
 import { Entrada } from '@/componentes/formularios/Entrada'
 import { SelectorPersonas } from '@/componentes/formularios/SelectorPersonas'
+import { SugerenciasDeCampo } from '@/componentes/formularios/SugerenciasDeCampo'
 import { DiasExcluidos } from '@/componentes/recurrencia/DiasExcluidos'
 import { FinDeRecurrencia } from '@/componentes/recurrencia/FinDeRecurrencia'
 import {
@@ -37,6 +38,7 @@ import {
 } from '@/dominio/campos-personalizados'
 import { errorDeDescripcion } from '@/dominio/descripcion-tarea'
 import {
+  aplicarSugerencia,
   camposDeTarea,
   cuerpoDeParche,
   errorDeCamposEdicion,
@@ -53,12 +55,14 @@ import {
   RELACIONES_TAREA, type EspaciosDestino, type RelacionTarea
 } from '@/dominio/espacios-destino'
 import { GLOSARIO } from '@/dominio/glosario'
+import { idDeSelector, pendientes, type ChipSugerido } from '@/dominio/sugerencias-tarea'
 import { errorDeHorasEstimadas } from '@/dominio/tiempo-estimado'
 import { estaCompletada, puedePasarA } from './tareas'
 import { accionDeEstado } from './estado-proceso'
 import { atenderArranque } from './arranque-cronometro'
 import { hoyLocal } from '@/lib/fechas'
 import { AsistenteDescripcion } from './AsistenteDescripcion'
+import { useSugerenciasDeTarea } from './useSugerenciasDeTarea'
 import { useVencimientoRequerido } from './useVencimientoRequerido'
 import type { StaffReferencia } from '@/datos/tipos'
 import type {
@@ -341,6 +345,37 @@ export function EdicionTarea (
   const prioridades = listaDe(lookups, 'task_priorities')
   const etiquetas = lookups.tags
 
+  /*
+   * Sugerencias del historial del Espacio, solo para lo que esta vacio. A diferencia del alta, aca no
+   * se registra nada de lo aceptado o ignorado: editar una Tarea ya creada no es una decision de
+   * como se arma una nueva.
+   */
+  const delHistorial = useSugerenciasDeTarea(espacioId, idDeSelector(campos.tipo), campos.inicio)
+  const sugerencias = pendientes(delHistorial, {
+    asignados: campos.asignados,
+    seguidores: campos.seguidores,
+    etiquetas: nombresDeEtiquetas(etiquetas, campos.etiquetas),
+    tipo: idDeSelector(campos.tipo),
+    prioridad: idDeSelector(campos.prioridad),
+    hito: idDeSelector(campos.hito),
+    vencimiento: campos.vencimiento,
+    horas: campos.horasEstimadas,
+    facturable: campos.facturable
+  }, {
+    soloVacios: true,
+    conocidos: {
+      personas: new Set(elegibles.map((persona) => persona.id)),
+      tipos: new Set(tipos.map((tipo) => tipo.id)),
+      prioridades: new Set(prioridades.map((prioridad) => prioridad.id)),
+      hitos: new Set(hitos.map((hito) => hito.id))
+    }
+  })
+
+  /** Pone en el formulario el valor de un chip sugerido; se guarda con «Guardar cambios», como todo. */
+  function aceptarSugerencia (chip: ChipSugerido): void {
+    setCampos((previos) => aplicarSugerencia(previos, chip, etiquetas))
+  }
+
   /**
    * Guarda los cambios. Un formulario sin cambios cierra sin escribir: no hay nada que mandar.
    *
@@ -548,14 +583,17 @@ export function EdicionTarea (
               </Selector>}
             </Campo>
             <Campo etiqueta="Tipo" ayuda={espacioId === null ? `Elige un ${GLOSARIO.espacio.singular.toLowerCase()} para seleccionar el tipo.` : undefined}>
-              {({ id }) => <Selector disabled={espacioId === null} value={campos.tipo || 'ninguno'} onValueChange={(valor) => setCampos({ ...campos, tipo: valor === 'ninguno' ? '' : valor })}>
-                <DisparadorSelector id={id} />
-                <ContenidoSelector>
-                  <Opcion value="ninguno">Sin tipo</Opcion>
-                  {tipos.map((tipo) => <Opcion key={tipo.id} value={String(tipo.id)}>{tipo.name}</Opcion>)}
-                  {campos.tipo && tarea.task_type && !tipos.some((tipo) => String(tipo.id) === campos.tipo) && <Opcion value={campos.tipo}>{tarea.task_type.name}</Opcion>}
-                </ContenidoSelector>
-              </Selector>}
+              {({ id }) => <>
+                <Selector disabled={espacioId === null} value={campos.tipo || 'ninguno'} onValueChange={(valor) => setCampos({ ...campos, tipo: valor === 'ninguno' ? '' : valor })}>
+                  <DisparadorSelector id={id} />
+                  <ContenidoSelector>
+                    <Opcion value="ninguno">Sin tipo</Opcion>
+                    {tipos.map((tipo) => <Opcion key={tipo.id} value={String(tipo.id)}>{tipo.name}</Opcion>)}
+                    {campos.tipo && tarea.task_type && !tipos.some((tipo) => String(tipo.id) === campos.tipo) && <Opcion value={campos.tipo}>{tarea.task_type.name}</Opcion>}
+                  </ContenidoSelector>
+                </Selector>
+                <SugerenciasDeCampo campo="Tipo" chips={sugerencias.tipo} onAceptar={aceptarSugerencia} deshabilitado={enCurso} />
+              </>}
             </Campo>
           </div>
           {estaCompletada(Number(estado)) && <Campo etiqueta="Fecha de cierre" ayuda="Déjala sin cambios para conservar el cierre actual; al completar se usa la fecha de hoy.">
@@ -565,36 +603,42 @@ export function EdicionTarea (
           <div className="grid gap-4 sm:grid-cols-2">
             <Campo etiqueta="Prioridad">
               {({ id }) => (
-                <Selector
-                  value={campos.prioridad}
-                  onValueChange={(valor) => setCampos({ ...campos, prioridad: valor })}
-                >
-                  <DisparadorSelector id={id} />
-                  <ContenidoSelector>
-                    {prioridades.map((prioridad) => (
-                      <Opcion key={prioridad.id} value={String(prioridad.id)}>{prioridad.name}</Opcion>
-                    ))}
-                  </ContenidoSelector>
-                </Selector>
+                <>
+                  <Selector
+                    value={campos.prioridad}
+                    onValueChange={(valor) => setCampos({ ...campos, prioridad: valor })}
+                  >
+                    <DisparadorSelector id={id} />
+                    <ContenidoSelector>
+                      {prioridades.map((prioridad) => (
+                        <Opcion key={prioridad.id} value={String(prioridad.id)}>{prioridad.name}</Opcion>
+                      ))}
+                    </ContenidoSelector>
+                  </Selector>
+                  <SugerenciasDeCampo campo="Prioridad" chips={sugerencias.prioridad} onAceptar={aceptarSugerencia} deshabilitado={enCurso} />
+                </>
               )}
             </Campo>
 
             <Campo etiqueta={GLOSARIO.hito.singular} ayuda={espacioId === null ? `Sólo las ${GLOSARIO.proceso.plural.toLowerCase()} de un ${GLOSARIO.espacio.singular.toLowerCase()} tienen ${GLOSARIO.hito.singular.toLowerCase()}.` : undefined}>
               {({ id }) => (
-                <Selector
-                  value={campos.hito === '' ? SIN_HITO : campos.hito}
-                  onValueChange={(valor) => setCampos({ ...campos, hito: valor === SIN_HITO ? '' : valor })}
-                  disabled={espacioId === null}
-                >
-                  <DisparadorSelector id={id} />
-                  <ContenidoSelector>
-                    <Opcion value={SIN_HITO}>Sin {GLOSARIO.hito.singular.toLowerCase()}</Opcion>
-                    {hitos.map((hito) => (
-                      <Opcion key={hito.id} value={String(hito.id)}>{hito.name}</Opcion>
-                    ))}
-                    {campos.hito && tarea.milestone && !hitos.some((hito) => String(hito.id) === campos.hito) && <Opcion value={campos.hito}>{tarea.milestone.name}</Opcion>}
-                  </ContenidoSelector>
-                </Selector>
+                <>
+                  <Selector
+                    value={campos.hito === '' ? SIN_HITO : campos.hito}
+                    onValueChange={(valor) => setCampos({ ...campos, hito: valor === SIN_HITO ? '' : valor })}
+                    disabled={espacioId === null}
+                  >
+                    <DisparadorSelector id={id} />
+                    <ContenidoSelector>
+                      <Opcion value={SIN_HITO}>Sin {GLOSARIO.hito.singular.toLowerCase()}</Opcion>
+                      {hitos.map((hito) => (
+                        <Opcion key={hito.id} value={String(hito.id)}>{hito.name}</Opcion>
+                      ))}
+                      {campos.hito && tarea.milestone && !hitos.some((hito) => String(hito.id) === campos.hito) && <Opcion value={campos.hito}>{tarea.milestone.name}</Opcion>}
+                    </ContenidoSelector>
+                  </Selector>
+                  <SugerenciasDeCampo campo={GLOSARIO.hito.singular} chips={sugerencias.hito} onAceptar={aceptarSugerencia} deshabilitado={enCurso} />
+                </>
               )}
             </Campo>
 
@@ -611,27 +655,33 @@ export function EdicionTarea (
 
             <Campo etiqueta="Entrega" requerido={vencimientoRequerido}>
               {(props) => (
-                <Entrada
-                  {...props}
-                  type="date"
-                  required={vencimientoRequerido}
-                  value={campos.vencimiento}
-                  onChange={(evento) => setCampos({ ...campos, vencimiento: evento.target.value })}
-                />
+                <>
+                  <Entrada
+                    {...props}
+                    type="date"
+                    required={vencimientoRequerido}
+                    value={campos.vencimiento}
+                    onChange={(evento) => setCampos({ ...campos, vencimiento: evento.target.value })}
+                  />
+                  <SugerenciasDeCampo campo="Entrega" chips={sugerencias.plazo} onAceptar={aceptarSugerencia} deshabilitado={enCurso} />
+                </>
               )}
             </Campo>
           </div>
 
           <Campo etiqueta="Horas estimadas" ayuda="Acepta decimales. Déjalo vacío si todavía no se estimó.">
             {(props) => (
-              <Entrada
-                {...props}
-                type="number"
-                step="any"
-                min="0"
-                value={campos.horasEstimadas}
-                onChange={(evento) => setCampos({ ...campos, horasEstimadas: evento.target.value })}
-              />
+              <>
+                <Entrada
+                  {...props}
+                  type="number"
+                  step="any"
+                  min="0"
+                  value={campos.horasEstimadas}
+                  onChange={(evento) => setCampos({ ...campos, horasEstimadas: evento.target.value })}
+                />
+                <SugerenciasDeCampo campo="Horas estimadas" chips={sugerencias.horas_estimadas} onAceptar={aceptarSugerencia} deshabilitado={enCurso} />
+              </>
             )}
           </Campo>
 
@@ -714,35 +764,46 @@ export function EdicionTarea (
 
           <Campo etiqueta="Asignados">
             {({ id }) => (
-              <SelectorPersonas
-                id={id}
-                personas={elegibles}
-                elegidas={campos.asignados}
-                onCambiar={(ids) => setCampos({ ...campos, asignados: ids })}
-              />
+              <>
+                <SelectorPersonas
+                  id={id}
+                  personas={elegibles}
+                  elegidas={campos.asignados}
+                  onCambiar={(ids) => setCampos({ ...campos, asignados: ids })}
+                  sugeridas={campos.asignados.length === 0 ? (delHistorial?.asignados.map((persona) => persona.id) ?? []) : []}
+                />
+                <SugerenciasDeCampo campo="Asignados" chips={sugerencias.asignados} onAceptar={aceptarSugerencia} deshabilitado={enCurso} />
+              </>
             )}
           </Campo>
 
           <Campo etiqueta="Seguidores" ayuda="Reciben las novedades sin ser responsables.">
             {({ id }) => (
-              <SelectorPersonas
-                id={id}
-                personas={elegibles}
-                elegidas={campos.seguidores}
-                onCambiar={(ids) => setCampos({ ...campos, seguidores: ids })}
-              />
+              <>
+                <SelectorPersonas
+                  id={id}
+                  personas={elegibles}
+                  elegidas={campos.seguidores}
+                  onCambiar={(ids) => setCampos({ ...campos, seguidores: ids })}
+                  sugeridas={campos.seguidores.length === 0 ? (delHistorial?.seguidores.map((persona) => persona.id) ?? []) : []}
+                />
+                <SugerenciasDeCampo campo="Seguidores" chips={sugerencias.seguidores} onAceptar={aceptarSugerencia} deshabilitado={enCurso} />
+              </>
             )}
           </Campo>
 
           <Campo etiqueta="Etiquetas" ayuda="Elige una existente o escribe una nueva: si no existe, se crea al guardar.">
             {({ id, 'aria-describedby': idAyuda }) => (
-              <SelectorEtiquetas
-                id={id}
-                {...(idAyuda === undefined ? {} : { idAyuda })}
-                catalogo={etiquetas.map((etiqueta) => etiqueta.name)}
-                elegidas={nombresDeEtiquetas(etiquetas, campos.etiquetas)}
-                onCambiar={ponerEtiquetas}
-              />
+              <>
+                <SelectorEtiquetas
+                  id={id}
+                  {...(idAyuda === undefined ? {} : { idAyuda })}
+                  catalogo={etiquetas.map((etiqueta) => etiqueta.name)}
+                  elegidas={nombresDeEtiquetas(etiquetas, campos.etiquetas)}
+                  onCambiar={ponerEtiquetas}
+                />
+                <SugerenciasDeCampo campo="Etiquetas" chips={sugerencias.etiquetas} onAceptar={aceptarSugerencia} deshabilitado={enCurso} />
+              </>
             )}
           </Campo>
 

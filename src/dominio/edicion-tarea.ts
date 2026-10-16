@@ -4,6 +4,8 @@ import { enFormatoTitulo } from '../lib/titulo.ts'
 import { esRelacionDeEspacio, relTypeDeRelacion } from './espacios-destino.ts'
 import { cuerpoDeFinConservado, errorDeDiasExcluidos, errorDeFin, mismosDias, modoDeFin, normalizarDias, type ModoFin } from './recurrencia.ts'
 import { errorDeVencimientoRequerido, relacionQuePuedeExigir, type RelacionConCliente } from './vencimiento-requerido.ts'
+import { esMismaEtiqueta } from './etiquetas.ts'
+import type { ChipSugerido } from './sugerencias-tarea.ts'
 import type { StaffReferencia } from '@/datos/tipos'
 import type { Etiqueta, Proceso } from '@/datos/recursos'
 
@@ -367,6 +369,50 @@ export function personasElegibles (
 
     return true
   })]
+}
+
+/**
+ * Pasa a los campos de la edicion el valor de un chip sugerido que la persona acepto.
+ *
+ * Solo lo que la edicion ofrece sugerir: personas, etiquetas, tipo, prioridad, hito, vencimiento y
+ * horas. El facturable no se sugiere aca (la casilla nunca esta vacia) y, por si llegara, se ignora.
+ * Una etiqueta que ya esta en el catalogo se guarda por su id, como hace el selector; una nueva, por
+ * su nombre.
+ *
+ * @param campos los campos actuales del formulario
+ * @param chip el chip aceptado
+ * @param catalogo las etiquetas existentes
+ * @returns los campos con el valor aplicado; los mismos si el chip no se puede aplicar
+ */
+export function aplicarSugerencia (campos: CamposEdicion, chip: ChipSugerido, catalogo: Etiqueta[]): CamposEdicion {
+  const id = chip.id
+
+  switch (chip.campo) {
+    case 'asignados':
+      return id === null || campos.asignados.includes(id) ? campos : { ...campos, asignados: [...campos.asignados, id] }
+    case 'seguidores':
+      return id === null || campos.seguidores.includes(id) ? campos : { ...campos, seguidores: [...campos.seguidores, id] }
+    case 'etiquetas': {
+      const nombres = nombresDeEtiquetas(catalogo, campos.etiquetas)
+      if (nombres.some((nombre) => esMismaEtiqueta(nombre, chip.valor))) return campos
+
+      const existente = catalogo.find((etiqueta) => esMismaEtiqueta(etiqueta.name, chip.valor))
+
+      return { ...campos, etiquetas: [...campos.etiquetas, existente?.id ?? chip.valor] }
+    }
+    case 'tipo':
+      return id === null ? campos : { ...campos, tipo: String(id) }
+    case 'prioridad':
+      return id === null ? campos : { ...campos, prioridad: String(id) }
+    case 'hito':
+      return id === null ? campos : { ...campos, hito: String(id) }
+    case 'plazo':
+      return { ...campos, vencimiento: chip.valor }
+    case 'horas_estimadas':
+      return { ...campos, horasEstimadas: chip.valor }
+    case 'facturable':
+      return campos
+  }
 }
 
 /**

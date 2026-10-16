@@ -8,12 +8,14 @@ import {
   Selector,
   SelectorBuscable
 } from '@/componentes/formularios/Selector'
+import { SugerenciasDeCampo } from '@/componentes/formularios/SugerenciasDeCampo'
 import { RELACIONES_TAREA, type RelacionTarea } from '@/dominio/espacios-destino'
 import { GLOSARIO } from '@/dominio/glosario'
 import type { Hito, Lookups, Referencia } from '@/datos/recursos'
 import { SelectorEspacios } from '../SelectorEspacios'
 import { destinoDelAlta, NINGUNO, NOMBRES_DE_RELACION, type BorradorAlta } from './modelo'
 import type { CambiarCampo } from './useBorradorAlta'
+import type { SugerenciasDelAlta } from './useSugerenciasAlta'
 
 interface PropsCamposDeDestino {
   borrador: BorradorAlta
@@ -29,11 +31,12 @@ interface PropsCamposDeDestino {
   avisoTipos: string | null
   /** Espacios donde falló el último alta múltiple. */
   conFallo: number[]
+  sugerencias: SugerenciasDelAlta
 }
 
 /** Con qué se relaciona la tarea, dónde se crea, su prioridad, su estado y su hito. */
 export function CamposDeDestino (props: PropsCamposDeDestino): ReactElement {
-  const { borrador, cambiar, hitos, avisoTipos } = props
+  const { borrador, cambiar, hitos, avisoTipos, sugerencias } = props
   const { relacion, espacios } = borrador
   const { espacio, multiple, vaAEspacio } = destinoDelAlta(borrador)
 
@@ -82,15 +85,18 @@ export function CamposDeDestino (props: PropsCamposDeDestino): ReactElement {
 
         <Campo etiqueta="Prioridad">
           {({ id }) => (
-            <Selector value={borrador.prioridad} onValueChange={(valor) => { cambiar('prioridad', valor) }}>
-              <DisparadorSelector id={id} />
-              <ContenidoSelector>
-                <Opcion value={NINGUNO}>La que trae por defecto</Opcion>
-                {props.prioridades.map((fila) => (
-                  <Opcion key={fila.id} value={String(fila.id)}>{fila.name}</Opcion>
-                ))}
-              </ContenidoSelector>
-            </Selector>
+            <>
+              <Selector value={borrador.prioridad} onValueChange={(valor) => { cambiar('prioridad', valor) }}>
+                <DisparadorSelector id={id} />
+                <ContenidoSelector>
+                  <Opcion value={NINGUNO}>La que trae por defecto</Opcion>
+                  {props.prioridades.map((fila) => (
+                    <Opcion key={fila.id} value={String(fila.id)}>{fila.name}</Opcion>
+                  ))}
+                </ContenidoSelector>
+              </Selector>
+              <SugerenciasDeCampo campo="Prioridad" chips={sugerencias.chips.prioridad} onAceptar={sugerencias.aceptar} />
+            </>
           )}
         </Campo>
       </div>
@@ -111,13 +117,16 @@ export function CamposDeDestino (props: PropsCamposDeDestino): ReactElement {
             ? `Cada ${GLOSARIO.espacio.singular.toLowerCase()} tiene sus propios hitos: la tarea nace sin hito y se mueve después.`
             : avisoTipos ?? (espacio === NINGUNO ? 'Elige un proyecto para ver sus hitos.' : undefined)}
         >
-          {({ id }) => <Selector value={borrador.hito} onValueChange={(valor) => { cambiar('hito', valor) }} disabled={!vaAEspacio || multiple || hitos.length === 0}>
-            <DisparadorSelector id={id} />
-            <ContenidoSelector>
-              <Opcion value={NINGUNO}>Sin hito</Opcion>
-              {hitos.map((fila) => <Opcion key={fila.id} value={String(fila.id)}>{fila.name}</Opcion>)}
-            </ContenidoSelector>
-          </Selector>}
+          {({ id }) => <>
+            <Selector value={borrador.hito} onValueChange={(valor) => { cambiar('hito', valor) }} disabled={!vaAEspacio || multiple || hitos.length === 0}>
+              <DisparadorSelector id={id} />
+              <ContenidoSelector>
+                <Opcion value={NINGUNO}>Sin hito</Opcion>
+                {hitos.map((fila) => <Opcion key={fila.id} value={String(fila.id)}>{fila.name}</Opcion>)}
+              </ContenidoSelector>
+            </Selector>
+            <SugerenciasDeCampo campo={GLOSARIO.hito.singular} chips={sugerencias.chips.hito} onAceptar={sugerencias.aceptar} />
+          </>}
         </Campo>
       </div>
       {borrador.estado === '5' && <Campo etiqueta="Fecha real de cierre" ayuda="Vacío usa la fecha y hora de creación.">

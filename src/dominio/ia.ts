@@ -112,6 +112,19 @@ export interface ResumenIA {
 }
 
 /**
+ * Valores que el servidor propone por hábito del Espacio y no porque el texto los diga
+ * (`sugeridos` de `POST /ia/tareas/interpretar`). Nunca se aplican solos: se ofrecen como chips.
+ */
+export interface SugeridosPorHabito {
+  asignados: number[]
+  seguidores: number[]
+  etiquetas: string[]
+  tipo: number | null
+  prioridad: number | null
+  hito: number | null
+}
+
+/**
  * Lo que devuelve `POST /ia/tareas/interpretar`.
  *
  * Los nombres de campo son los de la API (`due_date`, `rel_id`) porque este objeto se fusiona con el
@@ -131,6 +144,8 @@ export interface CamposTarea {
   assignees: number[]
   tags: string[]
   no_resuelto: string[]
+  /** Lo que sugiere el hábito del Espacio; vacío cuando el servidor no manda `sugeridos`. */
+  sugeridos?: SugeridosPorHabito
 }
 
 /**

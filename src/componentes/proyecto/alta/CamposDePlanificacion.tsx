@@ -9,11 +9,13 @@ import {
 } from '@/componentes/formularios/Selector'
 import { SelectorEtiquetas } from '@/componentes/formularios/SelectorEtiquetas'
 import { SelectorPersonas } from '@/componentes/formularios/SelectorPersonas'
+import { SugerenciasDeCampo } from '@/componentes/formularios/SugerenciasDeCampo'
 import { GLOSARIO } from '@/dominio/glosario'
 import type { TipoDeProcesoDelEspacio } from '@/datos/recursos'
 import type { StaffReferencia } from '@/datos/tipos'
 import { destinoDelAlta, NINGUNO, type BorradorAlta } from './modelo'
 import type { CambiarCampo } from './useBorradorAlta'
+import type { SugerenciasDelAlta } from './useSugerenciasAlta'
 
 interface PropsCamposDePlanificacion {
   borrador: BorradorAlta
@@ -24,6 +26,7 @@ interface PropsCamposDePlanificacion {
   nombresDelCatalogo: string[]
   tipos: TipoDeProcesoDelEspacio[]
   avisoTipos: string | null
+  sugerencias: SugerenciasDelAlta
 }
 
 /**
@@ -47,7 +50,7 @@ function ayudaDelTipo (multiple: boolean, espacio: string, hayTipos: boolean, av
 
 /** Quién la hace, cuándo, con qué etiquetas y tipo, y quién la sigue. */
 export function CamposDePlanificacion (props: PropsCamposDePlanificacion): ReactElement {
-  const { borrador, cambiar, personas, vencimientoRequerido, tipos } = props
+  const { borrador, cambiar, personas, vencimientoRequerido, tipos, sugerencias } = props
   const { espacio, multiple, vaAEspacio } = destinoDelAlta(borrador)
 
   return (
@@ -57,12 +60,16 @@ export function CamposDePlanificacion (props: PropsCamposDePlanificacion): React
         ayuda={personas.length === 0 ? 'No se pudo traer el equipo.' : undefined}
       >
         {({ id }) => (
-          <SelectorPersonas
-            id={id}
-            personas={personas}
-            elegidas={borrador.asignados}
-            onCambiar={(ids) => { cambiar('asignados', ids) }}
-          />
+          <>
+            <SelectorPersonas
+              id={id}
+              personas={personas}
+              elegidas={borrador.asignados}
+              onCambiar={(ids) => { cambiar('asignados', ids) }}
+              sugeridas={sugerencias.personasSugeridas.asignados}
+            />
+            <SugerenciasDeCampo campo="Asignados" chips={sugerencias.chips.asignados} onAceptar={sugerencias.aceptar} />
+          </>
         )}
       </Campo>
 
@@ -79,51 +86,64 @@ export function CamposDePlanificacion (props: PropsCamposDePlanificacion): React
         </Campo>
         <Campo etiqueta="Fecha de vencimiento" requerido={vencimientoRequerido}>
           {(campo) => (
-            <Entrada
-              {...campo}
-              type="date"
-              required={vencimientoRequerido}
-              value={borrador.vencimiento}
-              onChange={(evento) => { cambiar('vencimiento', evento.target.value) }}
-            />
+            <>
+              <Entrada
+                {...campo}
+                type="date"
+                required={vencimientoRequerido}
+                value={borrador.vencimiento}
+                onChange={(evento) => { cambiar('vencimiento', evento.target.value) }}
+              />
+              <SugerenciasDeCampo campo="Fecha de vencimiento" chips={sugerencias.chips.plazo} onAceptar={sugerencias.aceptar} />
+            </>
           )}
         </Campo>
       </div>
 
       <Campo etiqueta="Etiquetas" ayuda="Elige una existente o escribe una nueva: si no existe, se crea.">
         {({ id, 'aria-describedby': idAyuda }) => (
-          <SelectorEtiquetas
-            id={id}
-            {...(idAyuda === undefined ? {} : { idAyuda })}
-            catalogo={props.nombresDelCatalogo}
-            elegidas={borrador.etiquetasEscritas}
-            onCambiar={(etiquetas) => { cambiar('etiquetasEscritas', etiquetas) }}
-          />
+          <>
+            <SelectorEtiquetas
+              id={id}
+              {...(idAyuda === undefined ? {} : { idAyuda })}
+              catalogo={props.nombresDelCatalogo}
+              elegidas={borrador.etiquetasEscritas}
+              onCambiar={(etiquetas) => { cambiar('etiquetasEscritas', etiquetas) }}
+            />
+            <SugerenciasDeCampo campo="Etiquetas" chips={sugerencias.chips.etiquetas} onAceptar={sugerencias.aceptar} />
+          </>
         )}
       </Campo>
 
       <Campo etiqueta="Tipo" ayuda={ayudaDelTipo(multiple, espacio, tipos.length > 0, props.avisoTipos)}>
         {({ id }) => (
-          <Selector value={borrador.tipo} onValueChange={(valor) => { cambiar('tipo', valor) }} disabled={!vaAEspacio || multiple || tipos.length === 0}>
-            <DisparadorSelector id={id} />
-            <ContenidoSelector>
-              <Opcion value={NINGUNO}>Sin tipo</Opcion>
-              {tipos.map((fila) => (
-                <Opcion key={fila.id} value={String(fila.id)}>{fila.name}</Opcion>
-              ))}
-            </ContenidoSelector>
-          </Selector>
+          <>
+            <Selector value={borrador.tipo} onValueChange={(valor) => { cambiar('tipo', valor) }} disabled={!vaAEspacio || multiple || tipos.length === 0}>
+              <DisparadorSelector id={id} />
+              <ContenidoSelector>
+                <Opcion value={NINGUNO}>Sin tipo</Opcion>
+                {tipos.map((fila) => (
+                  <Opcion key={fila.id} value={String(fila.id)}>{fila.name}</Opcion>
+                ))}
+              </ContenidoSelector>
+            </Selector>
+            <SugerenciasDeCampo campo="Tipo" chips={sugerencias.chips.tipo} onAceptar={sugerencias.aceptar} />
+          </>
         )}
       </Campo>
 
       <Campo etiqueta="Seguidores" ayuda="Reciben las novedades sin ser responsables.">
         {({ id }) => (
-          <SelectorPersonas
-            id={id}
-            personas={personas}
-            elegidas={borrador.seguidores}
-            onCambiar={(ids) => { cambiar('seguidores', ids) }}
-          />
+          <>
+            <SelectorPersonas
+              id={id}
+              personas={personas}
+              elegidas={borrador.seguidores}
+              onCambiar={(ids) => { cambiar('seguidores', ids) }}
+              sugeridas={sugerencias.personasSugeridas.seguidores}
+            />
+            <SugerenciasDeCampo campo="Seguidores" chips={sugerencias.chips.seguidores} onAceptar={sugerencias.aceptar} />
+          </>
         )}
       </Campo>
     </>

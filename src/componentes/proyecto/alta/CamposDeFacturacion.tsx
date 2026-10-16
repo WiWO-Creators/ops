@@ -7,30 +7,36 @@ import {
   Opcion,
   Selector
 } from '@/componentes/formularios/Selector'
+import { SugerenciasDeCampo } from '@/componentes/formularios/SugerenciasDeCampo'
 import { DiasExcluidos } from '@/componentes/recurrencia/DiasExcluidos'
 import { FinDeRecurrencia } from '@/componentes/recurrencia/FinDeRecurrencia'
 import type { BorradorAlta } from './modelo'
 import type { CambiarCampo } from './useBorradorAlta'
+import type { SugerenciasDelAlta } from './useSugerenciasAlta'
 
 interface PropsCamposDeFacturacion {
   borrador: BorradorAlta
   cambiar: CambiarCampo
+  sugerencias: SugerenciasDelAlta
 }
 
 /** Horas, tarifa, visibilidad y recurrencia de la tarea. */
-export function CamposDeFacturacion ({ borrador, cambiar }: PropsCamposDeFacturacion): ReactElement {
+export function CamposDeFacturacion ({ borrador, cambiar, sugerencias }: PropsCamposDeFacturacion): ReactElement {
   return (
     <>
       <Campo etiqueta="Horas estimadas" ayuda="Acepta decimales. Déjalo vacío si todavía no se estimó.">
         {(campo) => (
-          <Entrada
-            {...campo}
-            type="number"
-            step="any"
-            min="0"
-            value={borrador.horasEstimadas}
-            onChange={(evento) => { cambiar('horasEstimadas', evento.target.value) }}
-          />
+          <>
+            <Entrada
+              {...campo}
+              type="number"
+              step="any"
+              min="0"
+              value={borrador.horasEstimadas}
+              onChange={(evento) => { cambiar('horasEstimadas', evento.target.value) }}
+            />
+            <SugerenciasDeCampo campo="Horas estimadas" chips={sugerencias.chips.horas_estimadas} onAceptar={sugerencias.aceptar} />
+          </>
         )}
       </Campo>
 
@@ -45,6 +51,7 @@ export function CamposDeFacturacion ({ borrador, cambiar }: PropsCamposDeFactura
         />
         Facturable
       </label>
+      <SugerenciasDeCampo campo="Facturable" chips={sugerencias.chips.facturable} onAceptar={sugerencias.aceptar} />
       <label className="text-texto flex items-center gap-2 text-sm">
         <input type="checkbox" checked={borrador.publica} onChange={(evento) => { cambiar('publica', evento.target.checked) }} />
         Pública para el equipo

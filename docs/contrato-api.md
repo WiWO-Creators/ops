@@ -951,6 +951,79 @@ enumerado: las solicitudes de soporte y esta alta.
   preferencias de avisos («Tarea nueva creada por el cliente»); ops-v2 todavía no tiene pantalla de
   preferencias que lo liste.
 
+#### Los contactos del cliente entran al portal con Google (migración `1680`)
+
+Cada cliente trae su propia aplicación de Google (su Client ID) y los dominios de correo de sus
+contactos; quien entra con una cuenta de Google de esos dominios obtiene la misma sesión que con la
+contraseña. **Dos interruptores**: el global, `wiwo_portal_google_enabled` (opción de `tbloptions`, grupo
+`acceso`, tipo `bool`, nace en `'0'`; es el kill-switch), y el del cliente, que es existir su fila de
+configuración. Con el global apagado el portal es el de siempre: el `GET` público dice `enabled: false`,
+el `POST` responde `404` y `exigir_google` deja de bloquear. No cambia el login del equipo.
+
+- **Interruptor global.** `wiwo_portal_google_enabled` viaja en `GET|PATCH /settings` como cualquier
+  opción editable (`{ group: "acceso", type: "bool", value }`). Administración → Acceso lo muestra solo
+  si la API lo publica.
+- **`GET /auth/portal/google[?email=]`** (anónimo, limitado por IP) → `200`
+  `{ "data": { "enabled": bool, "client_id": string|null, "required": bool } }`.
+  - Sin `email`: solo `enabled` (lo que decide si el portal cambia de cara) y `client_id: null`.
+  - Con `email`: `client_id` es el del cliente al que pertenece **el dominio** del correo, o `null`;
+    `required` es su `exigir_google`. Nunca revela si la cuenta existe: depende solo del dominio.
+  - `429` por exceso de intentos (`rate_limited`). El BFF (`GET /api/sesion/portal-google`) lo reenvía y
+    la pantalla lo muestra como «demasiados intentos».
+- **`POST /auth/portal/google { "credential": "<ID token>" }`** (anónimo) → `201` con el **mismo cuerpo**
+  que `POST /auth/portal/login` (par de tokens más `contact`). No pide segundo factor por correo: el
+  MFA lo pone el Workspace del cliente.
+  - `404`: interruptor global apagado. `422`: falta `credential`.
+  - `401`: token inválido, `aud` que no es el Client ID del cliente, `hd` ausente o ajeno al cliente
+    (se excluyen las cuentas personales), correo sin verificar, contacto inexistente o repetido.
+  - `403`: contacto o cliente inactivos. `429`. `503` si no hay claves de Google (JWKS).
+  - Verificación en tres pasos: el correo del token, aún sin confiar, elige un cliente candidato; el
+    token se verifica contra el Client ID de ese cliente; el cliente se vuelve a resolver con el correo
+    ya verificado y tiene que ser el mismo.
+- **`GET /clients/{id}/portal-google`** (`customers.view`) →
+  ```json
+  { "data": {
+    "configurado": false,
+    "google_client_id": "",
+    "exigir_google": false,
+    "dominios": [{ "dominio": "wom.cl", "incluir_subdominios": true }],
+    "global_habilitado": false,
+    "contactos_sin_cobertura": 0
+  } }
+  ```
+  Un cliente sin configuración devuelve este mismo cuerpo vacío. `global_habilitado` es informativo.
+  `contactos_sin_cobertura` es la **cantidad** de contactos activos cuyo correo no cae en ningún dominio
+  de la lista (con Google encendido siguen entrando con contraseña, salvo que se exija). El frontend
+  tolera que llegue como lista y toma su largo.
+- **`PUT /clients/{id}/portal-google`** (`customers.edit`) recibe el mismo cuerpo que devuelve el `GET`
+  y responde con él ya guardado. **Lo que manda ops-v2 es solo lo editable** —`google_client_id`,
+  `exigir_google`, `dominios`—, sin `configurado`, `global_habilitado` ni `contactos_sin_cobertura`
+  (los informa la API). Un Client ID vacío con dominios vacíos **borra** la configuración.
+  - `403`/`404` por permiso o cliente ajeno.
+  - `422` (`error.details`): las claves son `google_client_id`, `exigir_google`, `dominios` y, por
+    elemento, `dominios.N.dominio` / `dominios.N.incluir_subdominios`; los códigos, `required`,
+    `invalid`, `free_mail` (`gmail.com`, `outlook.com`…), `public_suffix` (comodín sobre `cl`,
+    `com.cl`, `gob.cl`, `co.uk`…), `duplicate`, `too_many` (más de 20) y `requires_domains`
+    (`exigir_google` sin dominios). Client ID sin dominios, o al revés, es `required`. ops-v2 los
+    traduce a frases (`frasesDeRechazo`) y, si no reconoce ninguno, muestra el mensaje de la API.
+  - `409`: algún dominio se solapa con el de otro cliente (exacto, subdominio bajo el comodín de otro, o
+    comodín sobre un dominio de otro).
+- **Resolución de dominios.** `incluir_subdominios` hace que `wom.cl` cubra `consultor.wom.cl`. Gana
+  siempre el más específico: primero el dominio exacto, después el padre más cercano que tenga comodín.
+  `hd` del token debe ser igual a un dominio del cliente o subdominio de uno.
+- **`exigir_google = 1`** (solo con el global encendido) cierra las otras puertas de ese cliente:
+  `POST /auth/portal/login` → `403` `google_required` **después** de validar la clave (para no servir de
+  oráculo: una clave mala sigue siendo `401`); `POST /auth/portal/access-link` → `403`; emitir el enlace
+  (`POST /contacts/{id}/access-link`) → `409`.
+- **Frontend.** Con el global apagado el portal no cambia. Encendido, `/` pide primero el correo y
+  consulta `GET /api/sesion/portal-google?email=`: si el dominio tiene Google muestra el botón (la
+  contraseña queda como alternativa salvo `required`); si no, pide la contraseña. El botón entrega el ID
+  token a `POST /api/sesion` con `{ portal: true, google }`, que llama a `POST /auth/portal/google` y
+  guarda la cookie del contacto. La ficha del cliente edita la configuración (`ClienteGooglePortal`, junto al código por correo).
+- **Mock.** `mock/portal-google.js`; `MOCK_PORTAL_GOOGLE=1` arranca con el global encendido y a Acme con
+  `acme.com` y sus subdominios. La credencial puede ser un JWT cualquiera (no se verifica la firma) o
+  `mock:correo@dominio`.
+
 ### `POST /tasks/multi-espacio` — el mismo Proceso en varios Espacios
 
 Mismo cuerpo que `POST /tasks`, más `espacios` (la lista de destinos) y sin `rel_type`, `rel_id`,
