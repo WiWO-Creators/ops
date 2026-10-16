@@ -27,10 +27,11 @@ import { useHilosDelActa } from './acta/useHilosDelActa'
 import { useIdiomaDelActa } from './acta/useIdiomaDelActa'
 import type { Acta } from '@/datos/recursos'
 import { EVENTO_ABRIR_ORBE } from '@/dominio/pantalla'
-import { hayCambioAjeno, textoDeCambioAjeno } from '@/dominio/acta-concurrencia'
+import { debeRevalidarActaAbierta, hayCambioAjeno, textoDeCambioAjeno } from '@/dominio/acta-concurrencia'
 import { EVENTO_ORBE_ESCRITURA, escrituraAlcanzaAlActa } from '@/dominio/orbe-escritura'
 import { useAviso } from '@/componentes/estado/useAviso'
 import { useConfigEnVivo } from '@/componentes/en-vivo/ProveedorEnVivo'
+import { useEnVivo } from '@/componentes/en-vivo/useEnVivo'
 import type { MotivoDeFin } from '@/componentes/en-vivo/useDocumentoColaborativo'
 import { ESPERA_TRAS_CERRAR_MS } from '@/dominio/acta-colaborativa'
 import type { Yo } from '@/datos/tipos'
@@ -269,6 +270,13 @@ export function DetalleActa ({
 
     return () => { window.removeEventListener(EVENTO_ORBE_ESCRITURA, alEscribirElOrbe) }
   }, [acta.id, onRevalidar])
+
+  // Otra persona (o el Orbe) guardó un acta del Espacio: se revalida si es esta. Con el editor normal
+  // abierto la revisión nueva enciende el aviso de cambio ajeno sin tocar lo escrito; en edición
+  // conjunta no se pide nada, porque el servicio ya fusiona el cambio.
+  useEnVivo(['acta'], (cambio) => {
+    if (debeRevalidarActaAbierta(cambio, { espacioId: proyectoId, actaAbiertaId: acta.id, conjunta })) onRevalidar()
+  })
   const escrituras = useEscriturasDelActa({
     acta,
     ruta,

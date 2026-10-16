@@ -12,7 +12,9 @@ import { ACTAS } from '@/definiciones/actas'
 import { conId, type FuenteDeProyecto } from '@/dominio/fuente-proyecto'
 import { idPositivoDeTexto } from '@/dominio/pantalla'
 import { useConfigEnVivo } from '@/componentes/en-vivo/ProveedorEnVivo'
+import { useEnVivo } from '@/componentes/en-vivo/useEnVivo'
 import { useSalaDelEspacio } from '@/componentes/en-vivo/useSalaDelEspacio'
+import { debeRevalidarListaDeActas } from '@/dominio/acta-concurrencia'
 import { useRecurso } from './carga'
 import { AsistenteDeActa } from './AsistenteDeActa'
 import { AsistenteDeTranscripcion } from './AsistenteDeTranscripcion'
@@ -148,6 +150,12 @@ function ActasDelProyecto ({
   const [recienGenerada, setRecienGenerada] = useState<number | null>(null)
 
   const recargar = useCallback(() => { setRevision((n) => n + 1) }, [])
+
+  // Un acta del Espacio cambió (alta, edición, borrado): la lista se vuelve a pedir. `revision` no
+  // vuelve a «cargando», así que la lista no parpadea.
+  useEnVivo(['acta'], (cambio) => {
+    if (debeRevalidarListaDeActas(cambio, proyectoId)) recargar()
+  })
   const recargarTranscripciones = useCallback(() => { setRevisionTranscripciones((n) => n + 1) }, [])
   const pedida = params.get('acta')
   const puedeCrear = capacidades.includes('create')
