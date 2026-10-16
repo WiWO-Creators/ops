@@ -1,14 +1,11 @@
 import { getSchema } from '@tiptap/core'
-import { generateHTML, generateJSON } from '@tiptap/html'
-import {
-  prosemirrorJSONToYDoc,
-  prosemirrorJSONToYXmlFragment,
-  yDocToProsemirrorJSON
-} from '@tiptap/y-tiptap'
+import { generateJSON } from '@tiptap/html'
+import { prosemirrorJSONToYXmlFragment } from '@tiptap/y-tiptap'
 import type { Document } from '@hocuspocus/server'
 import type { Doc } from 'yjs'
 
 import { extensionesDeActa } from '../../../src/lib/en-vivo/extensiones-acta.ts'
+import { CAMPO, fusionarConLoAjeno, htmlAYDoc, yDocAHtml, type ResultadoDeFusion } from '../bloques-acta.ts'
 import type { ClienteBoard } from '../cliente-board.ts'
 import { registrar } from '../registro.ts'
 import { descartarEditorSinPermiso, desenvolver, esperaTransitoria } from './comun.ts'
@@ -32,8 +29,11 @@ import {
  * interpreta como fecha.
  */
 
-/** Nombre del fragmento Yjs donde vive el texto. */
-const CAMPO = 'default'
+/** Motivos de recarga en los que lo escrito sin guardar se combina con lo del board en vez de descartarse. */
+const MOTIVOS_QUE_FUSIONAN = new Set(['conflicto', 'externo'])
+
+/** Cuántas veces seguidas se vuelve a guardar tras fusionar un 409, antes de dejarlo al reintento normal. */
+const MAXIMO_DE_FUSIONES_SEGUIDAS = 3
 
 /** Etiqueta con la que el board rotula en el historial lo guardado desde la edición conjunta. */
 const ORIGEN_COLABORATIVO = 'colaborativo'
@@ -65,25 +65,7 @@ function leerRevision (datos: unknown): string | null {
   return typeof revision === 'string' || typeof revision === 'number' ? String(revision) : null
 }
 
-/**
- * Convierte el HTML del board en un documento Yjs con el esquema del acta.
- *
- * @param html el contenido del acta tal como lo guarda el board
- * @returns un `Y.Doc` con el texto en el fragmento `default`
- */
-export function htmlAYDoc (html: string): Doc {
-  return prosemirrorJSONToYDoc(getSchema(extensionesDeActa()), generateJSON(html, extensionesDeActa()), CAMPO)
-}
-
-/**
- * Convierte un documento Yjs del acta en el HTML que se guarda en el board.
- *
- * @param documento el documento colaborativo
- * @returns el HTML según el esquema del acta
- */
-export function yDocAHtml (documento: Doc): string {
-  return generateHTML(yDocToProsemirrorJSON(documento, CAMPO), extensionesDeActa())
-}
+export { htmlAYDoc, yDocAHtml }
 
 /** Pide el acta al board; `sin_acceso` si ya no existe o la edición conjunta está apagada. */
 async function pedirActa (board: ClienteBoard, id: number): Promise<ActaDelBoard> {
@@ -138,6 +120,19 @@ export function crearAdaptadorDeActa (board: ClienteBoard): AdaptadorDeDocumento
       return error instanceof ErrorDeAdaptador && error.motivo === 'sin_acceso' ? 'sin_acceso' : 'error'
     }
 
+    const hayTextoSinGuardar = yDocAHtml(documento) !== estado.ultimoHtml
+
+    if (MOTIVOS_QUE_FUSIONAN.has(motivo) && hayTextoSinGuardar) {
+      fusionarConElBoard(documento, estado, acta)
+    } else {
+      reemplazarPorElBoard(documento, estado, acta, motivo)
+    }
+
+    return 'recargado'
+  }
+
+  /** Sustituye todo el documento por el acta del board; lo escrito aquí y sin guardar se descarta. */
+  function reemplazarPorElBoard (documento: Document, estado: EstadoDeDocumento, acta: ActaDelBoard, motivo: string): void {
     const json = generateJSON(acta.content, extensionesDeActa())
     const fragmento = documento.getXmlFragment(CAMPO)
 
@@ -154,8 +149,33 @@ export function crearAdaptadorDeActa (board: ClienteBoard): AdaptadorDeDocumento
     estado.ultimoEditor = null
     estado.origen = ORIGEN_COLABORATIVO
     documento.broadcastStateless(JSON.stringify({ t: 'recargado', motivo }))
+  }
 
-    return 'recargado'
+  /**
+   * Combina el cambio del board con el texto que aún no se guardó (3 bandas), sin descartar nada.
+   *
+   * Base es lo último que el servicio guardó; lo ajeno, el acta nueva del board; lo local, el documento
+   * vivo. Si el documento no se puede emparejar con sus bloques, se conserva lo local entero y se avisa
+   * (`conservado`): el siguiente guardado, con la revisión nueva, lo escribe encima del board. Autores y
+   * origen no se tocan: lo escrito sigue pendiente y se guarda a continuación.
+   */
+  function fusionarConElBoard (documento: Document, estado: EstadoDeDocumento, acta: ActaDelBoard): void {
+    const ajeno = yDocAHtml(htmlAYDoc(acta.content))
+    let resultado: ResultadoDeFusion
+
+    try {
+      resultado = fusionarConLoAjeno(documento, estado.ultimoHtml, ajeno)
+    } catch {
+      resultado = 'no_mapeable'
+    }
+
+    estado.revision = acta.revision
+    estado.ultimoHtml = ajeno
+    registrar({ evento: 'acta_fusionada', documento: `acta:${estado.id}`, resultado })
+
+    if (resultado === 'sin_cambios') return
+
+    documento.broadcastStateless(JSON.stringify({ t: 'recargado', motivo: resultado === 'fusionado' ? 'fusionado' : 'conservado' }))
   }
 
   async function sincronizar (documento: Document, estado: EstadoDeDocumento): Promise<ResultadoDeSincronia> {
@@ -185,7 +205,10 @@ export function crearAdaptadorDeActa (board: ClienteBoard): AdaptadorDeDocumento
     return recarga === 'recargado' ? 'recargado' : recarga === 'sin_acceso' ? 'sin_acceso' : 'reintentar'
   }
 
-  async function guardar (documento: Document, estado: EstadoDeDocumento): Promise<ResultadoDeGuardado> {
+  /**
+   * @param fusiones cuántas veces seguidas se fusionó un 409 en este guardado (lo pone esta misma función)
+   */
+  async function guardar (documento: Document, estado: EstadoDeDocumento, fusiones = 0): Promise<ResultadoDeGuardado> {
     const html = yDocAHtml(documento)
 
     if (html === estado.ultimoHtml || estado.ultimoEditor === null) {
@@ -229,7 +252,14 @@ export function crearAdaptadorDeActa (board: ClienteBoard): AdaptadorDeDocumento
     if (http === 409) {
       const recarga = await recargar(documento, estado, 'conflicto')
 
-      return recarga === 'recargado' ? 'recargado' : recarga === 'sin_acceso' ? 'sin_acceso' : 'reintentar'
+      if (recarga === 'sin_acceso') return 'sin_acceso'
+      if (recarga !== 'recargado' || fusiones >= MAXIMO_DE_FUSIONES_SEGUIDAS) return 'reintentar'
+
+      // Con lo del board ya combinado y la revisión nueva, lo escrito aquí se guarda a continuación; si no
+      // quedó nada pendiente (se reemplazó todo por el board) el segundo intento es `sin_cambios`.
+      const siguiente = await guardar(documento, estado, fusiones + 1)
+
+      return siguiente === 'sin_cambios' ? 'recargado' : siguiente
     }
 
     if (http === 403 || http === 404) return await alNegarseElGuardado(documento, estado)

@@ -9,9 +9,9 @@ import { EditorRico, type PropsEditorRico } from '@/componentes/formularios/Edit
 import { EditorRicoMarcador } from '@/componentes/formularios/EditorRicoMarcador'
 import { GrupoEnlacesPersona } from '@/componentes/presentadores/GrupoEnlacesPersona'
 import { colorDeColaborador, textoDeGuardado } from '@/dominio/acta-colaborativa'
-import { pedirBoletoDeDocumento } from './boletoDeDocumento'
+import { pedirBoletoConPermiso } from './boletoDeDocumento'
 import { cursorDeColaborador, seleccionDeColaborador } from './cursores'
-import { useDocumentoColaborativo } from './useDocumentoColaborativo'
+import { useDocumentoColaborativo, type MotivoDeFin } from './useDocumentoColaborativo'
 import { useEditoresDelDocumento } from './useEditoresDelDocumento'
 import { useYoEnVivo } from './useYoEnVivo'
 
@@ -29,6 +29,37 @@ export interface PropsEditorRicoConjunto extends Omit<PropsEditorRico, 'colabora
    * alguien envía la respuesta, y avisarlo a quien la envió sería ruido.
    */
   avisarAlRecargar?: boolean
+  /**
+   * Se llama una vez cuando la edición conjunta deja de sostenerse (sin conexión o sin acceso) y se
+   * sigue con el editor de siempre: quien lo usa pasa a guardar el texto por su propia vía.
+   */
+  alCaerElConjunto?: () => void
+}
+
+/**
+ * El aviso que acompaña al editor de siempre cuando la edición conjunta terminó.
+ *
+ * @param estado cómo terminó la sesión
+ * @param motivo si había texto en juego: se cortó con cambios sin enviar, o el board no aceptó guardar
+ * @returns el aviso, o `null` si no hace falta (no abrió nunca o se cayó sin texto en juego)
+ */
+function avisoDeFin (
+  estado: 'sin_conexion' | 'sin_acceso',
+  motivo: MotivoDeFin | null
+): { variante: 'error' | 'aviso', mensaje: string } | null {
+  if (estado === 'sin_acceso') {
+    return { variante: 'error', mensaje: 'Ya no tienes acceso a este texto en edición conjunta; lo que escribas aquí no se compartirá.' }
+  }
+
+  if (motivo === 'cambios_sin_enviar') {
+    return { variante: 'aviso', mensaje: 'Se cortó la conexión de la edición conjunta con lo último que escribiste. Tu texto sigue aquí; guarda para no perderlo.' }
+  }
+
+  if (motivo === 'no_guardado') {
+    return { variante: 'aviso', mensaje: 'No se pudieron guardar los cambios de la edición conjunta. Tu texto sigue aquí; guarda para no perderlo.' }
+  }
+
+  return null
 }
 
 /**
@@ -52,6 +83,7 @@ export interface PropsEditorRicoConjunto extends Omit<PropsEditorRico, 'colabora
 export function EditorRicoConjuntoInterno ({
   documento,
   avisarAlRecargar = true,
+  alCaerElConjunto,
   valorInicial = null,
   onCambio,
   ...resto
@@ -59,9 +91,17 @@ export function EditorRicoConjuntoInterno ({
   const aviso = useAviso()
   const nombre = `${documento.clase}:${documento.id}`
   const yo = useYoEnVivo()
+  // El BFF dice con el boleto si la persona puede escribir; si no, el servicio la abre en solo lectura.
+  const [puedeEscribir, setPuedeEscribir] = useState(true)
   const sesion = useDocumentoColaborativo({
     nombre,
-    pedirBoleto: async () => await pedirBoletoDeDocumento(nombre, null),
+    pedirBoleto: async () => {
+      const { boleto, escritura } = await pedirBoletoConPermiso(nombre, null)
+
+      setPuedeEscribir(escritura)
+
+      return boleto
+    },
     activo: true,
     identidad: nombre
   })
@@ -97,22 +137,26 @@ export function EditorRicoConjuntoInterno ({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [sesion.recargados])
 
+  useEffect(() => {
+    if (sesion.estado === 'sin_conexion' || sesion.estado === 'sin_acceso') alCaerElConjunto?.()
+    // Solo importa el paso a un estado final; `alCaerElConjunto` suele ser una función nueva en cada render.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [sesion.estado])
+
   function alCambiar (html: string): void {
     setUltimoHtml(html)
     onCambio(html)
   }
 
+  const deshabilitado = resto.deshabilitado === true || !puedeEscribir
+
   if (sesion.estado === 'sin_conexion' || sesion.estado === 'sin_acceso') {
+    const aviso = avisoDeFin(sesion.estado, sesion.motivoDeFin)
+
     return (
       <div className="flex flex-col gap-2">
-        {sesion.estado === 'sin_acceso' && (
-          <AvisoEnLinea
-            variante="error"
-            mensaje="Ya no tienes acceso a este texto en edición conjunta; lo que escribas aquí no se compartirá."
-            className="text-sm"
-          />
-        )}
-        <EditorRico key="solo" {...resto} valorInicial={ultimoHtml ?? valorInicial} onCambio={alCambiar} />
+        {aviso !== null && <AvisoEnLinea variante={aviso.variante} mensaje={aviso.mensaje} className="text-sm" />}
+        <EditorRico key="solo" {...resto} deshabilitado={deshabilitado} valorInicial={ultimoHtml ?? valorInicial} onCambio={alCambiar} />
       </div>
     )
   }
@@ -142,7 +186,13 @@ export function EditorRicoConjuntoInterno ({
         <span className="text-texto-tenue tabular-nums">{textoDeGuardado(sesion.ultimoGuardado)}</span>
       </div>
 
-      <EditorRico key="conjunto" {...resto} colaboracion={colaboracion} onCambio={alCambiar} />
+      {!puedeEscribir && (
+        <p role="status" className="text-texto-tenue text-xs">
+          Solo lectura: no tienes permiso para editar este texto. Verás en vivo lo que escriban los demás.
+        </p>
+      )}
+
+      <EditorRico key="conjunto" {...resto} deshabilitado={deshabilitado} colaboracion={colaboracion} onCambio={alCambiar} />
     </div>
   )
 }

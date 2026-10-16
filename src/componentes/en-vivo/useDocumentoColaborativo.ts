@@ -25,7 +25,23 @@ export interface DocumentoColaborativo {
   revision: string | null
   /** Cuántas veces el servicio recargó el documento desde el board (un conflicto o un cambio externo). */
   recargados: number
+  /**
+   * El motivo de la última recarga que avisó el servicio (`conflicto`, `externo`, `fusionado`,
+   * `conservado`...), o `null` si aún no hubo. `fusionado`: lo del board se combinó con lo escrito aquí;
+   * `conservado`: no se pudo combinar y se mantuvo lo escrito aquí.
+   */
+  motivoDeRecarga: string | null
+  /**
+   * Por qué terminó la edición conjunta cuando hubo texto en juego: `cambios_sin_enviar` si se cortó la
+   * conexión con lo último tecleado sin llegar al servicio; `no_guardado` si el board no aceptó el
+   * guardado. `null` en cualquier otro caso. En ambos, quien usa el hook sigue con su HTML local en el
+   * editor de siempre y debe avisarlo.
+   */
+  motivoDeFin: MotivoDeFin | null
 }
+
+/** Ver {@link DocumentoColaborativo.motivoDeFin}. */
+export type MotivoDeFin = 'cambios_sin_enviar' | 'no_guardado'
 
 export interface OpcionesDeDocumento {
   /** Nombre del documento en el servicio (`acta:12`, `tarea:500`, `ticket-borrador:40`). */
@@ -157,6 +173,11 @@ function abrirSesion (opciones: OpcionesDeSesion): SesionAbierta {
  *   `sin_conexion`: quien lo use vuelve a la edición de siempre.
  * - Si la conexión se pierde después de haber andado, se destruyen proveedor y documento y se
  *   reconecta con unos nuevos, con espera creciente. Tras varios intentos fallidos pasa a `sin_conexion`.
+ * - Si se pierde con lo último tecleado sin llegar al servicio, no se reconecta con un documento nuevo
+ *   (ese texto desaparecería): pasa a `sin_conexion` con `motivoDeFin = 'cambios_sin_enviar'` y quien
+ *   lo usa sigue con su HTML local en el editor de siempre.
+ * - Si el servicio avisa `no_guardado` (el board no acepta el guardado) pasa a `sin_conexion` con
+ *   `motivoDeFin = 'no_guardado'`, por la misma razón.
  * - Si el servicio avisa `sin_acceso` (la persona perdió el permiso) el estado es final: no se reconecta.
  * - Al desmontar con cambios todavía sin enviar, espera a que lleguen (hasta un tope) antes de cerrar.
  *
@@ -170,6 +191,8 @@ export function useDocumentoColaborativo ({ nombre, pedirBoleto, activo, identid
   const [ultimoGuardado, setUltimoGuardado] = useState<number | null>(null)
   const [revision, setRevision] = useState<string | null>(null)
   const [recargados, setRecargados] = useState(0)
+  const [motivoDeRecarga, setMotivoDeRecarga] = useState<string | null>(null)
+  const [motivoDeFin, setMotivoDeFin] = useState<MotivoDeFin | null>(null)
   const [intento, setIntento] = useState(0)
   /** Lo que sobrevive de una conexión a la siguiente: si alguna vez sincronizó y cuántos intentos fallaron. */
   const memoria = useRef({ sincronizada: false, fallidos: 0 })
@@ -181,6 +204,7 @@ export function useDocumentoColaborativo ({ nombre, pedirBoleto, activo, identid
   useEffect(() => () => {
     memoria.current = { sincronizada: false, fallidos: 0 }
     setIntento(0)
+    setMotivoDeFin(null)
     setEstado('conectando')
   }, [nombre, identidad, activo, url])
 
@@ -209,16 +233,26 @@ export function useDocumentoColaborativo ({ nombre, pedirBoleto, activo, identid
       setSesion(null)
     }
 
-    const terminar = (final: 'sin_conexion' | 'sin_acceso'): void => {
+    const terminar = (final: 'sin_conexion' | 'sin_acceso', motivo: MotivoDeFin | null = null): void => {
       if (!vigente) return
 
       desarmar()
+      setMotivoDeFin(motivo)
       setEstado(final)
     }
 
-    /** La conexión se perdió: reconectar con una sesión nueva, o rendirse si nunca anduvo o ya se insistió demasiado. */
+    /**
+     * La conexión se perdió: reconectar con una sesión nueva, o rendirse si nunca anduvo o ya se insistió demasiado.
+     * Con lo último tecleado sin enviar no se reconecta: el documento nuevo no lo tendría y el texto desaparecería.
+     */
     const perdida = (): void => {
       if (!vigente) return
+
+      if (listo && abierta?.provider.hasUnsyncedChanges === true) {
+        terminar('sin_conexion', 'cambios_sin_enviar')
+
+        return
+      }
 
       const espera = recuerdo.sincronizada ? esperaDeReconexion(++recuerdo.fallidos) : null
 
@@ -259,7 +293,10 @@ export function useDocumentoColaborativo ({ nombre, pedirBoleto, activo, identid
           setUltimoGuardado(Date.now())
           setRevision(mensaje.revision)
         } else if (mensaje.t === 'recargado') {
+          setMotivoDeRecarga(mensaje.motivo)
           setRecargados((anterior) => anterior + 1)
+        } else if (mensaje.t === 'no_guardado') {
+          programar(() => { terminar('sin_conexion', 'no_guardado') }, 0)
         } else {
           programar(() => { terminar('sin_acceso') }, 0)
         }
@@ -285,6 +322,8 @@ export function useDocumentoColaborativo ({ nombre, pedirBoleto, activo, identid
     estado,
     ultimoGuardado,
     revision,
-    recargados
+    recargados,
+    motivoDeRecarga,
+    motivoDeFin
   }
 }

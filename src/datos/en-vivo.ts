@@ -232,12 +232,16 @@ export function crearClienteEnVivo (dependencias: DependenciasDelCliente): Clien
   }
 
   function alCerrar (codigo: number): void {
+    const habiaLlegadoAListo = conectado
+
     socket = null
     fijarEstado(false)
     olvidarPresencia()
 
-    // 4401: el boleto venció o no valió; el siguiente intento pide uno nuevo, sin esperar de más.
-    if (codigo === CIERRE_BOLETO) intentos = 0
+    // 4401 tras estar listo: el boleto venció con la conexión andando; el siguiente intento pide uno
+    // nuevo, sin esperar de más. Si nunca llegó a `listo`, el boleto no valió: backoff normal, o un
+    // servicio que lo rechaza siempre se golpearía sin pausa.
+    if (codigo === CIERRE_BOLETO && habiaLlegadoAListo) intentos = 0
     programarReconexion()
   }
 

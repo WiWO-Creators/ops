@@ -10,6 +10,7 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import { htmlAYDoc, yDocAHtml } from '../servicios/en-vivo/adaptadores/acta.ts'
+import { fusionarConLoAjeno } from '../servicios/en-vivo/bloques-acta.ts'
 
 const ACTA = [
   '<h1>Reunión semanal</h1>',
@@ -68,4 +69,33 @@ test('un enlace con protocolo peligroso no sobrevive al esquema', () => {
 
 test('dos documentos cargados del mismo HTML dicen lo mismo', () => {
   assert.equal(yDocAHtml(htmlAYDoc(ACTA)), yDocAHtml(htmlAYDoc(ACTA)))
+})
+
+test('fusionarConLoAjeno: lo ajeno entra y lo escrito sin guardar se conserva', () => {
+  const base = vuelta('<p>Uno</p><p>Dos</p><p>Tres</p>')
+  const local = htmlAYDoc(vuelta('<p>Uno</p><p>Dos local</p><p>Tres</p>'))
+  const ajeno = vuelta('<p>Uno ajeno</p><p>Dos</p><p>Tres</p><p>Cuatro</p>')
+
+  assert.equal(fusionarConLoAjeno(local, base, ajeno), 'fusionado')
+  assert.equal(yDocAHtml(local), vuelta('<p>Uno ajeno</p><p>Dos local</p><p>Tres</p><p>Cuatro</p>'))
+})
+
+test('fusionarConLoAjeno: si una persona editó el mismo bloque, quedan los dos textos y nada se pisa', () => {
+  const base = vuelta('<p>Uno</p><p>Dos</p>')
+  const local = htmlAYDoc(vuelta('<p>Uno local</p><p>Dos</p>'))
+  const ajeno = vuelta('<p>Uno ajeno</p><p>Dos</p>')
+
+  assert.equal(fusionarConLoAjeno(local, base, ajeno), 'fusionado')
+
+  const resultado = yDocAHtml(local)
+
+  assert.ok(resultado.includes('Uno local') && resultado.includes('Uno ajeno'))
+})
+
+test('fusionarConLoAjeno: sin diferencias entre base y board no toca el documento', () => {
+  const base = vuelta('<p>Uno</p>')
+  const local = htmlAYDoc('<p>Uno y más</p>')
+
+  assert.equal(fusionarConLoAjeno(local, base, base), 'sin_cambios')
+  assert.equal(yDocAHtml(local), vuelta('<p>Uno y más</p>'))
 })

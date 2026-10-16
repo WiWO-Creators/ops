@@ -18,6 +18,12 @@ export class ErrorDeBoleto extends Error {
   }
 }
 
+/** El boleto de un documento y si la persona puede escribir en él (si no, entra en solo lectura). */
+export interface BoletoConPermiso {
+  boleto: string
+  escritura: boolean
+}
+
 /**
  * Pide al BFF el boleto que abre un documento colaborativo (un acta, la descripción de una tarea o el
  * borrador de respuesta de un ticket).
@@ -31,6 +37,18 @@ export class ErrorDeBoleto extends Error {
  * @throws ErrorDeBoleto si el BFF lo niega, está apagado o no contesta
  */
 export async function pedirBoletoDeDocumento (documento: string, espacioId: number | null): Promise<string> {
+  return (await pedirBoletoConPermiso(documento, espacioId)).boleto
+}
+
+/**
+ * Como {@link pedirBoletoDeDocumento}, pero también dice si la persona puede escribir en el documento.
+ *
+ * @param documento nombre del documento (`acta:12`, `tarea:500`, `ticket-borrador:40`)
+ * @param espacioId id del Proyecto (Espacio) del acta; `null` en los documentos que no cuelgan de uno
+ * @returns el boleto y el permiso de escritura (`true` si el BFF no lo dice)
+ * @throws ErrorDeBoleto si el BFF lo niega, está apagado o no contesta
+ */
+export async function pedirBoletoConPermiso (documento: string, espacioId: number | null): Promise<BoletoConPermiso> {
   let respuesta: Response
 
   try {
@@ -47,10 +65,10 @@ export async function pedirBoletoDeDocumento (documento: string, espacioId: numb
 
   if (!respuesta.ok) throw new ErrorDeBoleto(`El boleto fue negado (${respuesta.status}).`, respuesta.status >= 500 && respuesta.status !== 503)
 
-  const cuerpo = await respuesta.json().catch(() => null) as { data?: { boleto?: unknown } } | null
+  const cuerpo = await respuesta.json().catch(() => null) as { data?: { boleto?: unknown, escritura?: unknown } } | null
   const boleto = cuerpo?.data?.boleto
 
   if (typeof boleto !== 'string' || boleto === '') throw new ErrorDeBoleto('La respuesta no trajo boleto.', false)
 
-  return boleto
+  return { boleto, escritura: cuerpo?.data?.escritura !== false }
 }

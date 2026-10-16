@@ -32,6 +32,8 @@ export type MensajeDelDocumento =
   | { t: 'guardado', revision: string | null }
   | { t: 'recargado', motivo: string }
   | { t: 'sin_acceso' }
+  /** El board no aceptó guardar (reintentos agotados o rechazo): el servicio cerró el documento. */
+  | { t: 'no_guardado' }
 
 /**
  * Lee un aviso suelto del servicio. Lo que no calza con un mensaje conocido se ignora: el cliente no
@@ -56,6 +58,7 @@ export function leerMensajeDelDocumento (texto: string): MensajeDelDocumento | n
   if (t === 'guardado' && (revision === null || (typeof revision === 'string' && revision !== ''))) return { t, revision }
   if (t === 'recargado') return { t, motivo: typeof motivo === 'string' ? motivo : '' }
   if (t === 'sin_acceso') return { t }
+  if (t === 'no_guardado') return { t }
 
   return null
 }

@@ -23,6 +23,7 @@ test('leerMensajeDelDocumento: reconoce guardado, recargado y sin_acceso', () =>
   assert.deepEqual(leerMensajeDelDocumento('{"t":"recargado","motivo":"conflicto"}'), { t: 'recargado', motivo: 'conflicto' })
   assert.deepEqual(leerMensajeDelDocumento('{"t":"recargado"}'), { t: 'recargado', motivo: '' })
   assert.deepEqual(leerMensajeDelDocumento('{"t":"sin_acceso"}'), { t: 'sin_acceso' })
+  assert.deepEqual(leerMensajeDelDocumento('{"t":"no_guardado"}'), { t: 'no_guardado' })
 })
 
 test('leerMensajeDelDocumento: ignora lo desconocido o malformado', () => {

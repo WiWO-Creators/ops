@@ -8,8 +8,17 @@ import {
 import type { Document } from '@hocuspocus/server'
 
 import { LIMITES_REPRODUCCION, TIEMPOS_REPRODUCCION } from '../../src/dominio/diff-acta.ts'
-import { bloquesComoHtml, ubicarTramosEnVivo, type AnclaDeTramo, type TramoUbicado } from '../../src/dominio/tramos-acta.ts'
-import { htmlAYDoc, yDocAHtml } from './adaptadores/acta.ts'
+import { bloquesComoHtml, ubicarTramosEnVivo, type TramoUbicado } from '../../src/dominio/tramos-acta.ts'
+import {
+  CAMPO,
+  htmlAYDoc,
+  htmlPorBloque,
+  indiceDeEntrada,
+  indiceVivo,
+  nodosDe,
+  yDocAHtml,
+  type HijoDelFragmento
+} from './bloques-acta.ts'
 import type { ServicioDeDocumentos } from './documentos.ts'
 import { registrar } from './registro.ts'
 
@@ -37,15 +46,6 @@ export const ORBE_USUARIO = { name: 'Thinking Orb', color: '#7c3aed' } as const
 
 /** Origen de las transacciones del orbe, sin guardado automático: el guardado lo manda al final el orbe. */
 const ORIGEN_ORBE = { source: 'local', skipStoreHooks: true, context: { orbe: true } } as const
-
-/** Nombre del fragmento Yjs donde vive el texto (el de la extensión de colaboración de TipTap). */
-const CAMPO = 'default'
-
-/** Un hijo del documento de acta: bloques (`XmlElement`) o texto; el esquema del acta no usa `XmlHook`. */
-type NodoXml = XmlElement | XmlText
-
-/** Cualquier hijo posible de un fragmento, tal como lo entrega `toArray()` (con `XmlHook` incluido). */
-type HijoDelFragmento = ReturnType<XmlFragment['toArray']>[number]
 
 /** Lo que el board manda a `interno/actas/{id}/aplicar`. */
 export interface PedidoDeAplicar {
@@ -105,19 +105,6 @@ const esperarReal = async (ms: number): Promise<void> => {
   await new Promise<void>((resolver) => setTimeout(resolver, ms))
 }
 
-/** Convierte HTML del board en los bloques Yjs que se insertarán; cada llamada devuelve copias nuevas. */
-function nodosDe (html: string): NodoXml[] {
-  return hijosDe(htmlAYDoc(html).getXmlFragment(CAMPO)).map((nodo) => nodo.clone())
-}
-
-function hijosDe (fragmento: XmlFragment): NodoXml[] {
-  return fragmento.toArray().filter((nodo): nodo is NodoXml => nodo instanceof XmlElement || nodo instanceof XmlText)
-}
-
-function indiceVivo (fragmento: XmlFragment, nodo: HijoDelFragmento | undefined): number {
-  return nodo === undefined ? -1 : fragmento.toArray().indexOf(nodo)
-}
-
 /** El último texto dentro de un bloque, para poner el cursor al final de lo escrito. */
 function ultimoTexto (nodo: HijoDelFragmento | undefined): XmlText | null {
   let actual: HijoDelFragmento | null | undefined = nodo
@@ -139,23 +126,38 @@ function mostrarCursor (documento: Document, anchor: unknown, head: unknown): vo
 }
 
 /**
- * El índice, en el fragmento tal como está ahora, donde entra el HTML de un tramo.
+ * De los bloques que el plan quiere reemplazar, deja solo los que siguen igual que al planear.
  *
- * El ancla se resuelve por identidad del bloque (no por posición): si una persona agrega o quita un
- * párrafo mientras el orbe escribe, la inserción cae junto a su bloque. Si el bloque ancla ya no
- * existe, el HTML entra al final.
+ * Entre el plan y cada reemplazo hay pausas de animación en las que una persona puede seguir
+ * escribiendo: un bloque que cambió desde entonces se conserva (misma regla de 3 bandas que al planear)
+ * y lo del orbe entra a continuación.
  *
- * @param modelo los hijos del fragmento al planear; los índices del ancla apuntan a él
+ * @param candidatos los bloques que el plan pensaba borrar en este tramo
+ * @param esperados el HTML de cada bloque al planear
+ * @param documento el documento vivo
+ * @returns los que se pueden borrar sin pisar texto ajeno, y cuántos se conservaron
  */
-function indiceDeEntrada (fragmento: XmlFragment, modelo: readonly HijoDelFragmento[], ancla: AnclaDeTramo): number {
-  if (ancla.tipo === 'inicio') return 0
-  if (ancla.tipo === 'fin') return fragmento.length
+function bloquesSinTocar (
+  candidatos: HijoDelFragmento[],
+  esperados: ReadonlyMap<HijoDelFragmento, string>,
+  documento: Document
+): { borrables: HijoDelFragmento[], conservados: number } {
+  if (candidatos.length === 0) return { borrables: [], conservados: 0 }
 
-  const vivo = indiceVivo(fragmento, modelo[ancla.vivo])
+  const actuales = htmlPorBloque(documento)
+  const borrables = candidatos.filter((nodo) => {
+    const antes = esperados.get(nodo)
 
-  if (vivo < 0) return fragmento.length
+    return antes !== undefined && actuales.get(nodo) === antes
+  })
 
-  return ancla.tipo === 'antes' ? vivo : vivo + 1
+  return { borrables, conservados: candidatos.length - borrables.length }
+}
+
+/** Cuántos tramos se aplicaron y cuántos bloques se conservaron porque una persona los cambió durante la reproducción. */
+interface ResultadoDeReproduccion {
+  aplicados: number
+  conservadosTarde: number
 }
 
 /**
@@ -164,18 +166,21 @@ function indiceDeEntrada (fragmento: XmlFragment, modelo: readonly HijoDelFragme
  * Los tramos traen índices de bloques del documento tal como estaba al planear (`modelo`); los bloques
  * que se borran y el bloque ancla se localizan por identidad Yjs y no por posición, de modo que los
  * cambios de otras personas mientras el orbe escribe no desplazan el reemplazo hacia otro bloque. Solo se
- * borran bloques que siguen idénticos a la base; el resto del documento no se toca.
+ * borran bloques que siguen idénticos a la base, y eso se vuelve a comprobar justo antes de cada
+ * reemplazo (las pausas de la animación dan tiempo a escribir); el resto del documento no se toca.
  *
- * @returns cuántos tramos se aplicaron
+ * @returns cuántos tramos se aplicaron y cuántos bloques se conservaron durante la reproducción
  */
-async function reproducir (documento: Document, tramos: TramoUbicado[], esperar: (ms: number) => Promise<void>): Promise<number> {
+async function reproducir (documento: Document, tramos: TramoUbicado[], esperar: (ms: number) => Promise<void>): Promise<ResultadoDeReproduccion> {
   const fragmento = documento.getXmlFragment(CAMPO)
   const modelo: HijoDelFragmento[] = fragmento.toArray()
+  const esperados = htmlPorBloque(documento)
+  let conservadosTarde = 0
   const pausa = async (ms: number, animada: boolean): Promise<void> => {
     if (animada && documento.getConnectionsCount() > 0) await esperar(ms)
   }
 
-  if (tramos.length === 0) return 0
+  if (tramos.length === 0) return { aplicados: 0, conservadosTarde }
 
   const inicio = posicionEn(fragmento, indiceDeEntrada(fragmento, modelo, tramos[0]?.ancla ?? { tipo: 'fin' }))
 
@@ -202,9 +207,12 @@ async function reproducir (documento: Document, tramos: TramoUbicado[], esperar:
     }
     await pausa(TIEMPOS_REPRODUCCION.salto + (sobran.length > 0 ? TIEMPOS_REPRODUCCION.pausaDeBorrado : 0), animada)
 
-    // ...y luego se reemplaza de una vez.
+    // ...y luego se reemplaza de una vez, tras comprobar que nadie tocó esos bloques durante la pausa.
+    const { borrables, conservados } = bloquesSinTocar(sobran, esperados, documento)
+
+    conservadosTarde += conservados
     documento.transact(() => {
-      for (const nodo of sobran) {
+      for (const nodo of borrables) {
         const indice = indiceVivo(fragmento, nodo)
 
         if (indice >= 0) fragmento.delete(indice, 1)
@@ -222,7 +230,7 @@ async function reproducir (documento: Document, tramos: TramoUbicado[], esperar:
     await pausa(TIEMPOS_REPRODUCCION.pausaDeEscritura, animada)
   }
 
-  return tramos.length
+  return { aplicados: tramos.length, conservadosTarde }
 }
 
 /**
@@ -305,7 +313,11 @@ export function aplicarComoOrbe (
           const tramos = planearTramos(documento, htmlBase, htmlNuevo)
 
           conservados = tramos.reduce((suma, tramo) => suma + tramo.conservados, 0)
-          aplicados = await reproducir(documento, tramos, esperar)
+
+          const reproduccion = await reproducir(documento, tramos, esperar)
+
+          aplicados = reproduccion.aplicados
+          conservados += reproduccion.conservadosTarde
         } finally {
           documento.awareness.setLocalState(null)
         }

@@ -14,6 +14,7 @@ import { tmpdir } from 'node:os'
 import { fileURLToPath } from 'node:url'
 import WebSocket from 'ws'
 import {
+  decidirModoDeArranque,
   leerConfiguracion,
   leerConfiguracionInactiva,
   secretosFaltantes
@@ -112,4 +113,77 @@ test('el proceso arranca sin secretos, avisa ready, registra una línea sin valo
   const [codigo] = await once(hijo, 'exit')
 
   assert.equal(codigo, 0)
+})
+
+const ENTORNO_VALIDO = {
+  EN_VIVO_SECRETO: SECRETO,
+  EN_VIVO_BOLETO_SECRETO: SECRETO_BOLETO,
+  EN_VIVO_ORIGENES: ORIGEN,
+  API_BASE: 'http://127.0.0.1:9/api/v1',
+  EN_VIVO_PUERTO: '0'
+}
+
+test('decidirModoDeArranque: activo con todo válido, inactivo sin secretos o con configuración inválida', () => {
+  assert.equal(decidirModoDeArranque(ENTORNO_VALIDO).modo, 'activo')
+
+  const sinSecretos = decidirModoDeArranque({ EN_VIVO_PUERTO: '0' })
+
+  assert.equal(sinSecretos.modo, 'inactivo')
+  assert.equal(sinSecretos.motivo, 'sin_configurar')
+  assert.deepEqual(sinSecretos.detalle, ['EN_VIVO_SECRETO', 'EN_VIVO_BOLETO_SECRETO'])
+
+  for (const [variable, valor] of [['EN_VIVO_ORIGENES', 'no-es-url-secreta'], ['API_BASE', 'ftp://x'], ['EN_VIVO_DEBOUNCE_MS', 'abc']]) {
+    const invalida = decidirModoDeArranque({ ...ENTORNO_VALIDO, [variable]: valor })
+
+    assert.equal(invalida.modo, 'inactivo', variable)
+    assert.equal(invalida.motivo, 'configuracion_invalida', variable)
+    assert.ok(invalida.detalle.join(' ').includes(variable), variable)
+    assert.ok(!invalida.detalle.join(' ').includes(valor), `${variable}: el detalle no lleva el valor`)
+  }
+})
+
+test('con secretos presentes pero configuración inválida el proceso arranca inactivo, avisa ready y no delata valores', async () => {
+  const entorno = { ...ENTORNO_VALIDO, PATH: process.env.PATH, EN_VIVO_HOST: '127.0.0.1', EN_VIVO_ORIGENES: 'valor-invalido-que-no-debe-salir' }
+  const hijo = spawn(process.execPath, [fileURLToPath(new URL('../servicios/en-vivo/servidor.ts', import.meta.url))], {
+    cwd: tmpdir(),
+    env: entorno,
+    stdio: ['ignore', 'pipe', 'pipe', 'ipc']
+  })
+  let salida = ''
+  let error = ''
+
+  hijo.stdout.on('data', (trozo) => { salida += trozo })
+  hijo.stderr.on('data', (trozo) => { error += trozo })
+
+  const [mensaje] = await Promise.race([
+    once(hijo, 'message'),
+    once(hijo, 'exit').then(([codigo]) => { throw new Error(`salió con ${codigo}: ${error}`) })
+  ])
+
+  assert.equal(mensaje, 'ready')
+
+  const lineas = salida.trim().split('\n').map((linea) => JSON.parse(linea))
+
+  assert.ok(lineas.some((l) => l.evento === 'inactivo' && l.motivo === 'configuracion_invalida' && String(l.detalle).includes('EN_VIVO_ORIGENES')))
+  assert.ok(!salida.includes(SECRETO) && !salida.includes(SECRETO_BOLETO) && !salida.includes('valor-invalido-que-no-debe-salir'))
+
+  hijo.kill('SIGTERM')
+
+  const [codigo] = await once(hijo, 'exit')
+
+  assert.equal(codigo, 0)
+})
+
+test('la salud del servicio inactivo por configuración inválida da el motivo', async () => {
+  const inactivo = crearServicioInactivo(leerConfiguracionInactiva({ EN_VIVO_PUERTO: '0' }), ['EN_VIVO_ORIGENES debe ser una URL.'], 'configuracion_invalida')
+  const puertoInactivo = await inactivo.escuchar()
+
+  try {
+    const respuesta = await fetch(`http://127.0.0.1:${puertoInactivo}${PREFIJO}/salud`)
+
+    assert.equal(respuesta.status, 503)
+    assert.deepEqual(await respuesta.json(), { ok: false, motivo: 'configuracion_invalida' })
+  } finally {
+    await inactivo.cerrar()
+  }
 })

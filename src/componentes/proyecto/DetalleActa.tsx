@@ -31,6 +31,7 @@ import { hayCambioAjeno, textoDeCambioAjeno } from '@/dominio/acta-concurrencia'
 import { EVENTO_ORBE_ESCRITURA, escrituraAlcanzaAlActa } from '@/dominio/orbe-escritura'
 import { useAviso } from '@/componentes/estado/useAviso'
 import { useConfigEnVivo } from '@/componentes/en-vivo/ProveedorEnVivo'
+import type { MotivoDeFin } from '@/componentes/en-vivo/useDocumentoColaborativo'
 import { ESPERA_TRAS_CERRAR_MS } from '@/dominio/acta-colaborativa'
 import type { Yo } from '@/datos/tipos'
 
@@ -331,10 +332,18 @@ export function DetalleActa ({
   }
 
   /** La edición conjunta no se sostuvo: sigue el editor de siempre, con lo último que se vio. */
-  function seguirSinConexion (ultimoHtml: string | null, ultimaRevision: string | null): void {
+  function seguirSinConexion (ultimoHtml: string | null, ultimaRevision: string | null, motivo: MotivoDeFin | null): void {
     setConjunta(false)
     edicion.continuarSinConexion(ultimoHtml, ultimaRevision)
-    aviso.info('No se pudo mantener la edición conjunta; sigues corrigiendo como siempre.')
+
+    if (motivo === 'cambios_sin_enviar') {
+      aviso.advertencia('Se cortó la conexión con lo último que escribiste. Tu texto sigue en el editor; guarda para no perderlo.')
+    } else if (motivo === 'no_guardado') {
+      aviso.advertencia('No se pudieron guardar los cambios de la edición conjunta. Tu texto sigue en el editor; guarda para no perderlo.')
+    } else {
+      aviso.info('No se pudo mantener la edición conjunta; sigues corrigiendo como siempre.')
+    }
+
     onRevalidar()
   }
 

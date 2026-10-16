@@ -9,6 +9,7 @@ import { GrupoEnlacesPersona } from '@/componentes/presentadores/GrupoEnlacesPer
 import { Insignia } from '@/componentes/presentadores/Insignia'
 import { colorDeColaborador, textoDeGuardado } from '@/dominio/acta-colaborativa'
 import { ASISTENTE, GLOSARIO } from '@/dominio/glosario'
+import type { MotivoDeFin } from '@/componentes/en-vivo/useDocumentoColaborativo'
 import { EditorDeActa } from '../EditorDeActa'
 import type { ComentariosDelEditor } from './comentariosDelEditor'
 import { useActaColaborativa } from './useActaColaborativa'
@@ -19,6 +20,23 @@ const ESPERA_DE_ENVIO_MS = 3000
 
 /** Cada cuánto se mira si ya llegó todo al servicio mientras se espera. */
 const SONDEO_DE_ENVIO_MS = 100
+
+/**
+ * El aviso cuando el servicio recarga el acta desde el board.
+ *
+ * @param motivo el motivo de la recarga que avisó el servicio
+ * @returns el texto: combinado con lo escrito aquí, conservando lo escrito aquí, o la última versión
+ */
+function textoDeRecarga (motivo: string | null): string {
+  const acta = GLOSARIO.acta.singular
+
+  if (motivo === 'fusionado') return `El ${acta} cambió fuera de la edición conjunta; se combinó con lo que escribías.`
+  if (motivo === 'conservado') {
+    return `El ${acta} cambió fuera de la edición conjunta y no se pudo combinar: se conservó lo que escribías y se guardará encima.`
+  }
+
+  return `El ${acta} cambió fuera de la edición conjunta; se cargó la última versión.`
+}
 
 interface PropsEdicionConjunta {
   actaId: number
@@ -34,9 +52,11 @@ interface PropsEdicionConjunta {
   onCerrar: () => void
   /**
    * La edición conjunta no se pudo sostener (no abrió, o se perdió y no volvió): se sigue con la
-   * edición de siempre. Trae lo último que se vio en el editor y la última revisión guardada, si hubo.
+   * edición de siempre. Trae lo último que se vio en el editor, la última revisión guardada (si hubo)
+   * y el motivo cuando había texto en juego (`cambios_sin_enviar` o `no_guardado`): quien lo recibe
+   * debe avisarlo, porque lo que se ve podría no estar en el board.
    */
-  onSinConexion: (html: string | null, revision: string | null) => void
+  onSinConexion: (html: string | null, revision: string | null, motivo: MotivoDeFin | null) => void
   /**
    * Los comentarios en línea, si están activos: el editor ofrece «Comentar». La marca de cada hilo
    * viaja por el documento compartido como cualquier otro texto.
@@ -110,13 +130,13 @@ export function EdicionConjuntaDelActa ({ actaId, proyectoId, marca, conIa, yo, 
     if (sesion.recargados === recargadosAvisados.current) return
 
     recargadosAvisados.current = sesion.recargados
-    aviso.advertencia(`El ${GLOSARIO.acta.singular} cambió fuera de la edición conjunta; se cargó la última versión.`)
+    aviso.advertencia(textoDeRecarga(sesion.motivoDeRecarga))
     // `aviso` es estable (funciones de módulo): no hace falta volver a correr por él.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [sesion.recargados])
 
   useEffect(() => {
-    if (sesion.estado === 'sin_conexion') onSinConexion(ultimoHtml.current, sesion.revision)
+    if (sesion.estado === 'sin_conexion') onSinConexion(ultimoHtml.current, sesion.revision, sesion.motivoDeFin)
     // Solo importa el paso a `sin_conexion`; el resto de los valores se leen en ese momento.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [sesion.estado])

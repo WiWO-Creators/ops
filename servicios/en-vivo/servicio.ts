@@ -117,7 +117,16 @@ export function crearServicio (config: ConfiguracionDelServicio, board: ClienteB
     if (origen === undefined || !config.origenes.includes(origen)) return rechazarUpgrade(socket, 403, 'Forbidden')
 
     if (pathname === `${config.prefijo}/doc`) {
-      socketsDeDocumentos.handleUpgrade(req, socket, cabeza, (ws) => { documentos.conectar(ws, req) })
+      socketsDeDocumentos.handleUpgrade(req, socket, cabeza, (ws) => {
+        // `clients` ya incluye este socket: pasarse del tope es tener más de los permitidos.
+        if (socketsDeDocumentos.clients.size > config.maxConexionesDeDocumento) {
+          ws.close(CIERRES.limite, 'limite')
+
+          return
+        }
+
+        documentos.conectar(ws, req)
+      })
     } else if (pathname === `${config.prefijo}/bus`) {
       socketsDeBus.handleUpgrade(req, socket, cabeza, (ws) => { bus.conectar(ws, req) })
     } else {

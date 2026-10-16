@@ -9,6 +9,7 @@ import {
 } from '@hocuspocus/server'
 import type { WebSocket } from 'ws'
 
+import { CIERRES } from '../../src/dominio/en-vivo.ts'
 import { verificarBoleto } from '../../src/lib/en-vivo/boleto.ts'
 import { adaptadorDe } from './adaptadores/indice.ts'
 import { ErrorDeAdaptador, type DocumentoReconocido, type EstadoDeDocumento } from './adaptadores/tipos.ts'
@@ -93,6 +94,8 @@ function reconocer (nombre: string, board: ClienteBoard): DocumentoReconocido {
  */
 export function crearHocuspocus (config: ConfiguracionDelServicio, board: ClienteBoard): ServicioDeDocumentos {
   const estados = new Map<string, EstadoDeDocumento>()
+  /** Las peticiones (una por socket) cuyo boleto ya se verificó. */
+  const autenticadas = new WeakSet<Request>()
 
   function exigirBoleto (token: string, nombre: string, estado: EstadoDeDocumento | undefined): ContextoDeDocumento {
     const boleto = verificarBoleto(token, config.secretoDeBoleto)
@@ -113,12 +116,13 @@ export function crearHocuspocus (config: ConfiguracionDelServicio, board: Client
    *
    * @throws Error `documento_desconocido` o `boleto_invalido` si el nombre o el boleto no valen
    */
-  async function onAuthenticate ({ token, documentName, connectionConfig }: onAuthenticatePayload): Promise<ContextoDeDocumento> {
+  async function onAuthenticate ({ token, documentName, connectionConfig, request }: onAuthenticatePayload): Promise<ContextoDeDocumento> {
     reconocer(documentName, board)
 
     const estado = estados.get(documentName)
     const contexto = exigirBoleto(token, documentName, estado)
 
+    autenticadas.add(request)
     if (!contexto.escritura || estado?.vetados.has(contexto.staffId) === true) connectionConfig.readOnly = true
 
     return contexto
@@ -202,22 +206,38 @@ export function crearHocuspocus (config: ConfiguracionDelServicio, board: Client
       // Lanzar deja el documento en memoria (Hocuspocus no lo descarga si el guardado falla).
       if (programarReintento(documento, estado, carga)) throw new Error('guardado_pendiente')
 
-      // Reintentos agotados: se suelta el documento.
+      // Reintentos agotados: se suelta el documento, pero antes se avisa a quienes lo tienen abierto.
       estado.pendiente = false
+      soltarSinGuardar(documento, estado)
 
       return
     }
 
     cancelarReintento(estado)
     estado.pendiente = false
+    // Cualquier desenlace distinto de «reintentar» (guardado, sin cambios, recarga...) cierra la racha de fallos.
+    estado.reintentos = 0
 
     if (resultado === 'guardado') {
-      estado.reintentos = 0
       documento.broadcastStateless(JSON.stringify({ t: 'guardado', revision: estado.revision }))
     } else if (resultado === 'sin_acceso') {
       documento.broadcastStateless(JSON.stringify({ t: 'sin_acceso' }))
       hocuspocus.closeConnections(nombre)
+    } else if (resultado === 'rechazado') {
+      soltarSinGuardar(documento, estado)
     }
+  }
+
+  /**
+   * Avisa que lo escrito no llegó al board y cierra el documento para todos.
+   *
+   * Cada cliente pasa al editor de siempre con el texto que tiene delante; seguir en la edición
+   * conjunta sería escribir sobre un documento que el board no acepta.
+   */
+  function soltarSinGuardar (documento: Document, estado: EstadoDeDocumento): void {
+    estado.reintentos = 0
+    documento.broadcastStateless(JSON.stringify({ t: 'no_guardado' }))
+    hocuspocus.closeConnections(documento.name)
   }
 
   async function beforeUnloadDocument ({ documentName }: { documentName: string }): Promise<void> {
@@ -248,14 +268,26 @@ export function crearHocuspocus (config: ConfiguracionDelServicio, board: Client
     afterUnloadDocument
   })
 
+  /**
+   * Adapta un socket a Hocuspocus.
+   *
+   * Un socket que no se autentica en `esperaDeHolaMs` se cierra con 4408, y sus pongs no cuentan como
+   * actividad hasta que se autentica: un cliente anónimo no puede tener la conexión abierta a cambio de nada.
+   */
   function conectar (ws: WebSocket, req: IncomingMessage): void {
     const peticion = new Request(`http://interno${req.url ?? '/'}`, { headers: cabecerasDeLaPeticion(req.headers) })
     const conexion = hocuspocus.handleConnection(ws, peticion)
+    const esperaDeAutenticacion = setTimeout(() => {
+      if (!autenticadas.has(peticion)) ws.close(CIERRES.sinHola, 'sin_hola')
+    }, config.esperaDeHolaMs)
 
     ws.on('message', (datos) => { conexion.handleMessage(aBytes(datos)) })
-    ws.on('close', (codigo, motivo) => { conexion.handleClose({ code: codigo, reason: motivo.toString() }) })
+    ws.on('close', (codigo, motivo) => {
+      clearTimeout(esperaDeAutenticacion)
+      conexion.handleClose({ code: codigo, reason: motivo.toString() })
+    })
     ws.on('error', () => { registrar({ evento: 'socket_de_documento_con_error' }) })
-    vigilarLatido(ws, config.latidoMs, () => { conexion.touch() })
+    vigilarLatido(ws, config.latidoMs, () => { if (autenticadas.has(peticion)) conexion.touch() })
   }
 
   async function sincronizar (nombre: string): Promise<void> {
@@ -268,6 +300,8 @@ export function crearHocuspocus (config: ConfiguracionDelServicio, board: Client
 
     // Dentro del mismo candado que el guardado: así no se compara con una revisión a medio actualizar.
     const resultado = await documento.saveMutex.runExclusive(async () => await adaptador.sincronizar(documento, estado))
+
+    if (resultado === 'recargado') estado.reintentos = 0
 
     if (resultado === 'sin_acceso') {
       documento.broadcastStateless(JSON.stringify({ t: 'sin_acceso' }))

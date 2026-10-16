@@ -173,6 +173,49 @@ test('si el servidor cierra, reintenta con espera y vuelve a pedir el boleto', a
   assert.deepEqual(pendientes, [], 'al desconectar no queda nada programado')
 })
 
+/** Un cliente con sockets de mentira: `abrir()` los deja a mano para ver qué hace el cliente al cerrarse cada uno. */
+function clienteConSocketsFalsos () {
+  const pendientes = []
+  const sockets = []
+  const cliente = crearClienteEnVivo({
+    crearSocket: () => {
+      const socket = { send: () => undefined, close: () => undefined, onopen: null, onmessage: null, onerror: null, onclose: null }
+
+      sockets.push(socket)
+
+      return socket
+    },
+    programar: (accion, ms) => { const tarea = { accion, ms }; pendientes.push(tarea); return tarea },
+    cancelar: (tarea) => { const i = pendientes.indexOf(tarea); if (i >= 0) pendientes.splice(i, 1) },
+    aleatorio: () => 0.5
+  })
+
+  return { cliente, pendientes, sockets, correr: () => pendientes.shift()?.accion() }
+}
+
+test('4401 sin haber llegado a «listo» mantiene el backoff creciente; tras «listo» lo reinicia', async () => {
+  const { cliente, pendientes, sockets, correr } = clienteConSocketsFalsos()
+  const desconectar = cliente.conectar({ url: 'ws://falso/en-vivo', pedirBoleto: async () => 'boleto' })
+
+  await esperarHasta(() => sockets.length === 1, 1000, 'el primer socket')
+  sockets[0].onclose({ code: 4401 })
+  assert.equal(pendientes.at(-1).ms, 1000, 'el primer fallo espera la base')
+
+  correr()
+  await esperarHasta(() => sockets.length === 2, 1000, 'el segundo socket')
+  sockets[1].onclose({ code: 4401 })
+  assert.equal(pendientes.at(-1).ms, 2000, 'rechazado de nuevo sin llegar a listo: el backoff crece')
+
+  correr()
+  await esperarHasta(() => sockets.length === 3, 1000, 'el tercer socket')
+  sockets[2].onmessage({ data: JSON.stringify({ t: 'listo', salas: [] }) })
+  assert.equal(cliente.estaConectado(), true)
+  sockets[2].onclose({ code: 4401 })
+  assert.equal(pendientes.at(-1).ms, 1000, 'el boleto venció con la conexión andando: se reintenta sin esperar de más')
+
+  desconectar()
+})
+
 test('sin boleto reintenta con espera creciente y no abre ningún socket', async () => {
   const { cliente, pendientes, correr } = clienteDePrueba()
   let pedidos = 0

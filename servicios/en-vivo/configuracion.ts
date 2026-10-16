@@ -25,7 +25,9 @@ export interface ConfiguracionDelServicio {
   maxDebounceMs: number
   tiempoApiMs: number
   maxConexiones: number
-  /** Cuánto espera el servicio un `hola` antes de cerrar el socket. */
+  /** Tope de sockets de documentos abiertos a la vez (aparte de los del bus). */
+  maxConexionesDeDocumento: number
+  /** Cuánto espera el servicio un `hola` (o la autenticación de un documento) antes de cerrar el socket. */
   esperaDeHolaMs: number
   /** Cada cuánto se hace ping a los sockets. */
   latidoMs: number
@@ -40,6 +42,7 @@ const DEBOUNCE_POR_DEFECTO_MS = 2000
 const MAX_DEBOUNCE_POR_DEFECTO_MS = 10_000
 const TIEMPO_API_POR_DEFECTO_MS = 5000
 const CONEXIONES_POR_DEFECTO = 2000
+const CONEXIONES_DE_DOCUMENTO_POR_DEFECTO = 500
 const ESPERA_DE_HOLA_POR_DEFECTO_MS = 5000
 const LATIDO_POR_DEFECTO_MS = 30_000
 
@@ -155,6 +158,41 @@ export function leerConfiguracionInactiva (env: Entorno = process.env): Configur
   }
 }
 
+/** Por qué el servicio arranca sin funciones: faltan los secretos, o la configuración presente no vale. */
+export type MotivoInactivo = 'sin_configurar' | 'configuracion_invalida'
+
+/** Cómo arranca el servicio según el entorno. */
+export type ModoDeArranque =
+  | { modo: 'activo', config: ConfiguracionDelServicio }
+  | { modo: 'inactivo', config: ConfiguracionInactiva, motivo: MotivoInactivo, detalle: string[] }
+
+/**
+ * Decide si el servicio arranca activo o inactivo.
+ *
+ * Sin secretos, o con secretos pero una configuración inválida (origen, API, tiempos), arranca inactivo:
+ * un servidor mal configurado queda sano para PM2 en vez de reiniciarse en bucle. El detalle son
+ * nombres de variables o mensajes de validación, que nunca llevan valores.
+ *
+ * @param env las variables de entorno; por defecto `process.env`
+ * @returns el modo de arranque con lo que cada uno necesita
+ * @throws Error si ni siquiera se puede validar dónde escuchar (puerto o prefijo inválidos)
+ */
+export function decidirModoDeArranque (env: Entorno = process.env): ModoDeArranque {
+  const faltantes = secretosFaltantes(env)
+
+  if (faltantes.length > 0) {
+    return { modo: 'inactivo', config: leerConfiguracionInactiva(env), motivo: 'sin_configurar', detalle: faltantes }
+  }
+
+  try {
+    return { modo: 'activo', config: leerConfiguracion(env) }
+  } catch (error) {
+    const detalle = error instanceof Error ? error.message : 'desconocido'
+
+    return { modo: 'inactivo', config: leerConfiguracionInactiva(env), motivo: 'configuracion_invalida', detalle: [detalle] }
+  }
+}
+
 /**
  * Valida el entorno y arma la configuración del servicio.
  *
@@ -187,6 +225,7 @@ export function leerConfiguracion (env: Entorno = process.env): ConfiguracionDel
     maxDebounceMs,
     tiempoApiMs: leerEntero(env, 'EN_VIVO_TIEMPO_API_MS', TIEMPO_API_POR_DEFECTO_MS, 200, 60_000),
     maxConexiones: leerEntero(env, 'EN_VIVO_MAX_CONEXIONES', CONEXIONES_POR_DEFECTO, 1, 100_000),
+    maxConexionesDeDocumento: leerEntero(env, 'EN_VIVO_MAX_CONEXIONES_DOC', CONEXIONES_DE_DOCUMENTO_POR_DEFECTO, 1, 100_000),
     esperaDeHolaMs: leerEntero(env, 'EN_VIVO_ESPERA_HOLA_MS', ESPERA_DE_HOLA_POR_DEFECTO_MS, 100, 60_000),
     latidoMs: leerEntero(env, 'EN_VIVO_LATIDO_MS', LATIDO_POR_DEFECTO_MS, 100, 300_000)
   }

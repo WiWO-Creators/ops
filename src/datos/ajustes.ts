@@ -21,14 +21,18 @@ import type { Ajustes } from './recursos.ts'
  *
  * Mismo reparto que `lookups.ts` (carga) y `catalogos.ts` (lectura pura).
  *
+ * `cache()` de React: memoiza por peticion, asi que `estadoIa`, `estadoEnVivo` y la pagina que los
+ * use en el mismo render comparten una sola `GET /settings`. No dura mas que la peticion, de modo
+ * que nadie ve ajustes viejos despues de guardar.
+ *
  * @returns Las opciones editables con su dominio y las de solo lectura.
  * @throws ErrorApi si la API responde con error. La sesion vencida la resuelve `pedir()`.
  */
-export async function leerAjustes (): Promise<Ajustes> {
+export const leerAjustes = cache(async (): Promise<Ajustes> => {
   const { data } = await pedir<Ajustes>('/settings')
 
   return data
-}
+})
 
 /**
  * Si la capa de IA esta encendida en esta instalacion, y por que no lo esta cuando no lo esta.

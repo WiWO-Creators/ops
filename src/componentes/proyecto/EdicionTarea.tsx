@@ -108,6 +108,9 @@ export function EdicionTarea (
   useAccionPresencia('editando_tarea')
   const aviso = useAviso()
   const { textos: textosEnConjunto } = useConfigEnVivo()
+  /** El editor conjunto dejo de sostenerse (sin conexion o sin acceso): la descripcion vuelve a guardarse con el formulario. */
+  const [conjuntoCaido, setConjuntoCaido] = useState(false)
+  const descripcionEnConjunto = textosEnConjunto && !conjuntoCaido
 
   const [inicial, setInicial] = useState(() => camposDeTarea(tarea, descripcion))
   const [campos, setCampos] = useState<CamposEdicion>(inicial)
@@ -400,7 +403,8 @@ export function EdicionTarea (
       return
     }
 
-    const cuerpo = cuerpoDeParche(inicial, campos)
+    // En conjunto la descripcion la guarda el servicio de «Ops en vivo»: el PATCH no la manda.
+    const cuerpo = cuerpoDeParche(inicial, campos, { sinDescripcion: descripcionEnConjunto })
     const parcheCampos = cuerpoDeCamposPersonalizados(
       'tasks', tarea.id, definiciones, personalizadosIniciales, personalizados
     )
@@ -774,6 +778,7 @@ export function EdicionTarea (
                       {...propsDelEditor}
                       key="conjunto"
                       documento={{ clase: 'tarea', id: tarea.id }}
+                      alCaerElConjunto={() => { setConjuntoCaido(true) }}
                       reemplazo={{ version: versionDescripcion, html: campos.descripcion }}
                     />
                     )

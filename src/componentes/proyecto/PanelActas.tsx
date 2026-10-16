@@ -11,6 +11,8 @@ import { BloqueCopiable } from '@/componentes/presentadores/BloqueCopiable'
 import { ACTAS } from '@/definiciones/actas'
 import { conId, type FuenteDeProyecto } from '@/dominio/fuente-proyecto'
 import { idPositivoDeTexto } from '@/dominio/pantalla'
+import { useConfigEnVivo } from '@/componentes/en-vivo/ProveedorEnVivo'
+import { useSalaDelEspacio } from '@/componentes/en-vivo/useSalaDelEspacio'
 import { useRecurso } from './carga'
 import { AsistenteDeActa } from './AsistenteDeActa'
 import { AsistenteDeTranscripcion } from './AsistenteDeTranscripcion'
@@ -133,6 +135,12 @@ function ActasDelProyecto ({
 }: PropsPanelActas): ReactElement {
   const router = useRouter()
   const params = useSearchParams()
+  const enVivo = useConfigEnVivo()
+
+  // Los avisos de actas y de comentarios del Proyecto llegan por su sala; solo para el equipo (el
+  // portal no tiene `yo`). Sin conexión el sondeo de cada pantalla sigue como siempre.
+  useSalaDelEspacio(proyectoId, enVivo.activo && yo !== undefined)
+
   const [revision, setRevision] = useState(0)
   const [revisionTranscripciones, setRevisionTranscripciones] = useState(0)
   const [motivoALaVista, setMotivoALaVista] = useState(false)

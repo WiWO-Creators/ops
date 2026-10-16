@@ -126,19 +126,40 @@ test('sin cambios no se guarda nada', async () => {
   assert.equal(board.estado.puts.length, 0)
 })
 
-test('un 409 recarga lo que tiene el board y avisa «recargado»', async () => {
+test('un 409 combina lo del board con lo que Ana escribió (3 bandas), avisa «fusionado» y guarda lo combinado', async () => {
   const { board, servicio } = await montar({ content: '<p>Inicial</p>' })
   const ana = conectar(servicio, { staffId: 11 })
 
   await esperarHasta(() => ana.sincronizado)
   // Alguien guarda el acta por otra vía mientras Ana escribe.
   board.estado.editarPorFuera('<p>Versión de otra persona</p>')
-  agregarParrafo(ana.ydoc, 'Esto se pierde')
+  const revisionAjena = board.estado.revision
 
-  await esperarHasta(() => ana.statelesss.some((m) => m.t === 'recargado'), 4000, 'el aviso de recarga')
-  assert.deepEqual(ana.statelesss.find((m) => m.t === 'recargado'), { t: 'recargado', motivo: 'conflicto' })
-  await esperarHasta(() => textos(ana.ydoc).join('|') === 'Versión de otra persona')
-  assert.equal(board.estado.puts.length, 0)
+  agregarParrafo(ana.ydoc, 'Esto no se pierde')
+
+  await esperarHasta(() => ana.statelesss.some((m) => m.t === 'recargado'), 4000, 'el aviso de fusión')
+  assert.deepEqual(ana.statelesss.find((m) => m.t === 'recargado'), { t: 'recargado', motivo: 'fusionado' })
+  await esperarHasta(() => board.estado.puts.length === 1, 6000, 'el guardado de lo combinado')
+
+  assert.deepEqual(textos(ana.ydoc), ['Versión de otra persona', 'Esto no se pierde'])
+  assert.equal(board.estado.puts[0].revision, revisionAjena, 'se guarda sobre la revisión nueva del board')
+  assert.ok(board.estado.puts[0].content.includes('Versión de otra persona') && board.estado.puts[0].content.includes('Esto no se pierde'))
+})
+
+test('un evento «acta» con una revisión nueva combina con el texto sin guardar en vez de descartarlo', async () => {
+  const { board, servicio } = await montar({ content: '<p>Uno</p><p>Dos</p>' }, { EN_VIVO_DEBOUNCE_MS: '8000', EN_VIVO_MAX_DEBOUNCE_MS: '9000' })
+  const ana = conectar(servicio, { staffId: 11 })
+
+  await esperarHasta(() => ana.sincronizado)
+  anexarTexto(ana.ydoc, 1, ' de Ana')
+  await esperar(200)
+
+  board.estado.editarPorFuera('<p>Uno ajeno</p><p>Dos</p>')
+  await enviarEventos(servicio.urlBase, [evento('acta', 12, { espacio: true }, 3)])
+  await esperarHasta(() => ana.statelesss.some((m) => m.t === 'recargado'), 4000, 'el aviso')
+
+  assert.deepEqual(ana.statelesss.find((m) => m.t === 'recargado'), { t: 'recargado', motivo: 'fusionado' })
+  await esperarHasta(() => textos(ana.ydoc).join('|') === 'Uno ajeno|Dos de Ana', 3000, 'los dos cambios juntos')
 })
 
 test('un evento «acta» del board con una revisión nueva recarga a los conectados', async () => {
@@ -251,6 +272,41 @@ test('si el board falla (5xx) el guardado se reintenta y no se pierde', async ()
   board.estado.estadoPut = null
   await esperarHasta(() => board.estado.puts.length === 1, 8000, 'el reintento')
   assert.ok(board.estado.puts[0].content.includes('Sobrevive al fallo'))
+})
+
+test('un 422 del board avisa «no_guardado» y cierra el documento para que cada cliente siga en el editor de siempre', async () => {
+  const { board, servicio } = await montar()
+  const ana = conectar(servicio, { staffId: 11 })
+
+  await esperarHasta(() => ana.sincronizado)
+  board.estado.estadoPut = 422
+  agregarParrafo(ana.ydoc, 'No entra')
+
+  await esperarHasta(() => ana.statelesss.some((m) => m.t === 'no_guardado'), 6000, 'el aviso no_guardado')
+  assert.equal(board.estado.puts.length, 0)
+  await esperarHasta(() => servicio.servicio.documentosCargados() === 0, 4000, 'el documento se suelta')
+})
+
+test('un socket de documento que no se autentica a tiempo se cierra con 4408', async () => {
+  const { servicio } = await montar({}, { EN_VIVO_ESPERA_HOLA_MS: '300' })
+  const ws = new WebSocketConOrigen(servicio.urlDoc)
+  const codigo = await new Promise((resolver) => ws.on('close', (c) => resolver(c)))
+
+  assert.equal(codigo, 4408)
+})
+
+test('los sockets de documento pasan el tope propio: el excedente se cierra con 4429 y los demás siguen', async () => {
+  const { servicio } = await montar({}, { EN_VIVO_MAX_CONEXIONES_DOC: '1' })
+  const primero = new WebSocketConOrigen(servicio.urlDoc)
+
+  await new Promise((resolver) => primero.once('open', resolver))
+
+  const segundo = new WebSocketConOrigen(servicio.urlDoc)
+  const codigo = await new Promise((resolver) => segundo.on('close', (c) => resolver(c)))
+
+  assert.equal(codigo, 4429)
+  assert.equal(primero.readyState, primero.OPEN)
+  primero.terminate()
 })
 
 test('al irse la última persona se guarda sin esperar el debounce', async () => {
@@ -487,6 +543,29 @@ async function montarConDosPersonas () {
 
   return { ...montaje, ana, beto }
 }
+
+test('3 bandas en vivo: si una persona edita el bloque durante la animación del orbe, se conserva su texto', async () => {
+  const { board, servicio, ana, beto } = await montarConDosPersonas()
+  const orbe = observarOrbe(ana)
+
+  await aplicarComoBoard(servicio, {
+    html: '<h1>Acta</h1><p>Uno del orbe</p><p>Dos</p><p>Tres</p>',
+    base: ACTA_BASE,
+    revision: board.estado.revision,
+    staffId: 33
+  })
+  await esperarHasta(() => orbe.vistos.length > 0, 3000, 'que aparezca el orbe')
+
+  // El plan ya se hizo con «Uno» intacto; Ana escribe en él mientras el orbe marca lo que va a reemplazar.
+  anexarTexto(ana.ydoc, 1, ' de Ana')
+
+  await esperarHasta(() => board.estado.puts.length === 1, 10_000, 'el guardado del orbe')
+
+  const esperado = ['Acta', 'Uno de Ana', 'Uno del orbe', 'Dos', 'Tres']
+
+  assert.deepEqual(textos(ana.ydoc), esperado)
+  assert.deepEqual(textos(beto.ydoc), esperado)
+})
 
 test('3 bandas: una edición humana sin guardar en el bloque que el orbe también cambia conserva los dos textos', async () => {
   const { board, servicio, ana, beto } = await montarConDosPersonas()

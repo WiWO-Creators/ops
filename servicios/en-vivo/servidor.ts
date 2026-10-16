@@ -1,7 +1,7 @@
 import { existsSync } from 'node:fs'
 import { loadEnvFile } from 'node:process'
 
-import { leerConfiguracion, leerConfiguracionInactiva, secretosFaltantes } from './configuracion.ts'
+import { decidirModoDeArranque } from './configuracion.ts'
 import { crearServicioInactivo } from './inactivo.ts'
 import { registrar } from './registro.ts'
 import { crearServicio, type Servicio } from './servicio.ts'
@@ -13,28 +13,25 @@ import { crearServicio, type Servicio } from './servicio.ts'
  * archivo), valida la configuración y se queda escuchando. Avisa a PM2 con `ready` cuando ya
  * acepta conexiones, y ante SIGINT/SIGTERM guarda los documentos pendientes antes de salir.
  *
- * Si faltan los secretos arranca en modo inactivo (solo `/salud`, ver `inactivo.ts`) en vez de
- * salir con error: así un deploy sin las variables del servidor no deja a PM2 reiniciando en bucle.
+ * Si faltan los secretos, o la configuración presente es inválida, arranca en modo inactivo (solo
+ * `/salud`, ver `inactivo.ts`) en vez de salir con error: así un deploy con las variables del
+ * servidor ausentes o mal escritas no deja a PM2 reiniciando en bucle.
  */
 
 /**
  * Elige el servicio según el entorno.
  *
- * @returns el servicio activo y su prefijo, o el inactivo si faltan secretos
- * @throws Error si la configuración presente es inválida (el mensaje no incluye valores)
+ * @returns el servicio activo y su prefijo, o el inactivo si faltan secretos o la configuración no vale
+ * @throws Error si ni el puerto ni el prefijo son válidos (el mensaje no incluye valores)
  */
 function elegirServicio (): { servicio: Servicio, prefijo: string } {
-  const faltantes = secretosFaltantes()
+  const arranque = decidirModoDeArranque()
 
-  if (faltantes.length > 0) {
-    const config = leerConfiguracionInactiva()
-
-    return { servicio: crearServicioInactivo(config, faltantes), prefijo: config.prefijo }
+  if (arranque.modo === 'inactivo') {
+    return { servicio: crearServicioInactivo(arranque.config, arranque.detalle, arranque.motivo), prefijo: arranque.config.prefijo }
   }
 
-  const config = leerConfiguracion()
-
-  return { servicio: crearServicio(config), prefijo: config.prefijo }
+  return { servicio: crearServicio(arranque.config), prefijo: arranque.config.prefijo }
 }
 
 async function iniciar (): Promise<void> {
