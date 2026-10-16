@@ -75,9 +75,41 @@ test('la sala gana sobre el cronometro y la jornada, y el orden es reunion, midi
   // En una sala sin jornada tambien es reunion: es lo que se sabe y no se esconde.
   assert.equal(situacionDePersona(fila(1, 'A'), 'cafe'), 'en_reunion')
   assert.deepEqual(
-    ['en_reunion', 'midiendo', 'en_jornada', 'sin_jornada'].map(etiquetaDeSituacion),
-    ['En reunión', 'Midiendo', 'En jornada', 'Sin jornada']
+    ['en_reunion', 'midiendo', 'teletrabajo', 'en_jornada', 'sin_jornada'].map(etiquetaDeSituacion),
+    ['En reunión', 'Midiendo', 'Teletrabajo', 'En jornada', 'Sin jornada']
   )
+})
+
+test('Teletrabajo es un estado propio: gana a «En jornada», pierde con la reunion y con el medidor', () => {
+  const remota = { ...JORNADA, modalidad: 'teletrabajo' }
+  const enOficina = { ...JORNADA, modalidad: 'oficina' }
+
+  assert.equal(situacionDePersona(fila(1, 'A', { jornada: remota }), null), 'teletrabajo')
+  assert.equal(situacionDePersona(fila(1, 'A', { jornada: enOficina }), null), 'en_jornada')
+  assert.equal(situacionDePersona(fila(1, 'A', { jornada: { ...JORNADA, modalidad: null } }), null), 'en_jornada')
+  // Una API sin la modalidad, o con un valor que el panel no conoce, se lee como «En jornada».
+  assert.equal(situacionDePersona(fila(1, 'A', { jornada: JORNADA }), null), 'en_jornada')
+  assert.equal(situacionDePersona(fila(1, 'A', { jornada: { ...JORNADA, modalidad: 'remoto' } }), null), 'en_jornada')
+  // «En reunión» sigue teniendo prioridad si esta en sala; midiendo tambien dice mas que el lugar.
+  assert.equal(situacionDePersona(fila(1, 'A', { jornada: remota }), 'general'), 'en_reunion')
+  assert.equal(situacionDePersona(fila(1, 'A', { jornada: remota, medidor: MEDIDOR }), null), 'midiendo')
+  // Sin jornada no hay modalidad que valga.
+  assert.equal(situacionDePersona(fila(1, 'A'), null), 'sin_jornada')
+  assert.equal(etiquetaDeSituacion('teletrabajo'), 'Teletrabajo')
+})
+
+test('repartir el tablero: el teletrabajo va entre midiendo y jornada y tiene tarjeta', () => {
+  const filas = [
+    fila(1, 'Zoe'),
+    fila(2, 'Ana', { jornada: JORNADA }),
+    fila(3, 'Beto', { jornada: { ...JORNADA, modalidad: 'teletrabajo' } }),
+    fila(4, 'Carla', { jornada: { ...JORNADA, modalidad: 'teletrabajo' }, medidor: MEDIDOR }),
+    fila(5, 'Dani', { jornada: { ...JORNADA, modalidad: 'teletrabajo' } })
+  ]
+  const { tarjetas, enReposo } = repartirTarjetas(filas, new Map([[5, 'general']]))
+
+  assert.deepEqual(tarjetas.map((f) => f.staff.name), ['Dani', 'Carla', 'Beto', 'Ana'])
+  assert.deepEqual(enReposo.map((f) => f.staff.name), ['Zoe'])
 })
 
 test('repartir el tablero: quien esta en una sala tiene tarjeta aunque no tenga jornada', () => {

@@ -12,7 +12,7 @@ import { esJefatura } from './escalon.ts'
 import { GLOSARIO } from './glosario.ts'
 import { puedeVerSeccion } from './permisos.ts'
 import { filtrarPorPalabras } from './busqueda.ts'
-import type { ClienteDeJornada, EstadoDeJornada } from '@/datos/live'
+import type { ClienteDeJornada, EstadoDeJornada, ModalidadDeJornada } from '@/datos/live'
 import type { Yo } from '@/datos/tipos'
 
 /**
@@ -468,6 +468,103 @@ export function recibeElResumenDelEquipo (yo: Pick<Yo, 'is_admin' | 'is_superadm
  */
 export function clienteDeJornada (estado: EstadoDeJornada | null): ClienteDeJornada | null {
   return estado?.open?.client ?? null
+}
+
+/** Las modalidades que la persona puede declarar, en el orden en que se ofrecen, con su rótulo. */
+export const OPCIONES_DE_MODALIDAD: ReadonlyArray<{ valor: ModalidadDeJornada, etiqueta: string }> = [
+  { valor: 'oficina', etiqueta: 'Oficina' },
+  { valor: 'teletrabajo', etiqueta: 'Teletrabajo' }
+]
+
+/**
+ * Si un valor es una modalidad de jornada conocida.
+ *
+ * @param valor lo que llegó de la API o de `localStorage`, sin fiarse de su forma
+ * @returns `true` solo para `oficina` y `teletrabajo`
+ */
+export function esModalidadDeJornada (valor: unknown): valor is ModalidadDeJornada {
+  return OPCIONES_DE_MODALIDAD.some((opcion) => opcion.valor === valor)
+}
+
+/**
+ * La modalidad declarada en una jornada, leída sin confiar en que venga.
+ *
+ * Igual que `clienteDeJornada()`: sin jornada, API vieja que no manda el campo, «sin indicar» y un
+ * valor que esta pantalla no conoce llegan todos a `null`, que se pinta como «sin elegir».
+ *
+ * @param jornada la jornada del tablero o el `open` de `GET /me/jornada`; `null` si no hay
+ * @returns la modalidad, o `null`
+ */
+export function modalidadDeJornada (jornada: { modalidad?: unknown } | null | undefined): ModalidadDeJornada | null {
+  const valor = jornada?.modalidad
+
+  return esModalidadDeJornada(valor) ? valor : null
+}
+
+/** Donde se recuerda la última modalidad que eligió esta persona al abrir su jornada. */
+export function claveDeModalidad (staffId: number): string {
+  return `wiwo:modalidad-jornada:v1:${staffId}`
+}
+
+/**
+ * La última modalidad que eligió esta persona, para ofrecerla preseleccionada al abrir el día.
+ *
+ * Un fallo del almacenamiento (ventana privada, sitio bloqueado) o un valor desconocido degradan a
+ * `null`: lo único que se pierde es la comodidad de que se acuerde, y la elección sigue siendo
+ * opcional.
+ *
+ * @param almacenamiento normalmente `window.localStorage`
+ * @param staffId de quién es la preferencia
+ * @returns la modalidad recordada, o `null`
+ */
+export function modalidadRecordada (almacenamiento: Almacenamiento, staffId: number): ModalidadDeJornada | null {
+  try {
+    const valor = almacenamiento.getItem(claveDeModalidad(staffId))
+
+    return esModalidadDeJornada(valor) ? valor : null
+  } catch {
+    return null
+  }
+}
+
+/**
+ * Recuerda la modalidad elegida, o la olvida con `null`.
+ *
+ * @param almacenamiento normalmente `window.localStorage`
+ * @param staffId de quién es la preferencia
+ * @param modalidad lo elegido; `null` borra la preferencia
+ * @returns `false` si el navegador no dejó guardar; la elección vale igual en esta pestaña
+ */
+export function recordarModalidad (
+  almacenamiento: Almacenamiento,
+  staffId: number,
+  modalidad: ModalidadDeJornada | null
+): boolean {
+  try {
+    if (modalidad === null) almacenamiento.removeItem(claveDeModalidad(staffId))
+    else almacenamiento.setItem(claveDeModalidad(staffId), modalidad)
+
+    return true
+  } catch {
+    return false
+  }
+}
+
+/**
+ * Qué decirle a quien intentó cambiar la modalidad de la jornada abierta y no se pudo.
+ *
+ * `409` es «no tienes ninguna jornada abierta» (se cerró sola o desde otra pestaña) y `422` solo
+ * sale con una API que no conoce el valor: esta interfaz no puede mandar otro.
+ *
+ * @param estado código HTTP de la respuesta; `0` si la petición no llegó a salir
+ * @returns el mensaje a mostrar; nunca vacío
+ */
+export function mensajeDeFalloDeModalidad (estado: number): string {
+  if (estado === ESTADO_INCIERTO) return MENSAJE_ESCRITURA_INCIERTA
+  if (estado === 0) return 'No se pudo contactar al servidor. Revisa la conexión.'
+  if (estado === 409) return 'No tienes ninguna jornada abierta a la que ponerle modalidad.'
+
+  return `No se pudo guardar la modalidad de la jornada (el servidor respondió ${estado}).`
 }
 
 /**

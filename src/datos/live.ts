@@ -50,7 +50,16 @@ export interface JornadaEnVivo {
   started_at: string
   seconds: number
   client?: ClienteDeJornada | null
+  /**
+   * Cómo trabaja la persona hoy, si lo declaró. Opcional y anulable por lo mismo que `client`:
+   * ausente es una API sin la migración `1670`, `null` es «sin indicar». Viaja en el tablero y en
+   * las rutas propias; se lee con `modalidadDeJornada()` y no a pelo.
+   */
+  modalidad?: ModalidadDeJornada | null
 }
+
+/** Cómo declara una persona que trabaja su jornada: en la oficina o en teletrabajo. */
+export type ModalidadDeJornada = 'oficina' | 'teletrabajo'
 
 /** Lo que se abre al arrancar la jornada. */
 export interface JornadaAbierta {

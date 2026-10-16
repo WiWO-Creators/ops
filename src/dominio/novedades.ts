@@ -53,6 +53,13 @@ export const ROTULO_TIPO: Record<TipoNovedad, string> = {
  */
 export const NOVEDADES: Novedad[] = [
   {
+    fecha: '2026-10-16',
+    tipo: 'nuevo',
+    titulo: 'Di si trabajas en la oficina o en teletrabajo',
+    detalle: 'Al iniciar tu jornada puedes elegir «Oficina» o «Teletrabajo» (es opcional y se acuerda de tu última elección), y cambiarla después desde el control de jornada de la cabecera. Quien ve al equipo en «En vivo» ve «Teletrabajo» en la tarjeta de quienes lo eligieron.',
+    commits: []
+  },
+  {
     fecha: '2026-10-15',
     tipo: 'nuevo',
     titulo: 'Mira qué cambió en un Meeting Paper y quién lo hizo',

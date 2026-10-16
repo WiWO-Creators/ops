@@ -4764,6 +4764,23 @@ function idOpcional (valor, campo) {
   return valor
 }
 
+/** Las modalidades de jornada que acepta la API (`Escritura\Jornada::MODALIDADES`). */
+const MODALIDADES_DE_JORNADA = ['oficina', 'teletrabajo']
+
+/**
+ * La modalidad del cuerpo, como la valida la API: ausente, nula y vacia son "sin indicar" (`null`);
+ * cualquier otra cosa fuera de la lista es 422 `modalidad: ['invalido']`.
+ */
+function modalidadOpcional (valor) {
+  if (valor === undefined || valor === null || valor === '') return null
+
+  if (typeof valor !== 'string' || !MODALIDADES_DE_JORNADA.includes(valor)) {
+    throw new ErrorApi(422, 'validation_failed', 'Hay campos que no se pueden guardar.', { modalidad: ['invalido'] })
+  }
+
+  return valor
+}
+
 /** El Cliente existe y no esta en la papelera, o 422. Devuelve su id. */
 function exigirCliente (id) {
   const cliente = CLIENTES.find((c) => c.id === id)
@@ -4790,7 +4807,8 @@ function presentarJornada (jornada) {
     id: jornada.id,
     started_at: jornada.started_at,
     seconds: segundosDesde(jornada.started_at),
-    client: clienteDeJornada(jornada)
+    client: clienteDeJornada(jornada),
+    modalidad: jornada.modalidad ?? null
   }
 }
 
@@ -5031,7 +5049,10 @@ const RUTAS_DE_PRESENCIA = ['/tareas/12', '/proyectos/3', '/inicio', '/cosa-rara
 function jornadaDeRelleno (indice) {
   const abierta = new Date(Date.now() - (2 + indice) * 3600_000).toISOString().replace(/\.\d{3}Z$/, 'Z')
 
-  return { id: 9000 + indice, started_at: abierta, seconds: segundosDesde(abierta), client: null }
+  // Una de cada tres personas de relleno declara teletrabajo, una oficina y el resto no indico nada.
+  const modalidad = indice % 3 === 1 ? 'teletrabajo' : indice % 3 === 0 ? 'oficina' : null
+
+  return { id: 9000 + indice, started_at: abierta, seconds: segundosDesde(abierta), client: null, modalidad }
 }
 
 /** El medidor de relleno de una persona: una Tarea de un Espacio, con el Cliente del Espacio. */
@@ -5074,7 +5095,9 @@ function tableroDeLive () {
         cargo: indice % 2 === 0 ? 'Diseñadora' : null,
         area: AREAS.find((a) => a.id === persona.area_id)?.name ?? null
       },
-      jornada: jornada === null ? null : { id: jornada.id, started_at: jornada.started_at, seconds: jornada.seconds },
+      jornada: jornada === null
+        ? null
+        : { id: jornada.id, started_at: jornada.started_at, seconds: jornada.seconds, modalidad: jornada.modalidad ?? null },
       medidor,
       presencia: { last_seen: ahoraIso(), seconds_ago: indice * 25, route: ruta, phrase: `en ${ruta}` },
       seconds_today: medidor === null ? 0 : medidor.seconds
@@ -5254,11 +5277,13 @@ async function jornadaRuta (metodo, resto, actual, cuerpo) {
     const { espacioId, procesoId } = resolverDestino(entrada)
     const clienteId = idOpcional(entrada.client_id, 'client_id')
     const cliente = clienteId === null ? null : exigirCliente(clienteId)
+    const modalidad = modalidadOpcional(entrada.modalidad)
 
     JORNADAS.set(actual.id, {
       id: ++SIGUIENTE_JORNADA,
       started_at: ahoraIso(),
       client_id: cliente,
+      modalidad,
       medidos: 0,
       timer: null
     })
@@ -5274,6 +5299,18 @@ async function jornadaRuta (metodo, resto, actual, cuerpo) {
     if (!jornada) throw new ErrorApi(409, 'conflict', 'No tienes ninguna jornada abierta.')
 
     const entrada = (await cuerpo()) ?? {}
+
+    // La modalidad se cambia sola o junto al Cliente; se valida todo antes de escribir nada.
+    if ('modalidad' in entrada) {
+      const modalidad = modalidadOpcional(entrada.modalidad)
+      const clienteId = 'client_id' in entrada ? idOpcional(entrada.client_id, 'client_id') : undefined
+      const cliente = clienteId === undefined || clienteId === null ? null : exigirCliente(clienteId)
+
+      if (clienteId !== undefined) jornada.client_id = cliente
+      jornada.modalidad = modalidad
+
+      return { estado: 200, cuerpo: conDatos(estadoDelDia(actual.id)) }
+    }
 
     // La clave tiene que venir: un PATCH sin `client_id` es un error de quien lo manda, no un
     // borrado silencioso. Para quitarlo se manda `client_id: null` explicito.

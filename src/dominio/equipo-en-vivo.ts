@@ -1,6 +1,7 @@
 import { LOCALE, ZONA_NEGOCIO } from '../lib/fechas.ts'
 import { etiquetaDePantalla, pantallaParaAgente } from './orbe-contexto.ts'
 import { GLOSARIO } from './glosario.ts'
+import { modalidadDeJornada } from './live.ts'
 import { SALA_PRIVADA_PARA_EL_EQUIPO, salaComunPorId } from './teletrabajo.ts'
 import type { FilaDeLive, PresenciaEnVivo } from '@/datos/live'
 
@@ -20,7 +21,7 @@ import type { FilaDeLive, PresenciaEnVivo } from '@/datos/live'
  */
 
 /** Cómo se encuentra una persona en el tablero, de lo más a lo menos activo. */
-export type SituacionDePersona = 'en_reunion' | 'midiendo' | 'en_jornada' | 'sin_jornada'
+export type SituacionDePersona = 'en_reunion' | 'midiendo' | 'teletrabajo' | 'en_jornada' | 'sin_jornada'
 
 /** Las dos mitades del tablero: quién tiene tarjeta y quién va en la lista plegada. */
 export interface TableroDeTarjetas {
@@ -80,7 +81,9 @@ export function etiquetaDeSala (sala: string): string {
  * En qué situación está una persona del tablero.
  *
  * Estar en una sala gana sobre todo lo demás: es lo más específico que se sabe y explica por qué un
- * cronómetro puede estar quieto. Sin sala, manda el medidor y después la jornada.
+ * cronómetro puede estar quieto. Sin sala, manda el medidor; después, la jornada abierta, que se lee
+ * «Teletrabajo» si la persona declaró esa modalidad y «En jornada» si no. El medidor gana sobre el
+ * teletrabajo porque dice qué está haciendo; la tarjeta muestra aparte que lo hace en teletrabajo.
  *
  * @param fila la persona tal como llega de `GET /live`
  * @param sala la sala en que está ahora, o `null`/`undefined` si no está en ninguna o no se sabe
@@ -88,7 +91,7 @@ export function etiquetaDeSala (sala: string): string {
 export function situacionDePersona (fila: FilaDeLive, sala: string | null | undefined): SituacionDePersona {
   if (sala !== null && sala !== undefined) return 'en_reunion'
   if (fila.medidor !== null) return 'midiendo'
-  if (fila.jornada !== null) return 'en_jornada'
+  if (fila.jornada !== null) return modalidadDeJornada(fila.jornada) === 'teletrabajo' ? 'teletrabajo' : 'en_jornada'
 
   return 'sin_jornada'
 }
@@ -97,6 +100,7 @@ export function situacionDePersona (fila: FilaDeLive, sala: string | null | unde
 const ETIQUETA_DE_SITUACION: Record<SituacionDePersona, string> = {
   en_reunion: 'En reunión',
   midiendo: 'Midiendo',
+  teletrabajo: 'Teletrabajo',
   en_jornada: 'En jornada',
   sin_jornada: 'Sin jornada'
 }
@@ -140,7 +144,7 @@ export function horaDeInicio (instante: string | null | undefined): string | nul
  * Reparte el tablero en quién tiene tarjeta y quién va en la lista de «sin jornada».
  *
  * Tiene tarjeta quien está en una sala, tiene jornada o tiene un medidor. El orden es el de la
- * situación —reunión, midiendo, jornada— y a igualdad alfabético, que es el único que no reacomoda
+ * situación —reunión, midiendo, teletrabajo, jornada— y a igualdad alfabético, que es el único que no reacomoda
  * la lista sola en cada refresco.
  *
  * @param filas el tablero tal como llega de `GET /live`
@@ -148,7 +152,13 @@ export function horaDeInicio (instante: string | null | undefined): string | nul
  * @returns las dos mitades; nunca modifica `filas`
  */
 export function repartirTarjetas (filas: readonly FilaDeLive[], salas: ReadonlyMap<number, string> | null): TableroDeTarjetas {
-  const peso: Record<SituacionDePersona, number> = { en_reunion: 3, midiendo: 2, en_jornada: 1, sin_jornada: 0 }
+  const peso: Record<SituacionDePersona, number> = {
+    en_reunion: 4,
+    midiendo: 3,
+    teletrabajo: 2,
+    en_jornada: 1,
+    sin_jornada: 0
+  }
   const situacion = (fila: FilaDeLive): SituacionDePersona => situacionDePersona(fila, salas?.get(fila.staff.id))
   const ordenadas = [...filas].sort((a, b) =>
     peso[situacion(b)] - peso[situacion(a)] || a.staff.name.localeCompare(b.staff.name, 'es')

@@ -24,7 +24,15 @@ import {
   alcanceDeLive,
   claveDeJornadaPospuesta,
   claveDeRecordatorioDeDestino,
+  claveDeModalidad,
   clienteDeJornada,
+  ESTADO_INCIERTO,
+  MENSAJE_ESCRITURA_INCIERTA,
+  mensajeDeFalloDeModalidad,
+  modalidadDeJornada,
+  modalidadRecordada,
+  OPCIONES_DE_MODALIDAD,
+  recordarModalidad,
   recibeElResumenDelEquipo,
   fijarRecordatorioDeDestino,
   filtrarEspaciosDelCombo,
@@ -697,4 +705,46 @@ test('una escritura sin respuesta no se presenta como un fallo ni como un exito'
     assert.match(mensaje, /no sabemos si/i)
   }
   assert.notEqual(dominio.ESTADO_INCIERTO, 0, 'no se confunde con «no llegó a salir»')
+})
+
+/**
+ * La modalidad se lee sin confiar en que venga, igual que el Cliente: una API sin la migracion `1670`
+ * no manda el campo, y un valor que el panel no conoce no puede colarse como si fuera uno.
+ */
+test('la modalidad se lee igual venga, falte, sea null o sea desconocida', () => {
+  assert.equal(modalidadDeJornada({ modalidad: 'teletrabajo' }), 'teletrabajo')
+  assert.equal(modalidadDeJornada({ modalidad: 'oficina' }), 'oficina')
+  assert.equal(modalidadDeJornada({ modalidad: null }), null)
+  assert.equal(modalidadDeJornada({}), null)
+  assert.equal(modalidadDeJornada({ modalidad: 'remoto' }), null)
+  assert.equal(modalidadDeJornada({ modalidad: 1 }), null)
+  assert.equal(modalidadDeJornada(null), null)
+  assert.equal(modalidadDeJornada(undefined), null)
+  assert.equal(modalidadDeJornada(dia().open), null)
+  assert.deepEqual(OPCIONES_DE_MODALIDAD.map((o) => o.etiqueta), ['Oficina', 'Teletrabajo'])
+})
+
+test('la ultima modalidad elegida se recuerda por persona y se puede olvidar', () => {
+  const alm = almacenamiento()
+
+  assert.equal(modalidadRecordada(alm, STAFF), null)
+  assert.equal(recordarModalidad(alm, STAFF, 'teletrabajo'), true)
+  assert.equal(modalidadRecordada(alm, STAFF), 'teletrabajo')
+  assert.equal(modalidadRecordada(alm, STAFF + 1), null, 'no se hereda entre cuentas del mismo navegador')
+  assert.equal(recordarModalidad(alm, STAFF, null), true)
+  assert.equal(modalidadRecordada(alm, STAFF), null)
+  assert.equal(alm.datos.size, 0, 'olvidar borra la clave en vez de guardar un vacio')
+})
+
+test('una modalidad guardada que ya no existe, o un almacenamiento bloqueado, degradan a sin elegir', () => {
+  assert.equal(modalidadRecordada(almacenamiento({ [claveDeModalidad(STAFF)]: 'hibrido' }), STAFF), null)
+  assert.equal(modalidadRecordada(almacenamientoBloqueado(), STAFF), null)
+  assert.equal(recordarModalidad(almacenamientoBloqueado(), STAFF, 'oficina'), false)
+})
+
+test('los fallos al cambiar la modalidad dicen que paso y no inventan certezas', () => {
+  assert.equal(mensajeDeFalloDeModalidad(ESTADO_INCIERTO), MENSAJE_ESCRITURA_INCIERTA)
+  assert.match(mensajeDeFalloDeModalidad(0), /contactar al servidor/)
+  assert.match(mensajeDeFalloDeModalidad(409), /ninguna jornada abierta/)
+  assert.match(mensajeDeFalloDeModalidad(500), /500/)
 })

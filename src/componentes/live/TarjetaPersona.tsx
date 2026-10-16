@@ -19,6 +19,7 @@ import {
   situacionDePersona,
   type SituacionDePersona
 } from '@/dominio/equipo-en-vivo'
+import { modalidadDeJornada } from '@/dominio/live'
 import { cn } from '@/lib/clases'
 import { cargoYArea } from './presentacion'
 
@@ -26,6 +27,7 @@ import { cargoYArea } from './presentacion'
 const TONO_DE_SITUACION: Record<SituacionDePersona, TonoInsignia> = {
   en_reunion: 'acento',
   midiendo: 'exito',
+  teletrabajo: 'neutro',
   en_jornada: 'neutro',
   sin_jornada: 'contorno'
 }
@@ -152,6 +154,9 @@ export function TarjetaPersona ({ fila, transcurrido, sala, estados = [], onVerR
             <span className="text-texto-sutil text-xs font-normal">
               Jornada {formatearDuracion(jornada.seconds + transcurrido)}
               {desde !== null && ` · desde ${desde}`}
+              {/* Con el sello ya dicho «Teletrabajo» no se repite; con «Midiendo» o «En reunión» el
+                  sello es otro y la modalidad se lee aquí. */}
+              {modalidadDeJornada(jornada) === 'teletrabajo' && situacion !== 'teletrabajo' && ' · Teletrabajo'}
             </span>
           )}
         </div>
